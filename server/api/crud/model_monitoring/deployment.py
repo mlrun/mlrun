@@ -97,6 +97,7 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        force_build: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -109,15 +110,20 @@ class MonitoringDeployment:
                                  stream functions, which are real time nuclio functino.
                                  By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        :param force_build:      If true, force the build of the functions images. Default is False.
         """
         extra_functions = []
         self.deploy_model_monitoring_controller(
-            controller_image=image, base_period=base_period
+            controller_image=image, base_period=base_period, force_build=force_build
         )
-        self.deploy_model_monitoring_writer_application(writer_image=image)
-        self.deploy_model_monitoring_stream_processing(stream_image=image)
+        self.deploy_model_monitoring_writer_application(
+            writer_image=image, force_build=force_build
+        )
+        self.deploy_model_monitoring_stream_processing(
+            stream_image=image, force_build=force_build
+        )
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, force_build=force_build)
             extra_functions.append(
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
@@ -136,7 +142,10 @@ class MonitoringDeployment:
         )
 
     def deploy_model_monitoring_stream_processing(
-        self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
+        self,
+        stream_image: str = "mlrun/mlrun",
+        overwrite: bool = False,
+        force_build: bool = False,
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -146,6 +155,7 @@ class MonitoringDeployment:
         :param stream_image:                The image of the model monitoring stream function.
                                             By default, the image is mlrun/mlrun.
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
+        :param force_build:                 If true, force the build of the function image. Default is False.
         """
 
         if not self._check_if_already_deployed(
@@ -170,7 +180,9 @@ class MonitoringDeployment:
                 stream_image = prev_stream_function["spec"]["image"]
 
             fn = self._initial_model_monitoring_stream_processing_function(
-                stream_image=stream_image, parquet_target=parquet_target
+                stream_image=stream_image,
+                parquet_target=parquet_target,
+                force_build=force_build,
             )
 
             # Adding label to the function - will be used to identify the stream pod
@@ -191,6 +203,7 @@ class MonitoringDeployment:
         base_period: int,
         controller_image: str = "mlrun/mlrun",
         overwrite: bool = False,
+        force_build: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller function.
@@ -202,12 +215,15 @@ class MonitoringDeployment:
                                             By default, the image is mlrun/mlrun.
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
+        :param force_build:                 If true, force the build of the function image. Default is False.
         """
         if not self._check_if_already_deployed(
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             overwrite=overwrite,
         ):
-            fn = self._get_model_monitoring_controller_function(image=controller_image)
+            fn = self._get_model_monitoring_controller_function(
+                image=controller_image, force_build=force_build
+            )
             minutes = base_period
             hours = days = 0
             batch_dict = {
@@ -235,7 +251,10 @@ class MonitoringDeployment:
             )
 
     def deploy_model_monitoring_writer_application(
-        self, writer_image: str = "mlrun/mlrun", overwrite: bool = False
+        self,
+        writer_image: str = "mlrun/mlrun",
+        overwrite: bool = False,
+        force_build: bool = False,
     ) -> None:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
@@ -245,6 +264,7 @@ class MonitoringDeployment:
         :param writer_image:                The image of the model monitoring writer function.
                                             By default, the image is mlrun/mlrun.
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
+        :param force_build:                 If true, force the build of the function image. Default is False.
         """
 
         if not self._check_if_already_deployed(
@@ -252,7 +272,7 @@ class MonitoringDeployment:
             overwrite=overwrite,
         ):
             fn = self._initial_model_monitoring_writer_function(
-                writer_image=writer_image
+                writer_image=writer_image, force_build=force_build
             )
 
             # Adding label to the function - will be used to identify the writer pod
@@ -341,6 +361,7 @@ class MonitoringDeployment:
         self,
         stream_image: str,
         parquet_target: str,
+        force_build: bool = False,
     ):
         """
         Initialize model monitoring stream processing function.
@@ -348,6 +369,7 @@ class MonitoringDeployment:
         :param stream_image:   The image of the model monitoring stream function.
         :param parquet_target: Path to model monitoring parquet file that will be generated by the
                                monitoring stream nuclio function.
+        :param force_build:    If true, force the build of the function image. Default is False.
 
         :return:               A function object from a mlrun runtime class
 
@@ -376,13 +398,12 @@ class MonitoringDeployment:
             ),
         )
 
-        # Get existing image of the controller function
-        nuclio_image = self._get_existing_nuclio_image(
-            name=mm_constants.MonitoringFunctionNames.STREAM,
-            base_image=stream_image,
-        )
-        if nuclio_image:
-            function.set_config("spec.image", nuclio_image)
+        if not force_build:
+            self._reuse_image(
+                function=function,
+                name=mm_constants.MonitoringFunctionNames.STREAM,
+                base_image=stream_image,
+            )
 
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
@@ -405,11 +426,14 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_model_monitoring_controller_function(self, image: str):
+    def _get_model_monitoring_controller_function(
+        self, image: str, force_build: bool = False
+    ):
         """
         Initialize model monitoring controller function.
 
         :param image:         Base docker image to use for building the function container
+        :param force_build:   If true, force the build of the function image. Default is False.
         :return:              A function object from a mlrun runtime class
         """
         # Create job function runtime for the controller
@@ -422,13 +446,12 @@ class MonitoringDeployment:
             handler="handler",
         )
 
-        # Get existing image of the controller function
-        nuclio_image = self._get_existing_nuclio_image(
-            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            base_image=image,
-        )
-        if nuclio_image:
-            function.set_config("spec.image", nuclio_image)
+        if not force_build:
+            self._reuse_image(
+                function=function,
+                name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                base_image=image,
+            )
 
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
@@ -488,11 +511,14 @@ class MonitoringDeployment:
             server.api.api.utils.ensure_function_has_auth_set(function, self.auth_info)
         return function
 
-    def _initial_model_monitoring_writer_function(self, writer_image: str):
+    def _initial_model_monitoring_writer_function(
+        self, writer_image: str, force_build: bool = False
+    ):
         """
         Initialize model monitoring writer function.
 
         :param writer_image:                The image of the model monitoring writer function.
+        :param force_build:                 If true, force the build of the function image. Default is False.
 
         :return:                            A function object from a mlrun runtime class
         """
@@ -506,13 +532,12 @@ class MonitoringDeployment:
             image=writer_image,
         )
 
-        # Get existing image of the controller function
-        nuclio_image = self._get_existing_nuclio_image(
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-            base_image=writer_image,
-        )
-        if nuclio_image:
-            function.set_config("spec.image", nuclio_image)
+        if not force_build:
+            self._reuse_image(
+                function=function,
+                name=mm_constants.MonitoringFunctionNames.WRITER,
+                base_image=writer_image,
+            )
 
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
@@ -572,11 +597,14 @@ class MonitoringDeployment:
         logger.info(f"Deploying {function_name} function", project=self.project)
         return False
 
-    def deploy_histogram_data_drift_app(self, image: str) -> None:
+    def deploy_histogram_data_drift_app(
+        self, image: str, force_build: bool = False
+    ) -> None:
         """
         Deploy the histogram data drift application.
 
         :param image: The image on with the function will run.
+        :param force_build: If true, force the build of the function image. Default is False.
         """
         logger.info("Preparing the histogram data drift function")
         func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
@@ -587,13 +615,12 @@ class MonitoringDeployment:
             image=image,
         )
 
-        # Get existing image of the controller function
-        nuclio_image = self._get_existing_nuclio_image(
-            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            base_image=image,
-        )
-        if nuclio_image:
-            func.set_config("spec.image", nuclio_image)
+        if not force_build:
+            self._reuse_image(
+                function=func,
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                base_image=image,
+            )
 
         if not mlrun.mlconf.is_ce_mode():
             logger.info("Setting the access key for the histogram data drift function")
@@ -671,11 +698,20 @@ class MonitoringDeployment:
             with open(manifest_path) as f:
                 self._image_manifest = json.load(f)
 
-    @staticmethod
-    def _get_version_hash_key():
-        """Get the version hash key that will be used to store the model monitoring functions images in the manifest,
-        the key is a combination of the mlrun version and the nuclio version"""
-        return f"{config.version}-{config.nuclio_version}".encode().hex()
+    def _reuse_image(
+        self,
+        function: mlrun.runtimes.RemoteRuntime,
+        name: str,
+        base_image: str,
+    ):
+        # Get existing image of the controller function
+        nuclio_image = self._get_existing_nuclio_image(
+            name=name,
+            base_image=base_image,
+        )
+        if nuclio_image:
+            self._set_nuclio_image_config(function, nuclio_image)
+            function.set_config("spec.image", nuclio_image)
 
     def _get_existing_nuclio_image(self, name: str, base_image: str):
         """Get the nuclio image that was built with the same base image for the given function name"""
@@ -765,6 +801,24 @@ class MonitoringDeployment:
         return os.path.join(
             config.httpdb.dirpath, config.model_endpoint_monitoring.image_manifest.path
         )
+
+    @staticmethod
+    def _get_version_hash_key():
+        """Get the version hash key that will be used to store the model monitoring functions images in the manifest,
+        the key is a combination of the mlrun version and the nuclio version"""
+        return f"{config.version}-{config.nuclio_version}".encode().hex()
+
+    @staticmethod
+    def _set_nuclio_image_config(function, nuclio_image):
+        # TODO: remove this method once the api will support setting the image directly
+        function.set_config("spec.image", nuclio_image)
+        function.set_config("spec.build.codeEntryType", "image")
+        # make sure the image won't be built in nuclio by clearing up build values
+        function.spec.build.functionSourceCode = ""
+        function.spec.build.source = ""
+        function.set_config("spec.build.functionSourceCode", "")
+        function.set_config("spec.build.path", "")
+        function.set_config("spec.build.image", "")
 
 
 def get_endpoint_features(

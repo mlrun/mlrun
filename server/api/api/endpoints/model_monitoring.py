@@ -90,6 +90,7 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
+    force_build: bool = False,
     db_session: Session = Depends(deps.get_db_session),
 ):
     """
@@ -121,6 +122,7 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        force_build=force_build,
     )
 
 

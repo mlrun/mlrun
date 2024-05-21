@@ -291,6 +291,14 @@ def _compile_function_config(
             and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
         ):
             _set_source_code_and_handler(function, config)
+    elif mlrun.utils.get_in(function.spec.config, "spec.image"):
+        # if the function has an image set, we don't need to build it or set the handler
+        config = nuclio.config.new_config()
+        config = nuclio.config.extend_config(
+            config,
+            nuclio_spec,
+            tag,
+        )
     else:
         # this may also be called in case of using single file code_to_function(embed_code=False)
         # this option need to be removed or be limited to using remote files (this code runs in server)

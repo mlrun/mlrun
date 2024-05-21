@@ -122,14 +122,15 @@ class TDEngineSchema:
             )
         return f"SELECT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
+    @staticmethod
     def _get_records_query(
-        self,
         table: str,
         start: str,
         end: str,
         columns_to_filter: list[str] = None,
         filter_query: str = "",
         timestamp_column: str = "time",
+        database: str = _MODEL_MONITORING_DATABASE,
     ) -> str:
         with StringIO() as query:
             query.write("SELECT ")
@@ -137,7 +138,7 @@ class TDEngineSchema:
                 query.write(", ".join(columns_to_filter))
             else:
                 query.write("*")
-            query.write(f" from {self.database}.{table}")
+            query.write(f" from {database}.{table}")
 
             if any([filter_query, start, end]):
                 query.write(" where ")

@@ -198,7 +198,6 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
         :param start:            The start time of the metrics.
         :param end:              The end time of the metrics.
         :param timestamp_column: The column name that holds the timestamp.
-        :param database:         The database name.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.

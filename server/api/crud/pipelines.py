@@ -141,11 +141,11 @@ class Pipelines(
         experiment_ids = set()
         for pipeline_run in project_pipeline_runs:
             try:
+                pipeline_run = PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
-                kfp_client._run_api.delete_run(pipeline_run["id"])
-                experiment_id = self._get_experiment_id_from_run(pipeline_run)
-                if experiment_id:
-                    experiment_ids.add(self._get_experiment_id_from_run(pipeline_run))
+                kfp_client._run_api.delete_run(pipeline_run.id)
+                if pipeline_run.experiment_id:
+                    experiment_ids.add(pipeline_run.experiment_id)
                 succeeded += 1
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
@@ -153,7 +153,7 @@ class Pipelines(
                 logger.warning(
                     "Failed to delete pipeline run",
                     project_name=project_name,
-                    pipeline_run_id=pipeline_run["id"],
+                    pipeline_run_id=pipeline_run.id,
                     exc_info=exc,
                 )
                 failed += 1
@@ -388,18 +388,6 @@ class Pipelines(
 
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
-
-    @staticmethod
-    def _get_experiment_id_from_run(run: dict) -> str:
-        for reference in run.get("resource_references", []):
-            data = reference.get("key", {})
-            if (
-                data.get("type", "") == "EXPERIMENT"
-                and reference.get("relationship", "") == "OWNER"
-                and reference.get("name", "") != "Default"
-            ):
-                return data.get("id", "")
-        return ""
 
     def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
         """Filter runs by their name while ignoring the project string on them

@@ -61,7 +61,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
             "google-cloud==0.34",
         ],
-        "google-cloud-storage": ["gcsfs==2023.9.2"],
+        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",

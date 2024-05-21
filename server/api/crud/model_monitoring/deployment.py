@@ -107,7 +107,7 @@ class MonitoringDeployment:
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
         # Create tsdb tables that will be used for storing the model monitoring data
-        self._create_tsdb_tables(project=self.project)
+        self._create_tsdb_tables()
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -599,8 +599,7 @@ class MonitoringDeployment:
             return False
         return True
 
-    @staticmethod
-    def _create_tsdb_tables(project: str):
+    def _create_tsdb_tables(self):
         """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
@@ -608,9 +607,9 @@ class MonitoringDeployment:
 
         tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
             mlrun.model_monitoring.get_tsdb_connector(
-                project=project,
+                project=self.project,
                 secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                    project=project
+                    project=self.project
                 ),
             )
         )

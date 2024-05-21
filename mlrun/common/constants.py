@@ -21,3 +21,31 @@ MLRUN_SERVING_SPEC_PATH = (
     f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 )
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
+MLRUN_INTERNAL_LABELS = [
+            "dask.org/cluster-name",
+            "dask.org/component",
+            "host",
+            "job-type",
+            "kind",
+            "mlrun-auth-keynuclio.io/project-name",
+            "mlrun/class",
+            "mlrun/client_python_version",
+            "mlrun/client_version",
+            "mlrun/function",
+            "mlrun/job",
+            "mlrun/name",
+            "mlrun/owner",
+            "mlrun/owner_domain",
+            "mlrun/project",
+            "mlrun/runner-pod",
+            "mlrun/schedule-name",
+            "mlrun/scrape-metrics",
+            "mlrun/tag",
+            "mlrun/uid",
+            "mlrun/username",
+            "mlrun/username_domain",
+            "owner",
+            "resource_name",
+            "v3io_user",
+            "workflow",
+        ]

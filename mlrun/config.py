@@ -39,6 +39,7 @@ import yaml
 
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.common.constants
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -967,7 +968,7 @@ class Config:
 
     @staticmethod
     def internal_labels():
-        return ["kind", "host"]
+        return mlrun.common.constants.MLRUN_INTERNAL_LABELS
 
     @staticmethod
     def get_storage_auto_mount_params():

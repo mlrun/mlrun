@@ -113,7 +113,7 @@ def test_timestamp_format_inference(rundb_mock):
 def test_nan_additional_filters(additional_filters):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="using nan in additional_filters is not supported",
+        match="using NaN in additional_filters is not supported",
     ):
         ParquetSource(
             "parquet_source", path="path/to/file", additional_filters=additional_filters

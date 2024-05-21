@@ -153,7 +153,7 @@ class Pipelines(
                 logger.warning(
                     "Failed to delete pipeline run",
                     project_name=project_name,
-                    pipeline_run_id=pipeline_run["id"],
+                    pipeline_run_id=pipeline_run.id,
                     exc_info=exc,
                 )
                 failed += 1

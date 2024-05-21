@@ -1018,7 +1018,7 @@ def create_function(pkg_func: str):
     pkg_module_exists_in_modules = pkg_module in sys.modules
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
     if pkg_module_exists_in_modules:
-        logger.warning("Reloading module - not all modules might reload again")
+        logger.warning("Reloading module - not all modules may reload again")
         reload(pkg_module)
     function_ = getattr(pkg_module, cb_fname)
     return function_

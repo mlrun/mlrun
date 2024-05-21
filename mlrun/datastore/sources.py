@@ -369,7 +369,7 @@ class ParquetSource(BaseSourceDriver):
             col_name, op, value = filter_tuple
             if isinstance(value, float) and math.isnan(value):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "using nan in additional_filters is not supported"
+                    "using NaN in additional_filters is not supported"
                 )
             elif isinstance(value, (list, tuple, set)):
                 for sub_value in value:

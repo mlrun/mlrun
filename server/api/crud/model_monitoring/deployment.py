@@ -87,6 +87,11 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+
+        # the image manifest acts as a cache for deployed model monitoring function images.
+        # this allows us to reuse these images for future deployments across projects, improving efficiency.
+        # the manifest stores a unique image for each combination of three factors:
+        # mlrun version, nuclio version, and base image.
         self._image_manifest = {}
         self._read_image_manifest()
 
@@ -128,7 +133,7 @@ class MonitoringDeployment:
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
 
-        # Update the image manifest in a background task, so the invoking client will not wait for it
+        # Update the image manifest cache in a background task, so the invoking client will not wait for it
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
             self.project,
@@ -289,6 +294,52 @@ class MonitoringDeployment:
             )
             # Create tsdb table for model monitoring application results
             self._create_tsdb_application_tables(project=fn.metadata.project)
+
+    def deploy_histogram_data_drift_app(
+        self, image: str, force_build: bool = False
+    ) -> None:
+        """
+        Deploy the histogram data drift application.
+
+        :param image: The image on with the function will run.
+        :param force_build: If true, force the build of the function image. Default is False.
+        """
+        logger.info("Preparing the histogram data drift function")
+        func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+            project=self.project,
+            func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
+            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            application_class="HistogramDataDriftApplication",
+            image=image,
+        )
+
+        if not force_build:
+            self._reuse_image(
+                function=func,
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                base_image=image,
+            )
+
+        if not mlrun.mlconf.is_ce_mode():
+            logger.info("Setting the access key for the histogram data drift function")
+            func.metadata.credentials.access_key = self.model_monitoring_access_key
+            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+            logger.info("Ensured the histogram data drift function auth")
+
+        func.set_label(
+            mm_constants.ModelMonitoringAppLabel.KEY,
+            mm_constants.ModelMonitoringAppLabel.VAL,
+        )
+
+        fn, ready = server.api.utils.functions.build_function(
+            db_session=self.db_session, auth_info=self.auth_info, function=func
+        )
+
+        logger.debug(
+            "Submitted the histogram data drift app deployment",
+            app_data=fn.to_dict(),
+            app_ready=ready,
+        )
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -675,10 +726,10 @@ class MonitoringDeployment:
             self._read_image_manifest()
 
         function_image_info = self._image_manifest.get(version_hash_key, {}).get(name)
-        if function_image_info:
-            # we want to get the nuclio image that was built with the same base image
-            if base_image == function_image_info.get("base_image"):
-                return function_image_info.get("nuclio_image")
+
+        # we want to get the nuclio image that was built with the same base image
+        if function_image_info and base_image in function_image_info:
+            return function_image_info.get(base_image)
 
         return None
 
@@ -692,8 +743,11 @@ class MonitoringDeployment:
         save = False
 
         for function_name in functions:
-            # if the function is already in the manifest, don't override it
-            if function_name in self._image_manifest.get(version_hash_key, {}):
+            # if the function is already in the manifest with the same base image, don't override it
+            if (
+                function_name in self._image_manifest.get(version_hash_key, {})
+                and base_image in self._image_manifest[version_hash_key][function_name]
+            ):
                 continue
 
             def _get_function_status():
@@ -735,11 +789,12 @@ class MonitoringDeployment:
 
             if version_hash_key not in self._image_manifest:
                 self._image_manifest[version_hash_key] = {}
+            if function_name not in self._image_manifest[version_hash_key]:
+                self._image_manifest[version_hash_key][function_name] = {}
 
-            self._image_manifest[version_hash_key][function_name] = {
-                "base_image": base_image,
-                "nuclio_image": status["containerImage"],
-            }
+            self._image_manifest[version_hash_key][function_name][base_image] = status[
+                "containerImage"
+            ]
             save = True
 
         # write the updated image manifest
@@ -763,12 +818,15 @@ class MonitoringDeployment:
 
     @staticmethod
     def _set_nuclio_image_config(function, nuclio_image):
-        # TODO: remove this method once the api will support setting the image directly
         function.set_config("spec.image", nuclio_image)
         function.set_config("spec.build.codeEntryType", "image")
+
         # make sure the image won't be built in nuclio by clearing up build values
+        # TODO: remove this once the api will support deploying functions from an existing image directly
         function.spec.build.functionSourceCode = ""
         function.spec.build.source = ""
+        function.spec.build.code_origin = ""
+        function.spec.build.origin_filename = ""
         function.set_config("spec.build.functionSourceCode", "")
         function.set_config("spec.build.path", "")
         function.set_config("spec.build.image", "")

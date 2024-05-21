@@ -268,12 +268,15 @@ def _compile_function_config(
     _set_function_replicas(function, nuclio_spec)
     _set_misc_specs(function, nuclio_spec)
 
+    is_nuclio_image_set = function.spec.config.get("spec.image") is not None
+
     # if the user code is given explicitly or from a source, we need to set the handler and relevant attributes
     if (
         function.spec.base_spec
         or function.spec.build.functionSourceCode
         or function.spec.build.source
         or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
+        or is_nuclio_image_set
     ):
         config = function.spec.base_spec
         if not config:
@@ -289,16 +292,9 @@ def _compile_function_config(
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
             and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
+            and not is_nuclio_image_set
         ):
             _set_source_code_and_handler(function, config)
-    elif mlrun.utils.get_in(function.spec.config, "spec.image"):
-        # if the function has an image set, we don't need to build it or set the handler
-        config = nuclio.config.new_config()
-        config = nuclio.config.extend_config(
-            config,
-            nuclio_spec,
-            tag,
-        )
     else:
         # this may also be called in case of using single file code_to_function(embed_code=False)
         # this option need to be removed or be limited to using remote files (this code runs in server)

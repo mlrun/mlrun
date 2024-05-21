@@ -174,16 +174,18 @@ async def update_model_monitoring_controller(
 def deploy_histogram_data_drift_app(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     image: str = "mlrun/mlrun",
+    force_build: bool = False,
 ) -> None:
     """
     Deploy the histogram data drift app on the go.
 
     :param commons: The common parameters of the request.
     :param image:   The image of the application, defaults to "mlrun/mlrun".
+    :param force_build: If True, force building the image.
     """
     MonitoringDeployment(
         project=commons.project,
         auth_info=commons.auth_info,
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
-    ).deploy_histogram_data_drift_app(image=image)
+    ).deploy_histogram_data_drift_app(image=image, force_build=force_build)

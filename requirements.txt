@@ -6,7 +6,7 @@ aiohttp~=3.9
 aiohttp-retry~=2.8
 click~=8.1
 # previous mlrun versions limit kfp < 1.8.14 which causes installing the current mlrun version to fail
-# due to dependency conflicts. >=1.8.14 will force old enviroments to upgrade kfp.
+# due to dependency conflicts. >=1.8.14 will force old environments to upgrade kfp.
 kfp~=1.8, >=1.8.14
 nest-asyncio~=1.0
 ipython~=8.10

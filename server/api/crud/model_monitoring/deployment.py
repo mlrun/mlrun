@@ -357,6 +357,40 @@ class MonitoringDeployment:
 
         return function
 
+    def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
+        """
+        Check if the monitoring stream function has the new stream trigger.
+
+        :return: True if the monitoring stream function has the new stream trigger, otherwise False.
+        """
+
+        try:
+            function = server.api.crud.Functions().get_function(
+                name=mm_constants.MonitoringFunctionNames.STREAM,
+                db_session=self.db_session,
+                project=self.project,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "The stream function is not deployed yet when the user will run `enable_model_monitoring` "
+                "the stream function will be deployed with the new & the old stream triggers",
+                project=self.project,
+            )
+            return True
+
+        if (
+            function["spec"]["config"].get(
+                f"spec.triggers.monitoring_{mm_constants.MonitoringFunctionNames.STREAM}_trigger_1"
+            )
+            is None
+        ):
+            logger.info(
+                "The stream function needs to be updated with the new stream trigger",
+                project=self.project,
+            )
+            return False
+        return True
+
     def _initial_model_monitoring_stream_processing_function(
         self,
         stream_image: str,
@@ -597,86 +631,6 @@ class MonitoringDeployment:
         logger.info(f"Deploying {function_name} function", project=self.project)
         return False
 
-    def deploy_histogram_data_drift_app(
-        self, image: str, force_build: bool = False
-    ) -> None:
-        """
-        Deploy the histogram data drift application.
-
-        :param image: The image on with the function will run.
-        :param force_build: If true, force the build of the function image. Default is False.
-        """
-        logger.info("Preparing the histogram data drift function")
-        func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
-            project=self.project,
-            func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
-            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            application_class="HistogramDataDriftApplication",
-            image=image,
-        )
-
-        if not force_build:
-            self._reuse_image(
-                function=func,
-                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                base_image=image,
-            )
-
-        if not mlrun.mlconf.is_ce_mode():
-            logger.info("Setting the access key for the histogram data drift function")
-            func.metadata.credentials.access_key = self.model_monitoring_access_key
-            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
-            logger.info("Ensured the histogram data drift function auth")
-
-        func.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
-
-        fn, ready = server.api.utils.functions.build_function(
-            db_session=self.db_session, auth_info=self.auth_info, function=func
-        )
-
-        logger.debug(
-            "Submitted the histogram data drift app deployment",
-            app_data=fn.to_dict(),
-            app_ready=ready,
-        )
-
-    def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
-        """
-        Check if the monitoring stream function has the new stream trigger.
-
-        :return: True if the monitoring stream function has the new stream trigger, otherwise False.
-        """
-
-        try:
-            function = server.api.crud.Functions().get_function(
-                name=mm_constants.MonitoringFunctionNames.STREAM,
-                db_session=self.db_session,
-                project=self.project,
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "The stream function is not deployed yet when the user will run `enable_model_monitoring` "
-                "the stream function will be deployed with the new & the old stream triggers",
-                project=self.project,
-            )
-            return True
-
-        if (
-            function["spec"]["config"].get(
-                f"spec.triggers.monitoring_{mm_constants.MonitoringFunctionNames.STREAM}_trigger_1"
-            )
-            is None
-        ):
-            logger.info(
-                "The stream function needs to be updated with the new stream trigger",
-                project=self.project,
-            )
-            return False
-        return True
-
     @staticmethod
     def _create_tsdb_application_tables(project: str):
         """Each project writer service writes the application results into a single TSDB table and therefore the
@@ -711,7 +665,6 @@ class MonitoringDeployment:
         )
         if nuclio_image:
             self._set_nuclio_image_config(function, nuclio_image)
-            function.set_config("spec.image", nuclio_image)
 
     def _get_existing_nuclio_image(self, name: str, base_image: str):
         """Get the nuclio image that was built with the same base image for the given function name"""

@@ -21,7 +21,7 @@ import mlrun.launcher.local
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
-handler = "hello_word"
+handler = "hello_world"
 
 
 def test_launch_local():

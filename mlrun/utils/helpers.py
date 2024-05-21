@@ -1021,7 +1021,7 @@ def create_function(pkg_func: str):
     # if the function appears in the modules list, we need to reload the code again because it may have changed
     if pkg_module_exists_in_modules:
         logger.warning(
-            "Reloading module - be aware that not all modules can reload again"
+            "Reloading module - be aware that not all modules can be reloaded again"
         )
         reload(pkg_module)
 

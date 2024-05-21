@@ -17,7 +17,7 @@ import operator
 import os
 import warnings
 from base64 import b64encode
-from copy import copy, deepcopy
+from copy import copy
 from datetime import datetime
 from typing import Optional, Union
 
@@ -316,7 +316,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters: Optional[list[tuple]] = None,
     ):
         if additional_filters:
-            attributes = deepcopy(attributes) or {}
+            attributes = copy(attributes) or {}
             attributes["additional_filters"] = additional_filters
             self.validate_additional_filters(additional_filters)
         super().__init__(
@@ -389,7 +389,7 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        attributes = deepcopy(self.attributes)
+        attributes = copy(self.attributes)
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context

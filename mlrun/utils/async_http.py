@@ -24,7 +24,7 @@ from aiohttp_retry import ExponentialRetry, RequestParams, RetryClient, RetryOpt
 from aiohttp_retry.client import _RequestContext
 
 from mlrun.config import config
-from mlrun.errors import err_to_str
+from mlrun.errors import err_to_str, raise_for_status
 
 from .helpers import logger as mlrun_logger
 
@@ -46,12 +46,21 @@ class AsyncClientWithRetry(RetryClient):
         *args,
         **kwargs,
     ):
+        # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
+        blacklisted_methods = (
+            blacklisted_methods
+            if blacklisted_methods is not None
+            else [
+                "POST",
+                "PUT",
+                "PATCH",
+            ]
+        )
         super().__init__(
             *args,
             retry_options=ExponentialRetryOverride(
                 retry_on_exception=retry_on_exception,
-                # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
-                blacklisted_methods=blacklisted_methods or ["POST", "PUT", "PATCH"],
+                blacklisted_methods=blacklisted_methods,
                 attempts=max_retries,
                 statuses=retry_on_status_codes,
                 factor=retry_backoff_factor,
@@ -61,6 +70,12 @@ class AsyncClientWithRetry(RetryClient):
             logger=logger or mlrun_logger,
             raise_for_status=raise_for_status,
             **kwargs,
+        )
+
+    def methods_blacklist_update_required(self, new_blacklist: str):
+        self._retry_options: ExponentialRetryOverride
+        return set(self._retry_options.blacklisted_methods).difference(
+            set(new_blacklist)
         )
 
     def _make_requests(
@@ -173,7 +188,7 @@ class _CustomRequestContext(_RequestContext):
                 last_attempt = current_attempt == self._retry_options.attempts
                 if self._is_status_code_ok(response.status) or last_attempt:
                     if self._raise_for_status:
-                        response.raise_for_status()
+                        raise_for_status(response)
 
                     self._response = response
                     return response
@@ -275,6 +290,11 @@ class _CustomRequestContext(_RequestContext):
                 if isinstance(exc.os_error, exc_type):
                     return
         if exc.__cause__:
-            return self.verify_exception_type(exc.__cause__)
+            # If the cause exception is retriable, return, otherwise, raise the original exception
+            try:
+                self.verify_exception_type(exc.__cause__)
+            except Exception:
+                raise exc
+            return
         else:
             raise exc

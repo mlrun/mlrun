@@ -26,7 +26,7 @@ import sys
 import typing
 import warnings
 from datetime import datetime, timezone
-from importlib import import_module
+from importlib import import_module, reload
 from os import path
 from types import ModuleType
 from typing import Any, Optional
@@ -1016,6 +1016,12 @@ def create_function(pkg_func: str):
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
+    try:
+        # if spec.name in sys.modules:
+        logger.warning("Reloading module - not all modules might reload again")
+        reload(pkg_module)
+    except Exception as exc:
+        logger.warning("Failed to reload module", err=mlrun.errors.err_to_str(exc))
     function_ = getattr(pkg_module, cb_fname)
     return function_
 

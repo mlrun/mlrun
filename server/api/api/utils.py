@@ -1295,8 +1295,8 @@ async def _delete_function(
     )
 
     # update functions with deletion task id
-    await _update_functions_with_deletion_task_ids(
-        db_session, functions, project, background_task_name
+    await _update_functions_with_deletion_info(
+        functions, project, {"status.deletion_task_id": background_task_name}
     )
 
     # Since we request functions by a specific name and project,
@@ -1316,6 +1316,9 @@ async def _delete_function(
         )
         if failed_requests:
             error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+            await _update_functions_with_deletion_info(
+                functions, project, {"status.deletion_error": error_message}
+            )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 
     # delete the function from the database
@@ -1327,24 +1330,22 @@ async def _delete_function(
     )
 
 
-async def _update_functions_with_deletion_task_ids(
-    db_session, functions, project, background_task_name
-):
+async def _update_functions_with_deletion_info(functions, project, updates: dict):
     semaphore = asyncio.Semaphore(
         mlrun.mlconf.background_tasks.function_deletion_batch_size
     )
 
-    async def update_function_with_task_id(function):
+    async def update_function(function):
         async with semaphore:
             await run_in_threadpool(
-                server.api.crud.Functions().set_function_deletion_task_id,
-                db_session,
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().update_function,
                 function,
                 project,
-                background_task_name,
+                updates,
             )
 
-    tasks = [update_function_with_task_id(function) for function in functions]
+    tasks = [update_function(function) for function in functions]
     await asyncio.gather(*tasks)
 
 

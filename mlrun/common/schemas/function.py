@@ -45,6 +45,9 @@ class FunctionState:
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
 
+    # for pipeline steps
+    skipped = "skipped"
+
     @classmethod
     def get_function_state_from_pod_state(cls, pod_state: str):
         if pod_state == "succeeded":
@@ -60,6 +63,7 @@ class FunctionState:
         return [
             cls.ready,
             cls.error,
+            cls.skipped,
         ]
 
 

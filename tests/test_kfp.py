@@ -135,7 +135,7 @@ def _assert_output_dir(output_dir, name, iterations=1):
         with open(iteration_results_file) as file:
             count = 0
             for row in csv.DictReader(file):
-                print(yaml.dump(row))
+                print(yaml.safe_dump(row))
                 count += 1
         assert count == 3, "didnt see expected iterations file output"
 

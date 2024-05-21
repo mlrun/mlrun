@@ -23,7 +23,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
@@ -33,8 +32,6 @@ import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.functions
-import server.api.utils.scheduler
-import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
@@ -231,7 +228,7 @@ class MonitoringDeployment:
             )
 
             # Adding label to the function - will be used to identify the writer pod
-            fn.metadata.labels = {"type": "model-monitoring-writer"}
+            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.WRITER}
 
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -243,7 +240,7 @@ class MonitoringDeployment:
                 writer_ready=ready,
             )
             # Create tsdb table for model monitoring application results
-            self._create_tsdb_application_tables(project=fn.metadata.project)
+            self._create_tsdb_application_tables()
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -286,7 +283,7 @@ class MonitoringDeployment:
                         stream_args = (
                             config.model_endpoint_monitoring.serving_stream_args
                         )
-                        access_key = os.environ.get("V3IO_ACCESS_KEY")
+                        access_key = os.getenv("V3IO_ACCESS_KEY")
                         kwargs = {}
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
@@ -589,18 +586,14 @@ class MonitoringDeployment:
             return False
         return True
 
-    @staticmethod
-    def _create_tsdb_application_tables(project: str):
-        """Each project writer service writes the application results into a single TSDB table and therefore the
-        target table is created during the writer deployment"""
-
-        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
-            mlrun.model_monitoring.get_tsdb_connector(
-                project=project,
-            )
-        )
-
-        tsdb_connector.create_tsdb_application_tables()
+    def _create_tsdb_application_tables(self) -> None:
+        """
+        Each project writer service writes the application results into a single TSDB
+        table and therefore the target table is created during the writer deployment
+        """
+        mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project,
+        ).create_tsdb_application_tables()
 
 
 def get_endpoint_features(

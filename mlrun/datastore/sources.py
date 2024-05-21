@@ -375,7 +375,7 @@ class ParquetSource(BaseSourceDriver):
                 for sub_value in value:
                     if isinstance(sub_value, float) and math.isnan(sub_value):
                         raise mlrun.errors.MLRunInvalidArgumentError(
-                            "using nan in additional_filters is not supported"
+                            "using NaN in additional_filters is not supported"
                         )
 
     def to_step(

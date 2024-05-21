@@ -111,7 +111,9 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
     )
 
 
-def get_tsdb_connection_string(secret_provider: typing.Callable = None) -> str:
+def get_tsdb_connection_string(
+    secret_provider: typing.Optional[typing.Callable] = None,
+) -> str:
     """Get TSDB connection string from the project secret. If wasn't set, take it from the system
     configurations.
     :param secret_provider: An optional secret provider to get the connection string secret.

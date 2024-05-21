@@ -139,7 +139,7 @@ class EventStreamProcessor:
     def apply_monitoring_serving_graph(
         self,
         fn: mlrun.runtimes.ServingRuntime,
-        tsdb_service_provider: typing.Callable = None,
+        tsdb_service_provider: typing.Optional[typing.Callable] = None,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main

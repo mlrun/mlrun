@@ -3099,10 +3099,10 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: str = None,
-        endpoint_store_connection: str = None,
-        stream_path: str = None,
-        tsdb_connection: str = None,
+        access_key: Optional[str] = None,
+        endpoint_store_connection: Optional[str] = None,
+        stream_path: Optional[str] = None,
+        tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.

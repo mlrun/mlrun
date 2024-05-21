@@ -138,6 +138,14 @@ class SlackNotification(NotificationBase):
             self._get_slack_row(f"*Project:*\n{alert.project}"),
             self._get_slack_row(f"*UID:*\n{event_data.entity.ids[0]}"),
         ]
+
+        if alert.summary:
+            line.append(
+                self._get_slack_row(
+                    f"*Summary:*\n{mlrun.utils.helpers.format_alert_summary(alert, event_data)}"
+                )
+            )
+
         if event_data.value_dict:
             data_lines = []
             for key, value in event_data.value_dict.items():

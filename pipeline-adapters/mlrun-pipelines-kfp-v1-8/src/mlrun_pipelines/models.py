@@ -169,7 +169,7 @@ class PipelineRun(FlexibleMapper):
 
     @property
     def experiment_id(self) -> str:
-        for reference in self._external_data.get("resource_references", []):
+        for reference in self._external_data.get("resource_references") or []:
             data = reference.get("key", {})
             if (
                 data.get("type", "") == "EXPERIMENT"

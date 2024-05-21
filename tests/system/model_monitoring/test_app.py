@@ -148,9 +148,11 @@ class _V3IORecordsChecker:
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
+    @classmethod
     def _test_predictions_table(cls, ep_id: str) -> None:
         predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
             table=mm_constants.FileTargetKind.PREDICTIONS,
+            start="0",
         )
         assert not predictions_df.empty, "No TSDB predictions data"
         assert (
@@ -200,12 +202,23 @@ class _V3IORecordsChecker:
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
-        for result in json.loads(response.content.decode()):
-            if result["app"] == app_data.class_.NAME:
+
+        parsed_response = json.loads(response.content.decode())
+
+        assert {
+            "project": cls.project_name,
+            "app": "mlrun-infra",
+            "type": "metric",
+            "name": "invocations",
+            "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
+        } in parsed_response
+
+        for result in parsed_response:
+            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert app_data.results == get_app_results
+        assert app_data.results.union({"invocations"}) == get_app_results
         assert app_results_full_names, "No results"
         return app_results_full_names
 
@@ -222,13 +235,30 @@ class _V3IORecordsChecker:
             method=mlrun.common.types.HTTPMethod.GET,
             path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{names_query}",
         )
-        for result_values in json.loads(response.content.decode()):
-            assert result_values[
-                "data"
-            ], f"No data for result {result_values['full_name']}"
-            assert result_values[
-                "values"
-            ], f"The values list is empty for result {result_values['full_name']}"
+        results = json.loads(response.content.decode())
+
+        result = results[0]
+        assert (
+            result["full_name"]
+            == "test-app-flow-v2.histogram-data-drift.result.general_drift"
+        )
+        assert result["type"] == "result"
+        assert result["data"], f"No data for result {result['full_name']}"
+        assert result["result_kind"] == 0
+        assert result[
+            "values"
+        ], f"The values list is empty for result {result['full_name']}"
+
+        result = results[1]
+
+        assert result["type"] == "metric"
+        assert result["data"], f"No data for result {result['full_name']}"
+        assert result["result_kind"] == 3
+        assert result[
+            "values"
+        ], f"The values list is empty for result {result['full_name']}"
+
+        assert len(results) == 2, "Expected 2 results from metric-values API"
 
     @classmethod
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:

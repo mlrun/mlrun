@@ -485,11 +485,8 @@ async def get_model_endpoint_monitoring_metrics_values(
         end=params.end,
     )
 
-    invocations_full_name = mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-        project=params.project,
-        app="mlrun-infra",
-        name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
-        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
+    invocations_full_name = (
+        mlrun.model_monitoring.db.v3io_tsdb_reader.get_invocations_fqn(params.project)
     )
 
     if any([metric.full_name == invocations_full_name for metric in params.metrics]):
@@ -504,7 +501,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
             ),
         )
-        data = data + predictions
+        data.append(predictions)
     else:
         data = await read_data_coroutine
 

@@ -125,6 +125,8 @@ def read_data(
         del metrics_without_data[full_name]
 
     for metric in metrics_without_data.values():
+        if metric.full_name == get_invocations_fqn(project):
+            continue
         metrics_values.append(
             ModelEndpointMonitoringResultNoData(
                 full_name=metric.full_name,
@@ -135,18 +137,24 @@ def read_data(
     return metrics_values
 
 
+def get_invocations_fqn(project: str):
+    return mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+        project=project,
+        app="mlrun-infra",
+        name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
+        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+
 def read_predictions(
     *,
     project: str,
     endpoint_id: str,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: Optional[Union[datetime, str]] = None,
+    end: Optional[Union[datetime, str]] = None,
     aggregation_window: Optional[str] = None,
     limit: Optional[int] = None,
-) -> Union[
-    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultValues,
-    mlrun.common.schemas.model_monitoring.model_endpoints.ModelEndpointMonitoringResultNoData,
-]:
+) -> _ModelEndpointMonitoringResultValuesBase:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container="users",
@@ -168,13 +176,7 @@ def read_predictions(
         **frames_client_kwargs,
     )
 
-    full_name = (
-        mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-            project=project,
-            app="mlrun-infra",
-            name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
-        )
-    )
+    full_name = get_invocations_fqn(project)
 
     if df.empty:
         return ModelEndpointMonitoringResultNoData(
@@ -207,6 +209,8 @@ def read_prediction_metric_for_endpoint_if_exists(
     predictions = read_predictions(
         project=project,
         endpoint_id=endpoint_id,
+        start="0",
+        end="now",
         limit=1,  # Read just one record, because we just want to check if there is any data for this endpoint_id
     )
     if predictions:
@@ -215,9 +219,5 @@ def read_prediction_metric_for_endpoint_if_exists(
             app="mlrun-infra",
             type=ModelEndpointMonitoringMetricType.METRIC,
             name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
-            full_name=mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
-                project=project,
-                app="mlrun-infra",
-                name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
-            ),
+            full_name=get_invocations_fqn(project),
         )

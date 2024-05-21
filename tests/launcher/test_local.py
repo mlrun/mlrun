@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import pathlib
 
 import pytest
@@ -116,3 +117,34 @@ def test_validate_runtime_success():
         spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
     )
     launcher._validate_runtime(runtime, run)
+
+
+def test_launch_local_reload_module():
+    """This test ensures that the function code is updated when running a relative handler in local
+    mode when the code changes during execution"""
+    file_path = f"{assets_path}/test_function.py"
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    function_code = '''def func():
+    return "dummy value"'''
+
+    with open(file_path, mode="w+") as file:
+        file.write(function_code)
+
+    project = mlrun.new_project("some-project")
+    project.set_function(name="func", handler="assets.test_function.func")
+    run = project.run_function("func", local=True)
+    assert run.output("return") == "dummy value"
+
+    # change the function's return value in the file
+    function_code = '''def func():
+    return "dummy value updated"'''
+
+    with open(file_path, mode="w+") as file:
+        file.write(function_code)
+
+    run = project.run_function("func", local=True)
+    assert run.output("return") == "dummy value updated"
+
+    os.remove(file_path)

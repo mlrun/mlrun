@@ -123,7 +123,8 @@ class AlertConfig(pydantic.BaseModel):
         pydantic.Field(
             description=(
                 "String to be sent in the notifications generated."
-                "e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+                "e.g. 'Model {{project}}/{{entity}} is drifting.'"
+                "Supported variables: project, entity, name"
             )
         ),
     ]
@@ -162,7 +163,8 @@ class AlertTemplate(
 
     # AlertConfig fields that are pre-defined
     description: Optional[str] = (
-        "String to be sent in the generated notifications e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+        "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
+        "See AlertConfig.summary description"
     )
     severity: AlertSeverity
     trigger: AlertTrigger

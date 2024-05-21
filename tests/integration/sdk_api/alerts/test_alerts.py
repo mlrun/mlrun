@@ -36,7 +36,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "kind": alert_objects.EventEntityKind.MODEL,
                 "project": project_name,
             },
-            "summary": "Model {{ $project }}/{{ $entity }} is drifting.",
+            "summary": "Model {{project}}/{{entity}} is drifting.",
             "event_name": alert_objects.EventKind.DRIFT_DETECTED,
             "state": alert_objects.AlertActiveState.INACTIVE,
         }
@@ -48,7 +48,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "kind": alert_objects.EventEntityKind.JOB,
                 "project": project_name,
             },
-            "summary": "Job {{ $project }}/{{ $entity }} failed.",
+            "summary": "Job {{project}}/{{entity}} failed.",
             "event_name": alert_objects.EventKind.FAILED,
             "state": alert_objects.AlertActiveState.INACTIVE,
             "count": 3,
@@ -145,7 +145,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_name = "my-new-project"
         event_name = alert_objects.EventKind.DRIFT_DETECTED
         alert_name = "drift"
-        alert_summary = "Model {{ $project }}/{{ $entity }} is drifting."
+        alert_summary = "Model {{project}}/{{entity}} is drifting."
         alert_entity_kind = alert_objects.EventEntityKind.MODEL
         alert_entity_project = project_name
 
@@ -455,7 +455,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             )
 
         # modify alert with no errors
-        new_summary = "Aye ya yay {{ $project }}"
+        new_summary = "Aye ya yay {{project}}"
         modified_alert = self._modify_alert(
             project_name,
             alert_name,

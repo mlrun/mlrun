@@ -12,12 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 
 from kfp.dsl import PipelineTask
 from mlrun_pipelines.common.helpers import FlexibleMapper
 
 # class pointer for type checking on the main MLRun codebase
 PipelineNodeWrapper = PipelineTask
+
+
+class PipelineStep(FlexibleMapper):
+    @property
+    def step_type(self):
+        raise NotImplementedError
+
+    @property
+    def node_name(self):
+        raise NotImplementedError
+
+    @property
+    def phase(self):
+        raise NotImplementedError
+
+    @property
+    def skipped(self):
+        raise NotImplementedError
+
+    @property
+    def display_name(self):
+        raise NotImplementedError
+
+    def get_annotation(self, annotation_name: str):
+        raise NotImplementedError
 
 
 class PipelineManifest(FlexibleMapper):
@@ -44,6 +70,9 @@ class PipelineManifest(FlexibleMapper):
             ]
         else:
             yield from self._external_data["deploymentSpec"]["executors"].items()
+
+    def get_steps(self) -> typing.Generator[PipelineStep, None, None]:
+        raise NotImplementedError
 
 
 class PipelineRun(FlexibleMapper):
@@ -98,6 +127,9 @@ class PipelineRun(FlexibleMapper):
     @finished_at.setter
     def finished_at(self, finished_at):
         self._external_data["finished_at"] = finished_at
+
+    def experiment_id(self) -> str:
+        raise NotImplementedError
 
     def workflow_manifest(self) -> PipelineManifest:
         return PipelineManifest(

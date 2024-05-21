@@ -75,8 +75,8 @@ class TSDBConnector(ABC):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as

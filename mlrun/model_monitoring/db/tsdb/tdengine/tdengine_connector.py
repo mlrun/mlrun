@@ -174,8 +174,8 @@ class TDEngineConnector(mlrun.model_monitoring.db.TSDBConnector):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         # Not implemented, use get_records() instead
         pass

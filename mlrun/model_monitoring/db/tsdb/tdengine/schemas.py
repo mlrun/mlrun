@@ -125,10 +125,10 @@ class TDEngineSchema:
     def _get_records_query(
         self,
         table: str,
+        start: str,
+        end: str,
         columns_to_filter: list[str] = None,
         filter_query: str = "",
-        start: str = datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
-        end: str = datetime.datetime.now().astimezone(),
         timestamp_column: str = "time",
     ) -> str:
         with StringIO() as query:

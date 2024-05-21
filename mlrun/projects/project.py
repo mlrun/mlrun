@@ -3731,7 +3731,7 @@ class MlrunProject(ModelObj):
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.8.0).
+        :param last: Deprecated - currently not used (will be removed in 1.9.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -3740,9 +3740,9 @@ class MlrunProject(ModelObj):
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         """
         if state:
-            # TODO: Remove this in 1.8.0
+            # TODO: Remove this in 1.9.0
             warnings.warn(
-                "'state' is deprecated and will be removed in 1.8.0. Use 'states' instead.",
+                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
                 FutureWarning,
             )
 

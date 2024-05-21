@@ -105,7 +105,7 @@ class TestAlerts(TestMLRunSystem):
             alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             get_default_result_instance_fqn(endpoint_id),
             alert_summary,
-            alert_objects.EventKind.DRIFT_DETECTED,
+            alert_objects.EventKind.DATA_DRIFT_DETECTED,
             notifications,
         )
 

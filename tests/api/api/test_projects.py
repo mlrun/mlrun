@@ -1253,7 +1253,7 @@ def _create_resources_of_all_kinds(
             "project": project,
             "ids": [1234],
         },
-        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
         notifications=[{"notification": notification.to_dict()}],
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
     )

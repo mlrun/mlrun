@@ -37,7 +37,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "project": project_name,
             },
             "summary": "Model {{project}}/{{entity}} is drifting.",
-            "event_name": alert_objects.EventKind.DRIFT_DETECTED,
+            "event_name": alert_objects.EventKind.DATA_DRIFT_DETECTED,
             "state": alert_objects.AlertActiveState.INACTIVE,
         }
 
@@ -98,7 +98,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert = self._get_alerts(project_name, created_alert2.name)
         self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
 
-        new_event_name = alert_objects.EventKind.DRIFT_SUSPECTED
+        new_event_name = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
         modified_alert = self._modify_alert_test(
             project_name, alert1, created_alert.name, new_event_name
         )
@@ -143,7 +143,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # with the same alert and event names
 
         project_name = "my-new-project"
-        event_name = alert_objects.EventKind.DRIFT_DETECTED
+        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
         alert_name = "drift"
         alert_summary = "Model {{project}}/{{entity}} is drifting."
         alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
@@ -177,10 +177,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # one of the pre-defined system templates
         drift_system_template = self._get_template_by_name(
-            server.api.constants.pre_defined_templates, "DriftDetected"
+            server.api.constants.pre_defined_templates, "DataDriftDetected"
         )
 
-        drift_template = project.get_alert_template("DriftDetected")
+        drift_template = project.get_alert_template("DataDriftDetected")
         assert not drift_template.templates_differ(
             drift_system_template
         ), "Templates are different"
@@ -188,8 +188,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         all_system_templates = project.list_alert_templates()
         assert len(all_system_templates) == 3
         assert all_system_templates[0].template_name == "JobFailed"
-        assert all_system_templates[1].template_name == "DriftDetected"
-        assert all_system_templates[2].template_name == "DriftSuspected"
+        assert all_system_templates[1].template_name == "DataDriftDetected"
+        assert all_system_templates[2].template_name == "DataDriftSuspected"
 
         # generate an alert from a template
         alert_name = "new_alert"

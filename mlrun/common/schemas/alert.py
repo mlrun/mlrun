@@ -33,14 +33,14 @@ class EventEntities(pydantic.BaseModel):
 
 
 class EventKind(StrEnum):
-    DRIFT_DETECTED = "drift_detected"
-    DRIFT_SUSPECTED = "drift_suspected"
+    DATA_DRIFT_DETECTED = "data_drift_detected"
+    DATA_DRIFT_SUSPECTED = "data_drift_suspected"
     FAILED = "failed"
 
 
 _event_kind_entity_map = {
-    EventKind.DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DATA_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DATA_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.FAILED: [EventEntityKind.JOB],
 }
 

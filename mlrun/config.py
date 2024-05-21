@@ -37,9 +37,9 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.common.constants
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"

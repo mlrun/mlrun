@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 
 import pandas as pd
 import v3io_frames.client
@@ -41,9 +42,9 @@ class V3IOTSDBConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        access_key: str = None,
+        access_key: typing.Optional[str] = None,
         container: str = "users",
-        v3io_framesd: str = None,
+        v3io_framesd: typing.Optional[str] = None,
         create_table: bool = False,
     ):
         super().__init__(project=project)
@@ -291,7 +292,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: str = None):
+    def delete_tsdb_resources(self, table: typing.Optional[str] = None):
         if table:
             # Delete a specific table
             tables = [table]
@@ -379,7 +380,7 @@ class V3IOTSDBConnector(TSDBConnector):
         table: str,
         start: str,
         end: str,
-        columns: list[str] = None,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
     ) -> pd.DataFrame:
         """

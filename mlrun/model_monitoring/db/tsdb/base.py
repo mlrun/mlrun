@@ -14,6 +14,7 @@
 #
 
 
+import typing
 from abc import ABC
 
 import pandas as pd
@@ -104,7 +105,7 @@ class TSDBConnector(ABC):
         table: str,
         start: str,
         end: str,
-        columns: list[str] = None,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
     ) -> pd.DataFrame:
         """

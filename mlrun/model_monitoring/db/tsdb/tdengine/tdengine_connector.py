@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import typing
+
 import pandas as pd
 import taosws
 
@@ -187,7 +189,7 @@ class TDEngineConnector(TSDBConnector):
         table: str,
         start: str,
         end: str,
-        columns: list[str] = None,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:

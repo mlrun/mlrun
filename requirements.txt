@@ -3,7 +3,7 @@ GitPython~=3.1, >=3.1.41
 aiohttp~=3.9
 aiohttp-retry~=2.8
 click~=8.1
-kfp~=1.8
+kfp~=1.8.22
 nest-asyncio~=1.0
 ipython~=8.10
 nuclio-jupyter~=0.9.15

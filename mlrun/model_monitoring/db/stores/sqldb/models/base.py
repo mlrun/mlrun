@@ -89,11 +89,11 @@ class ModelEndpointsBaseTable(BaseModel):
     metrics = Column(EventFieldType.METRICS, Text)
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
     )
     last_request = Column(
         EventFieldType.LAST_REQUEST,
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
     )
 
 

@@ -121,7 +121,7 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_event_on_drift(
         entity_id: str, drift_status: str, event_value: dict, project_name: str
     ) -> None:
-        logger.info("Sending an alert")
+        logger.info("Sending an event")
         entity = mlrun.common.schemas.alert.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,

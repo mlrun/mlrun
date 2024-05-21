@@ -1,9 +1,13 @@
+
+# >=1.28.0,<1.29.0 botocore inside boto3 1.28.17 inside nuclio-jupyter 0.9.13
 urllib3>=1.26.9, <1.27
 GitPython~=3.1, >=3.1.41
 aiohttp~=3.9
 aiohttp-retry~=2.8
 click~=8.1
-kfp~=1.8.22
+# previous mlrun versions limit kfp < 1.8.14 which causes installing the current mlrun version to fail
+# due to dependency conflicts. >=1.8.14 will force old enviroments to upgrade kfp.
+kfp~=1.8, >=1.8.14
 nest-asyncio~=1.0
 ipython~=8.10
 nuclio-jupyter~=0.9.15

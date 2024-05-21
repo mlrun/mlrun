@@ -141,11 +141,11 @@ class Pipelines(
         experiment_ids = set()
         for pipeline_run in project_pipeline_runs:
             try:
+                pipeline_run = PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
-                kfp_client._run_api.delete_run(pipeline_run["id"])
-                experiment_id = PipelineRun(pipeline_run).experiment_id
-                if experiment_id:
-                    experiment_ids.add(experiment_id)
+                kfp_client._run_api.delete_run(pipeline_run.id)
+                if pipeline_run.experiment_id:
+                    experiment_ids.add(pipeline_run.experiment_id)
                 succeeded += 1
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run

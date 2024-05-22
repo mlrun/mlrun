@@ -22,11 +22,16 @@ __all__ = [
     "handler",
     "ArtifactType",
     "get_secret_or_env",
+    "mount_v3io",
+    "v3io_cred",
+    "auto_mount",
+    "VolumeMount",
 ]
 
 from os import environ, path
 
 import dotenv
+import mlrun_pipelines
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
@@ -35,7 +40,6 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
-from .platforms import VolumeMount, auto_mount, mount_v3io, v3io_cred
 from .projects import (
     ProjectMetadata,
     build_function,
@@ -64,6 +68,11 @@ from .secrets import get_secret_or_env
 from .utils.version import Version
 
 __version__ = Version().get()["version"]
+
+VolumeMount = mlrun_pipelines.common.mounts.VolumeMount
+mount_v3io = mlrun_pipelines.mounts.mount_v3io
+v3io_cred = mlrun_pipelines.mounts.v3io_cred
+auto_mount = mlrun_pipelines.mounts.auto_mount
 
 
 def get_version():
@@ -97,6 +106,7 @@ def set_environment(
     example::
 
         from os import path
+
         project_name, artifact_path = set_environment()
         set_environment("http://localhost:8080", artifact_path="./")
         set_environment(env_file="mlrun.env")

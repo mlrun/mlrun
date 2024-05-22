@@ -110,9 +110,14 @@ class ProjectSummary(pydantic.BaseModel):
     files_count: int
     feature_sets_count: int
     models_count: int
+    runs_completed_recent_count: int
     runs_failed_recent_count: int
     runs_running_count: int
-    schedules_count: int
+    distinct_schedules_count: int
+    distinct_scheduled_jobs_pending_count: int
+    distinct_scheduled_pipelines_pending_count: int
+    pipelines_completed_recent_count: typing.Optional[int] = None
+    pipelines_failed_recent_count: typing.Optional[int] = None
     pipelines_running_count: typing.Optional[int] = None
 
 

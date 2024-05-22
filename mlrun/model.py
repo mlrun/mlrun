@@ -33,7 +33,6 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_artifact_target,
-    is_legacy_artifact,
     logger,
     template_artifact_path,
 )
@@ -682,10 +681,14 @@ class Notification(ModelObj):
 
     def __init__(
         self,
-        kind=None,
+        kind: mlrun.common.schemas.notification.NotificationKind = (
+            mlrun.common.schemas.notification.NotificationKind.slack
+        ),
         name=None,
         message=None,
-        severity=None,
+        severity: mlrun.common.schemas.notification.NotificationSeverity = (
+            mlrun.common.schemas.notification.NotificationSeverity.INFO
+        ),
         when=None,
         condition=None,
         secret_params=None,
@@ -694,12 +697,10 @@ class Notification(ModelObj):
         sent_time=None,
         reason=None,
     ):
-        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.kind = kind
         self.name = name or ""
         self.message = message or ""
-        self.severity = (
-            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
-        )
+        self.severity = severity
         self.when = when or ["completed"]
         self.condition = condition or ""
         self.secret_params = secret_params or {}
@@ -765,6 +766,11 @@ class RunMetadata(ModelObj):
     @iteration.setter
     def iteration(self, iteration):
         self._iteration = iteration
+
+    def is_workflow_runner(self):
+        if not self.labels:
+            return False
+        return self.labels.get("job-type", "") == "workflow-runner"
 
 
 class HyperParamStrategies:
@@ -931,7 +937,7 @@ class RunSpec(ModelObj):
 
         >>> run_spec.inputs = {
         ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ...     "my_hinted_input : pandas.DataFrame": "...",
         ... }
 
         :param inputs: The inputs to set.
@@ -1203,6 +1209,7 @@ class RunStatus(ModelObj):
         ui_url=None,
         reason: str = None,
         notifications: dict[str, Notification] = None,
+        artifact_uris: dict[str, str] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1217,6 +1224,21 @@ class RunStatus(ModelObj):
         self.ui_url = ui_url
         self.reason = reason
         self.notifications = notifications or {}
+        # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
+        self.artifact_uris = artifact_uris or {}
+
+    def is_failed(self) -> Optional[bool]:
+        """
+        This method returns whether a run has failed.
+        Returns none if state has yet to be defined. callee is responsible for handling None.
+        (e.g wait for state to be defined)
+        """
+        if not self.state:
+            return None
+        return self.state.casefold() in [
+            mlrun.run.RunStatuses.failed.casefold(),
+            mlrun.run.RunStatuses.error.casefold(),
+        ]
 
 
 class RunTemplate(ModelObj):
@@ -1275,7 +1297,7 @@ class RunTemplate(ModelObj):
 
         example::
 
-            grid_params = {"p1": [2,4,1], "p2": [10,20]}
+            grid_params = {"p1": [2, 4, 1], "p2": [10, 20]}
             task = mlrun.new_task("grid-search")
             task.with_hyper_params(grid_params, selector="max.accuracy")
         """
@@ -1417,11 +1439,14 @@ class RunObject(RunTemplate):
             unknown_error = ""
             if (
                 self.status.state
-                in mlrun.runtimes.constants.RunStates.abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.abortion_states()
             ):
                 unknown_error = "Run was aborted"
 
-            elif self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+            elif (
+                self.status.state
+                in mlrun.common.runtimes.constants.RunStates.error_states()
+            ):
                 unknown_error = "Unknown error"
 
             return (
@@ -1459,7 +1484,7 @@ class RunObject(RunTemplate):
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
             for a in self.status.artifacts:
-                key = a["key"] if is_legacy_artifact(a) else a["metadata"]["key"]
+                key = a["metadata"]["key"]
                 outputs[key] = get_artifact_target(a, self.metadata.project)
         return outputs
 
@@ -1502,7 +1527,10 @@ class RunObject(RunTemplate):
 
     def state(self):
         """current run state"""
-        if self.status.state in mlrun.runtimes.constants.RunStates.terminal_states():
+        if (
+            self.status.state
+            in mlrun.common.runtimes.constants.RunStates.terminal_states()
+        ):
             return self.status.state
         self.refresh()
         return self.status.state or "unknown"
@@ -1516,8 +1544,10 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            self.status = RunStatus.from_dict(run.get("status", {}))
-            self.status.from_dict(run.get("status", {}))
+            run_status = run.get("status", {})
+            # Artifacts are not stored in the DB, so we need to preserve them here
+            run_status["artifacts"] = self.status.artifacts
+            self.status = RunStatus.from_dict(run_status)
             return self
 
     def show(self):
@@ -1564,7 +1594,7 @@ class RunObject(RunTemplate):
         last_pull_log_time = None
         logs_enabled = show_logs is not False
         state = self.state()
-        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+        if state not in mlrun.common.runtimes.constants.RunStates.terminal_states():
             logger.info(
                 f"run {self.metadata.name} is not completed yet, waiting for it to complete",
                 current_state=state,
@@ -1574,7 +1604,8 @@ class RunObject(RunTemplate):
             if (
                 logs_enabled
                 and logs_interval
-                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
+                and state
+                not in mlrun.common.runtimes.constants.RunStates.terminal_states()
                 and (
                     last_pull_log_time is None
                     or (datetime.now() - last_pull_log_time).seconds > logs_interval
@@ -1583,7 +1614,7 @@ class RunObject(RunTemplate):
                 last_pull_log_time = datetime.now()
                 state, offset = self.logs(watch=False, offset=offset)
 
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 if logs_enabled and logs_interval:
                     self.logs(watch=False, offset=offset)
                 break
@@ -1595,7 +1626,10 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+        if (
+            raise_on_failure
+            and state != mlrun.common.runtimes.constants.RunStates.completed
+        ):
             raise mlrun.errors.MLRunRuntimeError(
                 f"Task {self.metadata.name} did not complete (state={state})"
             )

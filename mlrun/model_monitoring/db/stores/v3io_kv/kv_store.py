@@ -11,28 +11,82 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import json
 import os
 import typing
+from dataclasses import dataclass
 from http import HTTPStatus
 
 import v3io.dataplane
+import v3io.dataplane.output
 import v3io.dataplane.response
-import v3io_frames
 
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
 # Fields to encode before storing in the KV table or to decode after retrieving
 fields_to_encode_decode = [
-    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS,
-    mlrun.common.schemas.model_monitoring.EventFieldType.CURRENT_STATS,
+    mm_schemas.EventFieldType.FEATURE_STATS,
+    mm_schemas.EventFieldType.CURRENT_STATS,
 ]
+
+_METRIC_FIELDS: list[str] = [
+    mm_schemas.WriterEvent.APPLICATION_NAME,
+    mm_schemas.MetricData.METRIC_NAME,
+    mm_schemas.MetricData.METRIC_VALUE,
+    mm_schemas.WriterEvent.START_INFER_TIME,
+    mm_schemas.WriterEvent.END_INFER_TIME,
+]
+
+
+class SchemaField(typing.TypedDict):
+    name: str
+    type: str
+    nullable: bool
+
+
+@dataclass
+class SchemaParams:
+    key: str
+    fields: list[SchemaField]
+
+
+_RESULT_SCHEMA: list[SchemaField] = [
+    SchemaField(
+        name=mm_schemas.ResultData.RESULT_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
+        nullable=False,
+    )
+]
+
+_METRIC_SCHEMA: list[SchemaField] = [
+    SchemaField(
+        name=mm_schemas.WriterEvent.APPLICATION_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
+        nullable=False,
+    ),
+    SchemaField(
+        name=mm_schemas.MetricData.METRIC_NAME,
+        type=mm_schemas.GrafanaColumnType.STRING,
+        nullable=False,
+    ),
+]
+
+
+_KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
+    mm_schemas.WriterEventKind.RESULT: SchemaParams(
+        key=mm_schemas.WriterEvent.APPLICATION_NAME, fields=_RESULT_SCHEMA
+    ),
+    mm_schemas.WriterEventKind.METRIC: SchemaParams(
+        key="metric_id", fields=_METRIC_SCHEMA
+    ),
+}
+
+_EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
 
 class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -41,7 +95,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, project: str, access_key: str):
+    def __init__(self, project: str, access_key: typing.Optional[str] = None) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
         self.access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
@@ -66,7 +120,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         self.client.kv.put(
             container=self.container,
             table_path=self.path,
-            key=endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
+            key=endpoint[mm_schemas.EventFieldType.UID],
             attributes=endpoint,
         )
 
@@ -153,7 +207,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
-            kind=mlrun.common.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mm_schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -219,17 +273,11 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         if uids is None:
             uids = []
             for item in items:
-                if mlrun.common.schemas.model_monitoring.EventFieldType.UID not in item:
+                if mm_schemas.EventFieldType.UID not in item:
                     # This is kept for backwards compatibility - in old versions the key column named endpoint_id
-                    uids.append(
-                        item[
-                            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-                        ]
-                    )
+                    uids.append(item[mm_schemas.EventFieldType.ENDPOINT_ID])
                 else:
-                    uids.append(
-                        item[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
-                    )
+                    uids.append(item[mm_schemas.EventFieldType.UID])
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
@@ -240,27 +288,20 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return endpoint_list
 
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
-        Delete all model endpoints resources in both KV and the time series DB.
+        Delete all model endpoints resources in V3IO KV.
+        """
 
-        :param endpoints: A list of model endpoints flattened dictionaries.
-        """
+        endpoints = self.list_model_endpoints()
 
         # Delete model endpoint record from KV table
         for endpoint_dict in endpoints:
-            if (
-                mlrun.common.schemas.model_monitoring.EventFieldType.UID
-                not in endpoint_dict
-            ):
+            if mm_schemas.EventFieldType.UID not in endpoint_dict:
                 # This is kept for backwards compatibility - in old versions the key column named endpoint_id
-                endpoint_id = endpoint_dict[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-                ]
+                endpoint_id = endpoint_dict[mm_schemas.EventFieldType.ENDPOINT_ID]
             else:
-                endpoint_id = endpoint_dict[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.UID
-                ]
+                endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
             self.delete_model_endpoint(
                 endpoint_id,
             )
@@ -283,188 +324,84 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
 
-        # Cleanup TSDB
-        frames = self._get_frames_client()
+    @staticmethod
+    def _get_results_table_path(endpoint_id: str) -> str:
+        return endpoint_id
 
-        # Generate the required tsdb paths
-        tsdb_path, filtered_path = self._generate_tsdb_paths()
+    @staticmethod
+    def _get_metrics_table_path(endpoint_id: str) -> str:
+        return f"{endpoint_id}_metrics"
 
-        # Delete time series DB resources
-        try:
-            frames.delete(
-                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
-                table=filtered_path,
-            )
-        except v3io_frames.errors.DeleteError as e:
-            if "No TSDB schema file found" not in str(e):
-                logger.warning(
-                    f"Failed to delete TSDB table '{filtered_path}'",
-                    err=mlrun.errors.err_to_str(e),
-                )
-        # Final cleanup of tsdb path
-        tsdb_path.replace("://u", ":///u")
-        store, _, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
-        store.rm(tsdb_path, recursive=True)
-
-    def get_endpoint_real_time_metrics(
+    def write_application_event(
         self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
+        event: dict[str, typing.Any],
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> None:
         """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-
-        # Initialize access key
-        access_key = access_key or mlrun.mlconf.get_v3io_access_key()
-
-        if not metrics:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Metric names must be provided"
-            )
-
-        # Initialize metrics mapping dictionary
-        metrics_mapping = {}
-
-        # Getting the path for the time series DB
-        events_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=self.project,
-                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
-            )
-        )
-        (
-            _,
-            container,
-            events_path,
-        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-            events_path
-        )
-
-        # Retrieve the raw data from the time series DB based on the provided metrics and time ranges
-        frames_client = mlrun.utils.v3io_clients.get_frames_client(
-            token=access_key,
-            address=mlrun.mlconf.v3io_framesd,
-            container=container,
-        )
-
-        try:
-            data = frames_client.read(
-                backend=mlrun.common.schemas.model_monitoring.TimeSeriesTarget.TSDB,
-                table=events_path,
-                columns=["endpoint_id", *metrics],
-                filter=f"endpoint_id=='{endpoint_id}'",
-                start=start,
-                end=end,
-            )
-
-            # Fill the metrics mapping dictionary with the metric name and values
-            data_dict = data.to_dict()
-            for metric in metrics:
-                metric_data = data_dict.get(metric)
-                if metric_data is None:
-                    continue
-
-                values = [
-                    (str(timestamp), value) for timestamp, value in metric_data.items()
-                ]
-                metrics_mapping[metric] = values
-
-        except v3io_frames.errors.ReadError:
-            logger.warn("Failed to read tsdb", endpoint=endpoint_id)
-
-        return metrics_mapping
-
-    def write_application_result(self, event: dict[str, typing.Any]):
-        """
-        Write a new application result event in the target table.
+        Write a new application event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
-        endpoint_id = event.pop(
-            mlrun.common.schemas.model_monitoring.WriterEvent.ENDPOINT_ID
-        )
-        app_name = event.pop(
-            mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME
-        )
-        metric_name = event.pop(
-            mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME
-        )
-        attributes = {metric_name: json.dumps(event)}
 
-        v3io_monitoring_apps_container = self.get_v3io_monitoring_apps_container(
-            project_name=self.project
-        )
+        container = self.get_v3io_monitoring_apps_container(project_name=self.project)
+        endpoint_id = event.pop(mm_schemas.WriterEvent.ENDPOINT_ID)
+
+        if kind == mm_schemas.WriterEventKind.METRIC:
+            table_path = self._get_metrics_table_path(endpoint_id)
+            key = f"{event[mm_schemas.WriterEvent.APPLICATION_NAME]}.{event[mm_schemas.MetricData.METRIC_NAME]}"
+            attributes = {event_key: event[event_key] for event_key in _METRIC_FIELDS}
+        elif kind == mm_schemas.WriterEventKind.RESULT:
+            table_path = self._get_results_table_path(endpoint_id)
+            key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
+            metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
+            attributes = {metric_name: json.dumps(event)}
+        else:
+            raise ValueError(f"Invalid {kind = }")
 
         self.client.kv.update(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
-            key=app_name,
+            container=container,
+            table_path=table_path,
+            key=key,
             attributes=attributes,
         )
 
         schema_file = self.client.kv.new_cursor(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
+            container=container,
+            table_path=table_path,
             filter_expression='__name==".#schema"',
         )
 
         if not schema_file.all():
             logger.info(
-                "Generate a new V3IO KV schema file",
-                container=v3io_monitoring_apps_container,
-                endpoint_id=endpoint_id,
+                "Generating a new V3IO KV schema file",
+                container=container,
+                table_path=table_path,
             )
-            self._generate_kv_schema(endpoint_id, v3io_monitoring_apps_container)
-        logger.info("Updated V3IO KV successfully", key=app_name)
+            self._generate_kv_schema(
+                container=container, table_path=table_path, kind=kind
+            )
+        logger.info("Updated V3IO KV successfully", key=key)
 
     def _generate_kv_schema(
-        self, endpoint_id: str, v3io_monitoring_apps_container: str
-    ):
+        self, *, container: str, table_path: str, kind: mm_schemas.WriterEventKind
+    ) -> None:
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
-        fields = [
-            {
-                "name": mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_NAME,
-                "type": "string",
-                "nullable": False,
-            }
-        ]
+        schema_params = _KIND_TO_SCHEMA_PARAMS[kind]
         res = self.client.kv.create_schema(
-            container=v3io_monitoring_apps_container,
-            table_path=endpoint_id,
-            key=mlrun.common.schemas.model_monitoring.WriterEvent.APPLICATION_NAME,
-            fields=fields,
+            container=container,
+            table_path=table_path,
+            key=schema_params.key,
+            fields=schema_params.fields,
         )
         if res.status_code != HTTPStatus.OK:
             raise mlrun.errors.MLRunBadRequestError(
-                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
+                f"Couldn't infer schema for endpoint {table_path} which is required for Grafana dashboards"
             )
         else:
-            logger.info(
-                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
-            )
+            logger.info("Generated V3IO KV schema successfully", table_path=table_path)
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
         """
@@ -485,9 +422,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[
-                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED
-            ]
+            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
             raise mlrun.errors.MLRunNotFoundError(
@@ -512,9 +447,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             ),
             table_path=endpoint_id,
             key=application_name,
-            attributes={
-                mlrun.common.schemas.model_monitoring.SchedulingKeys.LAST_ANALYZED: last_analyzed
-            },
+            attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
         )
 
     def _generate_tsdb_paths(self) -> tuple[str, str]:
@@ -527,7 +460,7 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         full_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=mlrun.common.schemas.ModelMonitoringStoreKinds.EVENTS,
+                kind=mm_schemas.ModelMonitoringStoreKinds.EVENTS,
             )
         )
 
@@ -623,8 +556,8 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(mlrun.common.schemas.model_monitoring.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(mm_schemas.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(mm_schemas.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)
@@ -644,41 +577,31 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Validate default value for `error_count`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key
         if (
-            mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT in endpoint
-            and endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
-            ]
-            == "null"
+            mm_schemas.EventFieldType.ERROR_COUNT in endpoint
+            and endpoint[mm_schemas.EventFieldType.ERROR_COUNT] == "null"
         ):
-            endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT
-            ] = "0"
+            endpoint[mm_schemas.EventFieldType.ERROR_COUNT] = "0"
 
         # Validate default value for `metrics`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `metrics` key
         if (
-            mlrun.common.schemas.model_monitoring.EventFieldType.METRICS in endpoint
-            and endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS]
-            == "null"
+            mm_schemas.EventFieldType.METRICS in endpoint
+            and endpoint[mm_schemas.EventFieldType.METRICS] == "null"
         ):
-            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.METRICS] = (
-                json.dumps(
-                    {
-                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC: {
-                            mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-                            mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
-                        }
+            endpoint[mm_schemas.EventFieldType.METRICS] = json.dumps(
+                {
+                    mm_schemas.EventKeyMetrics.GENERIC: {
+                        mm_schemas.EventLiveStats.LATENCY_AVG_1H: 0,
+                        mm_schemas.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                     }
-                )
+                }
             )
         # Validate key `uid` instead of `endpoint_id`
         # For backwards compatibility reasons, we replace the `endpoint_id` with `uid` which is the updated key name
-        if mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID in endpoint:
-            endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID] = (
-                endpoint[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-                ]
-            )
+        if mm_schemas.EventFieldType.ENDPOINT_ID in endpoint:
+            endpoint[mm_schemas.EventFieldType.UID] = endpoint[
+                mm_schemas.EventFieldType.ENDPOINT_ID
+            ]
 
     @staticmethod
     def _encode_field(field: typing.Union[str, bytes]) -> bytes:
@@ -703,3 +626,96 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
     @staticmethod
     def _get_monitoring_schedules_container(project_name: str) -> str:
         return f"users/pipelines/{project_name}/monitoring-schedules/functions"
+
+    def _extract_results_from_items(
+        self, app_items: list[dict[str, str]]
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """Assuming .#schema items are filtered out"""
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
+        for app_item in app_items:
+            app_name = app_item.pop("__name")
+            for result_name in app_item:
+                metrics.append(
+                    mm_schemas.ModelEndpointMonitoringMetric(
+                        project=self.project,
+                        app=app_name,
+                        type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+                        name=result_name,
+                        full_name=mm_schemas.model_endpoints._compose_full_name(
+                            project=self.project, app=app_name, name=result_name
+                        ),
+                    )
+                )
+        return metrics
+
+    def _extract_metrics_from_items(
+        self, result_items: list[dict[str, str]]
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
+        logger.debug("Result items", result_items=result_items)
+        for result_item in result_items:
+            app = result_item[mm_schemas.WriterEvent.APPLICATION_NAME]
+            name = result_item[mm_schemas.MetricData.METRIC_NAME]
+            metrics.append(
+                mm_schemas.ModelEndpointMonitoringMetric(
+                    project=self.project,
+                    app=app,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                    name=name,
+                    full_name=mm_schemas.model_endpoints._compose_full_name(
+                        project=self.project,
+                        app=app,
+                        name=name,
+                        type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                    ),
+                )
+            )
+        return metrics
+
+    def get_model_endpoint_metrics(
+        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """Get model monitoring results and metrics on the endpoint"""
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] = []
+        container = self.get_v3io_monitoring_apps_container(self.project)
+        if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
+            table_path = self._get_metrics_table_path(endpoint_id)
+            items_extractor = self._extract_metrics_from_items
+        elif type == mm_schemas.ModelEndpointMonitoringMetricType.RESULT:
+            table_path = self._get_results_table_path(endpoint_id)
+            items_extractor = self._extract_results_from_items
+        else:
+            raise ValueError(f"Invalid metric {type = }")
+
+        def scan(
+            marker: typing.Optional[str] = None,
+        ) -> v3io.dataplane.response.Response:
+            # TODO: Use AIO client: `v3io.aio.dataplane.client.Client`
+            return self.client.kv.scan(
+                container=container,
+                table_path=table_path,
+                marker=marker,
+                filter_expression=_EXCLUDE_SCHEMA_FILTER_EXPRESSION,
+            )
+
+        try:
+            response = scan()
+        except v3io.dataplane.response.HttpResponseError as err:
+            if err.status_code == HTTPStatus.NOT_FOUND:
+                logger.warning(
+                    f"Attempt getting {type}s - no data. Check the "
+                    "project name, endpoint, or wait for the applications to start.",
+                    container=container,
+                    table_path=table_path,
+                )
+                return []
+            raise
+
+        while True:
+            output = typing.cast(v3io.dataplane.output.GetItemsOutput, response.output)
+            metrics.extend(items_extractor(output.items))
+            if output.last:
+                break
+            response = scan(marker=output.next_marker)
+
+        return metrics

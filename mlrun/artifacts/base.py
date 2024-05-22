@@ -20,7 +20,6 @@ import warnings
 import zipfile
 
 import yaml
-from deprecated import deprecated
 
 import mlrun
 import mlrun.artifacts
@@ -192,12 +191,30 @@ class Artifact(ModelObj):
         format=None,
         size=None,
         target_path=None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
         project=None,
+        src_path: str = None,
+        # All params up until here are legacy params for compatibility with legacy artifacts.
+        # TODO: remove them in 1.9.0.
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
-        src_path: str = None,
     ):
+        if (
+            key
+            or body
+            or viewer
+            or is_inline
+            or format
+            or size
+            or target_path
+            or project
+            or src_path
+        ):
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
+
         self._metadata = None
         self.metadata = metadata
         self._spec = None
@@ -699,11 +716,18 @@ class LinkArtifact(Artifact):
         link_iteration=None,
         link_key=None,
         link_tree=None,
-        # All params up until here are legacy params for compatibility with legacy artifacts.
         project=None,
+        # All params up until here are legacy params for compatibility with legacy artifacts.
+        # TODO: remove them in 1.9.0.
         metadata: ArtifactMetadata = None,
         spec: LinkArtifactSpec = None,
     ):
+        if key or target_path or link_iteration or link_key or link_tree or project:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
         super().__init__(
             key, target_path=target_path, project=project, metadata=metadata, spec=spec
         )
@@ -718,238 +742,6 @@ class LinkArtifact(Artifact):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", LinkArtifactSpec)
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyArtifact' will be removed in 1.7.0, use 'Artifact' instead",
-    category=FutureWarning,
-)
-class LegacyArtifact(ModelObj):
-    _dict_fields = [
-        "key",
-        "kind",
-        "iter",
-        "tree",
-        "src_path",
-        "target_path",
-        "hash",
-        "description",
-        "viewer",
-        "inline",
-        "format",
-        "size",
-        "db_key",
-        "extra_data",
-        "tag",
-    ]
-    kind = ""
-    _store_prefix = StorePrefix.Artifact
-
-    def __init__(
-        self,
-        key=None,
-        body=None,
-        viewer=None,
-        is_inline=False,
-        format=None,
-        size=None,
-        target_path=None,
-    ):
-        self.key = key
-        self.project = ""
-        self.db_key = None
-        self.size = size
-        self.iter = None
-        self.tree = None
-        self.updated = None
-        self.target_path = target_path
-        self.src_path = None
-        self._body = body
-        self.format = format
-        self.description = None
-        self.viewer = viewer
-        self.encoding = None
-        self.labels = {}
-        self.annotations = None
-        self.sources = []
-        self.producer = None
-        self.hash = None
-        self._inline = is_inline
-        self.license = ""
-        self.extra_data = {}
-        self.tag = None  # temp store of the tag
-
-    def before_log(self):
-        for key, item in self.extra_data.items():
-            if hasattr(item, "target_path"):
-                self.extra_data[key] = item.target_path
-
-    def is_inline(self):
-        return self._inline
-
-    @property
-    def is_dir(self):
-        """this is a directory"""
-        return False
-
-    @property
-    def inline(self):
-        """inline data (body)"""
-        if self._inline:
-            return self.get_body()
-        return None
-
-    @inline.setter
-    def inline(self, body):
-        self._body = body
-        if body:
-            self._inline = True
-
-    @property
-    def uri(self):
-        """return artifact uri (store://..)"""
-        return self.get_store_url()
-
-    def to_dataitem(self):
-        """return a DataItem object (if available) representing the artifact content"""
-        uri = self.get_store_url()
-        if uri:
-            return mlrun.get_dataitem(uri)
-
-    def get_body(self):
-        """get the artifact body when inline"""
-        return self._body
-
-    def get_target_path(self):
-        """get the absolute target path for the artifact"""
-        return self.target_path
-
-    def get_store_url(self, with_tag=True, project=None):
-        """get the artifact uri (store://..) with optional parameters"""
-        tag = self.tree if with_tag else None
-        uri = generate_artifact_uri(
-            project or self.project, self.db_key, tag, self.iter
-        )
-        return mlrun.datastore.get_store_uri(self._store_prefix, uri)
-
-    def base_dict(self):
-        """return short dict form of the artifact"""
-        return super().to_dict()
-
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
-        """return long dict form of the artifact"""
-        return super().to_dict(
-            self._dict_fields
-            + ["updated", "labels", "annotations", "producer", "sources", "project"],
-            strip=strip,
-        )
-
-    @classmethod
-    def from_dict(cls, struct=None, fields=None):
-        fields = fields or cls._dict_fields + [
-            "updated",
-            "labels",
-            "annotations",
-            "producer",
-            "sources",
-            "project",
-        ]
-        return super().from_dict(struct, fields=fields)
-
-    def upload(self):
-        """internal, upload to target store"""
-        src_path = self.src_path
-        body = self.get_body()
-        if body:
-            self._upload_body(body)
-        else:
-            if src_path and os.path.isfile(src_path):
-                self._upload_file(src_path)
-
-    def _upload_body(self, body, target=None):
-        if mlrun.mlconf.artifacts.calculate_hash:
-            self.hash = calculate_blob_hash(body)
-        self.size = len(body)
-        mlrun.datastore.store_manager.object(url=target or self.target_path).put(body)
-
-    def _upload_file(self, src, target=None):
-        if mlrun.mlconf.artifacts.calculate_hash:
-            self.hash = calculate_local_file_hash(src)
-        self.size = os.stat(src).st_size
-        mlrun.datastore.store_manager.object(url=target or self.target_path).upload(src)
-
-    def artifact_kind(self):
-        return self.kind
-
-    def generate_target_path(self, artifact_path, producer):
-        return generate_target_path(self, artifact_path, producer)
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyDirArtifact' will be removed in 1.7.0, use 'DirArtifact' instead",
-    category=FutureWarning,
-)
-class LegacyDirArtifact(LegacyArtifact):
-    _dict_fields = [
-        "key",
-        "kind",
-        "iter",
-        "tree",
-        "src_path",
-        "target_path",
-        "description",
-        "db_key",
-    ]
-    kind = "dir"
-
-    @property
-    def is_dir(self):
-        return True
-
-    def upload(self):
-        if not self.src_path:
-            raise ValueError("local/source path not specified")
-
-        files = os.listdir(self.src_path)
-        for f in files:
-            file_path = os.path.join(self.src_path, f)
-            if not os.path.isfile(file_path):
-                raise ValueError(f"file {file_path} not found, cant upload")
-            target = os.path.join(self.target_path, f)
-            mlrun.datastore.store_manager.object(url=target).upload(file_path)
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyLinkArtifact' will be removed in 1.7.0, use 'LinkArtifact' instead",
-    category=FutureWarning,
-)
-class LegacyLinkArtifact(LegacyArtifact):
-    _dict_fields = LegacyArtifact._dict_fields + [
-        "link_iteration",
-        "link_key",
-        "link_tree",
-    ]
-    kind = "link"
-
-    def __init__(
-        self,
-        key=None,
-        target_path="",
-        link_iteration=None,
-        link_key=None,
-        link_tree=None,
-    ):
-        super().__init__(key)
-        self.target_path = target_path
-        self.link_iteration = link_iteration
-        self.link_key = link_key
-        self.link_tree = link_tree
 
 
 def calculate_blob_hash(data):
@@ -1057,25 +849,16 @@ def generate_target_path(item: Artifact, artifact_path, producer):
     return f"{artifact_path}{item.key}{suffix}"
 
 
+# TODO: left to support data migration from legacy artifacts to new artifacts. Remove in 1.8.0.
 def convert_legacy_artifact_to_new_format(
-    legacy_artifact: typing.Union[LegacyArtifact, dict],
+    legacy_artifact: dict,
 ) -> Artifact:
     """Converts a legacy artifact to a new format.
-
     :param legacy_artifact: The legacy artifact to convert.
     :return: The converted artifact.
     """
-    if isinstance(legacy_artifact, LegacyArtifact):
-        legacy_artifact_dict = legacy_artifact.to_dict()
-    elif isinstance(legacy_artifact, dict):
-        legacy_artifact_dict = legacy_artifact
-    else:
-        raise TypeError(
-            f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
-        )
-
-    artifact_key = legacy_artifact_dict.get("key", "")
-    artifact_tag = legacy_artifact_dict.get("tag", "")
+    artifact_key = legacy_artifact.get("key", "")
+    artifact_tag = legacy_artifact.get("tag", "")
     if artifact_tag:
         artifact_key = f"{artifact_key}:{artifact_tag}"
     # TODO: remove in 1.8.0
@@ -1086,12 +869,12 @@ def convert_legacy_artifact_to_new_format(
     )
 
     artifact = mlrun.artifacts.artifact_types.get(
-        legacy_artifact_dict.get("kind", "artifact"), mlrun.artifacts.Artifact
+        legacy_artifact.get("kind", "artifact"), mlrun.artifacts.Artifact
     )()
 
-    artifact.metadata = artifact.metadata.from_dict(legacy_artifact_dict)
-    artifact.spec = artifact.spec.from_dict(legacy_artifact_dict)
-    artifact.status = artifact.status.from_dict(legacy_artifact_dict)
+    artifact.metadata = artifact.metadata.from_dict(legacy_artifact)
+    artifact.spec = artifact.spec.from_dict(legacy_artifact)
+    artifact.status = artifact.status.from_dict(legacy_artifact)
 
     return artifact
 

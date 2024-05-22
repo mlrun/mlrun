@@ -17,6 +17,7 @@ import os
 import time
 import uuid
 
+import mlrun_pipelines.mounts
 import pandas as pd
 import pytest
 import requests
@@ -401,7 +402,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func.spec.max_replicas = 1
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
-            mlrun.auto_mount()
+            mlrun_pipelines.mounts.auto_mount()
         )
         stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
@@ -437,7 +438,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_serving_with_kafka_queue(self, kafka_fixture):
-        kafka_consumer, _ = kafka_fixture
+        kafka_consumer, _, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 
@@ -595,27 +596,32 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def test_basic_api_gateway_flow(self):
         api_gateway = self._get_basic_gateway()
-        api_gateway = self.project.store_api_gateway(api_gateway)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_basic_auth("test", "test")
-        api_gateway = self.project.store_api_gateway(api_gateway)
-        res = api_gateway.invoke(auth=("test", "test"), verify=False)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+        res = api_gateway.invoke(credentials=("test", "test"), verify=False)
         assert res.status_code == 200
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
         api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
-        api_gateway = self.project.store_api_gateway(api_gateway)
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
 
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
-            project=self.project_name, functions=self.f1, name=self.gw_name
+            metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name=self.gw_name,
+            ),
+            spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=[self.f1], project=self.project_name
+            ),
         )
 
     def _cleanup_gateway(self):

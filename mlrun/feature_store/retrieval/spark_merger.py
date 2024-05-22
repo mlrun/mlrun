@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import pandas as pd
 import semver
 
@@ -225,7 +226,12 @@ class SparkFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
+
         source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
@@ -247,13 +253,13 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
-
         source = source_driver(
             name=self.vector.metadata.name,
             path=source_path,
             time_field=time_column,
             start_time=start_time,
             end_time=end_time,
+            additional_filters=additional_filters,
             **source_kwargs,
         )
 

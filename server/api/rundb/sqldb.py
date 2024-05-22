@@ -18,7 +18,10 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
+import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
@@ -111,7 +114,8 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -135,7 +139,9 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state) if state is not None else None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -233,13 +239,26 @@ class SQLRunDB(RunDBInterface):
             producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
             key,
             tag,
             project,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -698,6 +717,24 @@ class SQLRunDB(RunDBInterface):
             mask_params,
         )
 
+    def store_alert_notifications(
+        self,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
+        return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
+            server.api.crud.Notifications().store_alerts_notifications,
+            notification_objects,
+            alert_id,
+            project,
+            mask_params,
+        )
+
     def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
@@ -779,7 +816,10 @@ class SQLRunDB(RunDBInterface):
     def store_api_gateway(
         self,
         project: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
     ):
         raise NotImplementedError()
 
@@ -1051,6 +1091,37 @@ class SQLRunDB(RunDBInterface):
 
         except DBError as exc:
             raise mlrun.db.RunDBError(exc.args) from exc
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
+        pass
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

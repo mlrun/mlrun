@@ -413,8 +413,11 @@ async def test_list_project_summaries(
         models_count=6,
         runs_failed_recent_count=7,
         runs_running_count=8,
-        schedules_count=1,
+        distinct_schedules_count=1,
+        runs_completed_recent_count=9,
         pipelines_running_count=2,
+        distinct_scheduled_jobs_pending_count=3,
+        distinct_scheduled_pipelines_pending_count=4,
     )
     server.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
         return_value=asyncio.Future()
@@ -451,12 +454,12 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     )
 
     server.api.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(6)))
+        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
     )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert project_summaries.project_summaries[0].name == project_name
-    assert project_summaries.project_summaries[0].pipelines_running_count is None
+    assert project_summaries.project_summaries[0].pipelines_running_count == 0
     assert project_summaries.project_summaries[0].files_count == 0
 
 

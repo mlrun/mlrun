@@ -88,6 +88,7 @@ class BaseMerger(abc.ABC):
         update_stats=None,
         query=None,
         order_by=None,
+        additional_filters=None,
     ):
         self._target = target
 
@@ -134,6 +135,7 @@ class BaseMerger(abc.ABC):
             timestamp_for_filtering=timestamp_for_filtering,
             query=query,
             order_by=order_by,
+            additional_filters=additional_filters,
         )
 
     def _write_to_offline_target(self, timestamp_key=None):
@@ -186,6 +188,7 @@ class BaseMerger(abc.ABC):
         timestamp_for_filtering=None,
         query=None,
         order_by=None,
+        additional_filters=None,
     ):
         self._create_engine_env()
 
@@ -212,7 +215,7 @@ class BaseMerger(abc.ABC):
             feature_sets.append(None)
             join_types.append(None)
 
-        filtered = False
+        timestamp_filtered = False
         for step in join_graph.steps:
             name = step.right_feature_set_name
             feature_set = feature_set_objects[name]
@@ -250,7 +253,7 @@ class BaseMerger(abc.ABC):
             if self._drop_indexes:
                 self._append_drop_column(time_column)
             if (start_time or end_time) and time_column:
-                filtered = True
+                timestamp_filtered = True
 
             df = self._get_engine_df(
                 feature_set,
@@ -259,6 +262,7 @@ class BaseMerger(abc.ABC):
                 start_time if time_column else None,
                 end_time if time_column else None,
                 time_column,
+                additional_filters,
             )
 
             fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
@@ -302,8 +306,8 @@ class BaseMerger(abc.ABC):
                     new_columns.append((column, alias))
             self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
-        # None of the feature sets was filtered as required
-        if not filtered and (start_time or end_time):
+        # None of the feature sets was timestamp filtered as required
+        if not timestamp_filtered and (start_time or end_time):
             raise mlrun.errors.MLRunRuntimeError(
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
@@ -755,6 +759,7 @@ class BaseMerger(abc.ABC):
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
         time_column: typing.Optional[str] = None,
+        additional_filters=None,
     ):
         """
         Return the feature_set data frame according to the args

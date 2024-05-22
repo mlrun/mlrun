@@ -63,11 +63,9 @@ class Callback(ABC):
             def on_train_end(self):
                 print("{self.name}: Done training!")
 
+
         apply_mlrun()
-        lgb.train(
-            ...,
-            callbacks=[ExampleCallback(name="Example")]
-        )
+        lgb.train(..., callbacks=[ExampleCallback(name="Example")])
     """
 
     def __init__(self, order: int = 10, before_iteration: bool = False):

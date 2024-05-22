@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mmap
-import os
 import time
 from datetime import datetime
 
@@ -22,7 +20,6 @@ import v3io
 from v3io.dataplane.response import HttpResponseError
 
 import mlrun
-from mlrun.datastore.helpers import ONE_GB, ONE_MB
 
 from ..platforms.iguazio import parse_path, split_path
 from .base import (
@@ -32,6 +29,7 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
+V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 10
 
 
 class V3ioStore(DataStore):
@@ -98,46 +96,28 @@ class V3ioStore(DataStore):
         )
         return self._sanitize_storage_options(res)
 
-    def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
+    def _upload(
+        self,
+        key: str,
+        src_path: str,
+        max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE,
+    ):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
-        file_size = os.path.getsize(src_path)  # in bytes
-        if file_size <= ONE_MB:
-            with open(src_path, "rb") as source_file:
-                data = source_file.read()
-            self._do_object_request(
-                self.object.put,
-                container=container,
-                path=path,
-                body=data,
-                append=False,
-            )
-            return
-        # chunk must be a multiple of the ALLOCATIONGRANULARITY
-        # https://docs.python.org/3/library/mmap.html
-        if residue := max_chunk_size % mmap.ALLOCATIONGRANULARITY:
-            # round down to the nearest multiple of ALLOCATIONGRANULARITY
-            max_chunk_size -= residue
-
         with open(src_path, "rb") as file_obj:
-            file_offset = 0
-            while file_offset < file_size:
-                chunk_size = min(file_size - file_offset, max_chunk_size)
-                with mmap.mmap(
-                    file_obj.fileno(),
-                    length=chunk_size,
-                    access=mmap.ACCESS_READ,
-                    offset=file_offset,
-                ) as mmap_obj:
-                    append = file_offset != 0
-                    self._do_object_request(
-                        self.object.put,
-                        container=container,
-                        path=path,
-                        body=mmap_obj,
-                        append=append,
-                    )
-                    file_offset += chunk_size
+            append = False
+            while True:
+                data = memoryview(file_obj.read(max_chunk_size))
+                if not data:
+                    break
+                self._do_object_request(
+                    self.object.put,
+                    container=container,
+                    path=path,
+                    body=data,
+                    append=append,
+                )
+                append = True
 
     def upload(self, key, src_path):
         return self._upload(key, src_path)
@@ -152,19 +132,16 @@ class V3ioStore(DataStore):
             num_bytes=size,
         ).body
 
-    def _put(self, key, data, append=False, max_chunk_size: int = ONE_GB):
+    def _put(
+        self,
+        key,
+        data,
+        append=False,
+        max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE,
+    ):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
-        if buffer_size <= ONE_MB:
-            self._do_object_request(
-                self.object.put,
-                container=container,
-                path=path,
-                body=data,
-                append=append,
-            )
-            return
         buffer_offset = 0
         try:
             data = memoryview(data)

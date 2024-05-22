@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import itertools
 import os
@@ -356,13 +355,13 @@ class ModelEndpoints:
                                            these metrics are stored in the time series DB and the results will be
                                            appeared under `model_endpoint.spec.metrics`.
         :param start:                      The start time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                           0 for the earliest time.
+                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'`
+                                           or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days,
+                                           and `'s'` = seconds), or 0 for the earliest time.
         :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                           0 for the earliest time.
+                                           RFC 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'`
+                                           or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days,
+                                           and `'s'` = seconds), or 0 for the earliest time.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
 
@@ -547,7 +546,7 @@ class ModelEndpoints:
             and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
         ):
             return
-        # Generate a model endpoint store object and get a list of model endpoint dictionaries
+        # Delete model monitoring store resources
         endpoint_store = mlrun.model_monitoring.get_store_object(
             access_key=auth_info.data_session,
             project=project_name,
@@ -555,10 +554,13 @@ class ModelEndpoints:
                 project=project_name
             ),
         )
-        endpoints = endpoint_store.list_model_endpoints()
+        endpoint_store.delete_model_endpoints_resources()
 
-        # Delete model endpoints resources from databases using the model endpoint store object
-        endpoint_store.delete_model_endpoints_resources(endpoints)
+        # Delete model monitoring TSDB resources
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=project_name,
+        )
+        tsdb_connector.delete_tsdb_resources()
 
     @staticmethod
     def _validate_length_features_and_labels(
@@ -643,12 +645,17 @@ class ModelEndpoints:
         if model_endpoint_object.status.metrics is None:
             model_endpoint_object.status.metrics = {}
 
-        endpoint_metrics = model_endpoint_store.get_endpoint_real_time_metrics(
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=model_endpoint_object.metadata.project,
+        )
+
+        endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=model_endpoint_object.metadata.uid,
+            metrics=metrics,
             start=start,
             end=end,
-            metrics=metrics,
         )
+
         if endpoint_metrics:
             model_endpoint_object.status.metrics[
                 mlrun.common.schemas.model_monitoring.EventKeyMetrics.REAL_TIME

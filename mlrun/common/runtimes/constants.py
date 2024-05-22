@@ -136,6 +136,7 @@ class RunStates:
     unknown = "unknown"
     aborted = "aborted"
     aborting = "aborting"
+    skipped = "skipped"
 
     @staticmethod
     def all():
@@ -148,6 +149,7 @@ class RunStates:
             RunStates.unknown,
             RunStates.aborted,
             RunStates.aborting,
+            RunStates.skipped,
         ]
 
     @staticmethod
@@ -156,6 +158,7 @@ class RunStates:
             RunStates.completed,
             RunStates.error,
             RunStates.aborted,
+            RunStates.skipped,
         ]
 
     @staticmethod

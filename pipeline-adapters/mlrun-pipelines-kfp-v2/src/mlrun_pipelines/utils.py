@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,19 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from deprecated import deprecated
+#
 
-from mlrun.runtimes.constants import MPIJobCRDVersions
-from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
+import tempfile
+
+from kfp.compiler import Compiler
 
 
-# TODO: Remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="v1alpha1 mpi will be removed in 1.7.0, use v1 instead",
-    category=FutureWarning,
-)
-class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
-    crd_group = "kubeflow.org"
-    crd_version = MPIJobCRDVersions.v1alpha1
-    crd_plural = "mpijobs"
+def compile_pipeline(pipeline, **kwargs):
+    pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
+    Compiler().compile(pipeline, pipe_file, type_check=False)
+    return pipe_file

@@ -16,6 +16,8 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
+import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.model_monitoring
 
@@ -62,7 +64,10 @@ class RunDBInterface(ABC):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -117,7 +122,18 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         pass
 
     @abstractmethod
@@ -543,7 +559,7 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[list[str]] = None,
         features: bool = False,
-    ):
+    ) -> mlrun.model_monitoring.ModelEndpoint:
         pass
 
     @abstractmethod
@@ -617,8 +633,8 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: mlrun.common.schemas.APIGateway,
+        project: str = None,
     ):
         pass
 
@@ -652,6 +668,45 @@ class RunDBInterface(ABC):
         func: "mlrun.runtimes.RemoteRuntime",
         builder_env: Optional[dict] = None,
     ):
+        pass
+
+    @abstractmethod
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    @abstractmethod
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def list_alerts_configs(self, project=""):
+        pass
+
+    @abstractmethod
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def get_alert_template(self, template_name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self):
         pass
 
     @abstractmethod
@@ -695,6 +750,17 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def get_log_size(self, uid, project=""):
+        pass
+
+    @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
         pass
 
     @abstractmethod
@@ -760,7 +826,7 @@ class RunDBInterface(ABC):
         project: str,
         base_period: int = 10,
         image: str = "mlrun/mlrun",
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -771,10 +837,10 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
     ) -> None:
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
-        raise NotImplementedError
+        pass

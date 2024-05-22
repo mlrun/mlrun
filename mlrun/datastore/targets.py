@@ -656,6 +656,29 @@ class BaseStoreTarget(DataTargetBase):
     def _target_path_object(self):
         """return the actual/computed target path"""
         is_single_file = hasattr(self, "is_single_file") and self.is_single_file()
+
+        if self._resource and self.path:
+            parsed_url = urlparse(self.path)
+            # When the URL consists only from scheme and endpoint and no path,
+            # make a default path for DS and redis targets.
+            # Also ignore KafkaTarget when it uses the ds scheme (no default path for KafkaTarget)
+            if (
+                not isinstance(self, KafkaTarget)
+                and parsed_url.scheme in ["ds", "redis", "rediss"]
+                and (not parsed_url.path or parsed_url.path == "/")
+            ):
+                return TargetPathObject(
+                    _get_target_path(
+                        self,
+                        self._resource,
+                        self.run_id is not None,
+                        netloc=parsed_url.netloc,
+                        scheme=parsed_url.scheme,
+                    ),
+                    self.run_id,
+                    is_single_file,
+                )
+
         return self.get_path() or (
             TargetPathObject(
                 _get_target_path(self, self._resource, self.run_id is not None),
@@ -714,9 +737,13 @@ class BaseStoreTarget(DataTargetBase):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
@@ -961,6 +988,7 @@ class ParquetTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         """return the target data as dataframe"""
@@ -971,6 +999,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            additional_filters=additional_filters,
             **kwargs,
         )
         if not columns:
@@ -1101,8 +1130,12 @@ class CSVTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         df = super().as_df(
             columns=columns,
             df_module=df_module,
@@ -1209,6 +1242,7 @@ class SnowflakeTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         raise NotImplementedError()
@@ -1275,7 +1309,17 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def get_dask_options(self):
         return {"format": "csv"}
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1511,11 +1555,40 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
 
 class KafkaTarget(BaseStoreTarget):
+    """
+    Kafka target storage driver, used to write data into kafka topics.
+    example::
+        # define target
+        kafka_target = KafkaTarget(
+            name="kafka", path="my_topic", brokers="localhost:9092"
+        )
+        # ingest
+        stocks_set.ingest(stocks, [kafka_target])
+    :param name:                target name
+    :param path:                topic name e.g. "my_topic"
+    :param after_step:          optional, after what step in the graph to add the target
+    :param columns:             optional, which columns from data to write
+    :param bootstrap_servers:   Deprecated. Use the brokers parameter instead
+    :param producer_options:    additional configurations for kafka producer
+    :param brokers:             kafka broker as represented by a host:port pair, or a list of kafka brokers, e.g.
+        "localhost:9092", or ["kafka-broker-1:9092", "kafka-broker-2:9092"]
+    """
+
     kind = TargetTypes.kafka
     is_table = False
     is_online = False
@@ -1532,15 +1605,23 @@ class KafkaTarget(BaseStoreTarget):
         **kwargs,
     ):
         attrs = {}
+
+        # TODO: Remove this in 1.9.0
         if bootstrap_servers:
+            if brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "KafkaTarget cannot be created with both the 'brokers' parameter and the deprecated "
+                    "'bootstrap_servers' parameter. Please use 'brokers' only."
+                )
             warnings.warn(
                 "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
                 "use 'brokers' instead.",
-                # TODO: Remove this in 1.9.0
                 FutureWarning,
             )
-        if bootstrap_servers is not None:
-            attrs["brokers"] = brokers or bootstrap_servers
+            brokers = bootstrap_servers
+
+        if brokers:
+            attrs["brokers"] = brokers
         if producer_options is not None:
             attrs["producer_options"] = producer_options
 
@@ -1589,7 +1670,17 @@ class KafkaTarget(BaseStoreTarget):
             **attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def purge(self):
@@ -1636,7 +1727,17 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(self, columns=None, df_module=None, **kwargs):
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
         raise NotImplementedError()
 
     def write_dataframe(
@@ -1747,11 +1848,16 @@ class DFTarget(BaseStoreTarget):
         self,
         columns=None,
         df_module=None,
+        entities=None,
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return select_columns_from_df(
             filter_df_start_end_time(
                 self._df,
@@ -1926,6 +2032,7 @@ class SQLTarget(BaseStoreTarget):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
         **kwargs,
     ):
         try:
@@ -1933,6 +2040,10 @@ class SQLTarget(BaseStoreTarget):
 
         except (ModuleNotFoundError, ImportError) as exc:
             self._raise_sqlalchemy_import_error(exc)
+
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
@@ -2080,7 +2191,7 @@ kind_to_driver = {
 }
 
 
-def _get_target_path(driver, resource, run_id_mode=False):
+def _get_target_path(driver, resource, run_id_mode=False, netloc=None, scheme=""):
     """return the default target path given the resource and target kind"""
     kind = driver.kind
     suffix = driver.suffix
@@ -2097,11 +2208,27 @@ def _get_target_path(driver, resource, run_id_mode=False):
     )
     name = resource.metadata.name
     project = resource.metadata.project or mlrun.mlconf.default_project
-    data_prefix = get_default_prefix_for_target(kind).format(
+
+    default_kind_name = kind
+    if scheme == "ds":
+        # "dsnosql" is not an actual target like Parquet or Redis; rather, it serves
+        # as a placeholder that can be used in any specified target
+        default_kind_name = "dsnosql"
+    if scheme == "redis" or scheme == "rediss":
+        default_kind_name = TargetTypes.redisnosql
+
+    netloc = netloc or ""
+    data_prefix = get_default_prefix_for_target(default_kind_name).format(
+        ds_profile_name=netloc,  # In case of ds profile, set its the name
+        authority=netloc,  # In case of redis, replace {authority} with netloc
         project=project,
         kind=kind,
         name=name,
     )
+
+    if scheme == "rediss":
+        data_prefix = data_prefix.replace("redis://", "rediss://", 1)
+
     # todo: handle ver tag changes, may need to copy files?
     if not run_id_mode:
         version = resource.metadata.tag

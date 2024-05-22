@@ -35,6 +35,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+import server.api.utils.helpers
 import server.api.utils.projects.remotes.leader as project_leader
 from mlrun.utils import get_in, logger
 
@@ -192,22 +193,17 @@ class Client(
                 SessionPlanes.data,
                 SessionPlanes.control,
             ]
-        body = {
-            "data": {
-                "type": "access_key",
-                "attributes": {"label": "MLRun", "planes": planes},
-            }
-        }
-        response = self._send_request_to_api(
-            "POST",
-            "self/get_or_create_access_key",
-            "Failed getting or creating iguazio access key",
-            session,
-            json=body,
+        planes = [
+            igz_mgmt.constants.SessionPlanes(plane)
+            for plane in planes
+            if plane in igz_mgmt.constants.SessionPlanes.all()
+        ]
+        access_key = igz_mgmt.AccessKey.get_or_create(
+            self._get_igz_client(session),
+            planes=planes,
+            label="MLRun",
         )
-        if response.status_code == http.HTTPStatus.CREATED.value:
-            self._logger.debug("Created access key in Iguazio", planes=planes)
-        return response.json()["data"]["id"]
+        return access_key.id
 
     def create_project(
         self,
@@ -345,6 +341,7 @@ class Client(
         """
         return True
 
+    @server.api.utils.helpers.lru_cache_with_ttl(maxsize=1, ttl_seconds=60 * 2)
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
         """
         Try to find a ready grafana app service, and return its URL
@@ -381,9 +378,7 @@ class Client(
         Emit a manual event to Iguazio
         """
         client = self._get_igz_client(access_key)
-        igz_mgmt.ManualEvents.emit(
-            http_client=client, event=event, audit_tenant_id=client.tenant_id
-        )
+        event.emit(client)
 
     def _get_igz_client(self, access_key: str) -> igz_mgmt.Client:
         if not self._igz_clients.get(access_key):
@@ -755,6 +750,13 @@ class Client(
             )
         if project.spec.owner:
             body["data"]["attributes"]["owner_username"] = project.spec.owner
+
+        if project.spec.default_function_node_selector is not None:
+            body["data"]["attributes"]["default_function_node_selector"] = (
+                Client._transform_mlrun_labels_to_iguazio_labels(
+                    project.spec.default_function_node_selector
+                )
+            )
         return body
 
     @staticmethod
@@ -972,23 +974,32 @@ class AsyncClient(Client):
             "cookie": request.headers.get("cookie"),
             "x-request-id": request.state.request_id,
         }
-        async with self._send_request_to_api_async(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            headers=headers,
-        ) as response:
+        async with (
+            self._send_request_to_api_async(
+                "POST",
+                mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+                "Failed verifying iguazio session",
+                blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+                headers=headers,
+            ) as response
+        ):
             return self._generate_auth_info_from_session_verification_response(
                 response.headers, await response.json()
             )
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api_async(
-        self, method, path: str, error_message: str, session=None, **kwargs
+        self,
+        method,
+        path: str,
+        error_message: str,
+        session=None,
+        blacklisted_methods=None,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session()
+        await self._ensure_async_session(blacklisted_methods)
         response = None
         try:
             response = await self._async_session.request(
@@ -1007,10 +1018,16 @@ class AsyncClient(Client):
             if response:
                 response.release()
 
-    async def _ensure_async_session(self):
-        if not self._async_session:
+    async def _ensure_async_session(self, blacklisted_methods=None):
+        if (
+            not self._async_session
+            or self._async_session.methods_blacklist_update_required(
+                blacklisted_methods
+            )
+        ):
             self._async_session = mlrun.utils.AsyncClientWithRetry(
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
+                blacklisted_methods=blacklisted_methods,
             )

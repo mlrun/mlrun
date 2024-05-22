@@ -16,6 +16,8 @@
 import datetime
 from typing import Optional, Union
 
+import mlrun.alerts
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -79,7 +81,10 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -128,7 +133,18 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -508,8 +524,11 @@ class NopDB(RunDBInterface):
 
     def store_api_gateway(
         self,
-        project: str,
-        api_gateway: mlrun.runtimes.nuclio.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: str = None,
     ) -> mlrun.common.schemas.APIGateway:
         pass
 
@@ -581,6 +600,16 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
     def get_log_size(self, uid, project=""):
         pass
 
@@ -646,9 +675,40 @@ class NopDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
     ) -> None:
-        raise NotImplementedError
+        pass
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
         raise NotImplementedError
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
+        pass

@@ -17,6 +17,7 @@ from typing import Any, Optional, Union
 
 from deprecated import deprecated
 
+import mlrun.alerts
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
@@ -50,7 +51,7 @@ class DBInterface(ABC):
     def store_run(
         self,
         session,
-        struct,
+        run_data,
         uid,
         project="",
         iter=0,
@@ -208,8 +209,9 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         pass
 
@@ -306,6 +308,18 @@ class DBInterface(ABC):
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
     ):
         pass
 
@@ -422,6 +436,9 @@ class DBInterface(ABC):
     async def get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -695,6 +712,40 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def delete_alert_template(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        pass
+
+    @abstractmethod
+    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+    ):
+        pass
+
+    @abstractmethod
     def store_run_notifications(
         self,
         session,
@@ -804,3 +855,27 @@ class DBInterface(ABC):
         raise NotImplementedError
 
     # EO Pagination Section
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass

@@ -21,6 +21,7 @@ from os import environ
 from typing import Callable, Optional, Union
 
 import requests.exceptions
+from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.constants
@@ -37,7 +38,6 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
-from ..kfpops import mlrun_op
 from ..lists import RunList
 from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (
@@ -469,7 +469,7 @@ class BaseRuntime(ModelObj):
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
         mlrun.runtimes.utils.enrich_run_labels(
-            meta.labels, [mlrun.runtimes.constants.RunLabels.owner]
+            meta.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
@@ -580,9 +580,9 @@ class BaseRuntime(ModelObj):
 
         elif (
             not was_none
-            and last_state != mlrun.runtimes.constants.RunStates.completed
+            and last_state != mlrun.common.runtimes.constants.RunStates.completed
             and last_state
-            not in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
         ):
             try:
                 runtime_cls = mlrun.runtimes.get_runtime_class(kind)
@@ -707,11 +707,11 @@ class BaseRuntime(ModelObj):
                                   "key": "the_key".
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
-        :return: KubeFlow containerOp
+        :return: mlrun_pipelines.models.PipelineNodeWrapper
         """
 
         # if the function contain KFP PipelineParams (futures) pass the full spec to the
-        # ContainerOp this way KFP will substitute the params with previous step outputs
+        # PipelineNodeWrapper this way KFP will substitute the params with previous step outputs
         if use_db and not self._has_pipeline_param():
             # if the same function is built as part of the pipeline we do not use the versioned function
             # rather the latest function w the same tag so we can pick up the updated image/status

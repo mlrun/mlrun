@@ -20,6 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, R
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -185,7 +186,7 @@ async def delete_run(
     "/runs",
     deprecated=True,
     description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
+    "use /projects/{project}/runs/ instead",
 )
 @router.get("/projects/{project}/runs")
 async def list_runs(
@@ -193,7 +194,7 @@ async def list_runs(
     name: str = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    state: str = None,
+    states: list[str] = Query([], alias="state"),
     last: int = 0,
     sort: bool = True,
     iter: bool = True,
@@ -251,7 +252,7 @@ async def list_runs(
         uid=uid,
         project=project,
         labels=labels,
-        state=state,
+        states=states,
         sort=sort,
         last=last,
         iter=iter,
@@ -415,8 +416,8 @@ async def abort_run(
 
     current_run_state = run.get("status", {}).get("state")
     if current_run_state in [
-        mlrun.runtimes.constants.RunStates.aborting,
-        mlrun.runtimes.constants.RunStates.aborted,
+        mlrun.common.runtimes.constants.RunStates.aborting,
+        mlrun.common.runtimes.constants.RunStates.aborted,
     ]:
         background_task_id = run.get("status", {}).get("abort_task_id")
         if background_task_id:

@@ -42,6 +42,7 @@ def run_merge_job(
     start_time=None,
     end_time=None,
     timestamp_for_filtering=None,
+    additional_filters=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -116,6 +117,7 @@ def run_merge_job(
             "end_time": end_time,
             "timestamp_for_filtering": timestamp_for_filtering,
             "engine_args": engine_args,
+            "additional_filters": additional_filters,
         },
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )
@@ -196,7 +198,8 @@ import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
                   entity_timestamp_column=None, drop_columns=None, with_indexes=None, query=None,
-                  engine_args=None, order_by=None, start_time=None, end_time=None, timestamp_for_filtering=None):
+                  engine_args=None, order_by=None, start_time=None, end_time=None, timestamp_for_filtering=None,
+                  additional_filters=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     if entity_rows:
@@ -206,7 +209,7 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
                  query=query, order_by=order_by, start_time=start_time, end_time=end_time,
-                 timestamp_for_filtering=timestamp_for_filtering)
+                 timestamp_for_filtering=timestamp_for_filtering, additional_filters=additional_filters)
 
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)

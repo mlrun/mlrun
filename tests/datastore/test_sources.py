@@ -19,7 +19,7 @@ import pytest
 
 import mlrun.config
 from mlrun import new_function
-from mlrun.datastore import CSVSource, KafkaSource
+from mlrun.datastore import CSVSource, KafkaSource, ParquetSource
 
 
 def test_kafka_source_with_old_nuclio():
@@ -104,3 +104,17 @@ def test_timestamp_format_inference(rundb_mock):
         )
     )
     pd.testing.assert_frame_equal(result_df, expected_result_df)
+
+
+@pytest.mark.parametrize(
+    "additional_filters",
+    [[("age", "=", float("nan"))], [("age", "in", [10, float("nan")])]],
+)
+def test_nan_additional_filters(additional_filters):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="using NaN in additional_filters is not supported",
+    ):
+        ParquetSource(
+            "parquet_source", path="path/to/file", additional_filters=additional_filters
+        )

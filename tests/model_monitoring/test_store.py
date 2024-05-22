@@ -11,33 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import string
 import time
-import typing
 import unittest.mock
+from collections.abc import Iterator
+from pathlib import Path
 from random import choice, randint
-from typing import Optional
+from typing import Optional, cast
 
 import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores.sqldb.sql_store
-from mlrun.common.schemas.model_monitoring import WriterEvent
-from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    StoreBase,
-)
+from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
+from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
 from mlrun.model_monitoring.writer import _AppResultEvent
-
-SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
 
 
 class TestSQLStore:
     _TEST_PROJECT = "test_model_endpoints"
     _MODEL_ENDPOINT_ID = "some-ep-id"
-    _STORE_CONNECTION = "sqlite:///test.db"
+
+    @staticmethod
+    @pytest.fixture
+    def store_connection(tmp_path: Path) -> str:
+        return f"sqlite:///{tmp_path / 'test.db'}"
 
     @pytest.fixture()
     def _mock_random_endpoint(
@@ -74,11 +73,11 @@ class TestSQLStore:
                 WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.RESULT_NAME: "data-drift-0",
-                WriterEvent.RESULT_KIND: 0,
-                WriterEvent.RESULT_VALUE: 0.32,
-                WriterEvent.RESULT_STATUS: 0,
-                WriterEvent.RESULT_EXTRA_DATA: "",
+                ResultData.RESULT_NAME: "data-drift-0",
+                ResultData.RESULT_KIND: 0,
+                ResultData.RESULT_VALUE: 0.32,
+                ResultData.RESULT_STATUS: 0,
+                ResultData.RESULT_EXTRA_DATA: "",
             }
         )
 
@@ -93,11 +92,11 @@ class TestSQLStore:
                 WriterEvent.START_INFER_TIME: "2023-09-20 14:26:06.501084",
                 WriterEvent.END_INFER_TIME: "2023-09-20 16:26:06.501084",
                 WriterEvent.APPLICATION_NAME: "dummy-app",
-                WriterEvent.RESULT_NAME: "data-drift-0",
-                WriterEvent.RESULT_KIND: 1,
-                WriterEvent.RESULT_VALUE: 5.15,
-                WriterEvent.RESULT_STATUS: 1,
-                WriterEvent.RESULT_EXTRA_DATA: "",
+                ResultData.RESULT_NAME: "data-drift-0",
+                ResultData.RESULT_KIND: 1,
+                ResultData.RESULT_VALUE: 5.15,
+                ResultData.RESULT_STATUS: 1,
+                ResultData.RESULT_EXTRA_DATA: "",
             }
         )
 
@@ -108,19 +107,19 @@ class TestSQLStore:
 
     @classmethod
     @pytest.fixture
-    def new_sql_store(cls) -> SQLStoreBase:
+    def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
-            return_value=cls._STORE_CONNECTION,
+            return_value=store_connection,
         ):
-            sql_store: SQLStoreBase = store_type_object.to_object_store(
-                project=cls._TEST_PROJECT
+            sql_store = cast(
+                SQLStoreBase,
+                store_type_object.to_object_store(project=cls._TEST_PROJECT),
             )
             yield sql_store
-            list_of_endpoints = sql_store.list_model_endpoints()
-            sql_store.delete_model_endpoints_resources(list_of_endpoints)
+            sql_store.delete_model_endpoints_resources()
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 
@@ -185,7 +184,7 @@ class TestSQLStore:
         assert endpoint_dict["model"] == "test_model"
         assert endpoint_dict["error_count"] == 2
 
-    def test_sql_write_application_result(
+    def test_sql_write_application_event(
         cls,
         event: _AppResultEvent,
         event_v2: _AppResultEvent,
@@ -196,12 +195,12 @@ class TestSQLStore:
         new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
 
         # Write a dummy application result event
-        new_sql_store.write_application_result(event=event)
+        new_sql_store.write_application_event(event=event)
 
         cls.assert_application_record(event=event, new_sql_store=new_sql_store)
 
         # Write a 2nd application result event - we expect it to overwrite the existing record
-        new_sql_store.write_application_result(event=event_v2)
+        new_sql_store.write_application_event(event=event_v2)
 
         cls.assert_application_record(event=event_v2, new_sql_store=new_sql_store)
 
@@ -223,7 +222,7 @@ class TestSQLStore:
 
         assert (
             application_record.result_value
-            == event[mlrun.common.schemas.model_monitoring.WriterEvent.RESULT_VALUE]
+            == event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_VALUE]
         )
 
         assert application_record.uid == new_sql_store._generate_application_result_uid(

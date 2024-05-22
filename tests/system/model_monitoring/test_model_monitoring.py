@@ -21,6 +21,7 @@ from time import monotonic, sleep
 from typing import Optional, Union
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pytest
@@ -39,7 +40,6 @@ import mlrun.serving.routers
 import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -247,8 +247,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(270)
-    @pytest.mark.parametrize("engine", ["sync", "async"])
-    def test_basic_model_monitoring(self, engine) -> None:
+    def test_basic_model_monitoring(self) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
@@ -270,13 +269,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
-
-        serving_fn.set_topology(
-            "router",
-            engine=engine,
-        )
-
+        ).apply(mlrun_pipelines.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
         project.enable_model_monitoring(
@@ -541,7 +534,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         serving_fn.set_topology(
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
@@ -826,13 +819,9 @@ class TestBatchDrift(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
 
-        controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
-        )
-
-        controller._wait_for_function_deployment(db=controller._get_db())
         # Generate a dataframe that will be written as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
         infer_results_df = pd.DataFrame(
@@ -926,7 +915,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         model_name = "sklearn_RandomForestClassifier"
 
@@ -1139,48 +1128,37 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         )
         return model.uri
 
-    def _wait_for_deployments(self) -> None:
-        for fn_name in [
-            mm_constants.MonitoringFunctionNames.STREAM,
-            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            mm_constants.MonitoringFunctionNames.WRITER,
-            mm_constants.MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME,
-        ]:
-            fn = self.project.get_function(key=fn_name)
-            fn._wait_for_function_deployment(db=fn._get_db())
-
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container=ModelMonitoringWriter.get_v3io_container(cls.project_name)
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=cls.project_name
         )
-        df: pd.DataFrame = tsdb_client.read(
-            backend=_TSDB_BE, table=_TSDB_TABLE, start="now-5m", end="now"
+
+        df: pd.DataFrame = tsdb_client.get_records(
+            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
+            start="now-5m",
+            end="now",
         )
 
         assert not df.empty, "No TSDB data"
         assert (
-            len(df) == 4
-        ), "Expects four results of the histogram data drift app in the TSDB"
+            len(df) == 1
+        ), "Expects a single result from the histogram data drift app in the TSDB"
         assert set(df.application_name) == {
             "histogram-data-drift"
-        }, "The application names are different than expected"
+        }, "The application name is different than expected"
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
-            "hellinger_mean",
-            "kld_mean",
-            "tvd_mean",
-        }, "The results are different than expected"
+        }, "The result is different than expected"
 
     def test_record(self) -> None:
         self.project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
-
-        self._wait_for_deployments()
 
         model_uri = self._log_model()
 

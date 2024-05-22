@@ -587,8 +587,12 @@ run-test-db:
 		--collation-server=utf8_bin \
 		--sql_mode=""
 
+.PHONY: clean-html-docs
+clean-html-docs: ## Clean html docs
+	cd docs && make clean && cd ..
+
 .PHONY: html-docs
-html-docs: ## Build html docs
+html-docs: clean-html-docs ## Build html docs
 	rm -f docs/external/*.md
 	cd docs && make html
 
@@ -701,7 +705,14 @@ endif
 ifndef MLRUN_RELEASE_BRANCH
 	$(error MLRUN_RELEASE_BRANCH is undefined)
 endif
-	python ./automation/release_notes/generate.py run $(MLRUN_VERSION) $(MLRUN_OLD_VERSION) $(MLRUN_RELEASE_BRANCH) $(MLRUN_RAISE_ON_ERROR) $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) $(MLRUN_SKIP_CLONE)
+	python ./automation/release_notes/generate.py \
+		run \
+		--release $(MLRUN_VERSION) \
+		--previous-release $(MLRUN_OLD_VERSION) \
+		--release-branch $(MLRUN_RELEASE_BRANCH) \
+		--raise-on-failed-parsing $(MLRUN_RAISE_ON_ERROR) \
+		--tmp-file-path $(MLRUN_RELEASE_NOTES_OUTPUT_FILE) \
+		--skip-clone $(MLRUN_SKIP_CLONE)
 
 
 .PHONY: pull-cache

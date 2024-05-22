@@ -67,9 +67,9 @@ RUN cd $HOME/mlrun && python -m pip install ".[complete-api]"
 ARG MLRUN_CACHE_DATE=initial
 RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
     ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
-    cd $HOME/demos && \
-    ./community_edition_align.sh && \
-    cd -
+    #cd $HOME/demos && \
+    #./community_edition_align.sh && \
+    #cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \

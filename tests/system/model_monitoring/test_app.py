@@ -199,6 +199,17 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
+    def _test_predictions_table(cls, ep_id: str) -> None:
+        predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+            table=mm_constants.FileTargetKind.PREDICTIONS,
+            start="0",
+        )
+        assert not predictions_df.empty, "No TSDB predictions data"
+        assert (
+            predictions_df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+
+    @classmethod
     def _test_apps_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
@@ -229,6 +240,7 @@ class _V3IORecordsChecker:
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
+        cls._test_predictions_table(ep_id)
 
     @classmethod
     def _test_api_get_metrics(
@@ -245,12 +257,28 @@ class _V3IORecordsChecker:
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
-        for result in json.loads(response.content.decode()):
-            if result["app"] == app_data.class_.NAME:
+
+        parsed_response = json.loads(response.content.decode())
+
+        if type == "metrics":
+            assert {
+                "project": cls.project_name,
+                "app": "mlrun-infra",
+                "type": "metric",
+                "name": "invocations",
+                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
+            } in parsed_response
+
+        for result in parsed_response:
+            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert getattr(app_data, type) == get_app_results
+        expected_results = getattr(app_data, type)
+        if type == "metrics":
+            expected_results.add("invocations")
+
+        assert get_app_results == getattr(app_data, type)
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 

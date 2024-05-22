@@ -17,7 +17,7 @@
 
 from datetime import datetime
 from io import StringIO
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
 
@@ -88,7 +88,7 @@ def read_metrics_data(
     start: datetime,
     end: datetime,
     metrics: list[ModelEndpointMonitoringMetric],
-    type: str = "results",
+    type: Literal["metrics", "results"] = "results",
 ) -> Union[
     list[
         Union[
@@ -258,7 +258,7 @@ def df_to_metrics_values(
 def get_invocations_fqn(project: str):
     return mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
         project=project,
-        app="mlrun-infra",
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
         type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
     )
@@ -302,17 +302,14 @@ def read_predictions(
             type=ModelEndpointMonitoringMetricType.METRIC,
         )
 
-    rows = df.reset_index().to_dict(orient="records")
-    values = [
-        [
-            row["time"],
-            row["count(latency)"],  # event count for the time window
-        ]
-        for row in rows
-    ]
     return ModelEndpointMonitoringMetricValues(
         full_name=full_name,
-        values=values,
+        values=list(
+            zip(
+                df.index,
+                df["count(latency)"],
+            )
+        ),
     )
 
 

@@ -353,3 +353,7 @@ class HistogramDataDriftApplicationConstants:
 
 class PredictionsQueryConstants:
     DEFAULT_AGGREGATION_GRANULARITY = "10m"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"

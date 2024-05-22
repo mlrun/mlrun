@@ -41,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -757,7 +758,7 @@ def _push_terminal_run_notifications(
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
+    server.api.utils.notification_pusher.RunNotificationPusher(unmasked_runs).push()
 
 
 def _generate_event_on_failed_runs(

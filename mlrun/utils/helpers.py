@@ -1006,11 +1006,12 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: str):
+def create_function(pkg_func: str, need_to_reload: bool = False):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
+    :param need_to_reload: reload the function if it displays in the modules list.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
@@ -1018,15 +1019,18 @@ def create_function(pkg_func: str):
     pkg_module_exists_in_modules = pkg_module in sys.modules
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
 
-    # if the function appears in the modules list, we need to reload the code again because it may have changed
-    if pkg_module_exists_in_modules:
-        logger.warning(
-            "Reloading module - be aware that not all modules can be reloaded again"
-        )
-        try:
-            reload(pkg_module)
-        except Exception as exc:
-            logger.debug("Failed to reload module", err=mlrun.errors.err_to_str(exc))
+    if need_to_reload:
+        # if the function appears in the modules list, we need to reload the code again because it may have changed
+        if pkg_module_exists_in_modules:
+            logger.warning(
+                "Reloading module - be aware that not all modules can be reloaded again"
+            )
+            try:
+                reload(pkg_module)
+            except Exception as exc:
+                logger.debug(
+                    "Failed to reload module", err=mlrun.errors.err_to_str(exc)
+                )
 
     function_ = getattr(pkg_module, cb_fname)
     return function_
@@ -1085,8 +1089,14 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def get_function(function, namespace):
-    """return function callable object from function name string"""
+def get_function(function, namespaces, need_to_reload: bool = False):
+    """return function callable object from function name string
+
+    :param function: path to the function ([class_name::]function)
+    :param namespaces: one or list of namespaces/modules to search the function in
+    :param need_to_reload: reload the function if it displays in the modules list
+    :return: function handler (callable)
+    """
     if callable(function):
         return function
 
@@ -1095,12 +1105,12 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    function_object = _search_in_namespaces(function, namespace)
+    function_object = _search_in_namespaces(function, namespaces)
     if function_object is not None:
         return function_object
 
     try:
-        function_object = create_function(function)
+        function_object = create_function(function, need_to_reload)
     except (ImportError, ValueError) as exc:
         raise ImportError(
             f"state/function init failed, handler '{function}' not found"
@@ -1109,7 +1119,11 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str,
+    context=None,
+    class_args: dict = {},
+    namespaces=None,
+    need_to_reload: bool = False,
 ):
     """get function handler from [class_name::]handler string
 
@@ -1117,10 +1131,11 @@ def get_handler_extended(
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
+    :param need_to_reload: reload the function if it displays in the modules list
     :return: function handler (callable)
     """
     if "::" not in handler_path:
-        return get_function(handler_path, namespaces)
+        return get_function(handler_path, namespaces, need_to_reload)
 
     splitted = handler_path.split("::")
     class_path = splitted[0].strip()

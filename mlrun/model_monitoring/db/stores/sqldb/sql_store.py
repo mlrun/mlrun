@@ -395,12 +395,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     @staticmethod
     def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
-        return (
-            event[mm_schemas.WriterEvent.ENDPOINT_ID]
-            + "_"
-            + event[mm_schemas.WriterEvent.APPLICATION_NAME]
-            + "_"
-            + event[mm_schemas.ResultData.RESULT_NAME]
+        return "_".join(
+            [
+                event[mm_schemas.WriterEvent.ENDPOINT_ID],
+                event[mm_schemas.WriterEvent.APPLICATION_NAME],
+                event[mm_schemas.ResultData.RESULT_NAME],
+            ]
         )
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:

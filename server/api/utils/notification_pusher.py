@@ -21,9 +21,33 @@ import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
 import server.api.api.utils
+import server.api.constants
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
-from mlrun.utils.notifications.notification_pusher import _NotificationPusherBase
+from mlrun.utils.notifications.notification_pusher import (
+    NotificationPusher,
+    _NotificationPusherBase,
+)
+
+
+class RunNotificationPusher(NotificationPusher):
+    def _prepare_notification_args(
+        self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
+    ):
+        """
+        Prepare notification arguments for the notification pusher.
+        In the server side implementation, we need to mask the notification parameters on the task as they are
+        unmasked to extract the credentials required to send the notification.
+        """
+        message, severity, runs = super()._prepare_notification_args(
+            run, notification_object
+        )
+        for run in runs:
+            server.api.api.utils.mask_notification_params_on_task(
+                run, server.api.constants.MaskOperations.REDACT
+            )
+
+        return message, severity, runs
 
 
 class AlertNotificationPusher(_NotificationPusherBase):

@@ -162,7 +162,7 @@ class AlertTemplate(
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    description: Optional[str] = (
+    summary: Optional[str] = (
         "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
         "See AlertConfig.summary description"
     )
@@ -175,7 +175,7 @@ class AlertTemplate(
     def templates_differ(self, other):
         return (
             self.template_description != other.template_description
-            or self.description != other.description
+            or self.summary != other.summary
             or self.severity != other.severity
             or self.trigger != other.trigger
             or self.reset_policy != other.reset_policy

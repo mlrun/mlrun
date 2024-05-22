@@ -14,6 +14,7 @@
 #
 
 
+import typing
 from abc import ABC
 
 import pandas as pd
@@ -22,6 +23,8 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class TSDBConnector(ABC):
+    type: str = ""
+
     def __init__(self, project: str):
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
@@ -75,8 +78,8 @@ class TSDBConnector(ABC):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -100,34 +103,40 @@ class TSDBConnector(ABC):
     def get_records(
         self,
         table: str,
-        columns: list[str] = None,
+        start: str,
+        end: str,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
         :param table:            Table name, e.g. 'metrics', 'app_results'.
+        :param start:            The start time of the metrics.
+                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
+                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
+                                 time.
+                                 If using TDEngine, can be represented by datetime.
+        :param end:              The end time of the metrics.
+                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
+                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
+                                 time.
+                                 If using TDEngine, can be represented by datetime.
         :param columns:          Columns to include in the result.
         :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
                                  connector type.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
+
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
         pass
 
-    def create_tsdb_application_tables(self) -> None:
+    def create_tables(self) -> None:
         """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction.
         """

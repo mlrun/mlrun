@@ -154,10 +154,10 @@ def toPandas(spark_df):
     column_counter = Counter(spark_df.columns)
 
     dtype = [None] * len(spark_df.schema)
-    for fieldIdx, field in enumerate(spark_df.schema):
+    for field_idx, field in enumerate(spark_df.schema):
         # For duplicate column name, we use `iloc` to access it.
         if column_counter[field.name] > 1:
-            pandas_col = pdf.iloc[:, fieldIdx]
+            pandas_col = pdf.iloc[:, field_idx]
         else:
             pandas_col = pdf[field.name]
 
@@ -171,12 +171,12 @@ def toPandas(spark_df):
             and field.nullable
             and pandas_col.isnull().any()
         ):
-            dtype[fieldIdx] = pandas_type
+            dtype[field_idx] = pandas_type
         # Ensure we fall back to nullable numpy types, even when whole column is null:
         if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = np.float64
+            dtype[field_idx] = np.float64
         if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = object
+            dtype[field_idx] = object
 
     df = pd.DataFrame()
     for index, t in enumerate(dtype):

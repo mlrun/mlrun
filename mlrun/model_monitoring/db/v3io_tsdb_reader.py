@@ -259,7 +259,7 @@ def get_invocations_fqn(project: str):
     return mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
-        name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
+        name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
         type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
     )
 
@@ -328,8 +328,8 @@ def read_prediction_metric_for_endpoint_if_exists(
     if predictions:
         return ModelEndpointMonitoringMetric(
             project=project,
-            app="mlrun-infra",
+            app=mm_constants.SpecialApps.MLRUN_INFRA,
             type=ModelEndpointMonitoringMetricType.METRIC,
-            name=mlrun.common.schemas.model_monitoring.MonitoringTSDBTables.INVOCATIONS,
+            name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
             full_name=get_invocations_fqn(project),
         )

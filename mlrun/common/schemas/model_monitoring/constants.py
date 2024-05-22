@@ -234,7 +234,6 @@ class MonitoringTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
-    INVOCATIONS = "invocations"
 
 
 @dataclass
@@ -353,6 +352,7 @@ class HistogramDataDriftApplicationConstants:
 
 class PredictionsQueryConstants:
     DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
 
 
 class SpecialApps:

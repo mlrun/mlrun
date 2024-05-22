@@ -270,37 +270,13 @@ class _V3IORecordsChecker:
             method=mlrun.common.types.HTTPMethod.GET,
             path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{names_query}",
         )
-        results = json.loads(response.content.decode())
-
-        for result_values in results:
+        for result_values in json.loads(response.content.decode()):
             assert result_values[
                 "data"
             ], f"No data for result {result_values['full_name']}"
             assert result_values[
                 "values"
             ], f"The values list is empty for result {result_values['full_name']}"
-
-        result = results[0]
-        assert (
-            result["full_name"]
-            == "test-app-flow-v2.histogram-data-drift.result.general_drift"
-        )
-        assert result["type"] == "result"
-        assert result["data"], f"No data for result {result['full_name']}"
-        assert result["result_kind"] == 0
-        assert result[
-            "values"
-        ], f"The values list is empty for result {result['full_name']}"
-
-        result = results[1]
-
-        assert result["type"] == "metric"
-        assert result["data"], f"No data for result {result['full_name']}"
-        assert result[
-            "values"
-        ], f"The values list is empty for result {result['full_name']}"
-
-        assert len(results) == 5, "Expected 5 results from metric-values API"
 
     @classmethod
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:

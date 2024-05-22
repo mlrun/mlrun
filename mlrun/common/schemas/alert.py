@@ -162,7 +162,7 @@ class AlertTemplate(
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    description: Optional[str] = (
+    summary: Optional[str] = (
         "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
         "See AlertConfig.summary description"
     )

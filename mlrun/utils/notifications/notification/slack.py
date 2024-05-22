@@ -153,8 +153,10 @@ class SlackNotification(NotificationBase):
             data_text = "\n".join(data_lines)
             line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
 
-        uid = event_data.value_dict.get("uid")
-        if uid:  # JOB entity
+        if (
+            event_data.entity.kind == mlrun.common.schemas.alert.EventEntityKind.JOB
+        ):  # JOB entity
+            uid = event_data.value_dict.get("uid")
             url = mlrun.utils.helpers.get_ui_url(alert.project, uid)
             overview_type = "Job overview"
         else:  # MODEL entity

@@ -18,6 +18,7 @@ from typing import Optional
 import pydantic
 
 import mlrun.common.types
+from mlrun.common.constants import MLRUN_FUNCTIONS_LABEL
 
 
 class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):

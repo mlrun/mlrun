@@ -20,7 +20,7 @@ import pytest
 
 import mlrun
 import mlrun.alerts
-import mlrun.common.schemas.alert as alert_constants
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 import tests.system.common.helpers.notifications as notification_helpers
@@ -56,13 +56,15 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with webhook notification
         alert_name = "failure_webhook"
         alert_summary = "Job failed"
+        run_id = "test-func-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
         self._create_alert_config(
             self.project_name,
             alert_name,
-            alert_constants.EventEntityKind.JOB,
+            alert_objects.EventEntityKind.JOB,
+            run_id,
             alert_summary,
-            alert_constants.EventKind.FAILED,
+            alert_objects.EventKind.FAILED,
             notifications,
         )
 
@@ -92,13 +94,15 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with two webhook notifications
         alert_name = "drift_webhook"
         alert_summary = "Model is drifting"
+        endpoint_id = "demo-endpoint"
         notifications = self._generate_drift_notifications(nuclio_function_url)
         self._create_alert_config(
             self.project_name,
             alert_name,
-            alert_constants.EventEntityKind.MODEL,
+            alert_objects.EventEntityKind.MODEL,
+            endpoint_id,
             alert_summary,
-            alert_constants.EventKind.DRIFT_DETECTED,
+            alert_objects.EventKind.DRIFT_DETECTED,
             notifications,
         )
 
@@ -108,7 +112,6 @@ class TestAlerts(TestMLRunSystem):
         )
         writer._wait_for_function_deployment(db=writer._get_db())
 
-        endpoint_id = "demo-endpoint"
         mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
             endpoint_id=endpoint_id,
@@ -152,66 +155,67 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
-        return [
-            {
-                "kind": "webhook",
-                "name": "failure",
-                "message": "job failed !",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "notification failure",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
+        notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="failure",
+            message="job failed !",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "notification failure",
                 },
             },
-        ]
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
+        return [alert_objects.AlertNotification(notification=notification)]
 
     @staticmethod
     def _generate_drift_notifications(nuclio_function_url):
+        first_notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="drift",
+            message="A drift was detected",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "first drift",
+                },
+            },
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
+        second_notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name="drift2",
+            message="A drift was detected",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            params={
+                "url": nuclio_function_url,
+                "override_body": {
+                    "operation": "add",
+                    "data": "second drift",
+                },
+            },
+            secret_params={
+                "webhook": "some-webhook",
+            },
+        )
         return [
-            {
-                "kind": "webhook",
-                "name": "drift",
-                "message": "A drift was detected",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "first drift",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
-                },
-            },
-            {
-                "kind": "webhook",
-                "name": "drift2",
-                "message": "A drift was detected",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "params": {
-                    "url": nuclio_function_url,
-                    "override_body": {
-                        "operation": "add",
-                        "data": "second drift",
-                    },
-                },
-                "secret_params": {
-                    "webhook": "some-webhook",
-                },
-            },
+            alert_objects.AlertNotification(notification=first_notification),
+            alert_objects.AlertNotification(notification=second_notification),
         ]
 
     @staticmethod
@@ -219,6 +223,7 @@ class TestAlerts(TestMLRunSystem):
         project,
         name,
         entity_kind,
+        entity_id,
         summary,
         event_name,
         notifications,
@@ -228,9 +233,11 @@ class TestAlerts(TestMLRunSystem):
             project=project,
             name=name,
             summary=summary,
-            severity="low",
-            entity={"kind": entity_kind, "project": project, "id": "*"},
-            trigger={"events": [event_name]},
+            severity=alert_objects.AlertSeverity.LOW,
+            entities=alert_objects.EventEntities(
+                kind=entity_kind, project=project, ids=[entity_id]
+            ),
+            trigger=alert_objects.AlertTrigger(events=[event_name]),
             criteria=criteria,
             notifications=notifications,
         )

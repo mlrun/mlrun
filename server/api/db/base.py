@@ -51,7 +51,7 @@ class DBInterface(ABC):
     def store_run(
         self,
         session,
-        struct,
+        run_data,
         uid,
         project="",
         iter=0,
@@ -209,8 +209,9 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         pass
 
@@ -307,6 +308,18 @@ class DBInterface(ABC):
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
     ):
         pass
 
@@ -423,6 +436,8 @@ class DBInterface(ABC):
     async def get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],

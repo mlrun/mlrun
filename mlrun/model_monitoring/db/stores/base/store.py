@@ -15,7 +15,7 @@
 import typing
 from abc import ABC, abstractmethod
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class StoreBase(ABC):
@@ -115,8 +115,8 @@ class StoreBase(ABC):
     def write_application_event(
         self,
         event: dict[str, typing.Any],
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> None:
         """
         Write a new event in the target table.
 
@@ -157,3 +157,16 @@ class StoreBase(ABC):
 
         """
         pass
+
+    @abstractmethod
+    def get_model_endpoint_metrics(
+        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Get the model monitoring results and metrics of the requested model endpoint.
+
+        :param: endpoint_id: The model endpoint identifier.
+        :param: type:        The type of the requested metrics ("result" or "metric").
+
+        :return:            A list of the available metrics.
+        """

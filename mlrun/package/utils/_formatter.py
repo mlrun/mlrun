@@ -142,11 +142,11 @@ class _YAMLFormatter(_Formatter):
 
         :param obj:         The object to write.
         :param file_path:   The file path to write to.
-        :param dump_kwargs: Additional keyword arguments to pass to the `yaml.dump` method of the formatter in use.
+        :param dump_kwargs: Additional keyword arguments to pass to the `yaml.safe_dump` method of the formatter in use.
         """
         dump_kwargs = dump_kwargs or cls.DEFAULT_DUMP_KWARGS
         with open(file_path, "w") as file:
-            yaml.dump(obj, file, **dump_kwargs)
+            yaml.safe_dump(obj, file, **dump_kwargs)
 
     @classmethod
     def read(cls, file_path: str) -> Union[list, dict]:

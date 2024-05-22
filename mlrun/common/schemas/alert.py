@@ -26,10 +26,10 @@ class EventEntityKind(StrEnum):
     JOB = "job"
 
 
-class EventEntity(pydantic.BaseModel):
+class EventEntities(pydantic.BaseModel):
     kind: EventEntityKind
     project: str
-    id: str
+    ids: pydantic.conlist(str, min_items=1, max_items=1)
 
 
 class EventKind(StrEnum):
@@ -48,7 +48,7 @@ _event_kind_entity_map = {
 class Event(pydantic.BaseModel):
     kind: EventKind
     timestamp: Union[str, datetime] = None  # occurrence time
-    entity: EventEntity
+    entity: EventEntities
     value_dict: Optional[dict] = pydantic.Field(default_factory=dict)
 
     def is_valid(self):
@@ -101,6 +101,18 @@ class ResetPolicy(StrEnum):
     AUTO = "auto"
 
 
+class AlertNotification(pydantic.BaseModel):
+    notification: Notification
+    cooldown_period: Annotated[
+        str,
+        pydantic.Field(
+            description="Period during which notifications "
+            "will not be sent after initial send. The format of this would be in time."
+            " e.g. 1d, 3h, 5m, 15s"
+        ),
+    ] = None
+
+
 class AlertConfig(pydantic.BaseModel):
     project: str
     id: int = None
@@ -111,19 +123,25 @@ class AlertConfig(pydantic.BaseModel):
         pydantic.Field(
             description=(
                 "String to be sent in the notifications generated."
-                "e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+                "e.g. 'Model {{project}}/{{entity}} is drifting.'"
+                "Supported variables: project, entity, name"
             )
         ),
     ]
     created: Union[str, datetime] = None
     severity: AlertSeverity
-    entity: EventEntity
+    entities: EventEntities
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
     reset_policy: ResetPolicy = ResetPolicy.MANUAL
-    notifications: pydantic.conlist(Notification, min_items=1)
+    notifications: pydantic.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
+
+    def get_raw_notifications(self) -> list[Notification]:
+        return [
+            alert_notification.notification for alert_notification in self.notifications
+        ]
 
 
 class AlertsModes(StrEnum):
@@ -144,8 +162,9 @@ class AlertTemplate(
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    description: Optional[str] = (
-        "String to be sent in the generated notifications e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+    summary: Optional[str] = (
+        "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
+        "See AlertConfig.summary description"
     )
     severity: AlertSeverity
     trigger: AlertTrigger
@@ -156,7 +175,7 @@ class AlertTemplate(
     def templates_differ(self, other):
         return (
             self.template_description != other.template_description
-            or self.description != other.description
+            or self.summary != other.summary
             or self.severity != other.severity
             or self.trigger != other.trigger
             or self.reset_policy != other.reset_policy

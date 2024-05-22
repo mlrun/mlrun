@@ -30,6 +30,7 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.model_monitoring.model_endpoint
@@ -752,7 +753,10 @@ class HTTPRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -790,7 +794,8 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
             of a label (i.e. list("key=value")) or by looking for the existence of a given
             key (i.e. "key").
-        :param state: List only runs whose state is specified.
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
+        :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
         :param last: Deprecated - currently not used (will be removed in 1.8.0).
@@ -826,11 +831,19 @@ class HTTPRunDB(RunDBInterface):
                 FutureWarning,
             )
 
+        if state:
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                FutureWarning,
+            )
+
         if (
             not name
             and not uid
             and not labels
             and not state
+            and not states
             and not last
             and not start_time_from
             and not start_time_to
@@ -849,7 +862,9 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "uid": uid,
             "label": labels or [],
-            "state": state,
+            "state": mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             "sort": bool2str(sort),
             "iter": bool2str(iter),
             "start_time_from": datetime_to_iso(start_time_from),
@@ -1040,6 +1055,7 @@ class HTTPRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        producer_uri: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1068,9 +1084,12 @@ class HTTPRunDB(RunDBInterface):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
-        :param kind: Return artifacts of the requested kind.
-        :param category: Return artifacts of the requested category.
-        :param tree: Return artifacts of the requested tree.
+        :param kind:            Return artifacts of the requested kind.
+        :param category:        Return artifacts of the requested category.
+        :param tree:            Return artifacts of the requested tree.
+        :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
+            points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
+            is a workflow id (artifact was created as part of a workflow).
         """
 
         project = project or config.default_project
@@ -1089,6 +1108,7 @@ class HTTPRunDB(RunDBInterface):
             "category": category,
             "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "producer_uri": producer_uri,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"

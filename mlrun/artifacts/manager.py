@@ -72,6 +72,10 @@ class ArtifactProducer:
     def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
+    @property
+    def uid(self):
+        return None
+
 
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
@@ -262,7 +266,7 @@ class ArtifactManager:
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
         target_path = template_artifact_path(
-            artifact_path=target_path, project=producer.project
+            artifact_path=target_path, project=producer.project, run_uid=producer.uid
         )
         item.target_path = target_path
 

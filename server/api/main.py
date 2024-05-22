@@ -26,7 +26,7 @@ import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_constants
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
@@ -41,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -757,7 +758,7 @@ def _push_terminal_run_notifications(
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
+    server.api.utils.notification_pusher.RunNotificationPusher(unmasked_runs).push()
 
 
 def _generate_event_on_failed_runs(
@@ -776,21 +777,23 @@ def _generate_event_on_failed_runs(
 
     for run in runs:
         project = run["metadata"]["project"]
-        uid = run["metadata"]["uid"]
-        entity = {
-            "kind": alert_constants.EventEntityKind.JOB,
-            "project": project,
-            "id": uid,
-        }
-        event_data = mlrun.common.schemas.Event(
-            kind=alert_constants.EventKind.FAILED, entity=entity
+        run_uid = run["metadata"]["uid"]
+        run_name = run["metadata"]["name"]
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.JOB,
+            project=project,
+            ids=[run_name],
         )
-        mlrun.get_run_db().generate_event(alert_constants.EventKind.FAILED, event_data)
+        event_value = {"uid": run_uid}
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
+        )
+        mlrun.get_run_db().generate_event(alert_objects.EventKind.FAILED, event_data)
 
         server.api.crud.Events().process_event(
             session=db_session,
             event_data=event_data,
-            event_name=alert_constants.EventKind.FAILED,
+            event_name=alert_objects.EventKind.FAILED,
             project=project,
             validate_event=True,
         )

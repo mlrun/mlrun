@@ -973,6 +973,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_model_endpoint_url(project, model_name, model_endpoint_id):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/models"
+        if model_name:
+            url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
+    return url
+
+
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
@@ -1183,7 +1192,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def template_artifact_path(artifact_path, project, run_uid="project"):
+def template_artifact_path(artifact_path, project, run_uid=None):
     """
     Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
     If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
@@ -1191,6 +1200,7 @@ def template_artifact_path(artifact_path, project, run_uid="project"):
     """
     if not artifact_path:
         return artifact_path
+    run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
     return artifact_path
@@ -1572,13 +1582,19 @@ def validate_component_version_compatibility(
     component_current_version = None
     try:
         if component_name == "iguazio":
-            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
             component_current_version = mlrun.mlconf.igz_version
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+
+            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+            # major, minor, and patch versions
+            parsed_current_version = semver.VersionInfo.parse(
+                f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+            )
         if component_name == "nuclio":
+            component_current_version = mlrun.mlconf.nuclio_version
             parsed_current_version = semver.VersionInfo.parse(
                 mlrun.mlconf.nuclio_version
             )
-            component_current_version = mlrun.mlconf.nuclio_version
         if not parsed_current_version:
             return True
     except ValueError:
@@ -1597,3 +1613,12 @@ def validate_component_version_compatibility(
         if parsed_current_version < parsed_min_version:
             return False
     return True
+
+
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
+    result = alert.summary.replace("{{project}}", alert.project)
+    result = result.replace("{{name}}", alert.name)
+    result = result.replace("{{entity}}", event_data.entity.ids[0])
+    return result

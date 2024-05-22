@@ -14,6 +14,7 @@
 #
 import os
 import pathlib
+import sys
 
 import pytest
 
@@ -122,7 +123,8 @@ def test_validate_runtime_success():
 def test_launch_local_reload_module():
     """This test ensures that the function code is updated when running a relative handler in local
     mode when the code changes during execution"""
-    file_path = f"{assets_path}/test_function.py"
+    sys.path.append(str(pathlib.Path(__file__).parent))
+    file_path = f"{assets_path}/temp_function.py"
     if os.path.exists(file_path):
         os.remove(file_path)
 
@@ -133,7 +135,7 @@ def test_launch_local_reload_module():
         file.write(function_code)
 
     project = mlrun.new_project("some-project")
-    project.set_function(name="func", handler="assets.test_function.func")
+    project.set_function(name="func", handler="assets.temp_function.func")
     run = project.run_function("func", local=True)
     assert run.output("return") == "dummy value"
 

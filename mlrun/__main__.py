@@ -32,6 +32,7 @@ from tabulate import tabulate
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
@@ -256,8 +257,8 @@ def run(
             runobj.metadata.labels[k] = v
 
     if workflow:
-        runobj.metadata.labels["workflow"] = workflow
-        runobj.metadata.labels["mlrun/runner-pod"] = socket.gethostname()
+        runobj.metadata.labels[MlrunInternalLabels.workflow] = workflow
+        runobj.metadata.labels[MlrunInternalLabels.runner_pod] = socket.gethostname()
 
     if db:
         mlconf.dbpath = db

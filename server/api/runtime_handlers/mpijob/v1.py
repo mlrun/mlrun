@@ -53,7 +53,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = copy.deepcopy(meta.labels)
-        pod_labels["mlrun/job"] = meta.name
+        pod_labels[MlrunInternalLabels.job] = meta.name
 
         # Populate mpijob object
 
@@ -69,9 +69,11 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                     pod_template,
                     "image",
                     runtime.full_image_path(
-                        client_version=run.metadata.labels.get("mlrun/client_version"),
+                        client_version=run.metadata.labels.get(
+                            MlrunInternalLabels.client_version
+                        ),
                         client_python_version=run.metadata.labels.get(
-                            "mlrun/client_python_version"
+                            MlrunInternalLabels.client_python_version
                         ),
                     ),
                 )

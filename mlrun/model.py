@@ -770,7 +770,7 @@ class RunMetadata(ModelObj):
     def is_workflow_runner(self):
         if not self.labels:
             return False
-        return self.labels.get("job-type", "") == "workflow-runner"
+        return self.labels.get(MlrunInternalLabels.job_type, "") == "workflow-runner"
 
 
 class HyperParamStrategies:

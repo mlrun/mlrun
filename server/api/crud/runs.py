@@ -129,7 +129,9 @@ class Runs(
         # Since we don't store the artifacts in the run body, we need to fetch them separately
         # The client may be using them as in pipeline as input for the next step
         producer_uri = None
-        producer_id = run["metadata"].get("labels", {}).get("workflow")
+        producer_id = (
+            run["metadata"].get("labels", {}).get(MlrunInternalLabels.workflow)
+        )
         if not producer_id:
             producer_id = uid
         else:

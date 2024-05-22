@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
@@ -77,9 +78,9 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
+                    MlrunInternalLabels.kind: "mpijob",
+                    MlrunInternalLabels.owner: "tester",
+                    MlrunInternalLabels.v3io_user: "tester",
                     "mpijob": "v1/mpi-job-role=worker",
                 },
                 name=self.name,
@@ -91,9 +92,9 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
+                    MlrunInternalLabels.kind: "mpijob",
+                    MlrunInternalLabels.owner: "tester",
+                    MlrunInternalLabels.v3io_user: "tester",
                     "mpijob": "v1/mpi-job-role=launcher",
                 },
                 name=self.name,

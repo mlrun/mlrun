@@ -28,6 +28,7 @@ from mlrun import (
     new_task,
     wait_for_pipeline_completion,
 )
+from mlrun.common.constants import MlrunInternalLabels
 from tests.system.base import TestMLRunSystem
 
 
@@ -62,8 +63,8 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
+                MlrunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                MlrunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(
@@ -113,8 +114,8 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
+                MlrunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                MlrunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
             },
         )
         self._verify_run_spec(

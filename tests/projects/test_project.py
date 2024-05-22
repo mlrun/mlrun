@@ -1818,7 +1818,7 @@ def test_create_api_gateway_valid(
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
-            labels={"nuclio.io/project-name": "project-name"},
+            labels={MlrunInternalLabels.nuclio_project_name: "project-name"},
         ),
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
@@ -1939,7 +1939,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={MlrunInternalLabels.nuclio_project_name: "project-name"},
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test",
@@ -1955,7 +1955,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test2": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test2",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={MlrunInternalLabels.nuclio_project_name: "project-name"},
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test2",

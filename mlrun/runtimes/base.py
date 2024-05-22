@@ -33,6 +33,7 @@ import mlrun.launcher.factory
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
 from ..config import config
@@ -473,7 +474,7 @@ class BaseRuntime(ModelObj):
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels["owner"]
+                "{{run.user}}", meta.labels[MlrunInternalLabels.owner]
             )
 
         if db and self.kind != "handler":

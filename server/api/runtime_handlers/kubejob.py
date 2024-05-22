@@ -57,9 +57,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
         pod_spec = func_to_pod(
             runtime.full_image_path(
-                client_version=run.metadata.labels.get("mlrun/client_version"),
+                client_version=run.metadata.labels.get(
+                    MlrunInternalLabels.client_version
+                ),
                 client_python_version=run.metadata.labels.get(
-                    "mlrun/client_python_version"
+                    MlrunInternalLabels.client_python_version
                 ),
             ),
             runtime,

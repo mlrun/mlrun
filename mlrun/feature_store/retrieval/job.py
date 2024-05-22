@@ -122,7 +122,9 @@ def run_merge_job(
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)
+    task.set_label(MlrunInternalLabels.job_type, "feature-merge").set_label(
+        "feature-vector", vector.uri
+    )
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()

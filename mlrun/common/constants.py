@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with registry
 MLRUN_CREATED_LABEL = "mlrun-created"
 MLRUN_MODEL_CONF = "model-conf"
@@ -21,31 +22,42 @@ MLRUN_SERVING_SPEC_PATH = (
     f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 )
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
-MLRUN_INTERNAL_LABELS = [
-    "dask.org/cluster-name",
-    "dask.org/component",
-    "host",
-    "job-type",
-    "kind",
-    "mlrun-auth-keynuclio.io/project-name",
-    "mlrun/class",
-    "mlrun/client_python_version",
-    "mlrun/client_version",
-    "mlrun/function",
-    "mlrun/job",
-    "mlrun/name",
-    "mlrun/owner",
-    "mlrun/owner_domain",
-    "mlrun/project",
-    "mlrun/runner-pod",
-    "mlrun/schedule-name",
-    "mlrun/scrape-metrics",
-    "mlrun/tag",
-    "mlrun/uid",
-    "mlrun/username",
-    "mlrun/username_domain",
-    "owner",
-    "resource_name",
-    "v3io_user",
-    "workflow",
-]
+MLRUN_KEY = "mlrun/"
+
+
+class MlrunInternalLabels:
+    dask_cluster_name = "dask.org/cluster-name"
+    dask_component = "dask.org/component"
+    host = "host"
+    job_type = "job-type"
+    kind = "kind"
+    mlrun_auth_key = "mlrun-auth-key"
+    nuclio_project_name = "nuclio.io/project-name"
+    mlrun_class = f"{MLRUN_KEY}class"
+    client_python_version = f"{MLRUN_KEY}client_python_version"
+    client_version = f"{MLRUN_KEY}client_version"
+    function = f"{MLRUN_KEY}function"
+    job = f"{MLRUN_KEY}job"
+    name = f"{MLRUN_KEY}name"
+    mlrun_owner = f"{MLRUN_KEY}owner"
+    owner_domain = f"{MLRUN_KEY}owner_domain"
+    project = f"{MLRUN_KEY}project"
+    runner_pod = f"{MLRUN_KEY}runner-pod"
+    schedule_name = f"{MLRUN_KEY}schedule-name"
+    scrape_metrics = f"{MLRUN_KEY}scrape-metrics"
+    tag = f"{MLRUN_KEY}tag"
+    uid = f"{MLRUN_KEY}uid"
+    username = f"{MLRUN_KEY}username"
+    username_domain = f"{MLRUN_KEY}username_domain"
+    owner = "owner"
+    resource_name = "resource_name"
+    v3io_user = "v3io_user"
+    workflow = "workflow"
+
+    @classmethod
+    def all(cls):
+        return [
+            value
+            for key, value in cls.__dict__.items()
+            if not key.startswith("__") and isinstance(value, str)
+        ]

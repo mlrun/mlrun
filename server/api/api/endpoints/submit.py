@@ -26,6 +26,7 @@ import server.api.api.utils
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 from server.api.api import deps
 
@@ -116,21 +117,21 @@ async def submit_job(
         if "task" in data:
             labels = data["task"].setdefault("metadata", {}).setdefault("labels", {})
             # TODO: remove this duplication
-            labels.setdefault("v3io_user", username)
-            labels.setdefault("owner", username)
+            labels.setdefault(MlrunInternalLabels.v3io_user, username)
+            labels.setdefault(MlrunInternalLabels.owner, username)
 
     client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
-        "mlrun/client_version"
+        MlrunInternalLabels.client_version
     )
     client_python_version = client_python_version or data["task"]["metadata"].get(
         "labels", {}
-    ).get("mlrun/client_python_version")
+    ).get(MlrunInternalLabels.client_python_version)
     if client_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {"mlrun/client_version": client_version}
+            {MlrunInternalLabels.client_version: client_version}
         )
     if client_python_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {"mlrun/client_python_version": client_python_version}
+            {MlrunInternalLabels.client_python_version: client_python_version}
         )
     return await server.api.api.utils.submit_run(db_session, auth_info, data)

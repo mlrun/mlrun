@@ -190,7 +190,9 @@ def run_function(
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels["workflow"] = pipeline_context.workflow_id
+            task.metadata.labels[MlrunInternalLabels.workflow] = (
+                pipeline_context.workflow_id
+            )
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command

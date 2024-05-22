@@ -26,6 +26,7 @@ import server.api.crud
 import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -42,13 +43,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.wait_for_deletion_interval = 0
 
         self.job_labels = {
-            "mlrun/class": self._get_class_name(),
-            "mlrun/function": "my-trainer",
-            "mlrun/name": "my-training",
-            "mlrun/project": self.project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
-            "mlrun/uid": self.run_uid,
+            MlrunInternalLabels.mlrun_class: self._get_class_name(),
+            MlrunInternalLabels.function: "my-trainer",
+            MlrunInternalLabels.name: "my-training",
+            MlrunInternalLabels.project: self.project,
+            MlrunInternalLabels.scrape_metrics: "False",
+            MlrunInternalLabels.tag: "latest",
+            MlrunInternalLabels.uid: self.run_uid,
         }
         job_pod_name = "my-training-j7dtf"
 
@@ -67,7 +68,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         builder_legacy_labels = {
-            "mlrun/class": "build",
+            MlrunInternalLabels.mlrun_class: "build",
             "mlrun/task-name": "mlrun-build-hedi-simple-func-legacy",
         }
         builder_legacy_pod_name = "mlrun-build-hedi-simple-legacy-func-8qwrd"
@@ -583,7 +584,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled", job_labels=self.job_labels
         )
         pending_scheduled_pod = self._generate_pod(
-            pending_scheduled_labels["mlrun/name"],
+            pending_scheduled_labels[MlrunInternalLabels.name],
             pending_scheduled_labels,
             PodPhases.pending,
         )
@@ -599,7 +600,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            pending_scheduled_labels["mlrun/name"],
+            pending_scheduled_labels[MlrunInternalLabels.name],
             pending_scheduled_labels["mlrun/uid"],
             start_time=pending_scheduled_pod.status.start_time,
         )
@@ -608,7 +609,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
-            pending_scheduled_new_labels["mlrun/name"],
+            pending_scheduled_new_labels[MlrunInternalLabels.name],
             pending_scheduled_new_labels,
             PodPhases.pending,
         )
@@ -617,7 +618,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._store_run(
             db,
-            pending_scheduled_new_labels["mlrun/name"],
+            pending_scheduled_new_labels[MlrunInternalLabels.name],
             pending_scheduled_new_labels["mlrun/uid"],
             start_time=pending_scheduled_pod_new.status.start_time,
         )
@@ -626,7 +627,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "running_overtime", job_labels=self.job_labels
         )
         running_overtime_pod = self._generate_pod(
-            running_overtime_labels["mlrun/name"],
+            running_overtime_labels[MlrunInternalLabels.name],
             running_overtime_labels,
             PodPhases.running,
         )
@@ -637,7 +638,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            running_overtime_labels["mlrun/name"],
+            running_overtime_labels[MlrunInternalLabels.name],
             running_overtime_labels["mlrun/uid"],
             start_time=running_overtime_pod.status.start_time,
         )
@@ -646,7 +647,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "image_pull_backoff", job_labels=self.job_labels
         )
         image_pull_backoff_pod = self._generate_pod(
-            image_pull_backoff_labels["mlrun/name"],
+            image_pull_backoff_labels[MlrunInternalLabels.name],
             image_pull_backoff_labels,
             PodPhases.pending,
         )
@@ -673,7 +674,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            image_pull_backoff_labels["mlrun/name"],
+            image_pull_backoff_labels[MlrunInternalLabels.name],
             image_pull_backoff_labels["mlrun/uid"],
             start_time=image_pull_backoff_pod.status.start_time,
         )

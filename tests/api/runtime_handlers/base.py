@@ -28,6 +28,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.clients.chief
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 from server.api.constants import LogSources
@@ -154,7 +155,7 @@ class TestRuntimeHandlerBase:
     def _generate_job_labels(run_name, uid=None, job_labels=None):
         labels = job_labels.copy() if job_labels else {}
         labels["mlrun/uid"] = uid or str(uuid.uuid4())
-        labels["mlrun/name"] = run_name
+        labels[MlrunInternalLabels.name] = run_name
         return labels
 
     @staticmethod
@@ -249,7 +250,7 @@ class TestRuntimeHandlerBase:
     ):
         self._assert_list_resources_grouped_by_response(
             resources,
-            lambda labels: (labels["mlrun/project"], labels["mlrun/uid"]),
+            lambda labels: (labels[MlrunInternalLabels.project], labels["mlrun/uid"]),
             expected_crds,
             expected_pods,
             expected_services,
@@ -266,8 +267,8 @@ class TestRuntimeHandlerBase:
         def _extract_project_and_kind_from_runtime_resources_labels(
             labels: dict,
         ) -> tuple[str, str]:
-            project = labels.get("mlrun/project", "")
-            class_ = labels["mlrun/class"]
+            project = labels.get(MlrunInternalLabels.project, "")
+            class_ = labels[MlrunInternalLabels.mlrun_class]
             kind = runtime_handler._resolve_kind_from_class(class_)
             return project, kind
 

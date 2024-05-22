@@ -25,6 +25,7 @@ from mlrun.datastore.targets import (
     validate_target_placement,
 )
 
+from ..common.constants import MlrunInternalLabels
 from ..data_types import InferOptions
 from ..datastore.store_resources import ResourceCache
 from ..runtimes import RuntimeKinds
@@ -263,12 +264,12 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
         out_path=featureset.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label("job-type", "feature-ingest").set_label(
+    task.set_label(MlrunInternalLabels.job_type, "feature-ingest").set_label(
         "feature-set", featureset.uri
     )
     if run_config.owner:
-        task.set_label("owner", run_config.owner).set_label(
-            "v3io_user", run_config.owner
+        task.set_label(MlrunInternalLabels.owner, run_config.owner).set_label(
+            MlrunInternalLabels.v3io_user, run_config.owner
         )
 
     # set run UID and save in the feature set status (linking the features et to the job)

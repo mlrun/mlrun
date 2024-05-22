@@ -28,6 +28,7 @@ from mlrun.errors import MLRunInvalidArgumentError
 
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
+from .common.constants import MlrunInternalLabels
 from .datastore import store_manager
 from .features import Feature
 from .model import HyperParamOptions
@@ -129,7 +130,7 @@ class MLClientCtx:
     @property
     def tag(self):
         """Run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow") or self._uid
+        return self._labels.get(MlrunInternalLabels.workflow) or self._uid
 
     @property
     def state(self):
@@ -329,8 +330,10 @@ class MLClientCtx:
             "uri": uri,
             "owner": get_in(self._labels, "owner"),
         }
-        if "workflow" in self._labels:
-            resp["workflow"] = self._labels["workflow"]
+        if MlrunInternalLabels.workflow in self._labels:
+            resp[MlrunInternalLabels.workflow] = self._labels[
+                MlrunInternalLabels.workflow
+            ]
         return resp
 
     @classmethod
@@ -396,7 +399,7 @@ class MLClientCtx:
                         self._set_input(k, v)
 
         if host and not is_api:
-            self.set_label("host", host)
+            self.set_label(MlrunInternalLabels.host, host)
 
         start = get_in(attrs, "status.start_time")
         if start:
@@ -990,10 +993,13 @@ class MLClientCtx:
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
         labels = self.labels
-        if "host" in labels and labels.get("kind", "job") == "mpijob":
+        if (
+            MlrunInternalLabels.host in labels
+            and labels.get(MlrunInternalLabels.kind, "job") == "mpijob"
+        ):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(labels["host"].rsplit("-", 1)[1])
+            rank = int(labels[MlrunInternalLabels.host].rsplit("-", 1)[1])
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:

@@ -25,6 +25,7 @@ import server.api.api.endpoints.runtime_resources
 import server.api.crud
 import server.api.runtime_handlers
 import server.api.utils.auth.verifier
+from mlrun.common.constants import MlrunInternalLabels
 
 
 def test_list_runtimes_resources_opa_filtering(
@@ -509,10 +510,10 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
-                            "mlrun/project": project_1,
+                            MlrunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
                             "mlrun/uid": project_1_job_name,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.job,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -525,7 +526,7 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=no_project_builder_name,
                         labels={
-                            "mlrun/class": "build",
+                            MlrunInternalLabels.mlrun_class: "build",
                             "mlrun/task-name": "some-task-name",
                         },
                     )
@@ -557,10 +558,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
-                            "mlrun/project": project_1,
+                            MlrunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
                             "mlrun/uid": project_1_job_name,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.job,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -573,10 +574,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
-                            "mlrun/project": project_2,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.dask,
+                            MlrunInternalLabels.project: project_2,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
                             # no uid cause it's dask
-                            "mlrun/function": project_2_dask_name,
+                            MlrunInternalLabels.function: project_2_dask_name,
                         },
                     )
                 ],
@@ -585,10 +586,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
-                            "mlrun/project": project_2,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.dask,
+                            MlrunInternalLabels.project: project_2,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
                             # no uid cause it's dask
-                            "mlrun/function": project_2_dask_name,
+                            MlrunInternalLabels.function: project_2_dask_name,
                         },
                     )
                 ],
@@ -598,10 +599,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_job_name,
                         labels={
-                            "mlrun/project": project_2,
+                            MlrunInternalLabels.project: project_2,
                             # using name as uid to make assertions easier later
                             "mlrun/uid": project_2_job_name,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.job,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -615,10 +616,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_3_mpijob_name,
                         labels={
-                            "mlrun/project": project_3,
+                            MlrunInternalLabels.project: project_3,
                             # using name as uid to make assertions easier later
                             "mlrun/uid": project_3_mpijob_name,
-                            "mlrun/class": mlrun.runtimes.RuntimeKinds.mpijob,
+                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.mpijob,
                         },
                     )
                 ],

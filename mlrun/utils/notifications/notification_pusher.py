@@ -35,6 +35,7 @@ import mlrun.utils.helpers
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
+from ...common.constants import MlrunInternalLabels
 from .notification import NotificationBase, NotificationTypes
 
 
@@ -239,8 +240,8 @@ class NotificationPusher(_NotificationPusherBase):
         resource = "Run"
         runs = [run.to_dict()]
 
-        if "workflow" in run.metadata.labels:
-            resource = "Workflow"
+        if MlrunInternalLabels.workflow in run.metadata.labels:
+            resource = MlrunInternalLabels.workflow
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
@@ -396,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
-                    labels=f"mlrun/runner-pod={_step.node_name}",
+                    labels=f"MlrunInternalLabels.runner_pod={_step.node_name}",
                 )[0]
             except IndexError:
                 _run = {

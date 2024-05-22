@@ -30,6 +30,7 @@ import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 _k8s = None
@@ -276,7 +277,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
         #  inclusive place.
         selectors = [
-            "mlrun/class",
+            MlrunInternalLabels.mlrun_class,
             f"mlrun/project={project}",
             f"mlrun/uid={uid}",
         ]
@@ -553,7 +554,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
-        label_name = "resource_name"
+        label_name = MlrunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
 
         configmap_with_label = self.get_configmap(name, resource, namespace)
@@ -605,7 +606,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def get_configmap(self, name: str, resource: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
-        label_name = "resource_name"
+        label_name = MlrunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
             namespace=namespace, label_selector=f"{label_name}={full_name}"
@@ -687,12 +688,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         if not username:
             return {}
         labels = {
-            "mlrun/username": username,
+            MlrunInternalLabels.username: username,
         }
         if "@" in username:
             username, domain = username.split("@")
-            labels["mlrun/username"] = username
-            labels["mlrun/username_domain"] = domain
+            labels[MlrunInternalLabels.username] = username
+            labels[MlrunInternalLabels.username_domain] = domain
         return labels
 
 
@@ -723,8 +724,8 @@ class BasePod:
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
             "mlrun/task-name": task_name,
-            "mlrun/class": kind,
-            "mlrun/project": self.project,
+            MlrunInternalLabels.mlrun_class: kind,
+            MlrunInternalLabels.project: self.project,
         } | (labels or {})
         self._annotations = {}
         self._init_containers = []

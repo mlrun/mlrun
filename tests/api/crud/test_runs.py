@@ -27,6 +27,7 @@ import server.api.runtime_handlers
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.k8s
 import tests.api.conftest
+from mlrun.common.constants import MlrunInternalLabels
 
 
 class TestRuns(tests.api.conftest.MockedK8sHelper):
@@ -42,7 +43,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": "uid",
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -67,8 +68,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                 metadata=k8s_client.V1ObjectMeta(
                                     name="pod-name",
                                     labels={
-                                        "mlrun/class": "job",
-                                        "mlrun/project": project,
+                                        MlrunInternalLabels.mlrun_class: "job",
+                                        MlrunInternalLabels.project: project,
                                         "mlrun/uid": "uid",
                                     },
                                 ),
@@ -108,7 +109,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            "kind": "job",
+                            MlrunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -160,7 +161,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            "kind": "job",
+                            MlrunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -215,7 +216,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
                 "status": {"state": run_state},
@@ -241,7 +242,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -272,7 +273,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -329,7 +330,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -410,7 +411,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        "kind": "job",
+                        MlrunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -446,8 +447,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        "kind": "job",
-                        "workflow": workflow_uid,
+                        MlrunInternalLabels.kind: "job",
+                        MlrunInternalLabels.workflow: workflow_uid,
                     },
                 },
                 "status": {
@@ -486,8 +487,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "uid": run_uid,
                     "iter": iter,
                     "labels": {
-                        "kind": "job",
-                        "workflow": workflow_uid,
+                        MlrunInternalLabels.kind: "job",
+                        MlrunInternalLabels.workflow: workflow_uid,
                     },
                 },
                 "status": {
@@ -571,8 +572,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        "kind": "job",
-                        "workflow": workflow_uid,
+                        MlrunInternalLabels.kind: "job",
+                        MlrunInternalLabels.workflow: workflow_uid,
                     },
                 },
             },
@@ -597,7 +598,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         i = 0
         while len(artifacts) < artifacts_len:
             artifact = {
-                "kind": "artifact",
+                MlrunInternalLabels.kind: "artifact",
                 "metadata": {
                     "key": f"{key_prefix}{i}",
                     "tree": workflow_uid or run_uid,

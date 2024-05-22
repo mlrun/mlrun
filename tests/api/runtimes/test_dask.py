@@ -29,6 +29,7 @@ import mlrun.common.schemas
 import server.api.api.endpoints.functions
 import server.api.runtime_handlers.daskjob
 from mlrun import mlconf
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.runtimes.utils import generate_resources
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
@@ -56,7 +57,7 @@ class TestDaskRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.name = "test-dask-cluster"
         # For dask it is /function instead of /name
-        self.function_name_label = "mlrun/function"
+        self.function_name_label = MlrunInternalLabels.function
         self.v3io_access_key = "1111-2222-3333-4444"
         self.v3io_user = "test-user"
         self.scheduler_address = "http://1.2.3.4"
@@ -477,12 +478,12 @@ class TestDaskRuntime(TestRuntimeBase):
             {"name": "TEST_DUP", "value": "A"},
         ]
         expected_labels = {
-            "mlrun/project": "project",
-            "mlrun/class": "dask",
-            "mlrun/function": "test",
+            MlrunInternalLabels.project: "project",
+            MlrunInternalLabels.mlrun_class: "dask",
+            MlrunInternalLabels.function: "test",
             "label1": "val1",
-            "mlrun/scrape-metrics": "True",
-            "mlrun/tag": "latest",
+            MlrunInternalLabels: "True",
+            MlrunInternalLabels.tag: "latest",
         }
 
         secrets = []

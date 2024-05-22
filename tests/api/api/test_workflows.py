@@ -60,7 +60,7 @@ def test_get_workflow_fail_fast(db: Session, client: TestClient):
         "metadata": {
             "name": "run-name",
             "labels": {
-                "job-type": "workflow-runner",
+                MlrunInternalLabels.job_type: "workflow-runner",
             },
         },
         "spec": {

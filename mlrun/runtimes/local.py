@@ -257,7 +257,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels.get("kind") == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get(MlrunInternalLabels.kind)
+            == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook

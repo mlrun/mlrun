@@ -26,6 +26,7 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
+from mlrun.common import constants
 from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -38,7 +39,7 @@ class RunError(Exception):
     pass
 
 
-mlrun_key = "mlrun/"
+mlrun_key = constants.MLRUN_KEY
 
 
 class _ContextStore:

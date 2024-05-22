@@ -15,6 +15,8 @@
 import enum
 import typing
 
+from mlrun.common.constants import MlrunInternalLabels
+
 
 class PodPhases:
     """
@@ -193,8 +195,8 @@ class RunStates:
 
 
 class RunLabels(enum.Enum):
-    owner = "owner"
-    v3io_user = "v3io_user"
+    owner = MlrunInternalLabels.owner
+    v3io_user = MlrunInternalLabels.v3io_user
 
     @staticmethod
     def all():

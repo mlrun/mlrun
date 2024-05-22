@@ -1486,7 +1486,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "key.column": "_spark_object_name",
             "table": "{" + path_in_store,
             "format": "org.apache.spark.sql.redis",
-            "host": parsed_endpoint.hostname,
+            MlrunInternalLabels.dask_component: parsed_endpoint.hostname,
             "port": parsed_endpoint.port,
             "user": parsed_endpoint.username if parsed_endpoint.username else None,
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,

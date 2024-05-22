@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.utils.helpers
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 from server.api.runtime_handlers import get_runtime_handler
@@ -56,14 +57,14 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         executor_pod_labels = {
-            "mlrun/class": "spark",
-            "mlrun/function": "my-spark-jdbc",
-            "mlrun/job": "my-spark-jdbc-2ea432f1",
-            "mlrun/name": "my-spark-jdbc",
-            "mlrun/project": self.project,
-            "mlrun/uid": self.run_uid,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
+            MlrunInternalLabels.mlrun_class: "spark",
+            MlrunInternalLabels.function: "my-spark-jdbc",
+            MlrunInternalLabels.job: "my-spark-jdbc-2ea432f1",
+            MlrunInternalLabels.name: "my-spark-jdbc",
+            MlrunInternalLabels.project: self.project,
+            MlrunInternalLabels.uid: self.run_uid,
+            MlrunInternalLabels.scrape_metrics: "False",
+            MlrunInternalLabels.tag: "latest",
             "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
             "spark-exec-id": "1",
             "spark-role": "executor",
@@ -80,14 +81,14 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         self.driver_pod_labels = {
-            "mlrun/class": "spark",
-            "mlrun/function": "my-spark-jdbc",
-            "mlrun/job": "my-spark-jdbc-2ea432f1",
-            "mlrun/name": "my-spark-jdbc",
-            "mlrun/project": self.project,
-            "mlrun/uid": self.run_uid,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
+            MlrunInternalLabels.mlrun_class: "spark",
+            MlrunInternalLabels.function: "my-spark-jdbc",
+            MlrunInternalLabels.job: "my-spark-jdbc-2ea432f1",
+            MlrunInternalLabels.name: "my-spark-jdbc",
+            MlrunInternalLabels.project: self.project,
+            MlrunInternalLabels.uid: self.run_uid,
+            MlrunInternalLabels.scrape_metrics: "False",
+            MlrunInternalLabels.tag: "latest",
             "spark-app-selector": "spark-12f88a73cb544ce298deba34947226a4",
             "spark-role": "driver",
             "sparkoperator.k8s.io/app-name": "my-spark-jdbc-2ea432f1",
@@ -107,7 +108,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         self.config_map = self._generate_config_map(
-            name="my-spark-jdbc", labels={"mlrun/uid": self.run_uid}
+            name="my-spark-jdbc", labels={MlrunInternalLabels.uid: self.run_uid}
         )
 
     def test_list_resources(self, db: Session, client: TestClient):
@@ -562,13 +563,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 "name": "my-spark-jdbc-2ea432f1",
                 "namespace": get_k8s_helper().resolve_namespace(),
                 "labels": {
-                    "mlrun/class": "spark",
-                    "mlrun/function": "my-spark-jdbc",
-                    "mlrun/name": "my-spark-jdbc",
-                    "mlrun/project": project,
-                    "mlrun/scrape_metrics": "False",
-                    "mlrun/tag": "latest",
-                    "mlrun/uid": uid,
+                    MlrunInternalLabels.mlrun_class: "spark",
+                    MlrunInternalLabels.function: "my-spark-jdbc",
+                    MlrunInternalLabels.name: "my-spark-jdbc",
+                    MlrunInternalLabels.project: project,
+                    MlrunInternalLabels.scrape_metrics: "False",
+                    MlrunInternalLabels.tag: "latest",
+                    MlrunInternalLabels.uid: uid,
                 },
             },
             "status": status,

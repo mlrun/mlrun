@@ -2326,7 +2326,7 @@ class SQLDB(DBInterface):
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
-            .filter(Schedule.Label.name.in_(["workflow", "kind"]))
+            .filter(Schedule.Label.name.in_([MlrunInternalLabels.workflow, "kind"]))
             .all()
         )
 
@@ -2334,7 +2334,7 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if result[2].to_dict()["name"] == "workflow":
+            if result[2].to_dict()["name"] == MlrunInternalLabels.workflow:
                 project_to_schedule_pending_workflows_count[result[0]] += 1
             elif result[2].to_dict()["value"] == "job":
                 project_to_schedule_pending_jobs_count[result[0]] += 1

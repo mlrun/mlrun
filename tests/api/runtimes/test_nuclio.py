@@ -184,7 +184,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
-            labels_for_diff.update({"mlrun/class": expected_class})
+            labels_for_diff.update({MlrunInternalLabels.mlrun_class: expected_class})
             if parent_function:
                 labels_for_diff.update({"mlrun/parent-function": parent_function})
             assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}

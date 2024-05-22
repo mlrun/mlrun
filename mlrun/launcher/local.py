@@ -22,6 +22,7 @@ import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 
@@ -132,8 +133,13 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-        if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and MlrunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[MlrunInternalLabels.v3io_user] = os.environ.get(
+                "V3IO_USERNAME"
+            )
 
         # store function object in db unless running from within a run pod
         if not runtime.is_child:

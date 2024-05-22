@@ -21,6 +21,7 @@ import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 
@@ -69,13 +70,13 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def _store_function(
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[MlrunInternalLabels.kind] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels["owner"]
+                "{{run.user}}", run.metadata.labels[MlrunInternalLabels.owner]
             )
         db = runtime._get_db()
         if db and runtime.kind != "handler":

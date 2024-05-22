@@ -21,7 +21,7 @@ import aiohttp
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
-from mlrun.common.constants import MLRUN_CREATED_LABEL
+from mlrun.common.constants import MLRUN_CREATED_LABEL, MlrunInternalLabels
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
@@ -29,7 +29,7 @@ NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
-NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
+NUCLIO_PROJECT_NAME_LABEL = MlrunInternalLabels.nuclio_project_name
 
 
 class Client:

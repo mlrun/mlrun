@@ -21,6 +21,7 @@ import git
 import pytest
 
 import mlrun.runtimes.utils
+from mlrun.common.constants import MlrunInternalLabels
 
 
 @pytest.fixture
@@ -71,31 +72,57 @@ def test_add_code_metadata_stale_remote(repo):
 @pytest.mark.parametrize(
     "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
     [
-        ({}, None, {"owner": "v3io_user", "v3io_user": "v3io_user"}, None),
-        ({}, {}, {"owner": "test_user"}, {"LOGNAME": "test_user", "V3IO_USERNAME": ""}),
         (
-            {"owner": "Mahatma"},
             {},
-            {"owner": "Mahatma", "v3io_user": "v3io_user"},
+            None,
+            {
+                MlrunInternalLabels.owner: MlrunInternalLabels.v3io_user,
+                MlrunInternalLabels.v3io_user: MlrunInternalLabels.v3io_user,
+            },
             None,
         ),
         (
-            {"owner": "Mahatma", "v3io_user": "Gandhi"},
             {},
-            {"owner": "Mahatma", "v3io_user": "Gandhi"},
+            {},
+            {MlrunInternalLabels.owner: "test_user"},
+            {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
+        ),
+        (
+            {MlrunInternalLabels.owner: "Mahatma"},
+            {},
+            {
+                MlrunInternalLabels.owner: "Mahatma",
+                MlrunInternalLabels.v3io_user: MlrunInternalLabels.v3io_user,
+            },
+            None,
+        ),
+        (
+            {
+                MlrunInternalLabels.owner: "Mahatma",
+                MlrunInternalLabels.v3io_user: "Gandhi",
+            },
+            {},
+            {
+                MlrunInternalLabels.owner: "Mahatma",
+                MlrunInternalLabels.v3io_user: "Gandhi",
+            },
             None,
         ),
         (
             {"a": "A", "b": "B"},
             {mlrun.common.runtimes.constants.RunLabels.owner},
-            {"a": "A", "b": "B", "owner": "v3io_user"},
+            {
+                "a": "A",
+                "b": "B",
+                MlrunInternalLabels.owner: MlrunInternalLabels.v3io_user,
+            },
             None,
         ),
     ],
 )
 def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_to_mock):
     env_vars_to_mock = env_vars_to_mock or {
-        "V3IO_USERNAME": "v3io_user",
+        "V3IO_USERNAME": MlrunInternalLabels.v3io_user,
     }
     with unittest.mock.patch.dict(
         os.environ,

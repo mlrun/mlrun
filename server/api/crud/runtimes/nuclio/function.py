@@ -320,7 +320,7 @@ def _compile_function_config(
 
 def _set_function_labels(function):
     labels = function.metadata.labels or {}
-    labels.update({"mlrun/class": function.kind})
+    labels.update({MlrunInternalLabels.mlrun_class: function.kind})
     for key, value in labels.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
         function.set_config(f"metadata.labels.\\{key}\\", value)

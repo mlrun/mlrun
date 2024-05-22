@@ -126,7 +126,9 @@ def apply_mlrun(
     # # Use horovod:
     if use_horovod is None:
         use_horovod = (
-            context.labels.get("kind", "") == "mpijob" if context is not None else False
+            context.labels.get(MlrunInternalLabels.kind, "") == "mpijob"
+            if context is not None
+            else False
         )
 
     # Create a model handler:

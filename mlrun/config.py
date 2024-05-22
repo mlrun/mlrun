@@ -968,7 +968,7 @@ class Config:
 
     @staticmethod
     def internal_labels():
-        return mlrun.common.constants.MLRUN_INTERNAL_LABELS
+        return mlrun.common.constants.MlrunInternalLabels.all()
 
     @staticmethod
     def get_storage_auto_mount_params():

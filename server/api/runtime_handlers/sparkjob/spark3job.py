@@ -93,7 +93,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runtime, run, True)
         pod_labels = deepcopy(meta.labels)
-        pod_labels["mlrun/job"] = meta.name
+        pod_labels[MlrunInternalLabels.job] = meta.name
         job_type = runtime.spec.job_type or "Python"
         update_in(job, "spec.type", job_type)
         if runtime.spec.job_type == "Python":
@@ -167,9 +167,11 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             job,
             "spec.image",
             runtime.full_image_path(
-                client_version=run.metadata.labels.get("mlrun/client_version"),
+                client_version=run.metadata.labels.get(
+                    MlrunInternalLabels.client_version
+                ),
                 client_python_version=run.metadata.labels.get(
-                    "mlrun/client_python_version"
+                    MlrunInternalLabels.client_python_version
                 ),
             ),
         )

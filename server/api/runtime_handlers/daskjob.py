@@ -27,6 +27,7 @@ import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -206,10 +207,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/component")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(MlrunInternalLabels.dask_component)
             )
             cluster_name = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(MlrunInternalLabels.dask_cluster_name)
             )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
@@ -444,7 +449,7 @@ def get_obj_status(selector=None, namespace=None):
     for pod in pods:
         status = pod.status.phase.lower()
         if status == "running":
-            cluster = pod.metadata.labels.get("dask.org/cluster-name")
+            cluster = pod.metadata.labels.get(MlrunInternalLabels.dask_cluster_name)
             logger.info(
                 "Found running dask function",
                 pod_name=pod.metadata.name,

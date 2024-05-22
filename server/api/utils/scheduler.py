@@ -35,6 +35,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.iguazio
 import server.api.utils.helpers
 import server.api.utils.singletons.project_member
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -53,7 +54,7 @@ class Scheduler:
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"
-    _db_record_auth_label = "mlrun-auth-key"
+    _db_record_auth_label = MlrunInternalLabels.mlrun_auth_key
 
     def __init__(self):
         scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)

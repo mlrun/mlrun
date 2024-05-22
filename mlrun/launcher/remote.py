@@ -26,6 +26,7 @@ import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 
@@ -100,8 +101,13 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and MlrunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[MlrunInternalLabels.v3io_user] = os.environ.get(
+                "V3IO_USERNAME"
+            )
 
         logger.info(
             "Storing function",

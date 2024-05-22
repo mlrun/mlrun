@@ -31,6 +31,7 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
@@ -515,7 +516,6 @@ def build_image(
         extra_args=extra_args,
     )
 
-    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -534,9 +534,9 @@ def build_image(
         registry=registry,
         extra_args=extra_args,
         extra_labels={
-            label_prefix + "name": name,
-            label_prefix + "function": runtime.metadata.name,
-            label_prefix + "tag": runtime.metadata.tag or "latest",
+            MlrunInternalLabels.name: name,
+            MlrunInternalLabels.function: runtime.metadata.name,
+            MlrunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
     )
 

@@ -29,6 +29,7 @@ import pydantic.error_wrappers
 import mlrun
 import mlrun.common.schemas.notification
 
+from .common.constants import MlrunInternalLabels
 from .utils import (
     dict_to_json,
     dict_to_yaml,

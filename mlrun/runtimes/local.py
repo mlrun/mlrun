@@ -35,6 +35,7 @@ from nuclio import Event
 import mlrun
 from mlrun.lists import RunList
 
+from ..common.constants import MlrunInternalLabels
 from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..model import RunObject

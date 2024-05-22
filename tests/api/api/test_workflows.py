@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
+from mlrun.common.constants import MlrunInternalLabels
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"

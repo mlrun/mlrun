@@ -19,6 +19,7 @@ from tensorflow import keras
 
 import mlrun
 
+from ...common.constants import MlrunInternalLabels
 from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
 from .model_handler import TFKerasModelHandler

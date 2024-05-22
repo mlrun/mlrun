@@ -20,6 +20,7 @@ from mlrun.model import DataTargetBase, new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
 
+from ...common.constants import MlrunInternalLabels
 from ...runtimes import RuntimeKinds
 from ..common import RunConfig
 from .base import BaseMerger

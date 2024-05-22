@@ -37,6 +37,7 @@ import mlrun.runtimes.base
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.utils.helpers
 import tests.conftest
+from mlrun.common.constants import MlrunInternalLabels
 
 
 @pytest.fixture()

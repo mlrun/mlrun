@@ -35,6 +35,7 @@ import server.api.runtime_handlers
 import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 

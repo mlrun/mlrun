@@ -14,6 +14,7 @@
 #
 import mlrun
 import tests.integration.sdk_api.base
+from mlrun.common.constants import MlrunInternalLabels
 
 
 class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):

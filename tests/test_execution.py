@@ -20,6 +20,7 @@ from mlrun_pipelines.models import PipelineRun
 import mlrun
 import mlrun.artifacts
 import mlrun.errors
+from mlrun.common.constants import MlrunInternalLabels
 from tests.conftest import out_path
 
 

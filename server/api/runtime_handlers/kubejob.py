@@ -20,6 +20,7 @@ from packaging.version import parse as parse_version
 
 import mlrun
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 from server.api.runtime_handlers import BaseRuntimeHandler

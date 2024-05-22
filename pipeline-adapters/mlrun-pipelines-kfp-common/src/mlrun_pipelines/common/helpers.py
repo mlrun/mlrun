@@ -17,6 +17,8 @@ import inspect
 from collections.abc import Iterator, MutableMapping
 from typing import Any, NoReturn
 
+from mlrun.common.constants import MlrunInternalLabels
+
 PROJECT_ANNOTATION = MlrunInternalLabels.project
 RUN_ANNOTATION = "mlrun/pipeline-step-type"
 FUNCTION_ANNOTATION = "mlrun/function-uri"

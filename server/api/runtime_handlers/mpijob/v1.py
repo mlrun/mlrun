@@ -20,6 +20,7 @@ from kubernetes import client
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in

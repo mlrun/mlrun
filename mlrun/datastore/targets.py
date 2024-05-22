@@ -36,6 +36,7 @@ from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
+from ..common.constants import MlrunInternalLabels
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
 from .datastore_profile import datastore_profile_read

@@ -20,6 +20,7 @@ from mlrun_pipelines.models import PipelineNodeWrapper
 import mlrun
 from mlrun.utils import hub_prefix
 
+from ..common.constants import MlrunInternalLabels
 from .pipelines import enrich_function_object, pipeline_context
 
 

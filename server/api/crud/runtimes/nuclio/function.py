@@ -32,6 +32,7 @@ import server.api.crud.runtimes.nuclio.helpers
 import server.api.runtime_handlers
 import server.api.utils.builder
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger
 
 

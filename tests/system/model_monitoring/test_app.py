@@ -234,7 +234,7 @@ class _V3IORecordsChecker:
 
         parsed_response = json.loads(response.content.decode())
 
-        assert {
+        invocations_in_response = {
             "project": cls.project_name,
             "app": "mlrun-infra",
             "type": "metric",
@@ -242,12 +242,18 @@ class _V3IORecordsChecker:
             "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
         } in parsed_response
 
+        assert invocations_in_response == (type == "metrics")
+
         for result in parsed_response:
             if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert getattr(app_data, type) == get_app_results
+        expected_results = getattr(app_data, type)
+        if type == "metrics":
+            expected_results.add("invocations")
+
+        assert get_app_results == getattr(app_data, type)
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
@@ -266,6 +272,14 @@ class _V3IORecordsChecker:
         )
         results = json.loads(response.content.decode())
 
+        for result_values in results:
+            assert result_values[
+                "data"
+            ], f"No data for result {result_values['full_name']}"
+            assert result_values[
+                "values"
+            ], f"The values list is empty for result {result_values['full_name']}"
+
         result = results[0]
         assert (
             result["full_name"]
@@ -282,12 +296,11 @@ class _V3IORecordsChecker:
 
         assert result["type"] == "metric"
         assert result["data"], f"No data for result {result['full_name']}"
-        assert result["result_kind"] == 3
         assert result[
             "values"
         ], f"The values list is empty for result {result['full_name']}"
 
-        assert len(results) == 2, "Expected 2 results from metric-values API"
+        assert len(results) == 5, "Expected 5 results from metric-values API"
 
     @classmethod
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:

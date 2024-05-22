@@ -502,8 +502,10 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:
-            metrics_without_invocations = filter(
-                lambda metric: metric.full_name != invocations_full_name, metrics
+            metrics_without_invocations = list(
+                filter(
+                    lambda metric: metric.full_name != invocations_full_name, metrics
+                )
             )
             if len(metrics_without_invocations) != len(metrics):
                 coroutines.append(
@@ -531,6 +533,6 @@ async def get_model_endpoint_monitoring_metrics_values(
             )
 
     metrics_values = []
-    for result in asyncio.gather(*coroutines):
+    for result in await asyncio.gather(*coroutines):
         metrics_values.extend(result)
     return metrics_values

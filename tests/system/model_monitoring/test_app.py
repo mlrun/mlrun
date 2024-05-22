@@ -14,6 +14,7 @@
 
 import concurrent.futures
 import json
+import os
 import pickle
 import time
 import typing
@@ -97,10 +98,23 @@ class _V3IORecordsChecker:
     app_interval: int
 
     @classmethod
-    def custom_setup_class(cls, project_name: str) -> None:
-        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name
-        )
+    def custom_setup(cls, project_name: str) -> None:
+        if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
+            project = mlrun.get_or_create_project(
+                project_name, "./", allow_cross_project=True
+            )
+            project.set_model_monitoring_credentials(
+                tsdb_connection=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                )
+            )
+
+            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name,
+                TSDB_CONNECTION=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                ),
+            )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -329,7 +343,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         cls.run_db = mlrun.get_run_db()
 
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+    @classmethod
+    def custom_setup(cls) -> None:
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
@@ -561,7 +577,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
         cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     @classmethod
     def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:

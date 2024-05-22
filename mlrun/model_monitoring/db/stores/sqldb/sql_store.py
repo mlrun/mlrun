@@ -67,6 +67,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _init_tables(self):
         self._init_model_endpoints_table()
         self._init_application_results_table()
+        self._init_application_metrics_table()
         self._init_monitoring_schedules_table()
 
     def _init_model_endpoints_table(self):
@@ -80,13 +81,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         )
 
     def _init_application_results_table(self):
-        self.ApplicationResultsTable = (
+        self.application_results_table = (
             mlrun.model_monitoring.db.stores.sqldb.models._get_application_result_table(
                 connection_string=self._sql_connection_string
             )
         )
         self._tables[mm_schemas.FileTargetKind.APP_RESULTS] = (
-            self.ApplicationResultsTable
+            self.application_results_table
+        )
+
+    def _init_application_metrics_table(self) -> None:
+        self.application_metrics_table = mlrun.model_monitoring.db.stores.sqldb.models._get_application_metrics_table(
+            connection_string=self._sql_connection_string
+        )
+        self._tables[mm_schemas.FileTargetKind.APP_METRICS] = (
+            self.application_metrics_table
         )
 
     def _init_monitoring_schedules_table(self):
@@ -104,7 +113,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         :param table: Target table name.
         :param event: Event dictionary that will be written into the DB.
         """
-
+        self._engine = typing.cast(sqlalchemy.engine.Engine, self._engine)
         with self._engine.connect() as connection:
             # Convert the result into a pandas Dataframe and write it into the database
             event_df = pd.DataFrame([event])
@@ -349,37 +358,36 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         Write a new application event in the target table.
 
-        :param event: An event dictionary that represents the application result, should be corresponded to the
-                      schema defined in the :py:class:`~mm_constants.constants.WriterEvent`
-                      object.
+        :param event: An event dictionary that represents the application result or metric,
+                      should be corresponded to the schema defined in the
+                      :py:class:`~mm_constants.constants.WriterEvent` object.
         :param kind: The type of the event, can be either "result" or "metric".
         """
 
         if kind == mm_schemas.WriterEventKind.METRIC:
-            # TODO : Implement the logic for writing metrics to MySQL
-            return
+            self._init_application_metrics_table()
+            table = self.application_metrics_table
+            table_name = mm_schemas.FileTargetKind.APP_METRICS
+        elif kind == mm_schemas.WriterEventKind.RESULT:
+            self._init_application_results_table()
+            table = self.application_results_table
+            table_name = mm_schemas.FileTargetKind.APP_RESULTS
+        else:
+            raise ValueError(f"Invalid {kind = }")
 
-        self._init_application_results_table()
+        application_result_uid = self._generate_application_result_uid(event, kind=kind)
+        criteria = [table.uid == application_result_uid]
 
-        application_result_uid = self._generate_application_result_uid(event)
-        criteria = [self.ApplicationResultsTable.uid == application_result_uid]
-
-        application_record = self._get(
-            table=self.ApplicationResultsTable, criteria=criteria
-        )
+        application_record = self._get(table=table, criteria=criteria)
         if application_record:
             self._convert_to_datetime(
-                event=event,
-                key=mm_schemas.WriterEvent.START_INFER_TIME,
+                event=event, key=mm_schemas.WriterEvent.START_INFER_TIME
             )
             self._convert_to_datetime(
-                event=event,
-                key=mm_schemas.WriterEvent.END_INFER_TIME,
+                event=event, key=mm_schemas.WriterEvent.END_INFER_TIME
             )
             # Update an existing application result
-            self._update(
-                attributes=event, table=self.ApplicationResultsTable, criteria=criteria
-            )
+            self._update(attributes=event, table=table, criteria=criteria)
         else:
             # Write a new application result
             event[mm_schemas.EventFieldType.UID] = application_result_uid
@@ -392,12 +400,19 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         event[key] = event[key].astimezone(tz=datetime.timezone.utc)
 
     @staticmethod
-    def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
+    def _generate_application_result_uid(
+        event: dict[str, typing.Any],
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> str:
+        if kind == mm_schemas.WriterEventKind.RESULT:
+            name = event[mm_schemas.ResultData.RESULT_NAME]
+        else:
+            name = event[mm_schemas.MetricData.METRIC_NAME]
         return "_".join(
             [
                 event[mm_schemas.WriterEvent.ENDPOINT_ID],
                 event[mm_schemas.WriterEvent.APPLICATION_NAME],
-                event[mm_schemas.ResultData.RESULT_NAME],
+                name,
             ]
         )
 
@@ -481,17 +496,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def _delete_application_result(self) -> None:
         self._init_application_results_table()
         # Delete the table
-        self._delete(table=self.ApplicationResultsTable, criteria=[])
+        self._delete(table=self.application_results_table, criteria=[])
+
+    def _delete_application_metrics(self) -> None:
+        self._init_application_metrics_table()
+        # Delete the table
+        self._delete(table=self.application_metrics_table, criteria=[])
 
     def _create_tables_if_not_exist(self):
         self._init_tables()
 
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
+            self._engine = typing.cast(sqlalchemy.engine.Engine, self._engine)
             if not self._engine.has_table(table):
-                self._tables[table].metadata.create_all(  # pyright: ignore[reportGeneralTypeIssues]
-                    bind=self._engine
-                )
+                self._tables[table].metadata.create_all(bind=self._engine)
 
     @staticmethod
     def _filter_values(
@@ -575,8 +594,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         endpoints = self.list_model_endpoints()
 
-        # Delete application results records
+        # Delete application results and metrics records
         self._delete_application_result()
+        self._delete_application_metrics()
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]

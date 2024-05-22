@@ -125,7 +125,6 @@ class StoreBase(ABC):
                       object.
         :param kind: The type of the event, can be either "result" or "metric".
         """
-        pass
 
     @abstractmethod
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:

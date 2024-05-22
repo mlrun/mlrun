@@ -97,7 +97,7 @@ def db(
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "server.api.main"]
-    run_with_memray = distutils.util.strtobool(env.get("MLRUN_MEMRAY"))
+    run_with_memray = distutils.util.strtobool(env.get("MLRUN_MEMRAY", "false"))
     if run_with_memray:
         cmd = [executable, "-m", "memray", "run"]
         output_file = env.get("MLRUN_MEMRAY_OUTPUT_FILE", None)

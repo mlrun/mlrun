@@ -22,6 +22,7 @@ from mlrun.common.schemas.model_monitoring import (
 )
 
 from .base import (
+    ApplicationMetricsBaseTable,
     ApplicationResultBaseTable,
     ModelEndpointsBaseTable,
     MonitoringSchedulesBaseTable,
@@ -41,7 +42,14 @@ class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
     )
 
 
-class ApplicationResultTable(Base, ApplicationResultBaseTable):
+class _ApplicationResultOrMetric:
+    """
+    This class sets common columns of `ApplicationResultTable` and `ApplicationMetricsTable`
+    to the correct values in MySQL.
+    Note: This class must come before the base tables in the inheritance order to override
+    the relevant columns.
+    """
+
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
@@ -57,6 +65,18 @@ class ApplicationResultTable(Base, ApplicationResultBaseTable):
             String(40),
             ForeignKey(f"{EventFieldType.MODEL_ENDPOINTS}.{EventFieldType.UID}"),
         )
+
+
+class ApplicationResultTable(
+    Base, _ApplicationResultOrMetric, ApplicationResultBaseTable
+):
+    pass
+
+
+class ApplicationMetricsTable(
+    Base, _ApplicationResultOrMetric, ApplicationMetricsBaseTable
+):
+    pass
 
 
 class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):

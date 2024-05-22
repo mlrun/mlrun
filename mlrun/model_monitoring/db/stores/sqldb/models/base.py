@@ -24,6 +24,7 @@ from sqlalchemy import (
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     FileTargetKind,
+    MetricData,
     ResultData,
     SchedulingKeys,
     WriterEvent,
@@ -133,6 +134,35 @@ class ApplicationResultBaseTable(BaseModel):
     result_value = Column(ResultData.RESULT_VALUE, Float)
     result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
     current_stats = Column(ResultData.CURRENT_STATS, Text)
+
+
+class ApplicationMetricsBaseTable(BaseModel):
+    __tablename__ = FileTargetKind.APP_METRICS
+
+    uid = Column(EventFieldType.UID, String(120), primary_key=True)
+    application_name = Column(
+        WriterEvent.APPLICATION_NAME,
+        String(40),
+        nullable=True,
+    )
+    endpoint_id = Column(
+        WriterEvent.ENDPOINT_ID,
+        String(40),
+        nullable=True,
+    )
+    start_infer_time = Column(
+        WriterEvent.START_INFER_TIME,
+        TIMESTAMP(timezone=True),
+    )
+    end_infer_time = Column(
+        WriterEvent.END_INFER_TIME,
+        TIMESTAMP(timezone=True),
+    )
+    metric_name = Column(
+        MetricData.METRIC_NAME,
+        String(40),
+    )
+    metric_value = Column(MetricData.METRIC_VALUE, Float)
 
 
 class MonitoringSchedulesBaseTable(BaseModel):

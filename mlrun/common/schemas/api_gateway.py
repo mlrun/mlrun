@@ -55,6 +55,7 @@ class APIGatewayMetadata(_APIGatewayBaseModel):
     name: str
     namespace: Optional[str]
     labels: Optional[dict] = {}
+    annotations: Optional[dict] = {}
 
 
 class APIGatewayBasicAuth(_APIGatewayBaseModel):
@@ -90,6 +91,54 @@ class APIGateway(_APIGatewayBaseModel):
     metadata: APIGatewayMetadata
     spec: APIGatewaySpec
     status: Optional[APIGatewayStatus]
+
+    def get_function_names(self):
+        return [
+            upstream.nucliofunction.get("name")
+            for upstream in self.spec.upstreams
+            if upstream.nucliofunction.get("name")
+        ]
+
+    def enrich_mlrun_function_names(self):
+        upstream_with_nuclio_names = []
+        mlrun_function_uris = []
+        for upstream in self.spec.upstreams:
+            uri = upstream.nucliofunction.get("name")
+            project, function_name, tag, _ = (
+                mlrun.common.helpers.parse_versioned_object_uri(uri)
+            )
+            upstream.nucliofunction["name"] = (
+                mlrun.runtimes.nuclio.function.get_fullname(function_name, project, tag)
+            )
+
+            upstream_with_nuclio_names.append(upstream)
+            mlrun_function_uris.append(uri)
+
+        self.spec.upstreams = upstream_with_nuclio_names
+        if len(mlrun_function_uris) == 1:
+            self.metadata.annotations[MLRUN_FUNCTIONS_LABEL] = mlrun_function_uris[0]
+        elif len(mlrun_function_uris) == 2:
+            self.metadata.annotations[MLRUN_FUNCTIONS_LABEL] = "&".join(
+                mlrun_function_uris
+            )
+        return self
+
+    def replace_nuclio_names_with_mlrun_uri(self):
+        mlrun_functions = self.metadata.annotations.get(MLRUN_FUNCTIONS_LABEL)
+        if mlrun_functions:
+            mlrun_function_uris = (
+                mlrun_functions.split("&")
+                if "&" in mlrun_functions
+                else [mlrun_functions]
+            )
+            if len(mlrun_function_uris) != len(self.spec.upstreams):
+                raise mlrun.errors.MLRunValueError(
+                    "Error when translating nuclio names to mlrun names in api gateway:"
+                    " upstream length doesn't match with mlrun functions label"
+                )
+            for i in range(len(mlrun_function_uris)):
+                self.spec.upstreams[i].nucliofunction["name"] = mlrun_function_uris[i]
+        return self
 
 
 class APIGatewaysOutput(_APIGatewayBaseModel):

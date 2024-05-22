@@ -16,11 +16,14 @@ import unittest
 from unittest.mock import patch
 
 import fastapi
+import pytest
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.runtimes.nuclio
 import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
+from mlrun.common.constants import MLRUN_FUNCTIONS_LABEL
 
 PROJECT = "project-name"
 
@@ -153,3 +156,48 @@ def test_store_api_gateway(
         json=api_gateway.dict(),
     )
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "functions, expected_nuclio_function_names, expected_mlrun_functions_label",
+    [
+        (
+            ["test-func"],
+            ["test-project-test-func"],
+            "test-project/test-func",
+        ),
+        (
+            ["test-func1", "test-func2"],
+            ["test-project-test-func1", "test-project-test-func2"],
+            "test-project/test-func1&test-project/test-func2",
+        ),
+    ],
+)
+def test_mlrun_function_translation_to_nuclio(
+    functions, expected_nuclio_function_names, expected_mlrun_functions_label
+):
+    project_name = "test-project"
+    api_gateway_client_side = mlrun.runtimes.APIGateway(
+        metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(name="new-gw"),
+        spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=functions, project=project_name
+        ),
+    )
+    api_gateway_server_side = (
+        api_gateway_client_side.to_scheme().enrich_mlrun_function_names()
+    )
+    assert (
+        api_gateway_server_side.get_function_names() == expected_nuclio_function_names
+    )
+
+    assert (
+        api_gateway_server_side.metadata.annotations[MLRUN_FUNCTIONS_LABEL]
+        == expected_mlrun_functions_label
+    )
+    api_gateway_with_replaced_nuclio_names_to_mlrun = (
+        api_gateway_server_side.replace_nuclio_names_with_mlrun_uri()
+    )
+    assert (
+        api_gateway_with_replaced_nuclio_names_to_mlrun.get_function_names()
+        == api_gateway_client_side.spec.functions
+    )

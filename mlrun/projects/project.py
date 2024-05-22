@@ -2102,7 +2102,6 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
-        tsdb_connection: Optional[str] = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2122,9 +2121,6 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
                                                 Otherwise, deploy the model monitoring infrastructure on the
                                                 background, including the histogram data drift app if selected.
-        :param tsdb_connection:                 The connection string to the TSDB connector. Currently, only TDengine
-                                                WebSocket connection is supported. If not provided, the TSDB connection
-                                                will be set to the default V3IO TSDB connector.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2135,8 +2131,6 @@ class MlrunProject(ModelObj):
             )
             image = default_controller_image
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if tsdb_connection:
-            self.set_model_monitoring_credentials(tsdb_connection=tsdb_connection)
         db.enable_model_monitoring(
             project=self.name,
             image=image,

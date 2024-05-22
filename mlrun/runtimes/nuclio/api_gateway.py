@@ -317,7 +317,7 @@ class APIGatewaySpec(ModelObj):
                 project,
                 function_name,
                 func.metadata.tag,
-                func.metadata.hash_key,
+                func.metadata.hash,
             )
             function_names.append(function_uri)
         return function_names

@@ -73,7 +73,7 @@ def test_list_api_gateways(
     assert response.json() == {
         "api_gateways": {
             "new-gw": {
-                "metadata": {"name": "new-gw", "labels": {}},
+                "metadata": {"name": "new-gw", "labels": {}, "annotations": {}},
                 "spec": {
                     "name": "new-gw",
                     "path": "/",

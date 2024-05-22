@@ -975,37 +975,49 @@ class AsyncClient(Client):
         """
         Proxy the request to one of the session verification endpoints (which will verify the session of the request)
         """
-        async with self._send_request_to_api_async(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            headers={
-                "authorization": request.headers.get("authorization"),
-                "cookie": request.headers.get("cookie"),
-            },
-        ) as response:
+        async with (
+            self._send_request_to_api_async(
+                "POST",
+                mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+                "Failed verifying iguazio session",
+                blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+                headers={
+                    "authorization": request.headers.get("authorization"),
+                    "cookie": request.headers.get("cookie"),
+                },
+            ) as response
+        ):
             return self._generate_auth_info_from_session_verification_response(
                 response.headers, await response.json()
             )
 
     async def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
-        async with self._send_request_to_api_async(
-            "POST",
-            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
-            "Failed verifying iguazio session",
-            session,
-        ) as response:
+        async with (
+            self._send_request_to_api_async(
+                "POST",
+                mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+                "Failed verifying iguazio session",
+                session,
+                blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+            ) as response
+        ):
             return self._generate_auth_info_from_session_verification_response(
                 response.headers, await response.json()
             )
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api_async(
-        self, method, path, error_message: str, session=None, **kwargs
+        self,
+        method,
+        path: str,
+        error_message: str,
+        session=None,
+        blacklisted_methods=None,
+        **kwargs,
     ) -> aiohttp.ClientResponse:
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        await self._ensure_async_session()
+        await self._ensure_async_session(blacklisted_methods)
         response = None
         try:
             response = await self._async_session.request(
@@ -1024,10 +1036,16 @@ class AsyncClient(Client):
             if response:
                 response.release()
 
-    async def _ensure_async_session(self):
-        if not self._async_session:
+    async def _ensure_async_session(self, blacklisted_methods=None):
+        if (
+            not self._async_session
+            or self._async_session.methods_blacklist_update_required(
+                blacklisted_methods
+            )
+        ):
             self._async_session = mlrun.utils.AsyncClientWithRetry(
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
                 == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
                 logger=logger,
+                blacklisted_methods=blacklisted_methods,
             )

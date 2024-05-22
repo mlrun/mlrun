@@ -146,13 +146,24 @@ async def http_status_error_handler(
         request_id = request.state.request_id
     status_code = exc.response.status_code
     error_message = repr(exc)
-    logger.warning(
-        "Request handling returned error status",
-        error_message=error_message,
-        status_code=status_code,
-        traceback=traceback.format_exc(),
-        request_id=request_id,
-    )
+    log_message = "Request handling returned error status"
+
+    if type(exc) in mlrun.errors.EXPECTED_ERRORS:
+        logger.debug(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            request_id=request_id,
+        )
+    else:
+        logger.warning(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            traceback=traceback.format_exc(),
+            request_id=request_id,
+        )
+
     return await http_exception_handler(
         request,
         fastapi.HTTPException(status_code=status_code, detail=error_message),

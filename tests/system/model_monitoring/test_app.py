@@ -116,7 +116,9 @@ class _V3IORecordsChecker:
                 ),
             )
         else:
-            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(project=project_name)
+            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name
+            )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 

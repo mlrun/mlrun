@@ -22,10 +22,10 @@ from evidently.ui.dashboards import (
     PlotType,
     ReportFilter,
 )
+from evidently.ui.type_aliases import STR_UUID
 from evidently.ui.workspace import Workspace
 from sklearn.datasets import load_iris
 
-import mlrun
 import mlrun.common.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,

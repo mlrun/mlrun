@@ -14,7 +14,7 @@
 
 import asyncio
 import json
-from collections.abc import Coroutine
+import typing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -494,7 +494,7 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    coroutines: list[Coroutine] = []
+    coroutines: list[typing.Coroutine] = []
 
     invocations_full_name = (
         mlrun.model_monitoring.db.v3io_tsdb_reader.get_invocations_fqn(params.project)

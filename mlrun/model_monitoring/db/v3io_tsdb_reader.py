@@ -42,7 +42,7 @@ from mlrun.utils import logger
 def _get_sql_query(
     endpoint_id: str,
     names: list[tuple[str, str]],
-    table_name: str = mm_constants.MonitoringTSDBTables.APP_RESULTS,
+    table_name: str = mm_constants.V3IOTSDBTables.APP_RESULTS,
     name: str = mm_writer.ResultData.RESULT_NAME,
 ) -> str:
     with StringIO() as query:
@@ -114,11 +114,11 @@ def read_metrics_data(
     )
 
     if type == "metrics":
-        table_name = mm_constants.MonitoringTSDBTables.METRICS
+        table_name = mm_constants.V3IOTSDBTables.METRICS
         name = mm_constants.MetricData.METRIC_NAME
         df_handler = df_to_metrics_values
     elif type == "results":
-        table_name = mm_constants.MonitoringTSDBTables.APP_RESULTS
+        table_name = mm_constants.V3IOTSDBTables.APP_RESULTS
         name = mm_constants.ResultData.RESULT_NAME
         df_handler = df_to_results_values
     else:

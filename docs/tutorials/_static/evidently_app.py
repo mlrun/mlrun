@@ -115,7 +115,7 @@ def _create_evidently_project(
 class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     NAME = "evidently-app-test"
 
-    def __init__(self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"):
+    def __init__(self, evidently_workspace_path: str, evidently_project_id: STR_UUID):
         super().__init__(evidently_workspace_path, evidently_project_id)
         self._init_evidently_project()
         self._init_iris_data()

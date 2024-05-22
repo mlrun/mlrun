@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.3](#v1-6-3-22-may-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.3](#v1-6-3-26-may-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -13,7 +13,7 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
  
 
-## v1.6.3 (22 May 2024)
+## v1.6.3 (26 May 2024)
 
 ### Workflows
 | ID          |Description                                                               |
@@ -23,6 +23,7 @@
 ### Documentation
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-4620   | Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for new model monitoring feature.|
 |NA        | New page describing {ref}`log-artifacts`.                                 |
 |NA        | New page describing {ref}`parallel-workflows`.                                 |
 |NA        | New page describing {ref}`conditional-workflow`.                                 |
@@ -81,7 +82,7 @@
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|New Grafana Model Monitoring Applications dashboard that includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 

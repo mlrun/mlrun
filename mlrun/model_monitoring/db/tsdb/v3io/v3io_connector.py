@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import datetime
+import typing
 
 import pandas as pd
 import v3io_frames.client
@@ -37,12 +37,14 @@ class V3IOTSDBConnector(TSDBConnector):
     Client that provides API for executing commands on the V3IO TSDB table.
     """
 
+    type: str = mm_schemas.TSDBTarget.V3IO_TSDB
+
     def __init__(
         self,
         project: str,
-        access_key: str = None,
+        access_key: typing.Optional[str] = None,
         container: str = "users",
-        v3io_framesd: str = None,
+        v3io_framesd: typing.Optional[str] = None,
         create_table: bool = False,
     ):
         super().__init__(project=project)
@@ -61,7 +63,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self._init_tables_path()
 
         if create_table:
-            self.create_tsdb_application_tables()
+            self.create_tables()
 
     def _init_tables_path(self):
         self.tables = {}
@@ -77,7 +79,7 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             events_table_full_path
         )
-        self.tables[mm_schemas.MonitoringTSDBTables.EVENTS] = events_path
+        self.tables[mm_schemas.V3IOTSDBTables.EVENTS] = events_path
 
         monitoring_application_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -92,11 +94,11 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_application_full_path
         )
-        self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS] = (
-            monitoring_application_path + mm_schemas.MonitoringTSDBTables.APP_RESULTS
+        self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS] = (
+            monitoring_application_path + mm_schemas.V3IOTSDBTables.APP_RESULTS
         )
-        self.tables[mm_schemas.MonitoringTSDBTables.METRICS] = (
-            monitoring_application_path + mm_schemas.MonitoringTSDBTables.METRICS
+        self.tables[mm_schemas.V3IOTSDBTables.METRICS] = (
+            monitoring_application_path + mm_schemas.V3IOTSDBTables.METRICS
         )
 
         monitoring_predictions_full_path = (
@@ -114,15 +116,16 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         self.tables[mm_schemas.FileTargetKind.PREDICTIONS] = monitoring_predictions_path
 
-    def create_tsdb_application_tables(self) -> None:
+    def create_tables(self) -> None:
         """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the tables using the TSDB connector. The tables are being created in the V3IO TSDB and include:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a single numeric metric.
+        Note that the predictions table is automatically created by the model monitoring stream pod.
         """
         application_tables = [
-            mm_schemas.MonitoringTSDBTables.APP_RESULTS,
-            mm_schemas.MonitoringTSDBTables.METRICS,
+            mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            mm_schemas.V3IOTSDBTables.METRICS,
         ]
         for table_name in application_tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
@@ -197,7 +200,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 "storey.TSDBTarget",
                 name=name,
                 after=after,
-                path=f"{self.container}/{self.tables[mm_schemas.MonitoringTSDBTables.EVENTS]}",
+                path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.EVENTS]}",
                 rate="10/m",
                 time_col=mm_schemas.EventFieldType.TIMESTAMP,
                 container=self.container,
@@ -261,10 +264,10 @@ class V3IOTSDBConnector(TSDBConnector):
         ]
 
         if kind == mm_schemas.WriterEventKind.METRIC:
-            table = self.tables[mm_schemas.MonitoringTSDBTables.METRICS]
+            table = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
             index_cols = index_cols_base + [mm_schemas.MetricData.METRIC_NAME]
         elif kind == mm_schemas.WriterEventKind.RESULT:
-            table = self.tables[mm_schemas.MonitoringTSDBTables.APP_RESULTS]
+            table = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
             index_cols = index_cols_base + [mm_schemas.ResultData.RESULT_NAME]
             del event[mm_schemas.ResultData.RESULT_EXTRA_DATA]
         else:
@@ -289,13 +292,13 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: str = None):
+    def delete_tsdb_resources(self, table: typing.Optional[str] = None):
         if table:
             # Delete a specific table
             tables = [table]
         else:
             # Delete all tables
-            tables = mm_schemas.MonitoringTSDBTables.list()
+            tables = mm_schemas.V3IOTSDBTables.list()
         for table in tables:
             try:
                 self._frames_client.delete(
@@ -318,8 +321,8 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -348,7 +351,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         try:
             data = self.get_records(
-                table=mm_schemas.MonitoringTSDBTables.EVENTS,
+                table=mm_schemas.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,
@@ -375,17 +378,14 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_records(
         self,
         table: str,
-        columns: list[str] = None,
+        start: str,
+        end: str,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
         :param table:            Path to the collection to query.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
-                                 divided by ' AND '.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
@@ -394,6 +394,9 @@ class V3IOTSDBConnector(TSDBConnector):
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
                                  `'s'` = seconds), or 0 for the earliest time.
+        :param columns:          Columns to include in the result.
+        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
+                                 divided by ' AND '.
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """

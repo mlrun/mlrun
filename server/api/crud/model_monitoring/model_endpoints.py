@@ -559,6 +559,9 @@ class ModelEndpoints:
         # Delete model monitoring TSDB resources
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=project_name,
+            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=project_name
+            ),
         )
         tsdb_connector.delete_tsdb_resources()
 
@@ -647,6 +650,9 @@ class ModelEndpoints:
 
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=model_endpoint_object.metadata.project,
+            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=model_endpoint_object.metadata.project
+            ),
         )
 
         endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(

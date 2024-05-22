@@ -522,7 +522,9 @@ default_config = {
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connector_type": "v3io-tsdb",
+        "tsdb_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

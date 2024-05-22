@@ -991,6 +991,20 @@ class AsyncClient(Client):
                 response.headers, await response.json()
             )
 
+    async def verify_session(self, session: str) -> mlrun.common.schemas.AuthInfo:
+        async with (
+            self._send_request_to_api_async(
+                "POST",
+                mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+                "Failed verifying iguazio session",
+                session,
+                blacklisted_methods=[],  # iguazio session verification endpoint is idempotent
+            ) as response
+        ):
+            return self._generate_auth_info_from_session_verification_response(
+                response.headers, await response.json()
+            )
+
     @contextlib.asynccontextmanager
     async def _send_request_to_api_async(
         self,

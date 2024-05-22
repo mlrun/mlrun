@@ -93,7 +93,7 @@ class TestLogCollector:
     ):
         run_uid = "123"
         project_name = "some-project"
-        selector = f"mlrun/project={project_name},mlrun/uid={run_uid}"
+        selector = f"{MlrunInternalLabels.project}={project_name},{MlrunInternalLabels.uid}={run_uid}"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
         log_collector._call = unittest.mock.AsyncMock(

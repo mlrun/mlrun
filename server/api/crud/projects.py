@@ -32,6 +32,7 @@ import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
 import server.api.utils.singletons.scheduler
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.utils import logger, retry_until_successful
 from server.api.utils.singletons.k8s import get_k8s_helper
 
@@ -185,7 +186,7 @@ class Projects(
         # delete runtime resources
         server.api.crud.RuntimeResources().delete_runtime_resources(
             session,
-            label_selector=f"mlrun/project={name}",
+            label_selector=f"{MlrunInternalLabels.project}={name}",
             force=True,
         )
         if mlrun.mlconf.resolve_kfp_url():
@@ -527,7 +528,8 @@ class Projects(
 
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                selector=f"nuclio.io/project-name={project_name},nuclio.io/class=function"
+                selector=f"{MlrunInternalLabels.nuclio_project_name}={project_name},"
+                         f"{MlrunInternalLabels.nuclio_class}=function"
             )
             if not project_function_pods:
                 logger.debug(

@@ -298,7 +298,7 @@ class Runs(
                     server.api.utils.singletons.db.get_db(),
                     db_session,
                     object_id=uid,
-                    label_selector=f"mlrun/project={project}",
+                    label_selector=f"{MlrunInternalLabels.project}={project}",
                     force=True,
                 )
 
@@ -457,7 +457,7 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{MlrunInternalLabels.project}={project},{MlrunInternalLabels.uid}={uid}",
                 force=True,
             )
 
@@ -523,6 +523,6 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{MlrunInternalLabels.project}={project},{MlrunInternalLabels.uid}={uid}",
                 force=True,
             )

@@ -28,6 +28,7 @@ import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
 from mlrun.common import constants
 from mlrun.common.runtimes.constants import RunLabels
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
@@ -38,8 +39,6 @@ from mlrun.utils import get_in, helpers, logger, verify_field_regex
 class RunError(Exception):
     pass
 
-
-mlrun_key = constants.MLRUN_KEY
 
 
 class _ContextStore:
@@ -373,10 +372,10 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
 
 
 def get_func_selector(project, name=None, tag=None):
-    s = [f"{mlrun_key}project={project}"]
+    s = [f"{MlrunInternalLabels.project}={project}"]
     if name:
-        s.append(f"{mlrun_key}function={name}")
-        s.append(f"{mlrun_key}tag={tag or 'latest'}")
+        s.append(f"{MlrunInternalLabels.function}={name}")
+        s.append(f"{MlrunInternalLabels.tag}={tag or 'latest'}")
     return s
 
 
@@ -439,6 +438,7 @@ def enrich_run_labels(
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
+        # TODO: remove this in 1.9.0
         RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
     labels_to_enrich = labels_to_enrich or RunLabels.all()

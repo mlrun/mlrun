@@ -601,7 +601,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._store_run(
             db,
             pending_scheduled_labels[MlrunInternalLabels.name],
-            pending_scheduled_labels["mlrun/uid"],
+            pending_scheduled_labels[MlrunInternalLabels.uid],
             start_time=pending_scheduled_pod.status.start_time,
         )
 
@@ -619,7 +619,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._store_run(
             db,
             pending_scheduled_new_labels[MlrunInternalLabels.name],
-            pending_scheduled_new_labels["mlrun/uid"],
+            pending_scheduled_new_labels[MlrunInternalLabels.uid],
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
@@ -639,7 +639,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._store_run(
             db,
             running_overtime_labels[MlrunInternalLabels.name],
-            running_overtime_labels["mlrun/uid"],
+            running_overtime_labels[MlrunInternalLabels.uid],
             start_time=running_overtime_pod.status.start_time,
         )
 
@@ -675,7 +675,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._store_run(
             db,
             image_pull_backoff_labels[MlrunInternalLabels.name],
-            image_pull_backoff_labels["mlrun/uid"],
+            image_pull_backoff_labels[MlrunInternalLabels.uid],
             start_time=image_pull_backoff_pod.status.start_time,
         )
 
@@ -695,9 +695,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_uids = [run["uid"] for run in stale_runs]
         expected_stale_run_uids = [
-            pending_scheduled_pod.metadata.labels["mlrun/uid"],
-            running_overtime_pod.metadata.labels["mlrun/uid"],
-            image_pull_backoff_pod.metadata.labels["mlrun/uid"],
+            pending_scheduled_pod.metadata.labels[MlrunInternalLabels.uid],
+            running_overtime_pod.metadata.labels[MlrunInternalLabels.uid],
+            image_pull_backoff_pod.metadata.labels[MlrunInternalLabels.uid],
         ]
         assert stale_run_uids == expected_stale_run_uids
 

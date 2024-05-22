@@ -19,6 +19,7 @@ import pytest
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 
 
 @pytest.mark.parametrize(
@@ -26,8 +27,8 @@ import server.api.utils.singletons.k8s
     [
         ("job", "", ""),
         ("spark", "", "spark-role=driver"),
-        ("mpijob", "v1", "mpi-job-role=launcher"),
-        ("mpijob", "v1alpha1", "mpi_role_type=launcher"),
+        ("mpijob", "v1", f"{MlrunInternalLabels.mpi_job_role}=launcher"),
+        ("mpijob", "v1alpha1", f"{MlrunInternalLabels.mpi_role_type}=launcher"),
     ],
 )
 def test_get_logger_pods_label_selector(
@@ -41,7 +42,7 @@ def test_get_logger_pods_label_selector(
     uid = "test-uid"
     project = "test-project"
     namespace = "test-namespace"
-    selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+    selector = f"{MlrunInternalLabels.mlrun_class},{MlrunInternalLabels.project}={project},{MlrunInternalLabels.uid}={uid}"
     if extra_selector:
         selector += f",{extra_selector}"
 
@@ -49,4 +50,4 @@ def test_get_logger_pods_label_selector(
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)
-    k8s_helper.list_pods.assert_called_once_with(namespace, selector=selector)
+    k8s_helper. list_pods.assert_called_once_with(namespace, selector=selector)

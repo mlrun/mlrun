@@ -514,7 +514,7 @@ with ctx:
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
+        return f"{MlrunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
@@ -548,7 +548,7 @@ with ctx:
         """
         uids = []
         for crd_dict in deleted_resources:
-            uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
+            uid = crd_dict["metadata"].get("labels", {}).get(MlrunInternalLabels.uid, None)
             uids.append(uid)
 
         config_maps = server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
@@ -556,7 +556,7 @@ with ctx:
         )
         for config_map in config_maps.items:
             try:
-                uid = config_map.metadata.labels.get("mlrun/uid", None)
+                uid = config_map.metadata.labels.get(MlrunInternalLabels.uid, None)
                 if force or uid in uids:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace

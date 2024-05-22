@@ -469,7 +469,7 @@ def _generate_workflow_manifest(with_status=False):
                             "mlrun/function-uri": "default/hedi-simple-func@a5b181289c7ee40f7fba2a31ed73ff65043dfd2"
                             "7",
                             "mlrun/pipeline-step-type": "run",
-                            MlrunInternalLabels.project: "default",
+                            "mlrun/project": "default",
                             "sidecar.istio.io/inject": "false",
                         },
                         "labels": {"pipelines.kubeflow.org/cache_enabled": "true"},

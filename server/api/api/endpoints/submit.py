@@ -116,7 +116,6 @@ async def submit_job(
         # if task is missing, we don't want to create one
         if "task" in data:
             labels = data["task"].setdefault("metadata", {}).setdefault("labels", {})
-            # TODO: remove this duplication
             labels.setdefault(MlrunInternalLabels.v3io_user, username)
             labels.setdefault(MlrunInternalLabels.owner, username)
 

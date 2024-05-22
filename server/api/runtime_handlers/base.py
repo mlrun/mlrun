@@ -237,7 +237,7 @@ class BaseRuntimeHandler(ABC):
             label_selector = default_label_selector
 
         if project and project != "*":
-            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
+            label_selector = ",".join([label_selector, f"{MlrunInternalLabels.project}={project}"])
 
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
@@ -1311,7 +1311,7 @@ class BaseRuntimeHandler(ABC):
             # If the run state thresholds are set, we need to check the pods
             pods = self._list_pods(
                 namespace,
-                label_selector=f"mlrun/uid={run['metadata']['uid']}",
+                label_selector=f"{MlrunInternalLabels.uid}={run['metadata']['uid']}",
             )
             for pod in pods:
                 _, threshold_exceeded = self._apply_state_threshold(
@@ -1496,11 +1496,11 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        if "mlrun/uid" in resource.labels:
+        if MlrunInternalLabels.uid in resource.labels:
             project = resource.labels.get(
                 MlrunInternalLabels.project, config.default_project
             )
-            uid = resource.labels["mlrun/uid"]
+            uid = resource.labels[MlrunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
             )
@@ -1545,7 +1545,7 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
-        return f"mlrun/project={project},mlrun/uid={run_uid}"
+        return f"{MlrunInternalLabels.project}={project},{MlrunInternalLabels.uid}={run_uid}"
 
     @staticmethod
     def _ensure_run_logs_collected(
@@ -1685,7 +1685,7 @@ class BaseRuntimeHandler(ABC):
         )
         if not project:
             project = config.default_project
-        uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
+        uid = runtime_resource.get("metadata", {}).get("labels", {}).get(MlrunInternalLabels.uid)
         name = (
             runtime_resource.get("metadata", {})
             .get("labels", {})

@@ -443,7 +443,7 @@ def get_obj_status(selector=None, namespace=None):
 
     k8s = server.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ",".join(["dask.org/component=scheduler"] + selector)
+    selector = ",".join([MlrunInternalLabels.dask_component] + selector)
     pods = k8s.list_pods(namespace, selector=selector)
     status = ""
     for pod in pods:

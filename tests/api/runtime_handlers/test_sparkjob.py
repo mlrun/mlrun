@@ -479,7 +479,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             len(list_namespaced_pods_calls),
-            expected_label_selector=f"mlrun/uid={stale_job_uid}",
+            expected_label_selector=f"{MlrunInternalLabels.uid}={stale_job_uid}",
         )
 
         assert len(stale_runs) == 1

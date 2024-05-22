@@ -224,7 +224,7 @@ def _compile_function_config(
                 mlrun.common.constants.MLRUN_MODEL_CONF,
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
-                labels={mlrun.common.constants.MLRUN_CREATED_LABEL: "true"},
+                labels={MlrunInternalLabels.created: "true"},
             )
             volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
             volume_mount = {

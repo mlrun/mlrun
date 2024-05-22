@@ -124,7 +124,7 @@ def run_merge_job(
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label(MlrunInternalLabels.job_type, "feature-merge").set_label(
-        "feature-vector", vector.uri
+        MlrunInternalLabels.feature_vector, vector.uri
     )
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid

@@ -185,9 +185,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     @staticmethod
     def _generate_pods_selector(name: str, launcher: bool) -> str:
-        selector = f"mpi-job-name={name}"
+        selector = f"{MlrunInternalLabels.mpi_job_name}={name}"
         if launcher:
-            selector += ",mpi-job-role=launcher"
+            selector += f",{MlrunInternalLabels.mpi_job_role}=launcher"
 
         return selector
 
@@ -274,7 +274,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
+        return f"{MlrunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
@@ -283,7 +283,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
         :return: the label selector
         """
-        return "mpi-job-role=launcher"
+        return f"{MlrunInternalLabels.mpi_job_role}=launcher"
 
     @staticmethod
     def _get_crd_info() -> tuple[str, str, str]:

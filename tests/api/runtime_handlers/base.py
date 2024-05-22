@@ -154,7 +154,7 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_job_labels(run_name, uid=None, job_labels=None):
         labels = job_labels.copy() if job_labels else {}
-        labels["mlrun/uid"] = uid or str(uuid.uuid4())
+        labels[MlrunInternalLabels.uid] = uid or str(uuid.uuid4())
         labels[MlrunInternalLabels.name] = run_name
         return labels
 
@@ -193,7 +193,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{MlrunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = (
@@ -204,7 +204,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{MlrunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
@@ -250,7 +250,7 @@ class TestRuntimeHandlerBase:
     ):
         self._assert_list_resources_grouped_by_response(
             resources,
-            lambda labels: (labels[MlrunInternalLabels.project], labels["mlrun/uid"]),
+            lambda labels: (labels[MlrunInternalLabels.project], labels[MlrunInternalLabels.uid]),
             expected_crds,
             expected_pods,
             expected_services,

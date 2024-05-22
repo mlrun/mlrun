@@ -899,7 +899,7 @@ class _RemoteRunner(_PipelineRunner):
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
-    spec = imputil.spec_from_file_location(MlrunInternalLabels.workflow, pipeline)
+    spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
         raise ImportError(f"Cannot import workflow {pipeline}")
     mod = imputil.module_from_spec(spec)

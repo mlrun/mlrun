@@ -187,7 +187,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
+        return f"{MlrunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_lifecycle():

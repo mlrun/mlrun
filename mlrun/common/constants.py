@@ -14,7 +14,6 @@
 #
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with registry
-MLRUN_CREATED_LABEL = "mlrun-created"
 MLRUN_MODEL_CONF = "model-conf"
 MLRUN_SERVING_SPEC_MOUNT_PATH = f"/tmp/mlrun/{MLRUN_MODEL_CONF}"
 MLRUN_SERVING_SPEC_FILENAME = "serving_spec.json"
@@ -22,37 +21,58 @@ MLRUN_SERVING_SPEC_PATH = (
     f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 )
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
-MLRUN_KEY = "mlrun/"
-
+MLRUN_LABEL_PREFIX = "mlrun/"
+DASK_LABEL_PREFIX = "dask.org/"
+NUCLIO_LABEL_PREFIX = "nuclio.io/"
 
 class MlrunInternalLabels:
-    dask_cluster_name = "dask.org/cluster-name"
-    dask_component = "dask.org/component"
+    ### dask
+    dask_cluster_name = f"{DASK_LABEL_PREFIX}cluster-name"
+    dask_component = f"{DASK_LABEL_PREFIX}component"
+
+    ### spark
+    spark_role = "spark-role"
+
+    ### mpi
+    mpi_job_name = "mpi-job-name"
+    mpi_job_role = "mpi-job-role"
+    mpi_role_type = "mpi_role_type"
+
+
+    ### nuclio
+    nuclio_project_name = f"{NUCLIO_LABEL_PREFIX}project-name"
+    nuclio_class = f"{NUCLIO_LABEL_PREFIX}class"
+
+    ### mlrun
+    mlrun_auth_key = "mlrun-auth-key"
+    mlrun_class = f"{MLRUN_LABEL_PREFIX}class"
+    client_python_version = f"{MLRUN_LABEL_PREFIX}client_python_version"
+    client_version = f"{MLRUN_LABEL_PREFIX}client_version"
+    function = f"{MLRUN_LABEL_PREFIX}function"
+    job = f"{MLRUN_LABEL_PREFIX}job"
+    name = f"{MLRUN_LABEL_PREFIX}name"
+    mlrun_owner = f"{MLRUN_LABEL_PREFIX}owner"
+    owner_domain = f"{MLRUN_LABEL_PREFIX}owner_domain"
+    project = f"{MLRUN_LABEL_PREFIX}project"
+    runner_pod = f"{MLRUN_LABEL_PREFIX}runner-pod"
+    schedule_name = f"{MLRUN_LABEL_PREFIX}schedule-name"
+    scrape_metrics = f"{MLRUN_LABEL_PREFIX}scrape-metrics"
+    tag = f"{MLRUN_LABEL_PREFIX}tag"
+    uid = f"{MLRUN_LABEL_PREFIX}uid"
+    username = f"{MLRUN_LABEL_PREFIX}username"
+    username_domain = f"{MLRUN_LABEL_PREFIX}username_domain"
     host = "host"
     job_type = "job-type"
     kind = "kind"
-    mlrun_auth_key = "mlrun-auth-key"
-    nuclio_project_name = "nuclio.io/project-name"
-    mlrun_class = f"{MLRUN_KEY}class"
-    client_python_version = f"{MLRUN_KEY}client_python_version"
-    client_version = f"{MLRUN_KEY}client_version"
-    function = f"{MLRUN_KEY}function"
-    job = f"{MLRUN_KEY}job"
-    name = f"{MLRUN_KEY}name"
-    mlrun_owner = f"{MLRUN_KEY}owner"
-    owner_domain = f"{MLRUN_KEY}owner_domain"
-    project = f"{MLRUN_KEY}project"
-    runner_pod = f"{MLRUN_KEY}runner-pod"
-    schedule_name = f"{MLRUN_KEY}schedule-name"
-    scrape_metrics = f"{MLRUN_KEY}scrape-metrics"
-    tag = f"{MLRUN_KEY}tag"
-    uid = f"{MLRUN_KEY}uid"
-    username = f"{MLRUN_KEY}username"
-    username_domain = f"{MLRUN_KEY}username_domain"
-    owner = "owner"
+    component = "component"
     resource_name = "resource_name"
+    created = "mlrun-created"
+
+    owner = "owner"
+    # TODO: remove this in 1.9.0
     v3io_user = "v3io_user"
     workflow = "workflow"
+    feature_vector = "feature-vector"
 
     @classmethod
     def all(cls):

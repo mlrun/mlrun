@@ -30,8 +30,6 @@ from mlrun.utils import logger
 from ...common.constants import MlrunInternalLabels
 from .function import get_fullname, min_nuclio_versions
 
-PROJECT_NAME_LABEL = MlrunInternalLabels.nuclio_project_name
-
 
 class APIGatewayAuthenticator(typing.Protocol):
     @property
@@ -527,7 +525,7 @@ class APIGateway(ModelObj):
 
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
-        project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
+        project = api_gateway.metadata.labels.get(MlrunInternalLabels.nuclio_project_name)
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (
             api_gateway.status.state

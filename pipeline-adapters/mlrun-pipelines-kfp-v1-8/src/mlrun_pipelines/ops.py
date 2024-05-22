@@ -28,6 +28,7 @@ from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
 
 import mlrun
 import mlrun.common.runtimes.constants
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.config import config
 from mlrun.utils import get_in
 
@@ -209,13 +210,12 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 
 def add_labels(cop, function, scrape_metrics=False):
-    prefix = mlrun.runtimes.utils.mlrun_key
-    cop.add_pod_label(prefix + "class", function.kind)
-    cop.add_pod_label(prefix + "function", function.metadata.name)
-    cop.add_pod_label(prefix + "name", cop.human_name)
-    cop.add_pod_label(prefix + "project", function.metadata.project)
-    cop.add_pod_label(prefix + "tag", function.metadata.tag or "latest")
-    cop.add_pod_label(prefix + "scrape-metrics", "True" if scrape_metrics else "False")
+    cop.add_pod_label(MlrunInternalLabels.mlrun_class, function.kind)
+    cop.add_pod_label(MlrunInternalLabels.function, function.metadata.name)
+    cop.add_pod_label(MlrunInternalLabels.name, cop.human_name)
+    cop.add_pod_label(MlrunInternalLabels.project, function.metadata.project)
+    cop.add_pod_label(MlrunInternalLabels.tag, function.metadata.tag or "latest")
+    cop.add_pod_label(MlrunInternalLabels.scrape_metrics, "True" if scrape_metrics else "False")
 
 
 def add_default_function_resources(

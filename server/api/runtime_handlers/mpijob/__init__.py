@@ -14,6 +14,7 @@
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from mlrun.config import config
 from server.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
@@ -60,7 +61,7 @@ def _resolve_mpijob_crd_version_best_effort():
     namespace = k8s_helper.resolve_namespace()
 
     # try resolving according to mpi-operator that's running
-    res = k8s_helper.list_pods(namespace=namespace, selector="component=mpi-operator")
+    res = k8s_helper.list_pods(namespace=namespace, selector=f"{MlrunInternalLabels.component}=mpi-operator")
 
     if len(res) == 0:
         return None

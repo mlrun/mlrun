@@ -71,7 +71,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             MlrunInternalLabels.tag: "latest",
             MlrunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            "mpi-job-role": "launcher",
+            MlrunInternalLabels.mpi_job_role: "launcher",
         }
         launcher_pod_name = "trainer-1b019005-launcher"
 
@@ -93,7 +93,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             MlrunInternalLabels.tag: "latest",
             MlrunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            "mpi-job-role": "worker",
+            MlrunInternalLabels.mpi_job_role: "worker",
         }
         worker_pod_name = "trainer-1b019005-worker-0"
 
@@ -636,7 +636,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
-            f"mlrun/uid={pending_scheduled_stale_uid}",
+            f"{MlrunInternalLabels.uid}={pending_scheduled_stale_uid}",
         )
         assert len(stale_runs) == 1
 
@@ -666,7 +666,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
             runtime_handler
         )
-        return f"{logger_pods_label_selector},mpi-job-role=launcher"
+        return f"{logger_pods_label_selector},{MlrunInternalLabels.mpi_job_role}=launcher"
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

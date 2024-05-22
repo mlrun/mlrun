@@ -124,8 +124,8 @@ class MPIJobCRDVersions:
     @staticmethod
     def role_label_by_version(version):
         return {
-            MPIJobCRDVersions.v1alpha1: "mpi_role_type",
-            MPIJobCRDVersions.v1: "mpi-job-role",
+            MPIJobCRDVersions.v1alpha1: MlrunInternalLabels.mpi_role_type,
+            MPIJobCRDVersions.v1: MlrunInternalLabels.mpi_job_role,
         }[version]
 
 
@@ -196,6 +196,7 @@ class RunStates:
 
 class RunLabels(enum.Enum):
     owner = MlrunInternalLabels.owner
+    # TODO: remove this in 1.9.0
     v3io_user = MlrunInternalLabels.v3io_user
 
     @staticmethod

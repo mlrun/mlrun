@@ -270,16 +270,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         )
         extra_selectors = {
-            "spark": "spark-role=driver",
+            "spark": f"{MlrunInternalLabels.spark_role}=driver",
             "mpijob": f"{mpijob_role_label}=launcher",
         }
 
-        # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
-        #  inclusive place.
         selectors = [
             MlrunInternalLabels.mlrun_class,
-            f"mlrun/project={project}",
-            f"mlrun/uid={uid}",
+            f"{MlrunInternalLabels.project}={project}",
+            f"{MlrunInternalLabels.uid}={uid}",
         ]
 
         # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for

@@ -70,7 +70,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                     labels={
                                         MlrunInternalLabels.mlrun_class: "job",
                                         MlrunInternalLabels.project: project,
-                                        "mlrun/uid": "uid",
+                                        MlrunInternalLabels.uid: "uid",
                                     },
                                 ),
                                 status=k8s_client.V1PodStatus(phase="Running"),

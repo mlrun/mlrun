@@ -512,7 +512,7 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
                         labels={
                             MlrunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
-                            "mlrun/uid": project_1_job_name,
+                            MlrunInternalLabels.uid: project_1_job_name,
                             MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
@@ -560,7 +560,7 @@ def _generate_grouped_by_project_runtime_resources_output():
                         labels={
                             MlrunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
-                            "mlrun/uid": project_1_job_name,
+                            MlrunInternalLabels.uid: project_1_job_name,
                             MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
@@ -601,7 +601,7 @@ def _generate_grouped_by_project_runtime_resources_output():
                         labels={
                             MlrunInternalLabels.project: project_2,
                             # using name as uid to make assertions easier later
-                            "mlrun/uid": project_2_job_name,
+                            MlrunInternalLabels.uid: project_2_job_name,
                             MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
@@ -618,7 +618,7 @@ def _generate_grouped_by_project_runtime_resources_output():
                         labels={
                             MlrunInternalLabels.project: project_3,
                             # using name as uid to make assertions easier later
-                            "mlrun/uid": project_3_mpijob_name,
+                            MlrunInternalLabels.uid: project_3_mpijob_name,
                             MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.mpijob,
                         },
                     )

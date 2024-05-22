@@ -184,6 +184,8 @@ class Alerts(
                 obj=state_obj,
                 active=active,
             )
+        else:
+            logger.debug("The entity of the alert does not match the one in event")
 
     @staticmethod
     def _event_entity_matches(alert_entity, event_entity):

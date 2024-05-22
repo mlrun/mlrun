@@ -56,11 +56,13 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with webhook notification
         alert_name = "failure_webhook"
         alert_summary = "Job failed"
+        run_id = "test-func-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
         self._create_alert_config(
             self.project_name,
             alert_name,
             alert_objects.EventEntityKind.JOB,
+            run_id,
             alert_summary,
             alert_objects.EventKind.FAILED,
             notifications,
@@ -92,11 +94,13 @@ class TestAlerts(TestMLRunSystem):
         # create an alert with two webhook notifications
         alert_name = "drift_webhook"
         alert_summary = "Model is drifting"
+        endpoint_id = "demo-endpoint"
         notifications = self._generate_drift_notifications(nuclio_function_url)
         self._create_alert_config(
             self.project_name,
             alert_name,
             alert_objects.EventEntityKind.MODEL,
+            endpoint_id,
             alert_summary,
             alert_objects.EventKind.DRIFT_DETECTED,
             notifications,
@@ -108,7 +112,6 @@ class TestAlerts(TestMLRunSystem):
         )
         writer._wait_for_function_deployment(db=writer._get_db())
 
-        endpoint_id = "demo-endpoint"
         mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=self.project.metadata.name,
             endpoint_id=endpoint_id,
@@ -220,6 +223,7 @@ class TestAlerts(TestMLRunSystem):
         project,
         name,
         entity_kind,
+        entity_id,
         summary,
         event_name,
         notifications,
@@ -231,7 +235,7 @@ class TestAlerts(TestMLRunSystem):
             summary=summary,
             severity=alert_objects.AlertSeverity.LOW,
             entities=alert_objects.EventEntities(
-                kind=entity_kind, project=project, ids=["*"]
+                kind=entity_kind, project=project, ids=[entity_id]
             ),
             trigger=alert_objects.AlertTrigger(events=[event_name]),
             criteria=criteria,

@@ -94,8 +94,8 @@ def test_log_dask_to_azure(auth_method):
     verify_auth_parameters_and_configure_env(auth_method)
     artifact_path = "az://" + config["env"].get("AZURE_CONTAINER") + "/"
 
-    A = np.random.randint(0, 100, size=(10000, 4))
-    df = pd.DataFrame(data=A, columns=list("ABCD"))
+    data = np.random.randint(0, 100, size=(10000, 4))
+    df = pd.DataFrame(data=data, columns=list("ABCD"))
     ddf = dd.from_pandas(df, npartitions=4)
 
     context = mlrun.get_or_create_ctx("test")
@@ -117,8 +117,8 @@ def test_log_large_dask_dataframe_to_azure(auth_method):
     # Create the environmental variables
     verify_auth_parameters_and_configure_env(auth_method)
 
-    A = np.random.random_sample(size=(25000000, 6))
-    df = pd.DataFrame(data=A, columns=list("ABCDEF"))
+    data = np.random.random_sample(size=(25000000, 6))
+    df = pd.DataFrame(data=data, columns=list("ABCDEF"))
     ddf = dd.from_pandas(df, npartitions=10).persist()
 
     size = ddf.memory_usage().sum().compute()

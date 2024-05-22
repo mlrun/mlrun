@@ -137,7 +137,7 @@ class AlertConfig(ModelObj):
             template = db.get_alert_template(template)
 
         # Extract parameters from the template and apply them to the AlertConfig object
-        self.description = template.description
+        self.summary = template.summary
         self.severity = template.severity
         self.criteria = template.criteria
         self.trigger = template.trigger

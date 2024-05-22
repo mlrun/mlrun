@@ -120,8 +120,11 @@ class FlexibleMapper(MutableMapping):
 
     def to_dict(self) -> dict:
         """
-        Converts the mapping to a dict. This method follows the attribute rules defined on __iter__
+        Converts the mapping to a dict. The dict is the result of merging the external data dict with
+        the class attributes, where the class attributes take precedence.
 
         :returns: a dict representation of the mapping.
         """
-        return {a: getattr(self, a, None) for a in self}
+        data = self._external_data.copy()
+        data.update({a: getattr(self, a, None) for a in self})
+        return data

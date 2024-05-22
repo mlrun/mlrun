@@ -42,7 +42,11 @@ def test_get_logger_pods_label_selector(
     uid = "test-uid"
     project = "test-project"
     namespace = "test-namespace"
-    selector = f"{MlrunInternalLabels.mlrun_class},{MlrunInternalLabels.project}={project},{MlrunInternalLabels.uid}={uid}"
+    selector = (
+        f"{MlrunInternalLabels.mlrun_class},"
+        f"{MlrunInternalLabels.project}={project},"
+        f"{MlrunInternalLabels.uid}={uid}"
+    )
     if extra_selector:
         selector += f",{extra_selector}"
 
@@ -50,4 +54,4 @@ def test_get_logger_pods_label_selector(
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)
-    k8s_helper. list_pods.assert_called_once_with(namespace, selector=selector)
+    k8s_helper.list_pods.assert_called_once_with(namespace, selector=selector)

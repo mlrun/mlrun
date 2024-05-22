@@ -17,7 +17,6 @@ import inspect
 from collections.abc import Iterator, MutableMapping
 from typing import Any, NoReturn
 
-
 PROJECT_ANNOTATION = "mlrun/project"
 RUN_ANNOTATION = "mlrun/pipeline-step-type"
 FUNCTION_ANNOTATION = "mlrun/function-uri"

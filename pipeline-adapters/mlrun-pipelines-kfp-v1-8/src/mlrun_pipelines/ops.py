@@ -215,7 +215,9 @@ def add_labels(cop, function, scrape_metrics=False):
     cop.add_pod_label(MlrunInternalLabels.name, cop.human_name)
     cop.add_pod_label(MlrunInternalLabels.project, function.metadata.project)
     cop.add_pod_label(MlrunInternalLabels.tag, function.metadata.tag or "latest")
-    cop.add_pod_label(MlrunInternalLabels.scrape_metrics, "True" if scrape_metrics else "False")
+    cop.add_pod_label(
+        MlrunInternalLabels.scrape_metrics, "True" if scrape_metrics else "False"
+    )
 
 
 def add_default_function_resources(

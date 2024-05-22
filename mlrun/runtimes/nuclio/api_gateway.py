@@ -525,7 +525,9 @@ class APIGateway(ModelObj):
 
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
-        project = api_gateway.metadata.labels.get(MlrunInternalLabels.nuclio_project_name)
+        project = api_gateway.metadata.labels.get(
+            MlrunInternalLabels.nuclio_project_name
+        )
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (
             api_gateway.status.state

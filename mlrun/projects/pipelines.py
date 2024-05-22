@@ -36,7 +36,6 @@ from mlrun.utils import (
     retry_until_successful,
 )
 
-from ..common.constants import MlrunInternalLabels
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from ..run import _run_pipeline, wait_for_pipeline_completion

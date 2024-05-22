@@ -436,9 +436,7 @@ class RunDBMock:
         project: str,
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
-        api_gateway.metadata.labels = {
-            MlrunInternalLabels.nuclio_project_name: project
-        }
+        api_gateway.metadata.labels = {MlrunInternalLabels.nuclio_project_name: project}
         self._api_gateways[key] = api_gateway
         return api_gateway
 

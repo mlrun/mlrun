@@ -25,6 +25,7 @@ MLRUN_LABEL_PREFIX = "mlrun/"
 DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
 
+
 class MlrunInternalLabels:
     ### dask
     dask_cluster_name = f"{DASK_LABEL_PREFIX}cluster-name"
@@ -37,7 +38,6 @@ class MlrunInternalLabels:
     mpi_job_name = "mpi-job-name"
     mpi_job_role = "mpi-job-role"
     mpi_role_type = "mpi_role_type"
-
 
     ### nuclio
     nuclio_project_name = f"{NUCLIO_LABEL_PREFIX}project-name"

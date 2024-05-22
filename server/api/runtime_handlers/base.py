@@ -237,7 +237,9 @@ class BaseRuntimeHandler(ABC):
             label_selector = default_label_selector
 
         if project and project != "*":
-            label_selector = ",".join([label_selector, f"{MlrunInternalLabels.project}={project}"])
+            label_selector = ",".join(
+                [label_selector, f"{MlrunInternalLabels.project}={project}"]
+            )
 
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
@@ -1685,7 +1687,11 @@ class BaseRuntimeHandler(ABC):
         )
         if not project:
             project = config.default_project
-        uid = runtime_resource.get("metadata", {}).get("labels", {}).get(MlrunInternalLabels.uid)
+        uid = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get(MlrunInternalLabels.uid)
+        )
         name = (
             runtime_resource.get("metadata", {})
             .get("labels", {})

@@ -666,7 +666,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
             runtime_handler
         )
-        return f"{logger_pods_label_selector},{MlrunInternalLabels.mpi_job_role}=launcher"
+        return (
+            f"{logger_pods_label_selector},{MlrunInternalLabels.mpi_job_role}=launcher"
+        )
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

@@ -529,7 +529,7 @@ class Projects(
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
                 selector=f"{MlrunInternalLabels.nuclio_project_name}={project_name},"
-                         f"{MlrunInternalLabels.nuclio_class}=function"
+                f"{MlrunInternalLabels.nuclio_class}=function"
             )
             if not project_function_pods:
                 logger.debug(

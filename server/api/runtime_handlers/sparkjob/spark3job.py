@@ -548,7 +548,11 @@ with ctx:
         """
         uids = []
         for crd_dict in deleted_resources:
-            uid = crd_dict["metadata"].get("labels", {}).get(MlrunInternalLabels.uid, None)
+            uid = (
+                crd_dict["metadata"]
+                .get("labels", {})
+                .get(MlrunInternalLabels.uid, None)
+            )
             uids.append(uid)
 
         config_maps = server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(

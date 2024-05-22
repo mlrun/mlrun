@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 import server.api.utils.clients.log_collector
+from mlrun.common.constants import MlrunInternalLabels
 
 
 class BaseLogCollectorResponse:

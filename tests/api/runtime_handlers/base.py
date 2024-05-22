@@ -250,7 +250,10 @@ class TestRuntimeHandlerBase:
     ):
         self._assert_list_resources_grouped_by_response(
             resources,
-            lambda labels: (labels[MlrunInternalLabels.project], labels[MlrunInternalLabels.uid]),
+            lambda labels: (
+                labels[MlrunInternalLabels.project],
+                labels[MlrunInternalLabels.uid],
+            ),
             expected_crds,
             expected_pods,
             expected_services,

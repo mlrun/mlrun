@@ -61,7 +61,9 @@ def _resolve_mpijob_crd_version_best_effort():
     namespace = k8s_helper.resolve_namespace()
 
     # try resolving according to mpi-operator that's running
-    res = k8s_helper.list_pods(namespace=namespace, selector=f"{MlrunInternalLabels.component}=mpi-operator")
+    res = k8s_helper.list_pods(
+        namespace=namespace, selector=f"{MlrunInternalLabels.component}=mpi-operator"
+    )
 
     if len(res) == 0:
         return None

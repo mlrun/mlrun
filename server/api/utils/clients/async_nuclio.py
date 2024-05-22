@@ -31,7 +31,6 @@ NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
 
-
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None
@@ -138,7 +137,9 @@ class Client:
         )
 
     def _set_iguazio_labels(self, nuclio_object, project_name):
-        nuclio_object.metadata.labels[MlrunInternalLabels.nuclio_project_name] = project_name
+        nuclio_object.metadata.labels[MlrunInternalLabels.nuclio_project_name] = (
+            project_name
+        )
         nuclio_object.metadata.labels[MlrunInternalLabels.created] = "true"
 
     async def _ensure_async_session(self):

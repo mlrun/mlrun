@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import mlrun.runtimes
+from mlrun.common.constants import MlrunInternalLabels
 from mlrun.runtimes.base import RuntimeClassMode
 from server.api.runtime_handlers.kubejob import KubeRuntimeHandler
 

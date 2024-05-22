@@ -28,13 +28,12 @@ import v3io.dataplane.response
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricType,
     ModelEndpointMonitoringResultValues,
-    _ResultPoint,
+    _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.v3io_tsdb_reader import (
@@ -499,16 +498,14 @@ def test_read_predictions() -> None:
         end=datetime.now(),
         aggregation_window="1m",
     )
-    assert result.full_name == "fictitious-one.mlrun-infra.result.invocations"
+    assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [
-        _ResultPoint(
+        _MetricPoint(
             timestamp=pd.Timestamp("2024-04-02 18:00:00", tz="UTC"),
-            value=5,
-            status=ResultStatusApp.irrelevant,
+            value=5.0,
         ),
-        _ResultPoint(
+        _MetricPoint(
             timestamp=pd.Timestamp("2024-04-02 18:01:00", tz="UTC"),
-            value=10,
-            status=ResultStatusApp.irrelevant,
+            value=10.0,
         ),
     ]

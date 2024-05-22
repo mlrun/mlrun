@@ -17,7 +17,7 @@
 
 from datetime import datetime
 from io import StringIO
-from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -32,6 +32,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
+    _ModelEndpointMonitoringMetricValuesBase,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import _TSDB_BE
@@ -87,7 +88,7 @@ def read_metrics_data(
     start: datetime,
     end: datetime,
     metrics: list[ModelEndpointMonitoringMetric],
-    type: Literal["metrics", "results"] = "results",
+    type: str = "results",
 ) -> Union[
     list[
         Union[
@@ -271,7 +272,7 @@ def read_predictions(
     end: Optional[Union[datetime, str]] = None,
     aggregation_window: Optional[str] = None,
     limit: Optional[int] = None,
-) -> _ModelEndpointMonitoringResultValuesBase:
+) -> _ModelEndpointMonitoringMetricValuesBase:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
         container="users",
@@ -296,7 +297,7 @@ def read_predictions(
     full_name = get_invocations_fqn(project)
 
     if df.empty:
-        return ModelEndpointMonitoringResultNoData(
+        return ModelEndpointMonitoringMetricNoData(
             full_name=full_name,
             type=ModelEndpointMonitoringMetricType.METRIC,
         )
@@ -306,14 +307,11 @@ def read_predictions(
         [
             row["time"],
             row["count(latency)"],  # event count for the time window
-            mm_constants.ResultStatusApp.irrelevant,
         ]
         for row in rows
     ]
-    return ModelEndpointMonitoringResultValues(
+    return ModelEndpointMonitoringMetricValues(
         full_name=full_name,
-        type=ModelEndpointMonitoringMetricType.METRIC,
-        result_kind=mm_constants.ResultKindApp.system_performance,
         values=values,
     )
 

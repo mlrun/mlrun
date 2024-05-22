@@ -62,7 +62,7 @@ Project access can be restricted to a set of users and roles.
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Projects and automation <./projects/project.html>`
+{bdg-link-info}`Projects and automation <./projects/ci-cd-automate.html>`
 {bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
@@ -79,7 +79,7 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Ingest and process data <ingesting-process-data>`
+{bdg-link-info}`Ingest and process data <./data-prep/index.html>`
 {bdg-link-info}`Feature store <./feature-store/feature-store.html>`
 {bdg-link-info}`Data and artifacts <./concepts/data.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -94,7 +94,7 @@ MLRun allows you to easily build ML pipelines that take data from various source
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Develop and train models <development>`
+{bdg-link-info}`Develop and train models <./development/index.html>`
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -111,7 +111,7 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Deploy models and applications <deployment>`
+{bdg-link-info}`Deploy models and applications <./deployment/index.html>`
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
 {bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -129,10 +129,10 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Monitor and alert <monitoring>`
-{bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
+{bdg-link-info}`Monitor and alert <.//monitoring/model-monitoring.html>`
+{bdg-link-info}`Model monitoring overview <./monitoring/index.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
+{bdg-link-primary}`Realtime monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
 <a id="core-components"></a>

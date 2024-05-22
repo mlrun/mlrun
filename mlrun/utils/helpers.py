@@ -1023,7 +1023,10 @@ def create_function(pkg_func: str):
         logger.warning(
             "Reloading module - be aware that not all modules can be reloaded again"
         )
-        reload(pkg_module)
+        try:
+            reload(pkg_module)
+        except Exception as exc:
+            logger.debug("Failed to reload module", err=mlrun.errors.err_to_str(exc))
 
     function_ = getattr(pkg_module, cb_fname)
     return function_

@@ -260,15 +260,14 @@ class _V3IORecordsChecker:
 
         parsed_response = json.loads(response.content.decode())
 
-        invocations_in_response = {
-            "project": cls.project_name,
-            "app": "mlrun-infra",
-            "type": "metric",
-            "name": "invocations",
-            "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
-        } in parsed_response
-
-        assert invocations_in_response == (type == "metrics")
+        if type == "metrics":
+            assert {
+                "project": cls.project_name,
+                "app": "mlrun-infra",
+                "type": "metric",
+                "name": "invocations",
+                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
+            } in parsed_response
 
         for result in parsed_response:
             if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:

@@ -14,12 +14,13 @@
 
 import concurrent.futures
 import json
+import os
 import pickle
 import time
 import typing
 import uuid
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -97,10 +98,23 @@ class _V3IORecordsChecker:
     app_interval: int
 
     @classmethod
-    def custom_setup_class(cls, project_name: str) -> None:
-        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name
-        )
+    def custom_setup(cls, project_name: str) -> None:
+        if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
+            project = mlrun.get_or_create_project(
+                project_name, "./", allow_cross_project=True
+            )
+            project.set_model_monitoring_credentials(
+                tsdb_connection=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                )
+            )
+
+            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name,
+                TSDB_CONNECTION=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                ),
+            )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -149,11 +163,23 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
-            start=f"now-{10 * cls.app_interval}m",
-            end="now",
-        )
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            # V3IO TSDB
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+                start=f"now-{10 * cls.app_interval}m",
+                end="now",
+            )
+        else:
+            # TDEngine
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.TDEngineSuperTables.APP_RESULTS,
+                start=datetime.now().astimezone()
+                - timedelta(minutes=10 * cls.app_interval),
+                end=datetime.now().astimezone(),
+                timestamp_column=mm_constants.WriterEvent.END_INFER_TIME,
+            )
+
         assert not df.empty, "No TSDB data"
         assert (
             df.endpoint_id == ep_id
@@ -259,11 +285,14 @@ class _V3IORecordsChecker:
         results_full_names = cls._test_api_get_metrics(
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
-        cls._test_api_get_values(
-            ep_id=ep_id,
-            results_full_names=metrics_full_names + results_full_names,
-            run_db=run_db,
-        )
+
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            # TODO : implement for TDEngine once the API is supported
+            cls._test_api_get_values(
+                ep_id=ep_id,
+                results_full_names=metrics_full_names + results_full_names,
+                run_db=run_db,
+            )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -314,7 +343,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         cls.run_db = mlrun.get_run_db()
 
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+    @classmethod
+    def custom_setup(cls) -> None:
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
@@ -546,7 +577,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
         cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     @classmethod
     def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:

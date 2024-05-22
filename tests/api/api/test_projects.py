@@ -1251,7 +1251,7 @@ def _create_resources_of_all_kinds(
         entities={
             "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
             "project": project,
-            "ids": ["*"],
+            "ids": [1234],
         },
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
         notifications=[{"notification": notification.to_dict()}],

@@ -41,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -145,13 +146,24 @@ async def http_status_error_handler(
         request_id = request.state.request_id
     status_code = exc.response.status_code
     error_message = repr(exc)
-    logger.warning(
-        "Request handling returned error status",
-        error_message=error_message,
-        status_code=status_code,
-        traceback=traceback.format_exc(),
-        request_id=request_id,
-    )
+    log_message = "Request handling returned error status"
+
+    if isinstance(exc, mlrun.errors.EXPECTED_ERRORS):
+        logger.debug(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            request_id=request_id,
+        )
+    else:
+        logger.warning(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            traceback=traceback.format_exc(),
+            request_id=request_id,
+        )
+
     return await http_exception_handler(
         request,
         fastapi.HTTPException(status_code=status_code, detail=error_message),
@@ -757,7 +769,7 @@ def _push_terminal_run_notifications(
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
+    server.api.utils.notification_pusher.RunNotificationPusher(unmasked_runs).push()
 
 
 def _generate_event_on_failed_runs(
@@ -776,14 +788,16 @@ def _generate_event_on_failed_runs(
 
     for run in runs:
         project = run["metadata"]["project"]
-        uid = run["metadata"]["uid"]
-        entity = {
-            "kind": alert_objects.EventEntityKind.JOB,
-            "project": project,
-            "ids": [uid],
-        }
+        run_uid = run["metadata"]["uid"]
+        run_name = run["metadata"]["name"]
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.JOB,
+            project=project,
+            ids=[run_name],
+        )
+        event_value = {"uid": run_uid}
         event_data = mlrun.common.schemas.Event(
-            kind=alert_objects.EventKind.FAILED, entity=entity
+            kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
         )
         mlrun.get_run_db().generate_event(alert_objects.EventKind.FAILED, event_data)
 

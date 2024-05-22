@@ -130,6 +130,9 @@ class MonitoringDeployment:
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
 
+        # Create tsdb tables that will be used for storing the model monitoring data
+        self._create_tsdb_tables()
+
         # Update the image manifest cache in a background task, so the invoking client will not wait for it
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
@@ -142,6 +145,7 @@ class MonitoringDeployment:
             image,
             extra_functions,
         )
+
 
     def deploy_model_monitoring_stream_processing(
         self,
@@ -289,8 +293,6 @@ class MonitoringDeployment:
                 writer_data=fn.to_dict(),
                 writer_ready=ready,
             )
-            # Create tsdb table for model monitoring application results
-            self._create_tsdb_application_tables()
 
     def deploy_histogram_data_drift_app(
         self, image: str, force_build: bool = False
@@ -492,7 +494,12 @@ class MonitoringDeployment:
         )
 
         # Create monitoring serving graph
-        stream_processor.apply_monitoring_serving_graph(function)
+        stream_processor.apply_monitoring_serving_graph(
+            function,
+            tsdb_service_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=self.project
+            ),
+        )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -627,7 +634,14 @@ class MonitoringDeployment:
 
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
+        graph.to(
+            ModelMonitoringWriter(
+                project=self.project,
+                tsdb_secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
+            )
+        ).respond()  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -679,14 +693,22 @@ class MonitoringDeployment:
         logger.info(f"Deploying {function_name} function", project=self.project)
         return False
 
-    def _create_tsdb_application_tables(self) -> None:
-        """
-        Each project writer service writes the application results into a single TSDB
-        table and therefore the target table is created during the writer deployment
-        """
-        mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
-        ).create_tsdb_application_tables()
+    def _create_tsdb_tables(self):
+        """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
+        - app_results: a detailed result that includes status, kind, extra data, etc.
+        - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction."""
+
+        tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
+            mlrun.model_monitoring.get_tsdb_connector(
+                project=self.project,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
+            )
+        )
+
+        tsdb_connector.create_tables()
 
     def _read_image_manifest(self):
         """Read the image manifest file that contains the information about the deployed model monitoring

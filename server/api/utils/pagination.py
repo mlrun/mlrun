@@ -218,7 +218,7 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 self._pagination_cache.get_pagination_cache_record(session, key=token)
             )
             if pagination_cache_record is None:
-                raise mlrun.errors.MLRunNotFoundError(
+                raise mlrun.errors.MLRunPaginationEndOfResultsError(
                     f"Token {token} not found in pagination cache"
                 )
             method = PaginatedMethods.get_method(pagination_cache_record.function)

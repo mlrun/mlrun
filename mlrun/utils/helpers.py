@@ -973,6 +973,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_model_endpoint_url(project, model_name, model_endpoint_id):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/models"
+        if model_name:
+            url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
+    return url
+
+
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():

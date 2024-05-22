@@ -123,7 +123,8 @@ class AlertConfig(pydantic.BaseModel):
         pydantic.Field(
             description=(
                 "String to be sent in the notifications generated."
-                "e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+                "e.g. 'Model {{project}}/{{entity}} is drifting.'"
+                "Supported variables: project, entity, name"
             )
         ),
     ]
@@ -161,8 +162,9 @@ class AlertTemplate(
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    description: Optional[str] = (
-        "String to be sent in the generated notifications e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+    summary: Optional[str] = (
+        "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
+        "See AlertConfig.summary description"
     )
     severity: AlertSeverity
     trigger: AlertTrigger
@@ -173,7 +175,7 @@ class AlertTemplate(
     def templates_differ(self, other):
         return (
             self.template_description != other.template_description
-            or self.description != other.description
+            or self.summary != other.summary
             or self.severity != other.severity
             or self.trigger != other.trigger
             or self.reset_policy != other.reset_policy

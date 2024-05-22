@@ -167,6 +167,18 @@ class PipelineRun(FlexibleMapper):
     def finished_at(self, finished_at):
         self._external_data["finished_at"] = finished_at
 
+    @property
+    def experiment_id(self) -> str:
+        for reference in self._external_data.get("resource_references") or []:
+            data = reference.get("key", {})
+            if (
+                data.get("type", "") == "EXPERIMENT"
+                and reference.get("relationship", "") == "OWNER"
+                and reference.get("name", "") != "Default"
+            ):
+                return data.get("id", "")
+        return ""
+
     def workflow_manifest(self) -> PipelineManifest:
         return self._workflow_manifest
 

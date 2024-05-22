@@ -148,7 +148,7 @@ async def http_status_error_handler(
     error_message = repr(exc)
     log_message = "Request handling returned error status"
 
-    if type(exc) in mlrun.errors.EXPECTED_ERRORS:
+    if isinstance(exc, mlrun.errors.EXPECTED_ERRORS):
         logger.debug(
             log_message,
             error_message=error_message,

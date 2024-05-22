@@ -245,6 +245,4 @@ STATUS_ERRORS = {
     HTTPStatus.NOT_IMPLEMENTED.value: MLRunNotImplementedServerError,
 }
 
-EXPECTED_ERRORS = [
-    MLRunPaginationEndOfResultsError,
-]
+EXPECTED_ERRORS = (MLRunPaginationEndOfResultsError,)

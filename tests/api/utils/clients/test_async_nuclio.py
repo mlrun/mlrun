@@ -89,5 +89,5 @@ async def test_nuclio_list_api_gateways(
     assert r == response_body
 
     mock_aioresponse.get(request_url, status=http.HTTPStatus.UNAUTHORIZED)
-    with pytest.raises(aiohttp.client_exceptions.ClientResponseError):
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
         await nuclio_client.list_api_gateways()

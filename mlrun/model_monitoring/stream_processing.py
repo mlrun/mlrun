@@ -136,7 +136,11 @@ class EventStreamProcessor:
         self.tsdb_batching_max_events = tsdb_batching_max_events
         self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
-    def apply_monitoring_serving_graph(self, fn: mlrun.runtimes.ServingRuntime) -> None:
+    def apply_monitoring_serving_graph(
+        self,
+        fn: mlrun.runtimes.ServingRuntime,
+        tsdb_service_provider: typing.Optional[typing.Callable] = None,
+    ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
         parts that each one them includes several steps of different operations that are executed on the events from
@@ -163,6 +167,7 @@ class EventStreamProcessor:
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
         :param fn: A serving function.
+        :param tsdb_service_provider: An optional callable function that provides the TSDB connection string.
         """
 
         graph = typing.cast(
@@ -322,15 +327,13 @@ class EventStreamProcessor:
 
         # TSDB branch (skip to Prometheus if in CE env)
         if not mlrun.mlconf.is_ce_mode():
-            # TSDB branch
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                project=self.project,
+                project=self.project, secret_provider=tsdb_service_provider
             )
             tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         else:
             # Prometheus
-
             # Increase the prediction counter by 1 and update the latency value
             graph.add_step(
                 "IncCounter",

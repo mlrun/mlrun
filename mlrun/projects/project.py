@@ -3099,17 +3099,18 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: str = None,
-        endpoint_store_connection: str = None,
-        stream_path: str = None,
+        access_key: Optional[str] = None,
+        endpoint_store_connection: Optional[str] = None,
+        stream_path: Optional[str] = None,
+        tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
         :param access_key:                Model Monitoring access key for managing user permissions
-        :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream
+        :param tsdb_connection:           Connection string to the time series database
         """
 
         secrets_dict = {}
@@ -3131,6 +3132,16 @@ class MlrunProject(ModelObj):
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
+
+        if tsdb_connection:
+            if not tsdb_connection.startswith("taosws://"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
+                    "please provide a full URL (e.g. taosws://user:password@host:port)"
+                )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ] = tsdb_connection
 
         self.set_secrets(
             secrets=secrets_dict,

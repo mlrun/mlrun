@@ -497,7 +497,6 @@ class V3IOTSDBConnector(TSDBConnector):
         Note: the type must match the actual metrics in the `metrics` parameter.
         If the type is "results", pass only results in the `metrics` parameter.
         """
-
         if type == "metrics":
             table_name = mm_constants.V3IOTSDBTables.METRICS
             name = mm_constants.MetricData.METRIC_NAME
@@ -509,20 +508,22 @@ class V3IOTSDBConnector(TSDBConnector):
         else:
             raise ValueError(f"Invalid {type = }")
 
-        query = self._get_sql_query(
+        filter_query = self._get_filter_query(
             endpoint_id,
             [(metric.app, metric.name) for metric in metrics],
-            table_name=table_name,
             name=name,
         )
 
-        logger.debug("Querying V3IO TSDB", query=query)
+        logger.debug(
+            "Querying V3IO TSDB", table_name=table_name, filter_query=filter_query
+        )
 
-        df: pd.DataFrame = self._frames_client.read(
-            backend=_TSDB_BE,
+        df = self.get_records(
+            table_name=table_name,
             start=start,
             end=end,
-            query=query,
+            filter_query=filter_query,
+            # TODO: Use the columns parameter
         )
 
         logger.debug(
@@ -535,17 +536,13 @@ class V3IOTSDBConnector(TSDBConnector):
         return df_handler(df=df, metrics=metrics, project=self.project)
 
     @staticmethod
-    def _get_sql_query(
+    def _get_filter_query(
         endpoint_id: str,
         names: list[tuple[str, str]],
-        table_name: str = mm_constants.V3IOTSDBTables.APP_RESULTS,
         name: str = mm_writer.ResultData.RESULT_NAME,
     ) -> str:
         with StringIO() as query:
-            query.write(
-                f"SELECT * FROM '{table_name}' "
-                f"WHERE {mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
-            )
+            query.write(f"{mm_writer.WriterEvent.ENDPOINT_ID}='{endpoint_id}'")
             if names:
                 query.write(" AND (")
 

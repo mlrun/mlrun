@@ -610,6 +610,13 @@ def _ingest(
             overwrite,
         ) = context_to_ingestion_params(mlrun_context)
 
+        print(source)
+        #TODO delete:
+        if hasattr(source, "additional_filters"):
+            print(f"additional_filters: {source.additional_filters}")
+        else:
+            print(f"source do not have additional filters")
+
         featureset.validate_steps(namespace=namespace)
         verify_feature_set_permissions(
             featureset, mlrun.common.schemas.AuthorizationAction.update

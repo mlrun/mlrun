@@ -855,6 +855,64 @@ class DBInterface(ABC):
         raise NotImplementedError
 
     # EO Pagination Section
+
+    def store_function_image_cache_record(
+        self,
+        session,
+        function_name: str,
+        image: str,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+    ):
+        raise NotImplementedError
+
+    def get_function_image_cache_record(
+        self,
+        session,
+        function_name: str,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+    ):
+        raise NotImplementedError
+
+    def list_function_image_cache_records(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+        as_query: bool = False,
+    ):
+        raise NotImplementedError
+
+    def delete_function_image_cache_record(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+        ids: str = None,
+    ):
+        raise NotImplementedError
+
+    def delete_function_image_cache_records(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+    ):
+        raise NotImplementedError
+
     def generate_event(
         self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
     ):

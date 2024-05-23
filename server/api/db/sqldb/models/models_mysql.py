@@ -725,6 +725,25 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class FunctionImageCache(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "function_image_cache"
+        __table_args__ = (
+            UniqueConstraint(
+                "function_name",
+                "mlrun_version",
+                "nuclio_version",
+                "base_image",
+                name=f"_{__tablename__}_uc",
+            ),
+        )
+
+        id = Column(Integer, primary_key=True)
+        function_name = Column(String(255, collation=SQLCollationUtil.collation()))
+        mlrun_version = Column(String(255, collation=SQLCollationUtil.collation()))
+        nuclio_version = Column(String(255, collation=SQLCollationUtil.collation()))
+        base_image = Column(String(255, collation=SQLCollationUtil.collation()))
+        image = Column(String(255, collation=SQLCollationUtil.collation()))
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

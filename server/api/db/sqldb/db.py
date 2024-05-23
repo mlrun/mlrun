@@ -79,6 +79,7 @@ from server.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
+    FunctionImageCache,
     HubSource,
     Log,
     PaginationCache,
@@ -5123,6 +5124,160 @@ class SQLDB(DBInterface):
         key: str,
     ):
         self._delete(session, PaginationCache, key=key)
+
+    # --- Function Image Cache ---
+    def store_function_image_cache_record(
+        self,
+        session,
+        function_name: str,
+        image: str,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+    ):
+        # get existing record for the same base image
+        existing_record = self.get_function_image_cache_record(
+            session=session,
+            function_name=function_name,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
+        )
+        if existing_record:
+            existing_record.image = image
+            record = existing_record
+        else:
+            record = FunctionImageCache(
+                function_name=function_name,
+            )
+            if image:
+                record.image = image
+            if mlrun_version:
+                record.mlrun_version = mlrun_version
+            if nuclio_version:
+                record.nuclio_version = nuclio_version
+            if base_image:
+                record.base_image = base_image
+
+        self._upsert(session, [record])
+
+    def get_function_image_cache_record(
+        self,
+        session,
+        function_name: str,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+    ):
+        query = self._get_function_image_cache_query(
+            session=session,
+            function_name=function_name,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
+            image=image,
+        )
+        return query.one_or_none()
+
+    def list_function_image_cache_records(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+        as_query: bool = False,
+    ):
+        query = self._get_function_image_cache_query(
+            session=session,
+            function_name=function_name,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
+            image=image,
+        )
+        if as_query:
+            return query
+
+        return query.all()
+
+    def delete_function_image_cache_record(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+        id: str = None,
+    ):
+        filters = {}
+        if function_name:
+            filters["function_name"] = function_name
+        if mlrun_version:
+            filters["mlrun_version"] = mlrun_version
+        if nuclio_version:
+            filters["nuclio_version"] = nuclio_version
+        if base_image:
+            filters["base_image"] = base_image
+        if image:
+            filters["image"] = image
+        if id:
+            filters["id"] = id
+        self._delete(
+            session,
+            FunctionImageCache,
+            **filters,
+        )
+
+    def delete_function_image_cache_records(
+        self,
+        session,
+        function_name: str = None,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+    ):
+        existing_records = self.list_function_image_cache_records(
+            session=session,
+            function_name=function_name,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
+            image=image,
+        )
+        if not existing_records:
+            return
+
+        record_ids = [record.id for record in existing_records]
+        for record_id in record_ids:
+            self.delete_function_image_cache_record(session, id=record_id)
+
+    def _get_function_image_cache_query(
+        self,
+        session,
+        function_name: str,
+        mlrun_version: str = None,
+        nuclio_version: str = None,
+        base_image: str = None,
+        image: str = None,
+    ):
+        query = self._query(session, FunctionImageCache)
+        if function_name:
+            query = query.filter(FunctionImageCache.function_name == function_name)
+        if mlrun_version:
+            query = query.filter(FunctionImageCache.mlrun_version == mlrun_version)
+        if nuclio_version:
+            query = query.filter(FunctionImageCache.nuclio_version == nuclio_version)
+        if base_image:
+            query = query.filter(FunctionImageCache.base_image == base_image)
+        if image:
+            query = query.filter(FunctionImageCache.image == image)
+
+        return query
 
     # ---- Utils ----
     def delete_table_records(

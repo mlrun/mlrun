@@ -36,7 +36,6 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _compose_full_name,
 )
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -436,10 +435,10 @@ class V3IOTSDBConnector(TSDBConnector):
         return self._frames_client.read(
             backend=_TSDB_BE,
             table=table,
-            columns=columns,
-            filter=filter_query,
             start=start,
             end=end,
+            columns=columns,
+            filter=filter_query,
             **kwargs,
         )
 
@@ -471,11 +470,9 @@ class V3IOTSDBConnector(TSDBConnector):
             container=v3io_container,
         )
 
-    @classmethod
     def read_metrics_data(
-        cls,
+        self,
         *,
-        project: str,
         endpoint_id: str,
         start: datetime,
         end: datetime,
@@ -500,23 +497,19 @@ class V3IOTSDBConnector(TSDBConnector):
         Note: the type must match the actual metrics in the `metrics` parameter.
         If the type is "results", pass only results in the `metrics` parameter.
         """
-        client = mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=KVStoreBase.get_v3io_monitoring_apps_container(project),
-        )
 
         if type == "metrics":
             table_name = mm_constants.V3IOTSDBTables.METRICS
             name = mm_constants.MetricData.METRIC_NAME
-            df_handler = cls.df_to_metrics_values
+            df_handler = self.df_to_metrics_values
         elif type == "results":
             table_name = mm_constants.V3IOTSDBTables.APP_RESULTS
             name = mm_constants.ResultData.RESULT_NAME
-            df_handler = cls.df_to_results_values
+            df_handler = self.df_to_results_values
         else:
             raise ValueError(f"Invalid {type = }")
 
-        query = cls._get_sql_query(
+        query = self._get_sql_query(
             endpoint_id,
             [(metric.app, metric.name) for metric in metrics],
             table_name=table_name,
@@ -525,21 +518,21 @@ class V3IOTSDBConnector(TSDBConnector):
 
         logger.debug("Querying V3IO TSDB", query=query)
 
-        df: pd.DataFrame = client.read(
+        df: pd.DataFrame = self._frames_client.read(
             backend=_TSDB_BE,
-            query=query,
             start=start,
             end=end,
+            query=query,
         )
 
         logger.debug(
             "Read a data-frame",
-            project=project,
+            project=self.project,
             endpoint_id=endpoint_id,
             is_empty=df.empty,
         )
 
-        return df_handler(df=df, metrics=metrics, project=project)
+        return df_handler(df=df, metrics=metrics, project=self.project)
 
     @staticmethod
     def _get_sql_query(

@@ -450,8 +450,7 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
-    data = V3IOTSDBConnector.read_metrics_data(
-        project="fictitious-one",
+    data = V3IOTSDBConnector(project="fictitious-one").read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),

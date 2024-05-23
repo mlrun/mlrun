@@ -27,7 +27,6 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas as schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
-import mlrun.model_monitoring.db.tsdb.v3io.v3io_connector
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 import server.api.api.deps
@@ -497,10 +496,8 @@ async def get_model_endpoint_monitoring_metrics_values(
     """
     coroutines: list[Coroutine] = []
 
-    invocations_full_name = (
-        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.get_invocations_fqn(
-            params.project
-        )
+    invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(
+        params.project
     )
 
     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(project=params.project)

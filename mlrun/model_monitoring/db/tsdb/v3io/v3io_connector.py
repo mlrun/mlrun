@@ -36,6 +36,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _compose_full_name,
 )
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -54,15 +55,6 @@ def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
             result_name=result_df[mm_writer.ResultData.RESULT_NAME],
         )
     return unique_kinds[0]
-
-
-def get_invocations_fqn(project: str):
-    return _compose_full_name(
-        project=project,
-        app=mm_constants.SpecialApps.MLRUN_INFRA,
-        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
-        type=ModelEndpointMonitoringMetricType.METRIC,
-    )
 
 
 class V3IOTSDBConnector(TSDBConnector):

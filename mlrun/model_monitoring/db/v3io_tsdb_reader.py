@@ -17,7 +17,7 @@
 
 from datetime import datetime
 from io import StringIO
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 import pandas as pd
 
@@ -32,6 +32,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
+    _ModelEndpointMonitoringMetricValuesBase,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
 from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import _TSDB_BE
@@ -188,6 +189,8 @@ def df_to_results_values(
         del metrics_without_data[full_name]
 
     for metric in metrics_without_data.values():
+        if metric.full_name == get_invocations_fqn(project):
+            continue
         metrics_values.append(
             ModelEndpointMonitoringMetricNoData(
                 full_name=metric.full_name,
@@ -250,3 +253,83 @@ def df_to_metrics_values(
         )
 
     return metrics_values
+
+
+def get_invocations_fqn(project: str):
+    return mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
+        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+
+def read_predictions(
+    *,
+    project: str,
+    endpoint_id: str,
+    start: Optional[Union[datetime, str]] = None,
+    end: Optional[Union[datetime, str]] = None,
+    aggregation_window: Optional[str] = None,
+    limit: Optional[int] = None,
+) -> _ModelEndpointMonitoringMetricValuesBase:
+    client = mlrun.utils.v3io_clients.get_frames_client(
+        address=mlrun.mlconf.v3io_framesd,
+        container="users",
+    )
+    frames_client_kwargs = {}
+    if aggregation_window:
+        frames_client_kwargs["step"] = aggregation_window
+        frames_client_kwargs["aggregation_window"] = aggregation_window
+    if limit:
+        frames_client_kwargs["limit"] = limit
+    df: pd.DataFrame = client.read(
+        backend=_TSDB_BE,
+        table=f"pipelines/{project}/model-endpoints/predictions",
+        columns=["latency"],
+        filter=f"endpoint_id=='{endpoint_id}'",
+        start=start,
+        end=end,
+        aggregators="count",
+        **frames_client_kwargs,
+    )
+
+    full_name = get_invocations_fqn(project)
+
+    if df.empty:
+        return ModelEndpointMonitoringMetricNoData(
+            full_name=full_name,
+            type=ModelEndpointMonitoringMetricType.METRIC,
+        )
+
+    return ModelEndpointMonitoringMetricValues(
+        full_name=full_name,
+        values=list(
+            zip(
+                df.index,
+                df["count(latency)"],
+            )
+        ),
+    )
+
+
+def read_prediction_metric_for_endpoint_if_exists(
+    *,
+    project: str,
+    endpoint_id: str,
+) -> Optional[ModelEndpointMonitoringMetric]:
+    predictions = read_predictions(
+        project=project,
+        endpoint_id=endpoint_id,
+        start="0",
+        end="now",
+        limit=1,  # Read just one record, because we just want to check if there is any data for this endpoint_id
+    )
+    if predictions:
+        return ModelEndpointMonitoringMetric(
+            project=project,
+            app=mm_constants.SpecialApps.MLRUN_INFRA,
+            type=ModelEndpointMonitoringMetricType.METRIC,
+            name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
+            full_name=get_invocations_fqn(project),
+        )

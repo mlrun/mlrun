@@ -358,3 +358,12 @@ class TSDBTarget:
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"

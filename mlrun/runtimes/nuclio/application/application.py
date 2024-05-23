@@ -172,7 +172,7 @@ class ApplicationStatus(NuclioStatus):
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
 
-    @min_nuclio_versions("1.12.7")
+    @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -249,7 +249,6 @@ class ApplicationRuntime(RemoteRuntime):
                     "Application sidecar spec must include a command if args are provided"
                 )
 
-    @min_nuclio_versions("1.13.1")
     def deploy(
         self,
         project="",

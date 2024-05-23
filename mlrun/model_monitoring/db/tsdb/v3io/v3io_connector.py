@@ -297,7 +297,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table in tables:
             try:
                 self._frames_client.delete(
-                    backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
+                    backend=_TSDB_BE,
                     table=table,
                 )
             except v3io_frames.errors.DeleteError as e:
@@ -401,7 +401,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Available tables: {list(self.tables.keys())}"
             )
         return self._frames_client.read(
-            backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
+            backend=_TSDB_BE,
             table=self.tables[table],
             columns=columns,
             filter=filter_query,

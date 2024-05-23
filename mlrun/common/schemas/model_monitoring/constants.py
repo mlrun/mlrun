@@ -158,10 +158,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesConnector:
-    TSDB = "tsdb"
-
-
 class ModelEndpointTarget:
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"

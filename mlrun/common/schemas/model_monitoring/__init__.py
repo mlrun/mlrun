@@ -36,7 +36,6 @@ from .constants import (
     ResultData,
     SchedulingKeys,
     TDEngineSuperTables,
-    TimeSeriesConnector,
     TSDBTarget,
     V3IOTSDBTables,
     VersionedModel,

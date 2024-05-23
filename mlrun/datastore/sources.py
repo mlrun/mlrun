@@ -317,8 +317,10 @@ class ParquetSource(BaseSourceDriver):
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
-            attributes["additional_filters"] = additional_filters
             self.validate_additional_filters(additional_filters)
+            additional_filters = self.revert_list_filters_to_tuple(additional_filters)
+            attributes["additional_filters"] = additional_filters
+
         super().__init__(
             name,
             path,
@@ -360,12 +362,38 @@ class ParquetSource(BaseSourceDriver):
             return time
 
     @staticmethod
+    def revert_list_filters_to_tuple(additional_filters):
+        #  use this function only after validate_additional_filters
+        tuple_filters = []
+        for additional_filter in additional_filters:
+            tuple_filters.append(tuple(additional_filter))
+        return tuple_filters
+
+    @staticmethod
     def validate_additional_filters(additional_filters):
         if not additional_filters:
             return
         for filter_tuple in additional_filters:
             if not filter_tuple:
                 continue
+            if len(filter_tuple) != 3:
+                if all(isinstance(element, (list, tuple)) for element in filter_tuple):
+                    raise ValueError(
+                        f"mlrun ParquetSource supports additional_filters only as a list of tuples."
+                        f" Current additional_filters: {additional_filters}"
+                    )
+                else:
+                    raise Exception(
+                        f"illegal filter tuple length, {filter_tuple} in additional filters:"
+                        f" {additional_filters}"
+                    )
+            if isinstance(filter_tuple[0], (list, tuple)) or isinstance(
+                filter_tuple[1], (list, tuple)
+            ):
+                raise ValueError(
+                    f"mlrun ParquetSource supports additional_filters only as a list of tuples."
+                    f" Current additional_filters: {additional_filters}"
+                )
             col_name, op, value = filter_tuple
             if isinstance(value, float) and math.isnan(value):
                 raise mlrun.errors.MLRunInvalidArgumentError(

@@ -376,7 +376,7 @@ async def get_model_endpoint_monitoring_metrics(
             asyncio.create_task(
                 _wrap_coroutine_in_list(
                     run_in_threadpool(
-                        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_prediction_metric_for_endpoint_if_exists,
+                        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector.read_prediction_metric_for_endpoint_if_exists,
                         project=project,
                         endpoint_id=endpoint_id,
                     )
@@ -511,7 +511,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 coroutines.append(
                     _wrap_coroutine_in_list(
                         run_in_threadpool(
-                            mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_predictions,
+                            mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector.read_predictions,
                             project=params.project,
                             endpoint_id=params.endpoint_id,
                             start=params.start,
@@ -522,7 +522,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 )
             coroutines.append(
                 run_in_threadpool(
-                    mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_metrics_data,
+                    mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector.read_metrics_data,
                     project=params.project,
                     endpoint_id=params.endpoint_id,
                     start=params.start,

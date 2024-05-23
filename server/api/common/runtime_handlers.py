@@ -29,7 +29,7 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
         run_project = run.metadata.project
         run_owner = run.metadata.labels.get(MlrunInternalLabels.owner)
     labels = copy.deepcopy(function.metadata.labels)
-    labels[MlrunInternalLabels.mlrun_owner] = function.kind
+    labels[MlrunInternalLabels.mlrun_class] = function.kind
     labels[MlrunInternalLabels.project] = run_project or function.metadata.project
     labels[MlrunInternalLabels.function] = str(function.metadata.name)
     labels[MlrunInternalLabels.tag] = str(function.metadata.tag or "latest")

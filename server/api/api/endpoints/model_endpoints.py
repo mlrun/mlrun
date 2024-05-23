@@ -376,10 +376,9 @@ async def get_model_endpoint_monitoring_metrics(
             asyncio.create_task(
                 _wrap_coroutine_in_list(
                     run_in_threadpool(
-                        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.V3IOTSDBConnector(
+                        mlrun.model_monitoring.get_tsdb_connector(
                             project=project
                         ).read_prediction_metric_for_endpoint_if_exists,
-                        project=project,
                         endpoint_id=endpoint_id,
                     )
                 )

@@ -11,15 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
 
 import typing
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import pandas as pd
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
+)
 
 
 class TSDBConnector(ABC):
@@ -139,4 +140,17 @@ class TSDBConnector(ABC):
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
+        """
+
+    @abstractmethod
+    def read_prediction_metric_for_endpoint_if_exists(
+        self, endpoint_id: str
+    ) -> typing.Optional[ModelEndpointMonitoringMetric]:
+        """
+        Read the "invocations" metric for the provided model endpoint, and return the metric object
+        if it exists.
+
+        :param endpoint_id: The model endpoint identifier.
+        :return:            `None` if the invocations metric does not exist, otherwise return the
+                            corresponding metric object.
         """

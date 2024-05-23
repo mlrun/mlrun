@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
 
@@ -19,7 +18,6 @@ import pandas as pd
 import taosws
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
@@ -229,3 +227,8 @@ class TDEngineConnector(TSDBConnector):
             columns.append(column.name())
 
         return pd.DataFrame(query_result, columns=columns)
+
+    def read_prediction_metric_for_endpoint_if_exists(
+        self, endpoint_id: str
+    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+        raise NotImplementedError

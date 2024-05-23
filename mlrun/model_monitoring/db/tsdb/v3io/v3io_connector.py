@@ -735,15 +735,11 @@ class V3IOTSDBConnector(TSDBConnector):
             ),  # pyright: ignore[reportArgumentType]
         )
 
-    @classmethod
     def read_prediction_metric_for_endpoint_if_exists(
-        cls,
-        *,
-        project: str,
-        endpoint_id: str,
+        self, endpoint_id: str
     ) -> Optional[ModelEndpointMonitoringMetric]:
-        predictions = cls.read_predictions(
-            project=project,
+        predictions = self.read_predictions(
+            project=self.project,
             endpoint_id=endpoint_id,
             start="0",
             end="now",
@@ -751,9 +747,9 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         if predictions:
             return ModelEndpointMonitoringMetric(
-                project=project,
+                project=self.project,
                 app=mm_constants.SpecialApps.MLRUN_INFRA,
                 type=ModelEndpointMonitoringMetricType.METRIC,
                 name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
-                full_name=get_invocations_fqn(project),
+                full_name=get_invocations_fqn(self.project),
             )

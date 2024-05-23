@@ -549,6 +549,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
                 query.write(")")
 
+            query.write(";")
             return query.getvalue()
 
     @staticmethod

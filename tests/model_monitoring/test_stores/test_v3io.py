@@ -342,13 +342,13 @@ class TestGetModelEndpointMetrics:
 @pytest.mark.parametrize(
     ("endpoint_id", "names", "expected_query"),
     [
-        ("ddw2lke", [], "endpoint_id='ddw2lke'"),
+        ("ddw2lke", [], "endpoint_id='ddw2lke';"),
         (
             "ep123",
             [("app1", "res1")],
             (
                 "endpoint_id='ep123' "
-                "AND ((application_name='app1' AND result_name='res1'))"
+                "AND ((application_name='app1' AND result_name='res1'));"
             ),
         ),
         (
@@ -358,7 +358,7 @@ class TestGetModelEndpointMetrics:
                 "endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
                 "(application_name='app1' AND result_name='res2') OR "
-                "(application_name='app2' AND result_name='res1'))"
+                "(application_name='app2' AND result_name='res1'));"
             ),
         ),
     ],

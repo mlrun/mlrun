@@ -42,6 +42,7 @@ from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
+_CONTAINER = "users"
 
 
 class V3IOTSDBConnector(TSDBConnector):
@@ -55,7 +56,7 @@ class V3IOTSDBConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        container: str = "users",
+        container: str = _CONTAINER,
         v3io_framesd: typing.Optional[str] = None,
         create_table: bool = False,
     ) -> None:
@@ -683,7 +684,7 @@ def read_predictions(
 ) -> _ModelEndpointMonitoringMetricValuesBase:
     client = mlrun.utils.v3io_clients.get_frames_client(
         address=mlrun.mlconf.v3io_framesd,
-        container="users",
+        container=_CONTAINER,
     )
     frames_client_kwargs = {}
     if aggregation_window:

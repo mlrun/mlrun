@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import pathlib
 import re
 
@@ -118,3 +119,52 @@ def test_nan_additional_filters(additional_filters):
         ParquetSource(
             "parquet_source", path="path/to/file", additional_filters=additional_filters
         )
+
+
+@pytest.mark.parametrize(
+    "additional_filters, message",
+    [
+        ([("x", "=", 3)], ""),
+        (
+            [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
+            "mlrun ParquetSource supports additional_filters only",
+        ),
+        (
+            [[("x", "=", 3), ("x", "=", 4)]],
+            "ParquetSource supports additional_filters only",
+        ),
+        ([("x", "in", [3, 4]), ("y", "in", [3, 4])], ""),
+        ([("x", "=", "=", 3), ("y", "in", [3, 4])], "illegal filter tuple length"),
+        ([()], ""),
+    ],
+)
+def test_revert_list_filters_to_tuple(additional_filters, message):
+    def json_change(filters):
+        json_data = json.dumps(filters)
+        return json.loads(json_data)
+
+    after_json_change_filters = json_change(additional_filters)
+
+    if message:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=additional_filters,
+            )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=after_json_change_filters,
+            )
+    else:
+        ParquetSource(
+            "parquet_source", path="path/to/file", additional_filters=additional_filters
+        )
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path="path/to/file",
+            additional_filters=after_json_change_filters,
+        )
+        assert parquet_source.additional_filters == additional_filters

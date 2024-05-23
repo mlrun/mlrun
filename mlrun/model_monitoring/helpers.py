@@ -111,6 +111,24 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
     )
 
 
+def get_tsdb_connection_string(
+    secret_provider: typing.Optional[typing.Callable] = None,
+) -> str:
+    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
+    configurations.
+    :param secret_provider: An optional secret provider to get the connection string secret.
+    :return:                Valid TSDB connection string.
+    """
+
+    return (
+        mlrun.get_secret_or_env(
+            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
+            secret_provider=secret_provider,
+        )
+        or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
+    )
+
+
 def batch_dict2timedelta(batch_dict: _BatchDict) -> datetime.timedelta:
     """
     Convert a batch dictionary to timedelta.
@@ -260,3 +278,17 @@ def get_endpoint_record(project: str, endpoint_id: str):
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
+
+
+def get_result_instance_fqn(
+    model_endpoint_id: str, app_name: str, result_name: str
+) -> str:
+    return f"{model_endpoint_id}.{app_name}.result.{result_name}"
+
+
+def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
+    return get_result_instance_fqn(
+        model_endpoint_id,
+        mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+    )

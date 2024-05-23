@@ -168,10 +168,10 @@ class PandasConversionMixin:
         column_counter = Counter(self.columns)
 
         dtype = [None] * len(self.schema)
-        for fieldIdx, field in enumerate(self.schema):
+        for field_idx, field in enumerate(self.schema):
             # For duplicate column name, we use `iloc` to access it.
             if column_counter[field.name] > 1:
-                pandas_col = pdf.iloc[:, fieldIdx]
+                pandas_col = pdf.iloc[:, field_idx]
             else:
                 pandas_col = pdf[field.name]
 
@@ -187,12 +187,12 @@ class PandasConversionMixin:
                 and field.nullable
                 and pandas_col.isnull().any()
             ):
-                dtype[fieldIdx] = pandas_type
+                dtype[field_idx] = pandas_type
             # Ensure we fall back to nullable numpy types, even when whole column is null:
             if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
-                dtype[fieldIdx] = np.float64
+                dtype[field_idx] = np.float64
             if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-                dtype[fieldIdx] = object
+                dtype[field_idx] = object
 
         df = pd.DataFrame()
         for index, t in enumerate(dtype):

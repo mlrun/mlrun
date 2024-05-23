@@ -14,6 +14,7 @@
 
 import asyncio
 import json
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from http import HTTPStatus
@@ -24,7 +25,10 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas as schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
 import mlrun.model_monitoring.db.v3io_tsdb_reader
 import mlrun.utils.helpers
 import server.api.api.deps
@@ -370,6 +374,17 @@ async def get_model_endpoint_monitoring_metrics(
                 )
             )
         )
+        tasks.append(
+            asyncio.create_task(
+                _wrap_coroutine_in_list(
+                    run_in_threadpool(
+                        mlrun.model_monitoring.db.v3io_tsdb_reader.read_prediction_metric_for_endpoint_if_exists,
+                        project=project,
+                        endpoint_id=endpoint_id,
+                    )
+                )
+            )
+        )
     await asyncio.wait(tasks)
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     for task in tasks:
@@ -401,14 +416,14 @@ async def _get_metrics_values_data(
     """
     Verify authorization, validate parameters and initialize the parameters.
 
-    :param project:     The name of the project.
-    :param endpoint_id: The unique id of the model endpoint.
-    :param name:        The full names of the requested results. At least one is required.
-    :param start:       Start and end times are optional, and must be timezone aware.
-    :param end:         See the `start` parameter.
-    :param auth_info:   The auth info of the request.
+    :param project:            The name of the project.
+    :param endpoint_id:        The unique id of the model endpoint.
+    :param name:               The full names of the requested results. At least one is required.
+    :param start:              Start and end times are optional, and must be timezone aware.
+    :param end:                See the `start` parameter.
+    :param auth_info:          The auth info of the request.
 
-    :return:            _MetricsValuesData object with the validated data.
+    :return: _MetricsValuesParams object with the validated data.
     """
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
@@ -451,6 +466,10 @@ async def _get_metrics_values_data(
     )
 
 
+async def _wrap_coroutine_in_list(x):
+    return [await x]
+
+
 @router.get(
     "/{endpoint_id}/metrics-values",
     response_model=list[
@@ -475,25 +494,45 @@ async def get_model_endpoint_monitoring_metrics_values(
 
     :returns:      A list of the results values for this model endpoint.
     """
-    tasks: list[asyncio.Task] = []
+    coroutines: list[Coroutine] = []
+
+    invocations_full_name = (
+        mlrun.model_monitoring.db.v3io_tsdb_reader.get_invocations_fqn(params.project)
+    )
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:
-            tasks.append(
-                asyncio.Task(
-                    run_in_threadpool(
-                        mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
-                        project=params.project,
-                        endpoint_id=params.endpoint_id,
-                        start=params.start,
-                        end=params.end,
-                        metrics=metrics,
-                        type=type,
-                    )
+            metrics_without_invocations = list(
+                filter(
+                    lambda metric: metric.full_name != invocations_full_name, metrics
                 )
             )
-    await asyncio.wait(tasks)
+            if len(metrics_without_invocations) != len(metrics):
+                coroutines.append(
+                    _wrap_coroutine_in_list(
+                        run_in_threadpool(
+                            mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
+                            project=params.project,
+                            endpoint_id=params.endpoint_id,
+                            start=params.start,
+                            end=params.end,
+                            aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
+                        )
+                    )
+                )
+            coroutines.append(
+                run_in_threadpool(
+                    mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
+                    project=params.project,
+                    endpoint_id=params.endpoint_id,
+                    start=params.start,
+                    end=params.end,
+                    metrics=metrics_without_invocations,
+                    type=type,
+                )
+            )
+
     metrics_values = []
-    for task in tasks:
-        metrics_values.extend(task.result())
+    for result in await asyncio.gather(*coroutines):
+        metrics_values.extend(result)
     return metrics_values

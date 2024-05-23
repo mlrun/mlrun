@@ -81,6 +81,8 @@ class EventFieldType:
     DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
     POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    TIME = "time"
+    TABLE_COLUMN = "table_column"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
@@ -171,6 +173,7 @@ class ProjectSecretKeys:
     PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
     KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
+    TSDB_CONNECTION = "TSDB_CONNECTION"
 
 
 class ModelMonitoringStoreKinds:
@@ -230,10 +233,16 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     WRITER = "model-monitoring-writer"
 
 
-class MonitoringTSDBTables(MonitoringStrEnum):
+class V3IOTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
+
+
+class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
 
 
 @dataclass
@@ -339,6 +348,7 @@ class ControllerPolicy:
 
 class TSDBTarget:
     V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
     PROMETHEUS = "prometheus"
     APP_RESULTS_TABLE = "app-results"
     V3IO_BE = "tsdb"
@@ -348,3 +358,12 @@ class TSDBTarget:
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"

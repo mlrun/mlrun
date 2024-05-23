@@ -29,7 +29,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
-from mlrun.model_monitoring.helpers import get_endpoint_record
+from mlrun.model_monitoring.helpers import get_endpoint_record, get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
@@ -101,7 +101,7 @@ class ModelMonitoringWriter(StepToDict):
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, project: str) -> None:
+    def __init__(self, project: str, tsdb_secret_provider=None) -> None:
         self.project = project
         self.name = project  # required for the deployment process
 
@@ -113,24 +113,24 @@ class ModelMonitoringWriter(StepToDict):
             project=self.project
         )
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project,
+            project=self.project, secret_provider=tsdb_secret_provider
         )
         self._endpoints_records = {}
 
     @staticmethod
     def _generate_event_on_drift(
-        model_endpoint: str, drift_status: str, event_value: dict, project_name: str
+        entity_id: str, drift_status: str, event_value: dict, project_name: str
     ) -> None:
-        logger.info("Sending an alert")
+        logger.info("Sending an event")
         entity = mlrun.common.schemas.alert.EventEntities(
-            kind=alert_objects.EventEntityKind.MODEL,
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,
-            ids=[model_endpoint],
+            ids=[entity_id],
         )
         event_kind = (
-            alert_objects.EventKind.DRIFT_DETECTED
+            alert_objects.EventKind.DATA_DRIFT_DETECTED
             if drift_status == ResultStatusApp.detected.value
-            else alert_objects.EventKind.DRIFT_SUSPECTED
+            else alert_objects.EventKind.DATA_DRIFT_SUSPECTED
         )
         event_data = mlrun.common.schemas.Event(
             kind=event_kind, entity=entity, value_dict=event_value
@@ -179,9 +179,9 @@ class ModelMonitoringWriter(StepToDict):
     def do(self, event: _RawEvent) -> None:
         event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
-
         self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
         self._app_result_store.write_application_event(event=event.copy(), kind=kind)
+
         logger.info("Completed event DB writes")
 
         if kind == WriterEventKind.RESULT:
@@ -209,7 +209,11 @@ class ModelMonitoringWriter(StepToDict):
                 "result_value": event[ResultData.RESULT_VALUE],
             }
             self._generate_event_on_drift(
-                event[WriterEvent.ENDPOINT_ID],
+                get_result_instance_fqn(
+                    event[WriterEvent.ENDPOINT_ID],
+                    event[WriterEvent.APPLICATION_NAME],
+                    event[ResultData.RESULT_NAME],
+                ),
                 event[ResultData.RESULT_STATUS],
                 event_value,
                 self.project,

@@ -2134,7 +2134,7 @@ class SQLTarget(BaseStoreTarget):
                 raise ValueError(f"Table named {table_name} is not exist")
 
             elif not table_exists and create_table:
-                TYPE_TO_SQL_TYPE = {
+                type_to_sql_type = {
                     int: sqlalchemy.Integer,
                     str: sqlalchemy.String(self.attributes.get("varchar_len")),
                     datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
@@ -2147,7 +2147,7 @@ class SQLTarget(BaseStoreTarget):
                 # creat new table with the given name
                 columns = []
                 for col, col_type in self.schema.items():
-                    col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
+                    col_type_sql = type_to_sql_type.get(col_type)
                     if col_type_sql is None:
                         raise TypeError(
                             f"'{col_type}' unsupported type for column '{col}'"

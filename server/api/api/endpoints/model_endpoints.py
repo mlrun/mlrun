@@ -400,7 +400,7 @@ class _MetricsValuesParams:
     end: datetime
 
 
-async def _get_metrics_values_data(
+async def _get_metrics_values_params(
     project: str,
     endpoint_id: str,
     name: Annotated[
@@ -479,7 +479,7 @@ async def _wrap_coroutine_in_list(x):
     ],
 )
 async def get_model_endpoint_monitoring_metrics_values(
-    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
+    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_params)],
 ) -> list[
     Union[
         mm_endpoints.ModelEndpointMonitoringMetricValues,

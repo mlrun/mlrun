@@ -487,8 +487,7 @@ def test_read_results_data() -> None:
 
 @pytest.mark.usefixtures("_mock_frames_client_predictions")
 def test_read_predictions() -> None:
-    result = V3IOTSDBConnector.read_predictions(
-        project="fictitious-one",
+    result = V3IOTSDBConnector(project="fictitious-one").read_predictions(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime.fromtimestamp(0),
         end=datetime.now(),

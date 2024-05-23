@@ -34,7 +34,6 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetricValues,
     ModelEndpointMonitoringResultValues,
     _compose_full_name,
-    _ModelEndpointMonitoringMetricValuesBase,
 )
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
@@ -686,29 +685,26 @@ class V3IOTSDBConnector(TSDBConnector):
 
         return metrics_values
 
-    @staticmethod
     def read_predictions(
+        self,
         *,
-        project: str,
         endpoint_id: str,
         start: Optional[Union[datetime, str]] = None,
         end: Optional[Union[datetime, str]] = None,
         aggregation_window: Optional[str] = None,
         limit: Optional[int] = None,
-    ) -> _ModelEndpointMonitoringMetricValuesBase:
-        client = mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=_CONTAINER,
-        )
+    ) -> Union[
+        ModelEndpointMonitoringMetricNoData, ModelEndpointMonitoringMetricValues
+    ]:
         frames_client_kwargs = {}
         if aggregation_window:
             frames_client_kwargs["step"] = aggregation_window
             frames_client_kwargs["aggregation_window"] = aggregation_window
         if limit:
             frames_client_kwargs["limit"] = limit
-        df: pd.DataFrame = client.read(
+        df: pd.DataFrame = self._frames_client.read(
             backend=_TSDB_BE,
-            table=f"pipelines/{project}/model-endpoints/predictions",
+            table=f"pipelines/{self.project}/model-endpoints/predictions",
             columns=["latency"],
             filter=f"endpoint_id=='{endpoint_id}'",
             start=start,
@@ -717,7 +713,7 @@ class V3IOTSDBConnector(TSDBConnector):
             **frames_client_kwargs,
         )
 
-        full_name = get_invocations_fqn(project)
+        full_name = get_invocations_fqn(self.project)
 
         if df.empty:
             return ModelEndpointMonitoringMetricNoData(
@@ -738,12 +734,9 @@ class V3IOTSDBConnector(TSDBConnector):
     def read_prediction_metric_for_endpoint_if_exists(
         self, endpoint_id: str
     ) -> Optional[ModelEndpointMonitoringMetric]:
+        # Read just one record, because we just want to check if there is any data for this endpoint_id
         predictions = self.read_predictions(
-            project=self.project,
-            endpoint_id=endpoint_id,
-            start="0",
-            end="now",
-            limit=1,  # Read just one record, because we just want to check if there is any data for this endpoint_id
+            endpoint_id=endpoint_id, start="0", end="now", limit=1
         )
         if predictions:
             return ModelEndpointMonitoringMetric(

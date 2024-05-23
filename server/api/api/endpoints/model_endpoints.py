@@ -520,7 +520,6 @@ async def get_model_endpoint_monitoring_metrics_values(
                     _wrap_coroutine_in_list(
                         run_in_threadpool(
                             tsdb_connector.read_predictions,
-                            project=params.project,
                             endpoint_id=params.endpoint_id,
                             start=params.start,
                             end=params.end,

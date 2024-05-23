@@ -294,12 +294,9 @@ class V3IOTSDBConnector(TSDBConnector):
         else:
             # Delete all tables
             tables = mm_schemas.V3IOTSDBTables.list()
-        for table in tables:
+        for table_to_delete in tables:
             try:
-                self._frames_client.delete(
-                    backend=_TSDB_BE,
-                    table=table,
-                )
+                self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
             except v3io_frames.errors.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
@@ -313,11 +310,7 @@ class V3IOTSDBConnector(TSDBConnector):
         store.rm(tsdb_path, recursive=True)
 
     def get_model_endpoint_real_time_metrics(
-        self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str,
-        end: str,
+        self, endpoint_id: str, metrics: list[str], start: str, end: str
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -346,7 +339,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         try:
             data = self.get_records(
-                table=mm_schemas.V3IOTSDBTables.EVENTS,
+                table_name=mm_schemas.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,
@@ -372,7 +365,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_records(
         self,
-        table: str,
+        table_name: str,
         start: str,
         end: str,
         columns: typing.Optional[list[str]] = None,
@@ -395,14 +388,15 @@ class V3IOTSDBConnector(TSDBConnector):
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
-        if table not in self.tables:
+        if table_name not in self.tables:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Table '{table}' does not exist in the tables list of the TSDB connector."
+                f"Table '{table_name}' does not exist in the tables list of the TSDB connector. "
                 f"Available tables: {list(self.tables.keys())}"
             )
+        table = self.tables[table_name]
         return self._frames_client.read(
             backend=_TSDB_BE,
-            table=self.tables[table],
+            table=table,
             columns=columns,
             filter=filter_query,
             start=start,

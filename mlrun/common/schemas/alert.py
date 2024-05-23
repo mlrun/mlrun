@@ -22,7 +22,7 @@ from mlrun.common.types import StrEnum
 
 
 class EventEntityKind(StrEnum):
-    MODEL = "model"
+    MODEL_ENDPOINT_RESULT = "model-endpoint-result"
     JOB = "job"
 
 
@@ -33,14 +33,34 @@ class EventEntities(pydantic.BaseModel):
 
 
 class EventKind(StrEnum):
-    DRIFT_DETECTED = "drift_detected"
-    DRIFT_SUSPECTED = "drift_suspected"
+    DATA_DRIFT_DETECTED = "data_drift_detected"
+    DATA_DRIFT_SUSPECTED = "data_drift_suspected"
+    CONCEPT_DRIFT_DETECTED = "concept_drift_detected"
+    CONCEPT_DRIFT_SUSPECTED = "concept_drift_suspected"
+    MODEL_PERFORMANCE_DETECTED = "model_performance_detected"
+    MODEL_PERFORMANCE_SUSPECTED = "model_performance_suspected"
+    MODEL_SERVING_PERFORMANCE_DETECTED = "model_serving_performance_detected"
+    MODEL_SERVING_PERFORMANCE_SUSPECTED = "model_serving_performance_suspected"
+    MM_APP_ANOMALY_DETECTED = "mm_app_anomaly_detected"
+    MM_APP_ANOMALY_SUSPECTED = "mm_app_anomaly_suspected"
     FAILED = "failed"
 
 
 _event_kind_entity_map = {
-    EventKind.DRIFT_SUSPECTED: [EventEntityKind.MODEL],
-    EventKind.DRIFT_DETECTED: [EventEntityKind.MODEL],
+    EventKind.DATA_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DATA_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_SERVING_PERFORMANCE_DETECTED: [
+        EventEntityKind.MODEL_ENDPOINT_RESULT
+    ],
+    EventKind.MODEL_SERVING_PERFORMANCE_SUSPECTED: [
+        EventEntityKind.MODEL_ENDPOINT_RESULT
+    ],
+    EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_ANOMALY_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.FAILED: [EventEntityKind.JOB],
 }
 

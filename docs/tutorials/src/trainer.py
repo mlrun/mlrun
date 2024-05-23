@@ -17,12 +17,12 @@ def train(
     df = dataset.as_df()
 
     # Initialize the x & y data
-    X = df.drop(label_column, axis=1)
+    x = df.drop(label_column, axis=1)
     y = df[label_column]
 
     # Train/Test split the dataset
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
     )
 
     # Pick an ideal ML model
@@ -32,8 +32,8 @@ def train(
 
     # -------------------- The only line you need to add for MLOps -------------------------
     # Wraps the model with MLOps (test set is provided for analysis & accuracy measurements)
-    apply_mlrun(model=model, model_name=model_name, x_test=X_test, y_test=y_test)
+    apply_mlrun(model=model, model_name=model_name, x_test=x_test, y_test=y_test)
     # --------------------------------------------------------------------------------------
 
     # Train the model
-    model.fit(X_train, y_train)
+    model.fit(x_train, y_train)

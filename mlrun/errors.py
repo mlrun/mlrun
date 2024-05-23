@@ -155,6 +155,10 @@ class MLRunNotFoundError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.NOT_FOUND.value
 
 
+class MLRunPaginationEndOfResultsError(MLRunNotFoundError):
+    pass
+
+
 class MLRunBadRequestError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
@@ -240,3 +244,5 @@ STATUS_ERRORS = {
     HTTPStatus.SERVICE_UNAVAILABLE.value: MLRunServiceUnavailableError,
     HTTPStatus.NOT_IMPLEMENTED.value: MLRunNotImplementedServerError,
 }
+
+EXPECTED_ERRORS = (MLRunPaginationEndOfResultsError,)

@@ -482,7 +482,7 @@ class TestDaskRuntime(TestRuntimeBase):
             MlrunInternalLabels.mlrun_class: "dask",
             MlrunInternalLabels.function: "test",
             "label1": "val1",
-            MlrunInternalLabels: "True",
+            MlrunInternalLabels.scrape_metrics: "True",
             MlrunInternalLabels.tag: "latest",
         }
 

@@ -154,6 +154,7 @@ class ModelMonitoringWriter(StepToDict):
             event_kind = "mm_app_anomaly"
         else:
             event_kind = ResultKindApp(value=result_kind).name
+
         if result_status == ResultStatusApp.detected.value:
             event_kind = f"{event_kind}_detected"
         else:

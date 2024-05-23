@@ -534,6 +534,7 @@ def _ingest(
     spark_context=None,
     overwrite=None,
 ) -> Optional[pd.DataFrame]:
+    print("in ingest")
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -593,6 +594,7 @@ def _ingest(
         return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
+        print("in mlrun context")
         # extract ingestion parameters from mlrun context
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(

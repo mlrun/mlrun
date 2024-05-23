@@ -882,19 +882,23 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
-        # ignore notifiers, as they are handled by the remote pipeline notifications,
-        # so overriding with CustomNotificationPusher with empty list of notifiers
-        state, had_errors, text = _KFPRunner.get_run_status(
+        # ignore notifiers for remote notifications, as they are handled by the remote pipeline notifications,
+        # so overriding with CustomNotificationPusher with empty list of notifiers or only local notifiers
+        local_project_notifiers = list(
+            set(mlrun.utils.notifications.NotificationTypes.local()).intersection(
+                set(project.notifiers.notifications.keys())
+            )
+        )
+        notifiers = mlrun.utils.notifications.CustomNotificationPusher(
+            local_project_notifiers
+        )
+        return _KFPRunner.get_run_status(
             project,
             run,
             timeout,
             expected_statuses,
-            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
+            notifiers=notifiers,
         )
-
-        # indicate the pipeline status since we don't push the notifications in the remote runner
-        logger.info(text)
-        return state, had_errors, text
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

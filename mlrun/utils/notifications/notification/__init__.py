@@ -52,13 +52,18 @@ class NotificationTypes(str, enum.Enum):
         }.get(self, [])
 
     @classmethod
+    def local(cls) -> list[str]:
+        return [
+            cls.console,
+            cls.ipython,
+        ]
+
+    @classmethod
     def all(cls) -> list[str]:
-        return list(
-            [
-                cls.console,
-                cls.git,
-                cls.ipython,
-                cls.slack,
-                cls.webhook,
-            ]
-        )
+        return [
+            cls.console,
+            cls.git,
+            cls.ipython,
+            cls.slack,
+            cls.webhook,
+        ]

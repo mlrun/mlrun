@@ -66,7 +66,7 @@ def min_nuclio_versions(*versions):
                 return function(*args, **kwargs)
 
             message = (
-                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
+                f"'{function.__qualname__}' is supported since nuclio {' or '.join(versions)}, currently using "
                 f"nuclio {mlconf.nuclio_version}, please upgrade."
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)

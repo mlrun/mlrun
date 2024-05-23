@@ -467,6 +467,7 @@ async def _get_metrics_values_params(
 
 
 async def _wrap_coroutine_in_list(x):
+    # TODO: get rid of this function - it may add `None` to the metrics list
     return [await x]
 
 

@@ -18,13 +18,7 @@ from datetime import datetime
 
 import pandas as pd
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
-from mlrun.common.schemas.model_monitoring.model_endpoints import (
-    ModelEndpointMonitoringMetric,
-    ModelEndpointMonitoringMetricNoData,
-    ModelEndpointMonitoringMetricValues,
-    ModelEndpointMonitoringResultValues,
-)
+import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class TSDBConnector(ABC):
@@ -64,7 +58,7 @@ class TSDBConnector(ABC):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
     ) -> None:
         """
         Write a single application or metric to TSDB.
@@ -153,19 +147,19 @@ class TSDBConnector(ABC):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        metrics: list[ModelEndpointMonitoringMetric],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
         type: typing.Literal["metrics", "results"],
     ) -> typing.Union[
         list[
             typing.Union[
-                ModelEndpointMonitoringResultValues,
-                ModelEndpointMonitoringMetricNoData,
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
         list[
             typing.Union[
-                ModelEndpointMonitoringMetricValues,
-                ModelEndpointMonitoringMetricNoData,
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
             ],
         ],
     ]:
@@ -189,7 +183,8 @@ class TSDBConnector(ABC):
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
     ) -> typing.Union[
-        ModelEndpointMonitoringMetricValues, ModelEndpointMonitoringMetricNoData
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
         """
         Read the "invocations" metric for the provided model endpoint in the given time range,
@@ -205,7 +200,7 @@ class TSDBConnector(ABC):
     @abstractmethod
     def read_prediction_metric_for_endpoint_if_exists(
         self, endpoint_id: str
-    ) -> typing.Optional[ModelEndpointMonitoringMetric]:
+    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
         """
         Read the "invocations" metric for the provided model endpoint, and return the metric object
         if it exists.

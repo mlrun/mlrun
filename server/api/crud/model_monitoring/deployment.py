@@ -724,7 +724,7 @@ class MonitoringDeployment:
             session=self.db_session,
             function_name=name,
             mlrun_version=config.version,
-            nuclio_version=config.nuclio_version,
+            nuclio_version=resolve_nuclio_version(),
             base_image=base_image,
         )
         if record:
@@ -799,7 +799,7 @@ class MonitoringDeployment:
             function_name=function_name,
             image=nuclio_image,
             mlrun_version=config.version,
-            nuclio_version=config.nuclio_version,
+            nuclio_version=resolve_nuclio_version(),
             base_image=base_image,
         )
 

@@ -14,12 +14,15 @@
 
 import typing
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 import pandas as pd
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricNoData,
+    ModelEndpointMonitoringMetricValues,
 )
 
 
@@ -140,6 +143,28 @@ class TSDBConnector(ABC):
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
+        """
+
+    @abstractmethod
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+    ) -> typing.Union[
+        ModelEndpointMonitoringMetricValues, ModelEndpointMonitoringMetricNoData
+    ]:
+        """
+        Read the "invocations" metric for the provided model endpoint in the given time range,
+        and return the metric values if any, otherwise signify with the "no data" object.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+        :param aggregation_window: On what time window length should the invocations be aggregated.
+        :return:                   Metric values object or no data object.
         """
 
     @abstractmethod

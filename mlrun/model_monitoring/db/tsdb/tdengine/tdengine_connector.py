@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import typing
+from datetime import datetime
 
 import pandas as pd
 import taosws
@@ -227,6 +228,19 @@ class TDEngineConnector(TSDBConnector):
             columns.append(column.name())
 
         return pd.DataFrame(query_result, columns=columns)
+
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+    ) -> typing.Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        raise NotImplementedError
 
     def read_prediction_metric_for_endpoint_if_exists(
         self, endpoint_id: str

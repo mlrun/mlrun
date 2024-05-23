@@ -390,7 +390,7 @@ def load_module(file_name, handler, context):
 
     # we need to reload the code again because it may have changed
     return get_handler_extended(
-        handler, context, class_args, namespaces=module, need_to_reload=True
+        handler, context, class_args, namespaces=module, reload_modules=True
     )
 
 

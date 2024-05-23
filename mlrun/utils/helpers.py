@@ -1015,12 +1015,12 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: str, need_to_reload: bool = False):
+def create_function(pkg_func: str, reload_modules: bool = False):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
-    :param need_to_reload: reload the function if it is in the modules list.
+    :param reload_modules: reload the function if it is in the modules list.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
@@ -1028,7 +1028,7 @@ def create_function(pkg_func: str, need_to_reload: bool = False):
     pkg_module_exists_in_modules = pkg_module in sys.modules
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
 
-    if need_to_reload:
+    if reload_modules:
         # if the function appears in the modules list, we need to reload the code again because it may have changed
         if pkg_module_exists_in_modules:
             logger.warning(
@@ -1100,12 +1100,12 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def get_function(function, namespaces, need_to_reload: bool = False):
+def get_function(function, namespaces, reload_modules: bool = False):
     """return function callable object from function name string
 
     :param function: path to the function ([class_name::]function)
     :param namespaces: one or list of namespaces/modules to search the function in
-    :param need_to_reload: reload the function if it is in the modules list
+    :param reload_modules: reload the function if it is in the modules list
     :return: function handler (callable)
     """
     if callable(function):
@@ -1121,7 +1121,7 @@ def get_function(function, namespaces, need_to_reload: bool = False):
         return function_object
 
     try:
-        function_object = create_function(function, need_to_reload)
+        function_object = create_function(function, reload_modules)
     except (ImportError, ValueError) as exc:
         raise ImportError(
             f"state/function init failed, handler '{function}' not found"
@@ -1134,7 +1134,7 @@ def get_handler_extended(
     context=None,
     class_args: dict = {},
     namespaces=None,
-    need_to_reload: bool = False,
+    reload_modules: bool = False,
 ):
     """get function handler from [class_name::]handler string
 
@@ -1142,11 +1142,11 @@ def get_handler_extended(
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
-    :param need_to_reload: reload the function if it is in the modules list
+    :param reload_modules: reload the function if it is in the modules list
     :return: function handler (callable)
     """
     if "::" not in handler_path:
-        return get_function(handler_path, namespaces, need_to_reload)
+        return get_function(handler_path, namespaces, reload_modules)
 
     splitted = handler_path.split("::")
     class_path = splitted[0].strip()

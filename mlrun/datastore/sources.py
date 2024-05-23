@@ -313,11 +313,10 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        additional_filters: Optional[list[tuple]] = None,
+        additional_filters: Optional[list[tuple, list]] = None,
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
-            self.validate_additional_filters(additional_filters)
             additional_filters = self.revert_list_filters_to_tuple(additional_filters)
             attributes["additional_filters"] = additional_filters
 
@@ -363,7 +362,7 @@ class ParquetSource(BaseSourceDriver):
 
     @staticmethod
     def revert_list_filters_to_tuple(additional_filters):
-        #  use this function only after validate_additional_filters
+        ParquetSource.validate_additional_filters(additional_filters=additional_filters)
         tuple_filters = []
         for additional_filter in additional_filters:
             tuple_filters.append(tuple(additional_filter))
@@ -378,19 +377,19 @@ class ParquetSource(BaseSourceDriver):
                 continue
             if len(filter_tuple) != 3:
                 if all(isinstance(element, (list, tuple)) for element in filter_tuple):
-                    raise ValueError(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         f"mlrun ParquetSource supports additional_filters only as a list of tuples."
                         f" Current additional_filters: {additional_filters}"
                     )
                 else:
-                    raise Exception(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         f"illegal filter tuple length, {filter_tuple} in additional filters:"
                         f" {additional_filters}"
                     )
             if isinstance(filter_tuple[0], (list, tuple)) or isinstance(
                 filter_tuple[1], (list, tuple)
             ):
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     f"mlrun ParquetSource supports additional_filters only as a list of tuples."
                     f" Current additional_filters: {additional_filters}"
                 )

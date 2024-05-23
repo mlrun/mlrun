@@ -340,20 +340,27 @@ class TestGetModelEndpointMetrics:
 
 
 @pytest.mark.parametrize(
-    ("endpoint_id", "names", "expected_query"),
+    ("endpoint_id", "names", "table_path", "expected_query"),
     [
-        ("ddw2lke", [], "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';"),
+        (
+            "ddw2lke",
+            [],
+            "app-results",
+            "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
+        ),
         (
             "ep123",
             [("app1", "res1")],
+            "path/to/app-results",
             (
-                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' "
+                "SELECT * FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
                 "AND ((application_name='app1' AND result_name='res1'));"
             ),
         ),
         (
             "ep123",
             [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
+            "app-results",
             (
                 "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
@@ -364,9 +371,12 @@ class TestGetModelEndpointMetrics:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: str, names: list[tuple[str, str]], expected_query: str
+    endpoint_id: str, names: list[tuple[str, str]], table_path: str, expected_query: str
 ) -> None:
-    assert V3IOTSDBConnector._get_sql_query(endpoint_id, names) == expected_query
+    assert (
+        V3IOTSDBConnector._get_sql_query(endpoint_id, names, table_path)
+        == expected_query
+    )
 
 
 @pytest.fixture

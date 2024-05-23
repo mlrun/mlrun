@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas as schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
-import mlrun.model_monitoring.db.v3io_tsdb_reader
+import mlrun.model_monitoring.db.tsdb.v3io.v3io_connector
 import mlrun.utils.helpers
 import server.api.api.deps
 import server.api.crud
@@ -376,7 +376,7 @@ async def get_model_endpoint_monitoring_metrics(
             asyncio.create_task(
                 _wrap_coroutine_in_list(
                     run_in_threadpool(
-                        mlrun.model_monitoring.db.v3io_tsdb_reader.read_prediction_metric_for_endpoint_if_exists,
+                        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_prediction_metric_for_endpoint_if_exists,
                         project=project,
                         endpoint_id=endpoint_id,
                     )
@@ -495,7 +495,9 @@ async def get_model_endpoint_monitoring_metrics_values(
     coroutines: list[Coroutine] = []
 
     invocations_full_name = (
-        mlrun.model_monitoring.db.v3io_tsdb_reader.get_invocations_fqn(params.project)
+        mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.get_invocations_fqn(
+            params.project
+        )
     )
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
@@ -509,7 +511,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 coroutines.append(
                     _wrap_coroutine_in_list(
                         run_in_threadpool(
-                            mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
+                            mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_predictions,
                             project=params.project,
                             endpoint_id=params.endpoint_id,
                             start=params.start,
@@ -520,7 +522,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 )
             coroutines.append(
                 run_in_threadpool(
-                    mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
+                    mlrun.model_monitoring.db.tsdb.v3io.v3io_connector.read_metrics_data,
                     project=params.project,
                     endpoint_id=params.endpoint_id,
                     start=params.start,

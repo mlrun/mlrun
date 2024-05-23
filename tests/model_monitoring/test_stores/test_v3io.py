@@ -36,7 +36,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import (
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
     _get_sql_query,
     read_metrics_data,
     read_predictions,

@@ -105,6 +105,7 @@ class TSDBConnector(ABC):
         """
         pass
 
+    @abstractmethod
     def get_records(
         self,
         table: str,
@@ -136,7 +137,6 @@ class TSDBConnector(ABC):
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
-        pass
 
     def create_tables(self) -> None:
         """

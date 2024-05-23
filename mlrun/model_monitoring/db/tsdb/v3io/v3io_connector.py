@@ -367,7 +367,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         try:
             data = self.get_records(
-                table_name=mm_constants.V3IOTSDBTables.EVENTS,
+                table=mm_constants.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,
@@ -393,7 +393,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def get_records(
         self,
-        table_name: str,
+        table: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
         columns: typing.Optional[list[str]] = None,
@@ -418,15 +418,15 @@ class V3IOTSDBConnector(TSDBConnector):
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
-        if table_name not in self.tables:
+        if table not in self.tables:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Table '{table_name}' does not exist in the tables list of the TSDB connector. "
+                f"Table '{table}' does not exist in the tables list of the TSDB connector. "
                 f"Available tables: {list(self.tables.keys())}"
             )
-        table = self.tables[table_name]
+        table_path = self.tables[table]
         return self._frames_client.read(
             backend=_TSDB_BE,
-            table=table,
+            table=table_path,
             start=start,
             end=end,
             columns=columns,
@@ -511,7 +511,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
         df = self.get_records(
-            table_name=table_name,
+            table=table_name,
             start=start,
             end=end,
             filter_query=filter_query,
@@ -688,7 +688,7 @@ class V3IOTSDBConnector(TSDBConnector):
         if limit:
             frames_read_kwargs["limit"] = limit
         df = self.get_records(
-            table_name=mm_constants.FileTargetKind.PREDICTIONS,
+            table=mm_constants.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
             columns=["latency"],

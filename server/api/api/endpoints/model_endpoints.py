@@ -26,9 +26,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas as schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
-import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
 import mlrun.model_monitoring.db.v3io_tsdb_reader
 import mlrun.utils.helpers
 import server.api.api.deps

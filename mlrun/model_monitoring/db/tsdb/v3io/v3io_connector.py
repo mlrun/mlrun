@@ -23,7 +23,6 @@ import v3io_frames.errors
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
-import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.writer as mm_writer
@@ -51,7 +50,7 @@ class V3IOTSDBConnector(TSDBConnector):
     Client that provides API for executing commands on the V3IO TSDB table.
     """
 
-    type: str = mm_schemas.TSDBTarget.V3IO_TSDB
+    type: str = mm_constants.TSDBTarget.V3IO_TSDB
 
     def __init__(
         self,
@@ -79,7 +78,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         events_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
-            kind=mm_schemas.FileTargetKind.EVENTS,
+            kind=mm_constants.FileTargetKind.EVENTS,
         )
         (
             _,
@@ -88,12 +87,12 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             events_table_full_path
         )
-        self.tables[mm_schemas.V3IOTSDBTables.EVENTS] = events_path
+        self.tables[mm_constants.V3IOTSDBTables.EVENTS] = events_path
 
         monitoring_application_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
                 project=self.project,
-                kind=mm_schemas.FileTargetKind.MONITORING_APPLICATION,
+                kind=mm_constants.FileTargetKind.MONITORING_APPLICATION,
             )
         )
         (
@@ -103,17 +102,17 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_application_full_path
         )
-        self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS] = (
-            monitoring_application_path + mm_schemas.V3IOTSDBTables.APP_RESULTS
+        self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.APP_RESULTS
         )
-        self.tables[mm_schemas.V3IOTSDBTables.METRICS] = (
-            monitoring_application_path + mm_schemas.V3IOTSDBTables.METRICS
+        self.tables[mm_constants.V3IOTSDBTables.METRICS] = (
+            monitoring_application_path + mm_constants.V3IOTSDBTables.METRICS
         )
 
         monitoring_predictions_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
                 project=self.project,
-                kind=mm_schemas.FileTargetKind.PREDICTIONS,
+                kind=mm_constants.FileTargetKind.PREDICTIONS,
             )
         )
         (
@@ -123,7 +122,9 @@ class V3IOTSDBConnector(TSDBConnector):
         ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
             monitoring_predictions_full_path
         )
-        self.tables[mm_schemas.FileTargetKind.PREDICTIONS] = monitoring_predictions_path
+        self.tables[mm_constants.FileTargetKind.PREDICTIONS] = (
+            monitoring_predictions_path
+        )
 
     def create_tables(self) -> None:
         """
@@ -133,8 +134,8 @@ class V3IOTSDBConnector(TSDBConnector):
         Note that the predictions table is automatically created by the model monitoring stream pod.
         """
         application_tables = [
-            mm_schemas.V3IOTSDBTables.APP_RESULTS,
-            mm_schemas.V3IOTSDBTables.METRICS,
+            mm_constants.V3IOTSDBTables.APP_RESULTS,
+            mm_constants.V3IOTSDBTables.METRICS,
         ]
         for table_name in application_tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
@@ -167,20 +168,20 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.TSDBTarget",
             name="tsdb_predictions",
             after="MapFeatureNames",
-            path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.PREDICTIONS]}",
+            path=f"{self.container}/{self.tables[mm_constants.FileTargetKind.PREDICTIONS]}",
             rate="1/s",
-            time_col=mm_schemas.EventFieldType.TIMESTAMP,
+            time_col=mm_constants.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
             columns=["latency"],
             index_cols=[
-                mm_schemas.EventFieldType.ENDPOINT_ID,
+                mm_constants.EventFieldType.ENDPOINT_ID,
             ],
             aggr="count,avg",
             aggr_granularity="1m",
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
-            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+            key=mm_constants.EventFieldType.ENDPOINT_ID,
         )
 
         # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
@@ -209,40 +210,40 @@ class V3IOTSDBConnector(TSDBConnector):
                 "storey.TSDBTarget",
                 name=name,
                 after=after,
-                path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.EVENTS]}",
+                path=f"{self.container}/{self.tables[mm_constants.V3IOTSDBTables.EVENTS]}",
                 rate="10/m",
-                time_col=mm_schemas.EventFieldType.TIMESTAMP,
+                time_col=mm_constants.EventFieldType.TIMESTAMP,
                 container=self.container,
                 v3io_frames=self.v3io_framesd,
                 infer_columns_from_data=True,
                 index_cols=[
-                    mm_schemas.EventFieldType.ENDPOINT_ID,
-                    mm_schemas.EventFieldType.RECORD_TYPE,
-                    mm_schemas.EventFieldType.ENDPOINT_TYPE,
+                    mm_constants.EventFieldType.ENDPOINT_ID,
+                    mm_constants.EventFieldType.RECORD_TYPE,
+                    mm_constants.EventFieldType.ENDPOINT_TYPE,
                 ],
                 max_events=tsdb_batching_max_events,
                 flush_after_seconds=tsdb_batching_timeout_secs,
-                key=mm_schemas.EventFieldType.ENDPOINT_ID,
+                key=mm_constants.EventFieldType.ENDPOINT_ID,
             )
 
         # unpacked base_metrics dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys1",
-            keys=mm_schemas.EventKeyMetrics.BASE_METRICS,
+            keys=mm_constants.EventKeyMetrics.BASE_METRICS,
         )
         apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
 
         # unpacked endpoint_features dictionary
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys2",
-            keys=mm_schemas.EventKeyMetrics.ENDPOINT_FEATURES,
+            keys=mm_constants.EventKeyMetrics.ENDPOINT_FEATURES,
         )
         apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
 
         # unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
         apply_filter_and_unpacked_keys(
             name="FilterAndUnpackKeys3",
-            keys=mm_schemas.EventKeyMetrics.CUSTOM_METRICS,
+            keys=mm_constants.EventKeyMetrics.CUSTOM_METRICS,
         )
 
         def apply_storey_filter():
@@ -259,26 +260,26 @@ class V3IOTSDBConnector(TSDBConnector):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
     ) -> None:
         """Write a single result or metric to TSDB"""
 
-        event[mm_schemas.WriterEvent.END_INFER_TIME] = datetime.fromisoformat(
-            event[mm_schemas.WriterEvent.END_INFER_TIME]
+        event[mm_constants.WriterEvent.END_INFER_TIME] = datetime.fromisoformat(
+            event[mm_constants.WriterEvent.END_INFER_TIME]
         )
         index_cols_base = [
-            mm_schemas.WriterEvent.END_INFER_TIME,
-            mm_schemas.WriterEvent.ENDPOINT_ID,
-            mm_schemas.WriterEvent.APPLICATION_NAME,
+            mm_constants.WriterEvent.END_INFER_TIME,
+            mm_constants.WriterEvent.ENDPOINT_ID,
+            mm_constants.WriterEvent.APPLICATION_NAME,
         ]
 
-        if kind == mm_schemas.WriterEventKind.METRIC:
-            table = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
-            index_cols = index_cols_base + [mm_schemas.MetricData.METRIC_NAME]
-        elif kind == mm_schemas.WriterEventKind.RESULT:
-            table = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
-            index_cols = index_cols_base + [mm_schemas.ResultData.RESULT_NAME]
-            del event[mm_schemas.ResultData.RESULT_EXTRA_DATA]
+        if kind == mm_constants.WriterEventKind.METRIC:
+            table = self.tables[mm_constants.V3IOTSDBTables.METRICS]
+            index_cols = index_cols_base + [mm_constants.MetricData.METRIC_NAME]
+        elif kind == mm_constants.WriterEventKind.RESULT:
+            table = self.tables[mm_constants.V3IOTSDBTables.APP_RESULTS]
+            index_cols = index_cols_base + [mm_constants.ResultData.RESULT_NAME]
+            del event[mm_constants.ResultData.RESULT_EXTRA_DATA]
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -307,7 +308,7 @@ class V3IOTSDBConnector(TSDBConnector):
             tables = [table]
         else:
             # Delete all tables
-            tables = mm_schemas.V3IOTSDBTables.list()
+            tables = mm_constants.V3IOTSDBTables.list()
         for table_to_delete in tables:
             try:
                 self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
@@ -353,7 +354,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         try:
             data = self.get_records(
-                table_name=mm_schemas.V3IOTSDBTables.EVENTS,
+                table_name=mm_constants.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
                 start=start,
@@ -426,7 +427,7 @@ class V3IOTSDBConnector(TSDBConnector):
         """
         events_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
-            kind=mm_schemas.FileTargetKind.EVENTS,
+            kind=mm_constants.FileTargetKind.EVENTS,
         )
 
         # Generate the main directory with the V3IO resources
@@ -489,11 +490,11 @@ def _get_result_kind(result_df: pd.DataFrame) -> mm_constants.ResultKindApp:
 
 
 def get_invocations_fqn(project: str):
-    return mlrun.common.schemas.model_monitoring.model_endpoints._compose_full_name(
+    return _compose_full_name(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
-        name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
-        type=mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricType.METRIC,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        type=ModelEndpointMonitoringMetricType.METRIC,
     )
 
 
@@ -716,7 +717,7 @@ def read_predictions(
                 df.index,
                 df["count(latency)"],
             )
-        ),
+        ),  # pyright: ignore[reportArgumentType]
     )
 
 
@@ -737,6 +738,6 @@ def read_prediction_metric_for_endpoint_if_exists(
             project=project,
             app=mm_constants.SpecialApps.MLRUN_INFRA,
             type=ModelEndpointMonitoringMetricType.METRIC,
-            name=mlrun.common.schemas.model_monitoring.constants.PredictionsQueryConstants.INVOCATIONS,
+            name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
             full_name=get_invocations_fqn(project),
         )

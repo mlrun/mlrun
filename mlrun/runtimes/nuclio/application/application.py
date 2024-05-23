@@ -249,6 +249,7 @@ class ApplicationRuntime(RemoteRuntime):
                     "Application sidecar spec must include a command if args are provided"
                 )
 
+    @min_nuclio_versions("1.13.1")
     def deploy(
         self,
         project="",

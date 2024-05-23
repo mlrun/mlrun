@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import typing
+import pytest
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -62,6 +63,13 @@ class TestApplicationRuntime(TestRuntimeBase):
             config,
             "spec.build.baseImage",
         )
+
+    def test_deploy_function_min_nuclio_version(self, db: Session, client: TestClient):
+        mlrun.mlconf.nuclio_version = "1.12.14"
+        function = self._generate_runtime(self.runtime_kind)
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError) as exc:
+            function.deploy()
+        assert str(exc.value) == "deploy is supported since nuclio 1.13.1, currently using nuclio 1.12.14, please upgrade."
 
     def _execute_run(self, runtime, **kwargs):
         # deploy_nuclio_function doesn't accept watch, so we need to remove it

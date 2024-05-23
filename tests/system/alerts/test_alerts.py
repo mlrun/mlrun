@@ -83,9 +83,108 @@ class TestAlerts(TestMLRunSystem):
             nuclio_function_url, expected_notifications
         )
 
+    @staticmethod
+    def _generate_events(
+        endpoint_id: str, result_name: str
+    ) -> list[dict[str, typing.Any]]:
+        data_drift_example = {
+            mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
+            mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
+            mm_constants.WriterEvent.EVENT_KIND: "result",
+            mm_constants.WriterEvent.DATA: json.dumps(
+                {
+                    mm_constants.ResultData.RESULT_NAME: result_name,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.data_drift.value,
+                    mm_constants.ResultData.RESULT_VALUE: 0.5,
+                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.3}
+                    ),
+                    mm_constants.ResultData.CURRENT_STATS: "",
+                }
+            ),
+        }
+
+        concept_drift_example = {
+            mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
+            mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
+            mm_constants.WriterEvent.EVENT_KIND: "result",
+            mm_constants.WriterEvent.DATA: json.dumps(
+                {
+                    mm_constants.ResultData.RESULT_NAME: result_name,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.concept_drift.value,
+                    mm_constants.ResultData.RESULT_VALUE: 0.9,
+                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.potential_detection.value,
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.7}
+                    ),
+                    mm_constants.ResultData.CURRENT_STATS: "",
+                }
+            ),
+        }
+
+        anomaly_example = {
+            mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
+            mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
+            mm_constants.WriterEvent.EVENT_KIND: "result",
+            mm_constants.WriterEvent.DATA: json.dumps(
+                {
+                    mm_constants.ResultData.RESULT_NAME: result_name,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.custom.value,
+                    mm_constants.ResultData.RESULT_VALUE: 0.9,
+                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.4}
+                    ),
+                    mm_constants.ResultData.CURRENT_STATS: "",
+                }
+            ),
+        }
+
+        return [data_drift_example, concept_drift_example, anomaly_example]
+
+    def _generate_alerts(
+        self, nuclio_function_url: str, result_endpoint_fqn
+    ) -> list[str]:
+        """Generate alerts for the different result kind and return data from the expected notifications."""
+        expected_notifications = []
+        alerts_kind_to_test = [
+            alert_objects.EventKind.DATA_DRIFT_DETECTED,
+            alert_objects.EventKind.CONCEPT_DRIFT_SUSPECTED,
+            alert_objects.EventKind.MM_APP_ANOMALY_DETECTED,
+        ]
+
+        for alert_kind in alerts_kind_to_test:
+            alert_name = f"drift_webhook_{alert_kind.value}"
+            alert_summary = "Model is drifting"
+            self._create_alert_config(
+                self.project_name,
+                alert_name,
+                alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+                result_endpoint_fqn,
+                alert_summary,
+                alert_kind,
+                self._generate_drift_notifications(
+                    nuclio_function_url, alert_kind.value
+                ),
+            )
+            expected_notifications.extend(
+                [
+                    f"first drift of {alert_kind.value}",
+                    f"second drift of {alert_kind.value}",
+                ]
+            )
+        return expected_notifications
+
     def test_drift_detection_alert(self):
         """
-        validate that an alert is sent in case of a model drift detection
+        validate that an alert is sent with different result kind and different detection result
         """
         # enable model monitoring - deploy writer function
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
@@ -93,20 +192,12 @@ class TestAlerts(TestMLRunSystem):
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(
             self.project, self.image
         )
-
-        # create an alert with two webhook notifications
-        alert_name = "drift_webhook"
-        alert_summary = "Model is drifting"
         endpoint_id = "demo-endpoint"
-        notifications = self._generate_drift_notifications(nuclio_function_url)
-        self._create_alert_config(
-            self.project_name,
-            alert_name,
-            alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
-            get_default_result_instance_fqn(endpoint_id),
-            alert_summary,
-            alert_objects.EventKind.DATA_DRIFT_DETECTED,
-            notifications,
+
+        # generate alerts for the different result kind and return text from the expected notifications that will be
+        # used later to validate that the notifications were sent as expected
+        expected_notifications = self._generate_alerts(
+            nuclio_function_url, get_default_result_instance_fqn(endpoint_id)
         )
 
         # waits for the writer function to be deployed
@@ -131,30 +222,12 @@ class TestAlerts(TestMLRunSystem):
         result_name = (
             mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
         )
-        data = {
-            mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
-            mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
-            mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
-            mm_constants.WriterEvent.EVENT_KIND: "result",
-            mm_constants.WriterEvent.DATA: json.dumps(
-                {
-                    mm_constants.ResultData.RESULT_NAME: result_name,
-                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.data_drift.value,
-                    mm_constants.ResultData.RESULT_VALUE: 0.5,
-                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
-                    mm_constants.ResultData.RESULT_EXTRA_DATA: {"threshold": 0.3},
-                    mm_constants.ResultData.CURRENT_STATS: "",
-                }
-            ),
-        }
-        output_stream.push([data])
+
+        output_stream.push(self._generate_events(endpoint_id, result_name))
 
         # wait for the nuclio function to check for the stream inputs
         time.sleep(10)
 
-        # Validate that the notifications were sent on the drift
-        expected_notifications = ["first drift", "second drift"]
         self._validate_notifications_on_nuclio(
             nuclio_function_url, expected_notifications
         )
@@ -182,7 +255,7 @@ class TestAlerts(TestMLRunSystem):
         return [alert_objects.AlertNotification(notification=notification)]
 
     @staticmethod
-    def _generate_drift_notifications(nuclio_function_url):
+    def _generate_drift_notifications(nuclio_function_url, result_kind):
         first_notification = mlrun.common.schemas.Notification(
             kind="webhook",
             name="drift",
@@ -194,7 +267,7 @@ class TestAlerts(TestMLRunSystem):
                 "url": nuclio_function_url,
                 "override_body": {
                     "operation": "add",
-                    "data": "first drift",
+                    "data": f"first drift of {result_kind}",
                 },
             },
             secret_params={
@@ -212,7 +285,7 @@ class TestAlerts(TestMLRunSystem):
                 "url": nuclio_function_url,
                 "override_body": {
                     "operation": "add",
-                    "data": "second drift",
+                    "data": f"second drift of {result_kind}",
                 },
             },
             secret_params={

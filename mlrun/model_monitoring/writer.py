@@ -24,6 +24,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
+    ResultKindApp,
     ResultStatusApp,
     WriterEvent,
     WriterEventKind,
@@ -117,9 +118,13 @@ class ModelMonitoringWriter(StepToDict):
         )
         self._endpoints_records = {}
 
-    @staticmethod
     def _generate_event_on_drift(
-        entity_id: str, drift_status: str, event_value: dict, project_name: str
+        self,
+        entity_id: str,
+        result_status: int,
+        event_value: dict,
+        project_name: str,
+        result_kind: int,
     ) -> None:
         logger.info("Sending an event")
         entity = mlrun.common.schemas.alert.EventEntities(
@@ -127,15 +132,33 @@ class ModelMonitoringWriter(StepToDict):
             project=project_name,
             ids=[entity_id],
         )
-        event_kind = (
-            alert_objects.EventKind.DATA_DRIFT_DETECTED
-            if drift_status == ResultStatusApp.detected.value
-            else alert_objects.EventKind.DATA_DRIFT_SUSPECTED
+
+        event_kind = self._generate_alert_event_kind(
+            result_status=result_status, result_kind=result_kind
         )
+
         event_data = mlrun.common.schemas.Event(
-            kind=event_kind, entity=entity, value_dict=event_value
+            kind=alert_objects.EventKind(value=event_kind),
+            entity=entity,
+            value_dict=event_value,
         )
         mlrun.get_run_db().generate_event(event_kind, event_data)
+
+    @staticmethod
+    def _generate_alert_event_kind(
+        result_kind: int, result_status: int
+    ) -> alert_objects.EventKind:
+        """Generate the required Event Kind format for the alerting system"""
+        if result_kind == ResultKindApp.custom:
+            # Right now the custom kind is represented as an anomaly detection
+            event_kind = "mm_app_anomaly"
+        else:
+            event_kind = ResultKindApp(value=result_kind).name
+        if result_status == ResultStatusApp.detected.value:
+            event_kind = f"{event_kind}_detected"
+        else:
+            event_kind = f"{event_kind}_suspected"
+        return alert_objects.EventKind(value=event_kind)
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
@@ -209,14 +232,15 @@ class ModelMonitoringWriter(StepToDict):
                 "result_value": event[ResultData.RESULT_VALUE],
             }
             self._generate_event_on_drift(
-                get_result_instance_fqn(
+                entity_id=get_result_instance_fqn(
                     event[WriterEvent.ENDPOINT_ID],
                     event[WriterEvent.APPLICATION_NAME],
                     event[ResultData.RESULT_NAME],
                 ),
-                event[ResultData.RESULT_STATUS],
-                event_value,
-                self.project,
+                result_status=event[ResultData.RESULT_STATUS],
+                event_value=event_value,
+                project_name=self.project,
+                result_kind=event[ResultData.RESULT_KIND],
             )
 
         if (

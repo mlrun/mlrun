@@ -11,13 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import datetime
 import typing
 
 import pandas as pd
 import v3io_frames.client
 import v3io_frames.errors
-from v3io.dataplane import Client as V3IOClient
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
@@ -42,22 +42,17 @@ class V3IOTSDBConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        access_key: typing.Optional[str] = None,
         container: str = "users",
         v3io_framesd: typing.Optional[str] = None,
         create_table: bool = False,
-    ):
+    ) -> None:
         super().__init__(project=project)
-        self.access_key = access_key or mlrun.mlconf.get_v3io_access_key()
 
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self._frames_client: v3io_frames.client.ClientBase = (
             self._get_v3io_frames_client(self.container)
-        )
-        self._v3io_client: V3IOClient = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
         )
 
         self._init_tables_path()

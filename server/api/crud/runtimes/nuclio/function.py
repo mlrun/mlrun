@@ -19,6 +19,7 @@ import shlex
 import nuclio
 import nuclio.utils
 import requests
+import semver
 
 import mlrun
 import mlrun.common.constants
@@ -213,9 +214,17 @@ def _compile_function_config(
     serving_spec_volume = None
     serving_spec = function._get_serving_spec()
     if serving_spec is not None:
+        # To keep backward comatability, allow passing service spec
+        # via Config Map only for client version higher then 1.7.0
+        can_pass_via_cm = not client_version or (
+            semver.Version.parse(client_version) >= semver.Version.parse("1.7.0")
+        )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
-        if len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+        if (
+            can_pass_via_cm
+            and len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+        ):
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )

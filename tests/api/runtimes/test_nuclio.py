@@ -300,9 +300,29 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
+
+        expected_cm_volume = {
+            "volume": {
+                "name": "model-conf",
+                "configMap": {"name": "model-conf-test-project-test-function"},
+            },
+            "volumeMount": {
+                "name": "model-conf",
+                "mountPath": "/tmp/mlrun/model-conf",
+                "readOnly": True,
+            },
+        }
+        expected = (
+            [expected_volume, expected_cm_volume]
+            if self.runtime_kind == "serving"
+            else [expected_volume]
+        )
+
         assert (
             deepdiff.DeepDiff(
-                deploy_spec["volumes"], [expected_volume], ignore_order=True
+                deploy_spec["volumes"],
+                expected,
+                ignore_order=True,
             )
             == {}
         )

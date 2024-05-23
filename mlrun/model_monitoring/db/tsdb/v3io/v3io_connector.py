@@ -514,7 +514,7 @@ class V3IOTSDBConnector(TSDBConnector):
             backend=_TSDB_BE,
             start=start,
             end=end,
-            query=query,
+            query=query,  # the filter argument does not work for this complex condition
         )
 
         logger.debug(
@@ -533,6 +533,7 @@ class V3IOTSDBConnector(TSDBConnector):
         table_name: str = mm_constants.V3IOTSDBTables.APP_RESULTS,
         name: str = mm_writer.ResultData.RESULT_NAME,
     ) -> str:
+        """Get the SQL query for the results/metrics table"""
         with StringIO() as query:
             query.write(
                 f"SELECT * FROM '{table_name}' "

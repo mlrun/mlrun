@@ -150,7 +150,7 @@ class ModelMonitoringWriter(StepToDict):
     ) -> alert_objects.EventKind:
         """Generate the required Event Kind format for the alerting system"""
         if result_kind == ResultKindApp.custom:
-            # Right now the custom kind is represented as an anomaly detection
+            # Custom kind is represented as an anomaly detection
             event_kind = "mm_app_anomaly"
         else:
             event_kind = ResultKindApp(value=result_kind).name

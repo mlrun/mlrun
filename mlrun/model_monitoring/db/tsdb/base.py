@@ -23,6 +23,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricValues,
+    ModelEndpointMonitoringResultValues,
 )
 
 
@@ -143,6 +144,40 @@ class TSDBConnector(ABC):
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
+        """
+
+    @abstractmethod
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                ModelEndpointMonitoringResultValues,
+                ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                ModelEndpointMonitoringMetricValues,
+                ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list.
+
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       The start time of the query.
+        :param end:         The end time of the query.
+        :param metrics:     The list of metrics to get the values for.
+        :param type:        "metrics" or "results" - the type of each item in metrics.
+        :return:            A list of result values or a list of metric values.
         """
 
     @abstractmethod

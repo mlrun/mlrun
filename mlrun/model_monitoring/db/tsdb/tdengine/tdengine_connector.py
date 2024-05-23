@@ -229,6 +229,30 @@ class TDEngineConnector(TSDBConnector):
 
         return pd.DataFrame(query_result, columns=columns)
 
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        raise NotImplementedError
+
     def read_predictions(
         self,
         *,

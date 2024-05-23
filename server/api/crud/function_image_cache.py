@@ -15,7 +15,6 @@
 
 import sqlalchemy.orm
 
-import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
 
@@ -32,7 +31,12 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     ):
         db = server.api.utils.singletons.db.get_db()
         return db.store_function_image_cache_record(
-            session, function_name, image, mlrun_version, nuclio_version, base_image
+            session=session,
+            function_name=function_name,
+            image=image,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
         )
 
     @staticmethod
@@ -46,7 +50,12 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     ):
         db = server.api.utils.singletons.db.get_db()
         return db.get_function_image_cache_record(
-            session, function_name, image, mlrun_version, nuclio_version, base_image
+            session=session,
+            function_name=function_name,
+            image=image,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
         )
 
     @staticmethod
@@ -61,13 +70,13 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     ):
         db = server.api.utils.singletons.db.get_db()
         return db.list_function_image_cache_records(
-            session,
-            function_name,
-            image,
-            mlrun_version,
-            nuclio_version,
-            base_image,
-            as_query,
+            session=session,
+            function_name=function_name,
+            image=image,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
+            as_query=as_query,
         )
 
     @staticmethod
@@ -81,5 +90,10 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     ):
         db = server.api.utils.singletons.db.get_db()
         db.delete_function_image_cache_record(
-            session, function_name, image, mlrun_version, nuclio_version, base_image
+            session=session,
+            function_name=function_name,
+            image=image,
+            mlrun_version=mlrun_version,
+            nuclio_version=nuclio_version,
+            base_image=base_image,
         )

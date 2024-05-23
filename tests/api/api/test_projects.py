@@ -1435,6 +1435,7 @@ def _assert_db_resources_in_project(
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
         # alert_templates are not tied to project and are pre-populated anyway
+        # FunctionImageCache records are not tied to project
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1451,6 +1452,7 @@ def _assert_db_resources_in_project(
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
             or cls.__tablename__ == "alert_states"
             or cls.__tablename__ == "alert_templates"
+            or cls.__tablename__ == "function_image_cache"
         ):
             continue
         number_of_cls_records = 0

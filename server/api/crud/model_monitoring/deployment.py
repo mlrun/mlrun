@@ -794,6 +794,13 @@ class MonitoringDeployment:
             return
 
         nuclio_image = status["containerImage"]
+
+        logger.debug(
+            "Caching model monitoring function image",
+            function_name=function_name,
+            base_image=base_image,
+            nuclio_image=nuclio_image,
+        )
         server.api.crud.function_image_cache.FunctionImageCache().store_function_image_cache_record(
             session=self.db_session,
             function_name=function_name,

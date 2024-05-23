@@ -403,10 +403,11 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_records(
         self,
         table_name: str,
-        start: str,
-        end: str,
+        start: Union[datetime, str],
+        end: Union[datetime, str],
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
+        **kwargs,
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
@@ -422,6 +423,7 @@ class V3IOTSDBConnector(TSDBConnector):
         :param columns:          Columns to include in the result.
         :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
                                  divided by ' AND '.
+        :param kwargs:          Additional keyword arguments passed to the read method of frames client.
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
@@ -438,6 +440,7 @@ class V3IOTSDBConnector(TSDBConnector):
             filter=filter_query,
             start=start,
             end=end,
+            **kwargs,
         )
 
     def _get_v3io_source_directory(self) -> str:
@@ -689,28 +692,26 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         *,
         endpoint_id: str,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
+        start: Union[datetime, str],
+        end: Union[datetime, str],
         aggregation_window: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> Union[
         ModelEndpointMonitoringMetricNoData, ModelEndpointMonitoringMetricValues
     ]:
-        frames_client_kwargs = {}
+        frames_read_kwargs: dict[str, Union[str, int, None]] = {"aggregators": "count"}
         if aggregation_window:
-            frames_client_kwargs["step"] = aggregation_window
-            frames_client_kwargs["aggregation_window"] = aggregation_window
+            frames_read_kwargs["step"] = aggregation_window
+            frames_read_kwargs["aggregation_window"] = aggregation_window
         if limit:
-            frames_client_kwargs["limit"] = limit
-        df: pd.DataFrame = self._frames_client.read(
-            backend=_TSDB_BE,
-            table=f"pipelines/{self.project}/model-endpoints/predictions",
-            columns=["latency"],
-            filter=f"endpoint_id=='{endpoint_id}'",
+            frames_read_kwargs["limit"] = limit
+        df = self.get_records(
+            table_name=mm_constants.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
-            aggregators="count",
-            **frames_client_kwargs,
+            columns=["latency"],
+            filter_query=f"endpoint_id=='{endpoint_id}'",
+            **frames_read_kwargs,
         )
 
         full_name = get_invocations_fqn(self.project)

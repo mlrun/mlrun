@@ -1020,7 +1020,7 @@ def create_function(pkg_func: str, need_to_reload: bool = False):
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
-    :param need_to_reload: reload the function if it displays in the modules list.
+    :param need_to_reload: reload the function if it is in the modules list.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
@@ -1037,8 +1037,10 @@ def create_function(pkg_func: str, need_to_reload: bool = False):
             try:
                 reload(pkg_module)
             except Exception as exc:
-                logger.debug(
-                    "Failed to reload module", err=mlrun.errors.err_to_str(exc)
+                logger.warning(
+                    "Failed to reload module",
+                    module=pkg_func,
+                    err=mlrun.errors.err_to_str(exc),
                 )
 
     function_ = getattr(pkg_module, cb_fname)
@@ -1103,7 +1105,7 @@ def get_function(function, namespaces, need_to_reload: bool = False):
 
     :param function: path to the function ([class_name::]function)
     :param namespaces: one or list of namespaces/modules to search the function in
-    :param need_to_reload: reload the function if it displays in the modules list
+    :param need_to_reload: reload the function if it is in the modules list
     :return: function handler (callable)
     """
     if callable(function):
@@ -1140,7 +1142,7 @@ def get_handler_extended(
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
-    :param need_to_reload: reload the function if it displays in the modules list
+    :param need_to_reload: reload the function if it is in the modules list
     :return: function handler (callable)
     """
     if "::" not in handler_path:

@@ -198,7 +198,7 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
-                "update_model_monitoring_manifest": "600",
+                "update_model_monitoring_cache": "600",
             },
             "runtimes": {"dask": "600"},
         },
@@ -525,8 +525,7 @@ default_config = {
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connector_type": "v3io-tsdb",
         "tsdb_connection": "",
-        "image_manifest": {
-            "path": "images/model_monitoring.json",
+        "image_cache": {
             "update_retry_interval": 10,
             "update_retry_timeout": 400,
         },

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import json
 import os
 import typing
@@ -31,6 +32,7 @@ import mlrun.model_monitoring.writer
 import mlrun.serving.states
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
+import server.api.crud.function_image_cache
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.background_tasks
 import server.api.utils.functions
@@ -85,13 +87,6 @@ class MonitoringDeployment:
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
 
-        # the image manifest acts as a cache for deployed model monitoring function images.
-        # this allows us to reuse these images for future deployments across projects, improving efficiency.
-        # the manifest stores a unique image for each combination of three factors:
-        # mlrun version, nuclio version, and base image.
-        self._image_manifest = {}
-        self._read_image_manifest()
-
     def deploy_monitoring_functions(
         self,
         background_tasks: fastapi.BackgroundTasks,
@@ -133,19 +128,18 @@ class MonitoringDeployment:
         # Create tsdb tables that will be used for storing the model monitoring data
         self._create_tsdb_tables()
 
-        # Update the image manifest cache in a background task, so the invoking client will not wait for it
+        # cache the function images in a background task, so the invoking client will not wait for it
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
             db_session,
             self.project,
             background_tasks,
-            self._update_image_manifest,
-            config.background_tasks.default_timeouts.operations.update_model_monitoring_manifest,
+            self._cache_images,
+            config.background_tasks.default_timeouts.operations.update_model_monitoring_cache,
             None,
-            # args for _update_image_manifest
+            # args for _cache_images
             image,
             extra_functions,
         )
-
 
     def deploy_model_monitoring_stream_processing(
         self,
@@ -422,7 +416,7 @@ class MonitoringDeployment:
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.info(
-                "The stream function is not deployed yet when the user will run `enable_model_monitoring` "
+                "The stream function is not deployed yet. When the user runs `enable_model_monitoring` "
                 "the stream function will be deployed with the new & the old stream triggers",
                 project=self.project,
             )
@@ -710,14 +704,6 @@ class MonitoringDeployment:
 
         tsdb_connector.create_tables()
 
-    def _read_image_manifest(self):
-        """Read the image manifest file that contains the information about the deployed model monitoring
-        functions images"""
-        manifest_path = self._get_manifest_path()
-        if os.path.exists(manifest_path):
-            with open(manifest_path) as f:
-                self._image_manifest = json.load(f)
-
     def _reuse_image(
         self,
         function: mlrun.runtimes.RemoteRuntime,
@@ -734,102 +720,88 @@ class MonitoringDeployment:
 
     def _get_existing_nuclio_image(self, name: str, base_image: str):
         """Get the nuclio image that was built with the same base image for the given function name"""
-        version_hash_key = self._get_version_hash_key()
-
-        # if the image manifest is empty, read the image manifest as it might be updated
-        if version_hash_key not in self._image_manifest:
-            self._read_image_manifest()
-
-        function_image_info = self._image_manifest.get(version_hash_key, {}).get(name)
-
-        # we want to get the nuclio image that was built with the same base image
-        if function_image_info and base_image in function_image_info:
-            return function_image_info.get(base_image)
-
+        record = server.api.crud.function_image_cache.FunctionImageCache().get_function_image_cache_record(
+            session=self.db_session,
+            function_name=name,
+            mlrun_version=config.version,
+            nuclio_version=config.nuclio_version,
+            base_image=base_image,
+        )
+        if record:
+            return record.image
         return None
 
-    def _update_image_manifest(
-        self, base_image: str, extra_functions: list[str] = None
-    ):
-        """Update the image manifest file that contains the information about the deployed model monitoring"""
+    def _cache_images(self, base_image: str, extra_functions: list[str] = None):
+        """Save the nuclio images of the functions in the cache for future use"""
         extra_functions = extra_functions or []
         functions = mm_constants.MonitoringFunctionNames.list() + extra_functions
-        version_hash_key = self._get_version_hash_key()
-        save = False
 
-        for function_name in functions:
-            # if the function is already in the manifest with the same base image, don't override it
-            if (
-                function_name in self._image_manifest.get(version_hash_key, {})
-                and base_image in self._image_manifest[version_hash_key][function_name]
-            ):
-                continue
+        tasks = [
+            self._wait_for_function_and_cache_image(
+                function_name=function_name,
+                base_image=base_image,
+            )
+            for function_name in functions
+        ]
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            executor.map(lambda task: task, tasks)
 
-            def _get_function_status():
-                state, _, _, _, _, function_status = (
-                    mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
-                        name=function_name,
-                        project=self.project,
-                        tag="",
-                        auth_info=self.auth_info,
-                    )
-                )
-
-                if state != "ready":
-                    raise Exception(f"Function {function_name} is not ready yet")
-
-                return function_status
-
-            try:
-                status = mlrun.utils.helpers.retry_until_successful(
-                    config.model_endpoint_monitoring.image_manifest.update_retry_interval,
-                    config.model_endpoint_monitoring.image_manifest.update_retry_timeout,
-                    logger,
-                    True,
-                    _get_function_status,
-                )
-            except Exception as exc:
-                # we don't want to fail the entire process if one of the functions is not ready yet
-                logger.error(
-                    f"Failed to get the status of the function {function_name}",
-                    exc=str(exc),
-                )
-                continue
-
-            if "containerImage" not in status:
-                logger.error(
-                    f"Failed to get the container image of the function {function_name}",
-                )
-                continue
-
-            if version_hash_key not in self._image_manifest:
-                self._image_manifest[version_hash_key] = {}
-            if function_name not in self._image_manifest[version_hash_key]:
-                self._image_manifest[version_hash_key][function_name] = {}
-
-            self._image_manifest[version_hash_key][function_name][base_image] = status[
-                "containerImage"
-            ]
-            save = True
-
-        # write the updated image manifest
-        if save:
-            manifest_path = self._get_manifest_path()
-            mlrun.utils.ensure_file_path_exists(manifest_path)
-            with open(manifest_path, "w") as f:
-                json.dump(self._image_manifest, f)
-
-    @staticmethod
-    def _get_manifest_path():
-        return os.path.join(
-            config.httpdb.dirpath, config.model_endpoint_monitoring.image_manifest.path
+    def _wait_for_function_and_cache_image(self, function_name: str, base_image: str):
+        # check if there is already a cached image for the function with the same base image
+        cached_image = self._get_existing_nuclio_image(
+            name=function_name,
+            base_image=base_image,
         )
+        if cached_image:
+            # if the function is already in the cache with the same base image, don't override it
+            return
 
-    @staticmethod
-    def _get_version_hash_key():
-        """Get the version hash key that will be used to store the model monitoring functions images in the manifest,
-        the key is a combination of the mlrun version and the nuclio version"""
-        return f"{config.version}-{config.nuclio_version}".encode().hex()
+        def _get_function_status():
+            state, _, _, _, _, function_status = (
+                mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
+                    name=function_name,
+                    project=self.project,
+                    tag="",
+                    auth_info=self.auth_info,
+                )
+            )
+
+            if state != "ready":
+                raise Exception(f"Function {function_name} is not ready yet")
+
+            return function_status
+
+        try:
+            status = mlrun.utils.helpers.retry_until_successful(
+                config.model_endpoint_monitoring.image_cache.update_retry_interval,
+                config.model_endpoint_monitoring.image_cache.update_retry_timeout,
+                logger,
+                True,
+                _get_function_status,
+            )
+        except Exception as exc:
+            # we don't want to fail the entire process if one of the functions is not ready yet
+            logger.warn(
+                f"Failed to get the status of the function {function_name}",
+                exc=str(exc),
+            )
+            return
+
+        if "containerImage" not in status:
+            logger.warn(
+                f"Failed to get the container image of the function {function_name}",
+            )
+            return
+
+        nuclio_image = status["containerImage"]
+        server.api.crud.function_image_cache.FunctionImageCache().store_function_image_cache_record(
+            session=self.db_session,
+            function_name=function_name,
+            image=nuclio_image,
+            mlrun_version=config.version,
+            nuclio_version=config.nuclio_version,
+            base_image=base_image,
+        )
 
     @staticmethod
     def _set_nuclio_image_config(function, nuclio_image):

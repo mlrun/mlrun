@@ -39,7 +39,7 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     def get_function_image_cache_record(
         session: sqlalchemy.orm.Session,
         function_name: str,
-        image: str,
+        image: str = None,
         mlrun_version: str = None,
         nuclio_version: str = None,
         base_image: str = None,

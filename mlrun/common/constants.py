@@ -69,7 +69,6 @@ class MlrunInternalLabels:
     created = "mlrun-created"
 
     owner = "owner"
-    # TODO: remove this in 1.9.0
     v3io_user = "v3io_user"
     workflow = "workflow"
     feature_vector = "feature-vector"

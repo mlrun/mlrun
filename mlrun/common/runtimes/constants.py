@@ -194,9 +194,9 @@ class RunStates:
         ]
 
 
+# TODO: remove this class in 1.9.0 - use only MlrunInternalLabels
 class RunLabels(enum.Enum):
     owner = MlrunInternalLabels.owner
-    # TODO: remove this in 1.9.0
     v3io_user = MlrunInternalLabels.v3io_user
 
     @staticmethod

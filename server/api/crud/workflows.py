@@ -18,6 +18,7 @@ import uuid
 import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -87,8 +88,8 @@ class WorkflowRunners(
         :param auth_info:           auth info of the request
         """
         labels = {
-            "job-type": "workflow-runner",
-            "workflow": workflow_request.spec.name,
+            mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
+            mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
 
         run_spec = self._prepare_run_object_for_scheduling(
@@ -212,10 +213,10 @@ class WorkflowRunners(
         """
         labels = {"project": project.metadata.name}
         if load_only:
-            labels["job-type"] = "project-loader"
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "project-loader"
         else:
-            labels["job-type"] = "workflow-runner"
-            labels["workflow"] = runner.metadata.name
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "workflow-runner"
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
             labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )

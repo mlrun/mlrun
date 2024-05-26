@@ -11,24 +11,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
+
 import typing
+from datetime import datetime
+from io import StringIO
+from typing import Literal, Optional, Union
 
 import pandas as pd
 import v3io_frames.client
 import v3io_frames.errors
-from v3io.dataplane import Client as V3IOClient
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
+from mlrun.common.schemas.model_monitoring.model_endpoints import _compose_full_name
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
+_CONTAINER = "users"
+
+
+def _get_result_kind(result_df: pd.DataFrame) -> mm_schemas.ResultKindApp:
+    kind_series = result_df[mm_schemas.ResultData.RESULT_KIND]
+    unique_kinds = kind_series.unique()
+    if len(unique_kinds) > 1:
+        logger.warning(
+            "The result has more than one kind",
+            kinds=list(unique_kinds),
+            application_name=result_df[mm_schemas.WriterEvent.APPLICATION_NAME],
+            result_name=result_df[mm_schemas.ResultData.RESULT_NAME],
+        )
+    return unique_kinds[0]
 
 
 class V3IOTSDBConnector(TSDBConnector):
@@ -42,22 +60,17 @@ class V3IOTSDBConnector(TSDBConnector):
     def __init__(
         self,
         project: str,
-        access_key: typing.Optional[str] = None,
-        container: str = "users",
+        container: str = _CONTAINER,
         v3io_framesd: typing.Optional[str] = None,
         create_table: bool = False,
-    ):
+    ) -> None:
         super().__init__(project=project)
-        self.access_key = access_key or mlrun.mlconf.get_v3io_access_key()
 
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self._frames_client: v3io_frames.client.ClientBase = (
             self._get_v3io_frames_client(self.container)
-        )
-        self._v3io_client: V3IOClient = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
         )
 
         self._init_tables_path()
@@ -254,7 +267,7 @@ class V3IOTSDBConnector(TSDBConnector):
     ) -> None:
         """Write a single result or metric to TSDB"""
 
-        event[mm_schemas.WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = datetime.fromisoformat(
             event[mm_schemas.WriterEvent.END_INFER_TIME]
         )
         index_cols_base = [
@@ -299,12 +312,9 @@ class V3IOTSDBConnector(TSDBConnector):
         else:
             # Delete all tables
             tables = mm_schemas.V3IOTSDBTables.list()
-        for table in tables:
+        for table_to_delete in tables:
             try:
-                self._frames_client.delete(
-                    backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
-                    table=table,
-                )
+                self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
             except v3io_frames.errors.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
@@ -318,11 +328,7 @@ class V3IOTSDBConnector(TSDBConnector):
         store.rm(tsdb_path, recursive=True)
 
     def get_model_endpoint_real_time_metrics(
-        self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str,
-        end: str,
+        self, endpoint_id: str, metrics: list[str], start: str, end: str
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -378,10 +384,11 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_records(
         self,
         table: str,
-        start: str,
-        end: str,
+        start: Union[datetime, str],
+        end: Union[datetime, str],
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
+        **kwargs,
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
@@ -397,21 +404,24 @@ class V3IOTSDBConnector(TSDBConnector):
         :param columns:          Columns to include in the result.
         :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
                                  divided by ' AND '.
+        :param kwargs:          Additional keyword arguments passed to the read method of frames client.
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
         if table not in self.tables:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Table '{table}' does not exist in the tables list of the TSDB connector."
+                f"Table '{table}' does not exist in the tables list of the TSDB connector. "
                 f"Available tables: {list(self.tables.keys())}"
             )
+        table_path = self.tables[table]
         return self._frames_client.read(
-            backend=mlrun.common.schemas.model_monitoring.TimeSeriesConnector.TSDB,
-            table=self.tables[table],
-            columns=columns,
-            filter=filter_query,
+            backend=_TSDB_BE,
+            table=table_path,
             start=start,
             end=end,
+            columns=columns,
+            filter=filter_query,
+            **kwargs,
         )
 
     def _get_v3io_source_directory(self) -> str:
@@ -441,3 +451,290 @@ class V3IOTSDBConnector(TSDBConnector):
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
         )
+
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: Literal["metrics", "results"] = "results",
+    ) -> Union[
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list.
+        Note: the type must match the actual metrics in the `metrics` parameter.
+        If the type is "results", pass only results in the `metrics` parameter.
+        """
+
+        if type == "metrics":
+            table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
+            name = mm_schemas.MetricData.METRIC_NAME
+            df_handler = self.df_to_metrics_values
+        elif type == "results":
+            table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
+            name = mm_schemas.ResultData.RESULT_NAME
+            df_handler = self.df_to_results_values
+        else:
+            raise ValueError(f"Invalid {type = }")
+
+        query = self._get_sql_query(
+            endpoint_id,
+            [(metric.app, metric.name) for metric in metrics],
+            table_path=table_path,
+            name=name,
+        )
+
+        logger.debug("Querying V3IO TSDB", query=query)
+
+        df: pd.DataFrame = self._frames_client.read(
+            backend=_TSDB_BE,
+            start=start,
+            end=end,
+            query=query,  # the filter argument does not work for this complex condition
+        )
+
+        logger.debug(
+            "Read a data-frame",
+            project=self.project,
+            endpoint_id=endpoint_id,
+            is_empty=df.empty,
+        )
+
+        return df_handler(df=df, metrics=metrics, project=self.project)
+
+    @staticmethod
+    def _get_sql_query(
+        endpoint_id: str,
+        names: list[tuple[str, str]],
+        table_path: str,
+        name: str = mm_schemas.ResultData.RESULT_NAME,
+    ) -> str:
+        """Get the SQL query for the results/metrics table"""
+        with StringIO() as query:
+            query.write(
+                f"SELECT * FROM '{table_path}' "
+                f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
+            )
+            if names:
+                query.write(" AND (")
+
+                for i, (app_name, result_name) in enumerate(names):
+                    sub_cond = (
+                        f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}' "
+                        f"AND {name}='{result_name}')"
+                    )
+                    if i != 0:  # not first sub condition
+                        query.write(" OR ")
+                    query.write(sub_cond)
+
+                query.write(")")
+
+            query.write(";")
+            return query.getvalue()
+
+    @staticmethod
+    def df_to_results_values(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+    ) -> list[
+        Union[
+            mm_schemas.ModelEndpointMonitoringResultValues,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed data-frame of results from the TSDB into a list of
+        results values per distinct results.
+        When a result is not found in the data-frame, it is represented in no-data object.
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+
+        metrics_values: list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+        if not df.empty:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.ResultData.RESULT_NAME,
+                ],
+                observed=False,
+            )
+        else:
+            grouped = []
+            logger.debug("No results", missing_results=metrics_without_data.keys())
+        for (app_name, name), sub_df in grouped:
+            result_kind = _get_result_kind(sub_df)
+            full_name = _compose_full_name(project=project, app=app_name, name=name)
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringResultValues(
+                    full_name=full_name,
+                    result_kind=result_kind,
+                    values=list(
+                        zip(
+                            sub_df.index,
+                            sub_df[mm_schemas.ResultData.RESULT_VALUE],
+                            sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                        )
+                    ),  # pyright: ignore[reportArgumentType]
+                )
+            )
+            del metrics_without_data[full_name]
+
+        for metric in metrics_without_data.values():
+            if metric.full_name == get_invocations_fqn(project):
+                continue
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricNoData(
+                    full_name=metric.full_name,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+                )
+            )
+
+        return metrics_values
+
+    @staticmethod
+    def df_to_metrics_values(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+    ) -> list[
+        Union[
+            mm_schemas.ModelEndpointMonitoringMetricValues,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed data-frame of metrics from the TSDB into a list of
+        metrics values per distinct results.
+        When a metric is not found in the data-frame, it is represented in no-data object.
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+
+        metrics_values: list[
+            Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+        if not df.empty:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.MetricData.METRIC_NAME,
+                ],
+                observed=False,
+            )
+        else:
+            logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
+            grouped = []
+        for (app_name, name), sub_df in grouped:
+            full_name = _compose_full_name(
+                project=project,
+                app=app_name,
+                name=name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricValues(
+                    full_name=full_name,
+                    values=list(
+                        zip(
+                            sub_df.index,
+                            sub_df[mm_schemas.MetricData.METRIC_VALUE],
+                        )
+                    ),  # pyright: ignore[reportArgumentType]
+                )
+            )
+            del metrics_without_data[full_name]
+
+        for metric in metrics_without_data.values():
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricNoData(
+                    full_name=metric.full_name,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                )
+            )
+
+        return metrics_values
+
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: Union[datetime, str],
+        end: Union[datetime, str],
+        aggregation_window: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Union[
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+    ]:
+        frames_read_kwargs: dict[str, Union[str, int, None]] = {"aggregators": "count"}
+        if aggregation_window:
+            frames_read_kwargs["step"] = aggregation_window
+            frames_read_kwargs["aggregation_window"] = aggregation_window
+        if limit:
+            frames_read_kwargs["limit"] = limit
+        df = self.get_records(
+            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=["latency"],
+            filter_query=f"endpoint_id=='{endpoint_id}'",
+            **frames_read_kwargs,
+        )
+
+        full_name = get_invocations_fqn(self.project)
+
+        if df.empty:
+            return mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+
+        return mm_schemas.ModelEndpointMonitoringMetricValues(
+            full_name=full_name,
+            values=list(
+                zip(
+                    df.index,
+                    df["count(latency)"],
+                )
+            ),  # pyright: ignore[reportArgumentType]
+        )
+
+    def read_prediction_metric_for_endpoint_if_exists(
+        self, endpoint_id: str
+    ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+        # Read just one record, because we just want to check if there is any data for this endpoint_id
+        predictions = self.read_predictions(
+            endpoint_id=endpoint_id, start="0", end="now", limit=1
+        )
+        if predictions:
+            return mm_schemas.ModelEndpointMonitoringMetric(
+                project=self.project,
+                app=mm_schemas.SpecialApps.MLRUN_INFRA,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
+                full_name=get_invocations_fqn(self.project),
+            )

@@ -36,11 +36,7 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import (
-    _get_sql_query,
-    read_metrics_data,
-    read_predictions,
-)
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import V3IOTSDBConnector
 
 
 @pytest.fixture(params=["default-project"])
@@ -344,20 +340,27 @@ class TestGetModelEndpointMetrics:
 
 
 @pytest.mark.parametrize(
-    ("endpoint_id", "names", "expected_query"),
+    ("endpoint_id", "names", "table_path", "expected_query"),
     [
-        ("ddw2lke", [], "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';"),
+        (
+            "ddw2lke",
+            [],
+            "app-results",
+            "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
+        ),
         (
             "ep123",
             [("app1", "res1")],
+            "path/to/app-results",
             (
-                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' "
+                "SELECT * FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
                 "AND ((application_name='app1' AND result_name='res1'));"
             ),
         ),
         (
             "ep123",
             [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
+            "app-results",
             (
                 "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
@@ -368,9 +371,12 @@ class TestGetModelEndpointMetrics:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: str, names: list[tuple[str, str]], expected_query: str
+    endpoint_id: str, names: list[tuple[str, str]], table_path: str, expected_query: str
 ) -> None:
-    assert _get_sql_query(endpoint_id, names) == expected_query
+    assert (
+        V3IOTSDBConnector._get_sql_query(endpoint_id, names, table_path)
+        == expected_query
+    )
 
 
 @pytest.fixture
@@ -454,8 +460,7 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
-    data = read_metrics_data(
-        project="fictitious-one",
+    data = V3IOTSDBConnector(project="fictitious-one").read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
@@ -491,8 +496,7 @@ def test_read_results_data() -> None:
 
 @pytest.mark.usefixtures("_mock_frames_client_predictions")
 def test_read_predictions() -> None:
-    result = read_predictions(
-        project="fictitious-one",
+    result = V3IOTSDBConnector(project="fictitious-one").read_predictions(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime.fromtimestamp(0),
         end=datetime.now(),

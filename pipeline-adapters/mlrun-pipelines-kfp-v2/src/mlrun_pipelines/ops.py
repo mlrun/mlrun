@@ -25,6 +25,7 @@ from mlrun_pipelines.common.helpers import (
 from mlrun_pipelines.common.ops import PipelineRunType
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 from mlrun.config import config
 from mlrun.utils import get_in, logger
@@ -178,14 +179,23 @@ def add_labels(task, function, scrape_metrics=False):
         )
         return
 
-    prefix = mlrun.runtimes.utils.mlrun_key
-    kfp_k8s.add_pod_label(task, prefix + "class", function.kind)
-    kfp_k8s.add_pod_label(task, prefix + "function", function.metadata.name)
-    kfp_k8s.add_pod_label(task, prefix + "name", task.name)
-    kfp_k8s.add_pod_label(task, prefix + "project", function.metadata.project)
-    kfp_k8s.add_pod_label(task, prefix + "tag", function.metadata.tag or "latest")
     kfp_k8s.add_pod_label(
-        task, prefix + "scrape-metrics", "True" if scrape_metrics else "False"
+        task, mlrun_constants.MLRunInternalLabels.mlrun_class, function.kind
+    )
+    kfp_k8s.add_pod_label(
+        task, mlrun_constants.MLRunInternalLabels.function, function.metadata.name
+    )
+    kfp_k8s.add_pod_label(task, mlrun_constants.MLRunInternalLabels.name, task.name)
+    kfp_k8s.add_pod_label(
+        task, mlrun_constants.MLRunInternalLabels.project, function.metadata.project
+    )
+    kfp_k8s.add_pod_label(
+        task, mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest"
+    )
+    kfp_k8s.add_pod_label(
+        task,
+        mlrun_constants.MLRunInternalLabels.scrape_metrics,
+        "True" if scrape_metrics else "False",
     )
 
 

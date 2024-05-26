@@ -30,7 +30,9 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
-from mlrun.datastore.utils import revert_list_filters_to_tuple
+from mlrun.datastore.utils import (
+    revert_list_filters_to_tuple,
+)
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -317,6 +319,7 @@ class ParquetSource(BaseSourceDriver):
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
+            additional_filters = revert_list_filters_to_tuple(additional_filters)
             attributes["additional_filters"] = additional_filters
 
         super().__init__(
@@ -348,10 +351,7 @@ class ParquetSource(BaseSourceDriver):
 
     @property
     def additional_filters(self):
-        additional_filters = self.attributes.get("additional_filters")
-        # The ParquetSource object can be created from a dict without calling
-        # __init__, so tuple reversion should be implemented as a property.
-        return revert_list_filters_to_tuple(additional_filters)
+        return self.attributes.get("additional_filters")
 
     @staticmethod
     def _convert_to_datetime(time):
@@ -390,6 +390,16 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj.attributes["additional_filters"] = revert_list_filters_to_tuple(
+            new_obj.additional_filters
+        )
+        return new_obj
 
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)

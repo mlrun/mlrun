@@ -26,10 +26,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas as schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.common.schemas.model_monitoring.model_endpoints
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
-import mlrun.model_monitoring.db.stores.v3io_kv.kv_store
-import mlrun.model_monitoring.db.v3io_tsdb_reader
+import mlrun.model_monitoring
 import mlrun.utils.helpers
 import server.api.api.deps
 import server.api.crud
@@ -378,8 +376,9 @@ async def get_model_endpoint_monitoring_metrics(
             asyncio.create_task(
                 _wrap_coroutine_in_list(
                     run_in_threadpool(
-                        mlrun.model_monitoring.db.v3io_tsdb_reader.read_prediction_metric_for_endpoint_if_exists,
-                        project=project,
+                        mlrun.model_monitoring.get_tsdb_connector(
+                            project=project
+                        ).read_prediction_metric_for_endpoint_if_exists,
                         endpoint_id=endpoint_id,
                     )
                 )
@@ -402,7 +401,7 @@ class _MetricsValuesParams:
     end: datetime
 
 
-async def _get_metrics_values_data(
+async def _get_metrics_values_params(
     project: str,
     endpoint_id: str,
     name: Annotated[
@@ -467,6 +466,7 @@ async def _get_metrics_values_data(
 
 
 async def _wrap_coroutine_in_list(x):
+    # TODO: get rid of this function - it may add `None` to the metrics list
     return [await x]
 
 
@@ -481,7 +481,7 @@ async def _wrap_coroutine_in_list(x):
     ],
 )
 async def get_model_endpoint_monitoring_metrics_values(
-    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_data)],
+    params: Annotated[_MetricsValuesParams, Depends(_get_metrics_values_params)],
 ) -> list[
     Union[
         mm_endpoints.ModelEndpointMonitoringMetricValues,
@@ -496,9 +496,11 @@ async def get_model_endpoint_monitoring_metrics_values(
     """
     coroutines: list[Coroutine] = []
 
-    invocations_full_name = (
-        mlrun.model_monitoring.db.v3io_tsdb_reader.get_invocations_fqn(params.project)
+    invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(
+        params.project
     )
+
+    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(project=params.project)
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:
@@ -511,8 +513,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 coroutines.append(
                     _wrap_coroutine_in_list(
                         run_in_threadpool(
-                            mlrun.model_monitoring.db.v3io_tsdb_reader.read_predictions,
-                            project=params.project,
+                            tsdb_connector.read_predictions,
                             endpoint_id=params.endpoint_id,
                             start=params.start,
                             end=params.end,
@@ -522,8 +523,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                 )
             coroutines.append(
                 run_in_threadpool(
-                    mlrun.model_monitoring.db.v3io_tsdb_reader.read_metrics_data,
-                    project=params.project,
+                    tsdb_connector.read_metrics_data,
                     endpoint_id=params.endpoint_id,
                     start=params.start,
                     end=params.end,

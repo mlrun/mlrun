@@ -205,8 +205,7 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_predictions_table(cls, ep_id: str) -> None:
         predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.FileTargetKind.PREDICTIONS,
-            start="0",
+            table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
         )
         assert not predictions_df.empty, "No TSDB predictions data"
         assert (

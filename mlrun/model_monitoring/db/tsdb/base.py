@@ -11,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-
 
 import typing
-from abc import ABC
+from abc import ABC, abstractmethod
+from datetime import datetime
 
 import pandas as pd
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class TSDBConnector(ABC):
@@ -59,7 +58,7 @@ class TSDBConnector(ABC):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
     ) -> None:
         """
         Write a single application or metric to TSDB.
@@ -100,6 +99,7 @@ class TSDBConnector(ABC):
         """
         pass
 
+    @abstractmethod
     def get_records(
         self,
         table: str,
@@ -131,7 +131,6 @@ class TSDBConnector(ABC):
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
-        pass
 
     def create_tables(self) -> None:
         """
@@ -139,4 +138,74 @@ class TSDBConnector(ABC):
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
         - predictions: latency of each prediction.
+        """
+
+    @abstractmethod
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list.
+
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       The start time of the query.
+        :param end:         The end time of the query.
+        :param metrics:     The list of metrics to get the values for.
+        :param type:        "metrics" or "results" - the type of each item in metrics.
+        :return:            A list of result values or a list of metric values.
+        """
+
+    @abstractmethod
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+    ) -> typing.Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        """
+        Read the "invocations" metric for the provided model endpoint in the given time range,
+        and return the metric values if any, otherwise signify with the "no data" object.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+        :param aggregation_window: On what time window length should the invocations be aggregated.
+        :return:                   Metric values object or no data object.
+        """
+
+    @abstractmethod
+    def read_prediction_metric_for_endpoint_if_exists(
+        self, endpoint_id: str
+    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Read the "invocations" metric for the provided model endpoint, and return the metric object
+        if it exists.
+
+        :param endpoint_id: The model endpoint identifier.
+        :return:            `None` if the invocations metric does not exist, otherwise return the
+                            corresponding metric object.
         """

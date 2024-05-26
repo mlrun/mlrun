@@ -14,6 +14,7 @@
 #
 import typing
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -61,6 +62,18 @@ class TestApplicationRuntime(TestRuntimeBase):
         assert not mlrun.utils.get_in(
             config,
             "spec.build.baseImage",
+        )
+
+    def test_create_function_validate_min_nuclio_version(
+        self, db: Session, client: TestClient
+    ):
+        """Verify that the nuclio min version is validated by the ApplicationRuntime constructor"""
+        mlrun.mlconf.nuclio_version = "1.12.14"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError) as exc:
+            self._generate_runtime(self.runtime_kind)
+        assert (
+            str(exc.value)
+            == "'ApplicationRuntime.__init__' function requires Nuclio v1.13.1 or higher"
         )
 
     def _execute_run(self, runtime, **kwargs):

@@ -20,7 +20,7 @@ from mlrun_pipelines.models import PipelineRun
 import mlrun
 import mlrun.artifacts
 import mlrun.errors
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from tests.conftest import out_path
 
 
@@ -182,8 +182,8 @@ def test_is_logging_worker(host: str, is_logging_worker: bool):
     :param is_logging_worker: The expected result.
     """
     context = mlrun.execution.MLClientCtx()
-    context.set_label(MlrunInternalLabels.kind, "mpijob")
-    context.set_label(MlrunInternalLabels.host, host)
+    context.set_label(MLRunInternalLabels.kind, "mpijob")
+    context.set_label(MLRunInternalLabels.host, host)
     assert context.is_logging_worker() is is_logging_worker
 
 

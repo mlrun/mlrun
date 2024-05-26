@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.utils.regex
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
 from mlrun.utils import (
@@ -94,7 +94,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         job = deepcopy(_sparkjob_template)
         meta = self._get_meta(runtime, run, True)
         pod_labels = deepcopy(meta.labels)
-        pod_labels[MlrunInternalLabels.job] = meta.name
+        pod_labels[MLRunInternalLabels.job] = meta.name
         job_type = runtime.spec.job_type or "Python"
         update_in(job, "spec.type", job_type)
         if runtime.spec.job_type == "Python":
@@ -169,10 +169,10 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             "spec.image",
             runtime.full_image_path(
                 client_version=run.metadata.labels.get(
-                    MlrunInternalLabels.client_version
+                    MLRunInternalLabels.client_version
                 ),
                 client_python_version=run.metadata.labels.get(
-                    MlrunInternalLabels.client_python_version
+                    MLRunInternalLabels.client_python_version
                 ),
             ),
         )
@@ -514,7 +514,7 @@ with ctx:
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"{MlrunInternalLabels.uid}={object_id}"
+        return f"{MLRunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
@@ -551,7 +551,7 @@ with ctx:
             uid = (
                 crd_dict["metadata"]
                 .get("labels", {})
-                .get(MlrunInternalLabels.uid, None)
+                .get(MLRunInternalLabels.uid, None)
             )
             uids.append(uid)
 
@@ -560,7 +560,7 @@ with ctx:
         )
         for config_map in config_maps.items:
             try:
-                uid = config_map.metadata.labels.get(MlrunInternalLabels.uid, None)
+                uid = config_map.metadata.labels.get(MLRunInternalLabels.uid, None)
                 if force or uid in uids:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace

@@ -38,7 +38,7 @@ import server.api.crud
 import server.api.utils.functions
 import tests.api.api.utils
 import tests.api.conftest
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -65,7 +65,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
-        self.function_name_label = MlrunInternalLabels.name
+        self.function_name_label = MLRunInternalLabels.name
         self.code_filename = str(self.assets_path / "sample_function.py")
         self.requirements_file = str(self.assets_path / "requirements-test.txt")
 
@@ -450,10 +450,10 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
     def _assert_labels(self, labels: dict, expected_class_name):
         expected_labels = {
-            MlrunInternalLabels.mlrun_class: expected_class_name,
+            MLRunInternalLabels.mlrun_class: expected_class_name,
             self.function_name_label: self.name,
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.tag: "latest",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.tag: "latest",
         }
 
         for key in expected_labels:

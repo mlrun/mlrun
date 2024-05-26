@@ -25,7 +25,7 @@ from mlrun import (
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from tests.system.base import TestMLRunSystem
 
 
@@ -110,9 +110,9 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-training",
             project=self.project_name,
             labels={
-                MlrunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
-                MlrunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
-                MlrunInternalLabels.kind: "job",
+                MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
+                MLRunInternalLabels.kind: "job",
                 "category": "tests",
             },
         )
@@ -122,9 +122,9 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-validation",
             project=self.project_name,
             labels={
-                MlrunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
-                MlrunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
-                MlrunInternalLabels.kind: "job",
+                MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
+                MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
+                MLRunInternalLabels.kind: "job",
             },
         )
         self._verify_run_spec(

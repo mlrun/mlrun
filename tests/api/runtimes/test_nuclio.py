@@ -36,7 +36,7 @@ import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
 from mlrun import code_to_function, mlconf
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
@@ -185,7 +185,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
-            labels_for_diff.update({MlrunInternalLabels.mlrun_class: expected_class})
+            labels_for_diff.update({MLRunInternalLabels.mlrun_class: expected_class})
             if parent_function:
                 labels_for_diff.update({"mlrun/parent-function": parent_function})
             assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}

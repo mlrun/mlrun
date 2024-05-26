@@ -26,7 +26,7 @@ import server.api.crud
 import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -43,13 +43,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.wait_for_deletion_interval = 0
 
         self.job_labels = {
-            MlrunInternalLabels.mlrun_class: self._get_class_name(),
-            MlrunInternalLabels.function: "my-trainer",
-            MlrunInternalLabels.name: "my-training",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.scrape_metrics: "False",
-            MlrunInternalLabels.tag: "latest",
-            MlrunInternalLabels.uid: self.run_uid,
+            MLRunInternalLabels.mlrun_class: self._get_class_name(),
+            MLRunInternalLabels.function: "my-trainer",
+            MLRunInternalLabels.name: "my-training",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.scrape_metrics: "False",
+            MLRunInternalLabels.tag: "latest",
+            MLRunInternalLabels.uid: self.run_uid,
         }
         job_pod_name = "my-training-j7dtf"
 
@@ -68,8 +68,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         builder_legacy_labels = {
-            MlrunInternalLabels.mlrun_class: "build",
-            "mlrun/task-name": "mlrun-build-hedi-simple-func-legacy",
+            MLRunInternalLabels.mlrun_class: "build",
+            MLRunInternalLabels.task_name: "mlrun-build-hedi-simple-func-legacy",
         }
         builder_legacy_pod_name = "mlrun-build-hedi-simple-legacy-func-8qwrd"
         self.completed_legacy_builder_pod = self._generate_pod(
@@ -584,7 +584,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled", job_labels=self.job_labels
         )
         pending_scheduled_pod = self._generate_pod(
-            pending_scheduled_labels[MlrunInternalLabels.name],
+            pending_scheduled_labels[MLRunInternalLabels.name],
             pending_scheduled_labels,
             PodPhases.pending,
         )
@@ -600,8 +600,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            pending_scheduled_labels[MlrunInternalLabels.name],
-            pending_scheduled_labels[MlrunInternalLabels.uid],
+            pending_scheduled_labels[MLRunInternalLabels.name],
+            pending_scheduled_labels[MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod.status.start_time,
         )
 
@@ -609,7 +609,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
-            pending_scheduled_new_labels[MlrunInternalLabels.name],
+            pending_scheduled_new_labels[MLRunInternalLabels.name],
             pending_scheduled_new_labels,
             PodPhases.pending,
         )
@@ -618,8 +618,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._store_run(
             db,
-            pending_scheduled_new_labels[MlrunInternalLabels.name],
-            pending_scheduled_new_labels[MlrunInternalLabels.uid],
+            pending_scheduled_new_labels[MLRunInternalLabels.name],
+            pending_scheduled_new_labels[MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
@@ -627,7 +627,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "running_overtime", job_labels=self.job_labels
         )
         running_overtime_pod = self._generate_pod(
-            running_overtime_labels[MlrunInternalLabels.name],
+            running_overtime_labels[MLRunInternalLabels.name],
             running_overtime_labels,
             PodPhases.running,
         )
@@ -638,8 +638,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            running_overtime_labels[MlrunInternalLabels.name],
-            running_overtime_labels[MlrunInternalLabels.uid],
+            running_overtime_labels[MLRunInternalLabels.name],
+            running_overtime_labels[MLRunInternalLabels.uid],
             start_time=running_overtime_pod.status.start_time,
         )
 
@@ -647,7 +647,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "image_pull_backoff", job_labels=self.job_labels
         )
         image_pull_backoff_pod = self._generate_pod(
-            image_pull_backoff_labels[MlrunInternalLabels.name],
+            image_pull_backoff_labels[MLRunInternalLabels.name],
             image_pull_backoff_labels,
             PodPhases.pending,
         )
@@ -674,8 +674,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            image_pull_backoff_labels[MlrunInternalLabels.name],
-            image_pull_backoff_labels[MlrunInternalLabels.uid],
+            image_pull_backoff_labels[MLRunInternalLabels.name],
+            image_pull_backoff_labels[MLRunInternalLabels.uid],
             start_time=image_pull_backoff_pod.status.start_time,
         )
 
@@ -695,9 +695,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_uids = [run["uid"] for run in stale_runs]
         expected_stale_run_uids = [
-            pending_scheduled_pod.metadata.labels[MlrunInternalLabels.uid],
-            running_overtime_pod.metadata.labels[MlrunInternalLabels.uid],
-            image_pull_backoff_pod.metadata.labels[MlrunInternalLabels.uid],
+            pending_scheduled_pod.metadata.labels[MLRunInternalLabels.uid],
+            running_overtime_pod.metadata.labels[MLRunInternalLabels.uid],
+            image_pull_backoff_pod.metadata.labels[MLRunInternalLabels.uid],
         ]
         assert stale_run_uids == expected_stale_run_uids
 

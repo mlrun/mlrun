@@ -39,7 +39,7 @@ import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -2327,7 +2327,7 @@ class SQLDB(DBInterface):
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
-            .filter(Schedule.Label.name.in_([MlrunInternalLabels.workflow, "kind"]))
+            .filter(Schedule.Label.name.in_([MLRunInternalLabels.workflow, "kind"]))
             .all()
         )
 
@@ -2335,7 +2335,7 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if result[2].to_dict()["name"] == MlrunInternalLabels.workflow:
+            if result[2].to_dict()["name"] == MLRunInternalLabels.workflow:
                 project_to_schedule_pending_workflows_count[result[0]] += 1
             elif result[2].to_dict()["value"] == "job":
                 project_to_schedule_pending_jobs_count[result[0]] += 1

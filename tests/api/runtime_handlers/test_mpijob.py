@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.api.runtime_handlers.mpijob
 import server.api.utils.helpers
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 from server.api.runtime_handlers import get_runtime_handler
@@ -61,17 +61,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.launcher_pod_labels = {
             "group-name": "kubeflow.org",
-            MlrunInternalLabels.mlrun_class: "mpijob",
-            MlrunInternalLabels.function: "trainer",
-            MlrunInternalLabels.job: "trainer-1b019005",
-            MlrunInternalLabels.name: "trainer",
-            MlrunInternalLabels.mlrun_owner: "iguazio",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.scrape_metrics: "True",
-            MlrunInternalLabels.tag: "latest",
-            MlrunInternalLabels.uid: self.run_uid,
+            MLRunInternalLabels.mlrun_class: "mpijob",
+            MLRunInternalLabels.function: "trainer",
+            MLRunInternalLabels.job: "trainer-1b019005",
+            MLRunInternalLabels.name: "trainer",
+            MLRunInternalLabels.mlrun_owner: "iguazio",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.scrape_metrics: "True",
+            MLRunInternalLabels.tag: "latest",
+            MLRunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            MlrunInternalLabels.mpi_job_role: "launcher",
+            MLRunInternalLabels.mpi_job_role: "launcher",
         }
         launcher_pod_name = "trainer-1b019005-launcher"
 
@@ -83,17 +83,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.worker_pod_labels = {
             "group-name": "kubeflow.org",
-            MlrunInternalLabels.mlrun_class: "mpijob",
-            MlrunInternalLabels.function: "trainer",
-            MlrunInternalLabels.job: "trainer-1b019005",
-            MlrunInternalLabels.name: "trainer",
-            MlrunInternalLabels.mlrun_owner: "iguazio",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.schedule_name: "True",
-            MlrunInternalLabels.tag: "latest",
-            MlrunInternalLabels.uid: self.run_uid,
+            MLRunInternalLabels.mlrun_class: "mpijob",
+            MLRunInternalLabels.function: "trainer",
+            MLRunInternalLabels.job: "trainer-1b019005",
+            MLRunInternalLabels.name: "trainer",
+            MLRunInternalLabels.mlrun_owner: "iguazio",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.schedule_name: "True",
+            MLRunInternalLabels.tag: "latest",
+            MLRunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            MlrunInternalLabels.mpi_job_role: "worker",
+            MLRunInternalLabels.mpi_job_role: "worker",
         }
         worker_pod_name = "trainer-1b019005-worker-0"
 
@@ -461,7 +461,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         launcher_pod_image_pull_backoff = self._generate_pod(
             "launcher",
             self._generate_job_labels(
-                image_pull_backoff_job["metadata"]["labels"][MlrunInternalLabels.name],
+                image_pull_backoff_job["metadata"]["labels"][MLRunInternalLabels.name],
                 uid=image_pull_backoff_job_uid,
                 job_labels=self.launcher_pod_labels,
             ),
@@ -479,7 +479,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             worker_pod = self._generate_pod(
                 f"worker-{name}",
                 self._generate_job_labels(
-                    job["metadata"]["labels"][MlrunInternalLabels.name],
+                    job["metadata"]["labels"][MLRunInternalLabels.name],
                     uid=uid,
                     job_labels=self.worker_pod_labels,
                 ),
@@ -488,7 +488,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             launcher_pod = self._generate_pod(
                 f"launcher-{name}",
                 self._generate_job_labels(
-                    job["metadata"]["labels"][MlrunInternalLabels.name],
+                    job["metadata"]["labels"][MLRunInternalLabels.name],
                     uid=uid,
                     job_labels=self.launcher_pod_labels,
                 ),
@@ -636,7 +636,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
-            f"{MlrunInternalLabels.uid}={pending_scheduled_stale_uid}",
+            f"{MLRunInternalLabels.uid}={pending_scheduled_stale_uid}",
         )
         assert len(stale_runs) == 1
 
@@ -667,7 +667,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             runtime_handler
         )
         return (
-            f"{logger_pods_label_selector},{MlrunInternalLabels.mpi_job_role}=launcher"
+            f"{logger_pods_label_selector},{MLRunInternalLabels.mpi_job_role}=launcher"
         )
 
     @staticmethod
@@ -677,13 +677,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 "name": "train-eaf63df8",
                 "namespace": get_k8s_helper().resolve_namespace(),
                 "labels": {
-                    MlrunInternalLabels.mlrun_class: "mpijob",
-                    MlrunInternalLabels.function: "trainer",
-                    MlrunInternalLabels.name: "train",
-                    MlrunInternalLabels.project: project,
-                    MlrunInternalLabels.scrape_metrics: "False",
-                    MlrunInternalLabels.tag: "latest",
-                    MlrunInternalLabels.uid: uid,
+                    MLRunInternalLabels.mlrun_class: "mpijob",
+                    MLRunInternalLabels.function: "trainer",
+                    MLRunInternalLabels.name: "train",
+                    MLRunInternalLabels.project: project,
+                    MLRunInternalLabels.scrape_metrics: "False",
+                    MLRunInternalLabels.tag: "latest",
+                    MLRunInternalLabels.uid: uid,
                 },
             },
         }

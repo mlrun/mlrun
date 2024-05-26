@@ -27,7 +27,7 @@ import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -209,12 +209,12 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             dask_component = (
                 pod_dict["metadata"]
                 .get("labels", {})
-                .get(MlrunInternalLabels.dask_component)
+                .get(MLRunInternalLabels.dask_component)
             )
             cluster_name = (
                 pod_dict["metadata"]
                 .get("labels", {})
-                .get(MlrunInternalLabels.dask_cluster_name)
+                .get(MLRunInternalLabels.dask_cluster_name)
             )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
@@ -443,13 +443,13 @@ def get_obj_status(selector=None, namespace=None):
 
     k8s = server.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ",".join([MlrunInternalLabels.dask_component] + selector)
+    selector = ",".join([f"{MLRunInternalLabels.dask_component}=scheduler"] + selector)
     pods = k8s.list_pods(namespace, selector=selector)
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
         if status == "running":
-            cluster = pod.metadata.labels.get(MlrunInternalLabels.dask_cluster_name)
+            cluster = pod.metadata.labels.get(MLRunInternalLabels.dask_cluster_name)
             logger.info(
                 "Found running dask function",
                 pod_name=pod.metadata.name,

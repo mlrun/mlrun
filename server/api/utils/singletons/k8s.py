@@ -30,7 +30,7 @@ import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 
 _k8s = None
@@ -270,14 +270,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         )
         extra_selectors = {
-            "spark": f"{MlrunInternalLabels.spark_role}=driver",
+            "spark": f"{MLRunInternalLabels.spark_role}=driver",
             "mpijob": f"{mpijob_role_label}=launcher",
         }
 
         selectors = [
-            MlrunInternalLabels.mlrun_class,
-            f"{MlrunInternalLabels.project}={project}",
-            f"{MlrunInternalLabels.uid}={uid}",
+            MLRunInternalLabels.mlrun_class,
+            f"{MLRunInternalLabels.project}={project}",
+            f"{MLRunInternalLabels.uid}={uid}",
         ]
 
         # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for
@@ -552,7 +552,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
-        label_name = MlrunInternalLabels.resource_name
+        label_name = MLRunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
 
         configmap_with_label = self.get_configmap(name, resource, namespace)
@@ -604,7 +604,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def get_configmap(self, name: str, resource: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
-        label_name = MlrunInternalLabels.resource_name
+        label_name = MLRunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
             namespace=namespace, label_selector=f"{label_name}={full_name}"
@@ -686,12 +686,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         if not username:
             return {}
         labels = {
-            MlrunInternalLabels.username: username,
+            MLRunInternalLabels.username: username,
         }
         if "@" in username:
             username, domain = username.split("@")
-            labels[MlrunInternalLabels.username] = username
-            labels[MlrunInternalLabels.username_domain] = domain
+            labels[MLRunInternalLabels.username] = username
+            labels[MLRunInternalLabels.username_domain] = domain
         return labels
 
 
@@ -721,9 +721,9 @@ class BasePod:
         self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
-            "mlrun/task-name": task_name,
-            MlrunInternalLabels.mlrun_class: kind,
-            MlrunInternalLabels.project: self.project,
+            MLRunInternalLabels.task_name: task_name,
+            MLRunInternalLabels.mlrun_class: kind,
+            MLRunInternalLabels.project: self.project,
         } | (labels or {})
         self._annotations = {}
         self._init_containers = []

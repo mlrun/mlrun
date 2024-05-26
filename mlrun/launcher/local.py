@@ -22,7 +22,7 @@ import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 
 
@@ -135,9 +135,9 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
     ):
         if (
             "V3IO_USERNAME" in os.environ
-            and MlrunInternalLabels.v3io_user not in run.metadata.labels
+            and MLRunInternalLabels.v3io_user not in run.metadata.labels
         ):
-            run.metadata.labels[MlrunInternalLabels.v3io_user] = os.environ.get(
+            run.metadata.labels[MLRunInternalLabels.v3io_user] = os.environ.get(
                 "V3IO_USERNAME"
             )
 

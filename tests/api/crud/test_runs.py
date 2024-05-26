@@ -27,7 +27,7 @@ import server.api.runtime_handlers
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.k8s
 import tests.api.conftest
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 
 
 class TestRuns(tests.api.conftest.MockedK8sHelper):
@@ -43,7 +43,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": "uid",
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -68,9 +68,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                 metadata=k8s_client.V1ObjectMeta(
                                     name="pod-name",
                                     labels={
-                                        MlrunInternalLabels.mlrun_class: "job",
-                                        MlrunInternalLabels.project: project,
-                                        MlrunInternalLabels.uid: "uid",
+                                        MLRunInternalLabels.mlrun_class: "job",
+                                        MLRunInternalLabels.project: project,
+                                        MLRunInternalLabels.uid: "uid",
                                     },
                                 ),
                                 status=k8s_client.V1PodStatus(phase="Running"),
@@ -109,7 +109,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            MlrunInternalLabels.kind: "job",
+                            MLRunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -161,7 +161,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            MlrunInternalLabels.kind: "job",
+                            MLRunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -216,7 +216,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {"state": run_state},
@@ -242,7 +242,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -273,7 +273,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -330,7 +330,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -411,7 +411,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
+                        MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -447,8 +447,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
-                        MlrunInternalLabels.workflow: workflow_uid,
+                        MLRunInternalLabels.kind: "job",
+                        MLRunInternalLabels.workflow: workflow_uid,
                     },
                 },
                 "status": {
@@ -487,8 +487,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "uid": run_uid,
                     "iter": iter,
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
-                        MlrunInternalLabels.workflow: workflow_uid,
+                        MLRunInternalLabels.kind: "job",
+                        MLRunInternalLabels.workflow: workflow_uid,
                     },
                 },
                 "status": {
@@ -572,8 +572,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "labels": {
-                        MlrunInternalLabels.kind: "job",
-                        MlrunInternalLabels.workflow: workflow_uid,
+                        MLRunInternalLabels.kind: "job",
+                        MLRunInternalLabels.workflow: workflow_uid,
                     },
                 },
             },
@@ -598,7 +598,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         i = 0
         while len(artifacts) < artifacts_len:
             artifact = {
-                MlrunInternalLabels.kind: "artifact",
+                MLRunInternalLabels.kind: "artifact",
                 "metadata": {
                     "key": f"{key_prefix}{i}",
                     "tree": workflow_uid or run_uid,

@@ -21,7 +21,7 @@ import git
 import pytest
 
 import mlrun.runtimes.utils
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 
 
 @pytest.fixture
@@ -76,35 +76,35 @@ def test_add_code_metadata_stale_remote(repo):
             {},
             None,
             {
-                MlrunInternalLabels.owner: MlrunInternalLabels.v3io_user,
-                MlrunInternalLabels.v3io_user: MlrunInternalLabels.v3io_user,
+                MLRunInternalLabels.owner: MLRunInternalLabels.v3io_user,
+                MLRunInternalLabels.v3io_user: MLRunInternalLabels.v3io_user,
             },
             None,
         ),
         (
             {},
             {},
-            {MlrunInternalLabels.owner: "test_user"},
+            {MLRunInternalLabels.owner: "test_user"},
             {"LOGNAME": "test_user", "V3IO_USERNAME": ""},
         ),
         (
-            {MlrunInternalLabels.owner: "Mahatma"},
+            {MLRunInternalLabels.owner: "Mahatma"},
             {},
             {
-                MlrunInternalLabels.owner: "Mahatma",
-                MlrunInternalLabels.v3io_user: MlrunInternalLabels.v3io_user,
+                MLRunInternalLabels.owner: "Mahatma",
+                MLRunInternalLabels.v3io_user: MLRunInternalLabels.v3io_user,
             },
             None,
         ),
         (
             {
-                MlrunInternalLabels.owner: "Mahatma",
-                MlrunInternalLabels.v3io_user: "Gandhi",
+                MLRunInternalLabels.owner: "Mahatma",
+                MLRunInternalLabels.v3io_user: "Gandhi",
             },
             {},
             {
-                MlrunInternalLabels.owner: "Mahatma",
-                MlrunInternalLabels.v3io_user: "Gandhi",
+                MLRunInternalLabels.owner: "Mahatma",
+                MLRunInternalLabels.v3io_user: "Gandhi",
             },
             None,
         ),
@@ -114,7 +114,7 @@ def test_add_code_metadata_stale_remote(repo):
             {
                 "a": "A",
                 "b": "B",
-                MlrunInternalLabels.owner: MlrunInternalLabels.v3io_user,
+                MLRunInternalLabels.owner: MLRunInternalLabels.v3io_user,
             },
             None,
         ),
@@ -122,7 +122,7 @@ def test_add_code_metadata_stale_remote(repo):
 )
 def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_to_mock):
     env_vars_to_mock = env_vars_to_mock or {
-        "V3IO_USERNAME": MlrunInternalLabels.v3io_user,
+        "V3IO_USERNAME": MLRunInternalLabels.v3io_user,
     }
     with unittest.mock.patch.dict(
         os.environ,

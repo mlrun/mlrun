@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
@@ -61,7 +61,7 @@ def test_get_workflow_fail_fast(db: Session, client: TestClient):
         "metadata": {
             "name": "run-name",
             "labels": {
-                MlrunInternalLabels.job_type: "workflow-runner",
+                MLRunInternalLabels.job_type: "workflow-runner",
             },
         },
         "spec": {

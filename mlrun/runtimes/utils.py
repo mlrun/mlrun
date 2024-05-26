@@ -26,7 +26,7 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -370,10 +370,10 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
 
 
 def get_func_selector(project, name=None, tag=None):
-    s = [f"{MlrunInternalLabels.project}={project}"]
+    s = [f"{MLRunInternalLabels.project}={project}"]
     if name:
-        s.append(f"{MlrunInternalLabels.function}={name}")
-        s.append(f"{MlrunInternalLabels.tag}={tag or 'latest'}")
+        s.append(f"{MLRunInternalLabels.function}={name}")
+        s.append(f"{MLRunInternalLabels.tag}={tag or 'latest'}")
     return s
 
 

@@ -21,7 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 import server.api.utils.clients.log_collector
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 
 
 class BaseLogCollectorResponse:
@@ -94,7 +94,7 @@ class TestLogCollector:
     ):
         run_uid = "123"
         project_name = "some-project"
-        selector = f"{MlrunInternalLabels.project}={project_name},{MlrunInternalLabels.uid}={run_uid}"
+        selector = f"{MLRunInternalLabels.project}={project_name},{MLRunInternalLabels.uid}={run_uid}"
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
         log_collector._call = unittest.mock.AsyncMock(

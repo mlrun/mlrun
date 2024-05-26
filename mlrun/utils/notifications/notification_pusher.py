@@ -32,10 +32,10 @@ import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_process
 
-from ...common.constants import MlrunInternalLabels
 from .notification import NotificationBase, NotificationTypes
 
 
@@ -240,8 +240,8 @@ class NotificationPusher(_NotificationPusherBase):
         resource = "Run"
         runs = [run.to_dict()]
 
-        if MlrunInternalLabels.workflow in run.metadata.labels:
-            resource = MlrunInternalLabels.workflow
+        if MLRunInternalLabels.workflow in run.metadata.labels:
+            resource = MLRunInternalLabels.workflow
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )

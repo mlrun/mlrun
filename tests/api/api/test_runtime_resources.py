@@ -25,7 +25,7 @@ import server.api.api.endpoints.runtime_resources
 import server.api.crud
 import server.api.runtime_handlers
 import server.api.utils.auth.verifier
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 
 
 def test_list_runtimes_resources_opa_filtering(
@@ -510,10 +510,10 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
-                            MlrunInternalLabels.project: project_1,
+                            MLRunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
-                            MlrunInternalLabels.uid: project_1_job_name,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
+                            MLRunInternalLabels.uid: project_1_job_name,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -526,8 +526,8 @@ def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=no_project_builder_name,
                         labels={
-                            MlrunInternalLabels.mlrun_class: "build",
-                            "mlrun/task-name": "some-task-name",
+                            MLRunInternalLabels.mlrun_class: "build",
+                            MLRunInternalLabels.task_name: "some-task-name",
                         },
                     )
                 ],
@@ -558,10 +558,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_1_job_name,
                         labels={
-                            MlrunInternalLabels.project: project_1,
+                            MLRunInternalLabels.project: project_1,
                             # using name as uid to make assertions easier later
-                            MlrunInternalLabels.uid: project_1_job_name,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
+                            MLRunInternalLabels.uid: project_1_job_name,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -574,10 +574,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
-                            MlrunInternalLabels.project: project_2,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
+                            MLRunInternalLabels.project: project_2,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
                             # no uid cause it's dask
-                            MlrunInternalLabels.function: project_2_dask_name,
+                            MLRunInternalLabels.function: project_2_dask_name,
                         },
                     )
                 ],
@@ -586,10 +586,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_dask_name,
                         labels={
-                            MlrunInternalLabels.project: project_2,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
+                            MLRunInternalLabels.project: project_2,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.dask,
                             # no uid cause it's dask
-                            MlrunInternalLabels.function: project_2_dask_name,
+                            MLRunInternalLabels.function: project_2_dask_name,
                         },
                     )
                 ],
@@ -599,10 +599,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_2_job_name,
                         labels={
-                            MlrunInternalLabels.project: project_2,
+                            MLRunInternalLabels.project: project_2,
                             # using name as uid to make assertions easier later
-                            MlrunInternalLabels.uid: project_2_job_name,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
+                            MLRunInternalLabels.uid: project_2_job_name,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.job,
                         },
                     )
                 ],
@@ -616,10 +616,10 @@ def _generate_grouped_by_project_runtime_resources_output():
                     mlrun.common.schemas.RuntimeResource(
                         name=project_3_mpijob_name,
                         labels={
-                            MlrunInternalLabels.project: project_3,
+                            MLRunInternalLabels.project: project_3,
                             # using name as uid to make assertions easier later
-                            MlrunInternalLabels.uid: project_3_mpijob_name,
-                            MlrunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.mpijob,
+                            MLRunInternalLabels.uid: project_3_mpijob_name,
+                            MLRunInternalLabels.mlrun_class: mlrun.runtimes.RuntimeKinds.mpijob,
                         },
                     )
                 ],

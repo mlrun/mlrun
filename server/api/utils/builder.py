@@ -31,7 +31,7 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
@@ -534,9 +534,9 @@ def build_image(
         registry=registry,
         extra_args=extra_args,
         extra_labels={
-            MlrunInternalLabels.name: name,
-            MlrunInternalLabels.function: runtime.metadata.name,
-            MlrunInternalLabels.tag: runtime.metadata.tag or "latest",
+            MLRunInternalLabels.name: name,
+            MLRunInternalLabels.function: runtime.metadata.name,
+            MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
     )
 

@@ -23,11 +23,11 @@ from nuclio.auth import AuthKinds as NuclioAuthKinds
 import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.types
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
-from ...common.constants import MlrunInternalLabels
 from .function import get_fullname, min_nuclio_versions
 
 
@@ -526,7 +526,7 @@ class APIGateway(ModelObj):
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(
-            MlrunInternalLabels.nuclio_project_name
+            MLRunInternalLabels.nuclio_project_name
         )
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (

@@ -17,7 +17,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.runtimes import RuntimeKinds
 from server.api.runtime_handlers import get_runtime_handler
@@ -34,13 +34,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         # initializing them here to save space in tests
         scheduler_pod_labels = {
             "app": "dask",
-            MlrunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
-            MlrunInternalLabels.dask_component: "scheduler",
-            MlrunInternalLabels.mlrun_class: "dask",
-            MlrunInternalLabels.function: "mydask",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.scrape_metrics: "False",
-            MlrunInternalLabels.tag: "latest",
+            MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            MLRunInternalLabels.dask_component: "scheduler",
+            MLRunInternalLabels.mlrun_class: "dask",
+            MLRunInternalLabels.function: "mydask",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.scrape_metrics: "False",
+            MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
         scheduler_pod_name = "mlrun-mydask-d7656bc1-0n4z9z"
@@ -58,13 +58,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
         worker_pod_labels = {
             "app": "dask",
-            MlrunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
-            MlrunInternalLabels.dask_component: "worker",
-            MlrunInternalLabels.mlrun_class: "dask",
-            MlrunInternalLabels.function: "mydask",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.scrape_metrics: "False",
-            MlrunInternalLabels.tag: "latest",
+            MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            MLRunInternalLabels.dask_component: "worker",
+            MLRunInternalLabels.mlrun_class: "dask",
+            MLRunInternalLabels.function: "mydask",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.scrape_metrics: "False",
+            MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
         worker_pod_name = "mlrun-mydask-d7656bc1-0pqbnc"
@@ -83,13 +83,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         service_name = "mlrun-mydask-d7656bc1-0"
         service_labels = {
             "app": "dask",
-            MlrunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
-            MlrunInternalLabels.dask_component: "scheduler",
-            MlrunInternalLabels.mlrun_class: "dask",
-            MlrunInternalLabels.function: "mydask",
-            MlrunInternalLabels.project: self.project,
-            MlrunInternalLabels.scrape_metrics: "False",
-            MlrunInternalLabels.tag: "latest",
+            MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            MLRunInternalLabels.dask_component: "scheduler",
+            MLRunInternalLabels.mlrun_class: "dask",
+            MLRunInternalLabels.function: "mydask",
+            MLRunInternalLabels.project: self.project,
+            MLRunInternalLabels.scrape_metrics: "False",
+            MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
 
@@ -158,7 +158,7 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_delete_namespaced_services(
             [
                 self.completed_scheduler_pod.metadata.labels.get(
-                    MlrunInternalLabels.dask_cluster_name
+                    MLRunInternalLabels.dask_cluster_name
                 )
             ],
             self.completed_scheduler_pod.metadata.namespace,

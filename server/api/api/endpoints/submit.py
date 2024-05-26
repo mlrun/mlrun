@@ -26,7 +26,7 @@ import server.api.api.utils
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 from server.api.api import deps
 
@@ -116,21 +116,21 @@ async def submit_job(
         # if task is missing, we don't want to create one
         if "task" in data:
             labels = data["task"].setdefault("metadata", {}).setdefault("labels", {})
-            labels.setdefault(MlrunInternalLabels.v3io_user, username)
-            labels.setdefault(MlrunInternalLabels.owner, username)
+            labels.setdefault(MLRunInternalLabels.v3io_user, username)
+            labels.setdefault(MLRunInternalLabels.owner, username)
 
     client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
-        MlrunInternalLabels.client_version
+        MLRunInternalLabels.client_version
     )
     client_python_version = client_python_version or data["task"]["metadata"].get(
         "labels", {}
-    ).get(MlrunInternalLabels.client_python_version)
+    ).get(MLRunInternalLabels.client_python_version)
     if client_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {MlrunInternalLabels.client_version: client_version}
+            {MLRunInternalLabels.client_version: client_version}
         )
     if client_python_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {MlrunInternalLabels.client_python_version: client_python_version}
+            {MLRunInternalLabels.client_python_version: client_python_version}
         )
     return await server.api.api.utils.submit_run(db_session, auth_info, data)

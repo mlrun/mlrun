@@ -20,7 +20,7 @@ from packaging.version import parse as parse_version
 
 import mlrun
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 from server.api.runtime_handlers import BaseRuntimeHandler
@@ -59,10 +59,10 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         pod_spec = func_to_pod(
             runtime.full_image_path(
                 client_version=run.metadata.labels.get(
-                    MlrunInternalLabels.client_version
+                    MLRunInternalLabels.client_version
                 ),
                 client_python_version=run.metadata.labels.get(
-                    MlrunInternalLabels.client_python_version
+                    MLRunInternalLabels.client_python_version
                 ),
             ),
             runtime,
@@ -187,7 +187,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"{MlrunInternalLabels.uid}={object_id}"
+        return f"{MLRunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_lifecycle():

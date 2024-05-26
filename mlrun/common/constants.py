@@ -26,7 +26,7 @@ DASK_LABEL_PREFIX = "dask.org/"
 NUCLIO_LABEL_PREFIX = "nuclio.io/"
 
 
-class MlrunInternalLabels:
+class MLRunInternalLabels:
     ### dask
     dask_cluster_name = f"{DASK_LABEL_PREFIX}cluster-name"
     dask_component = f"{DASK_LABEL_PREFIX}component"
@@ -61,6 +61,7 @@ class MlrunInternalLabels:
     uid = f"{MLRUN_LABEL_PREFIX}uid"
     username = f"{MLRUN_LABEL_PREFIX}username"
     username_domain = f"{MLRUN_LABEL_PREFIX}username_domain"
+    task_name = f"{MLRUN_LABEL_PREFIX}task-name"
     host = "host"
     job_type = "job-type"
     kind = "kind"

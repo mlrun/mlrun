@@ -42,7 +42,7 @@ import mlrun.launcher.factory
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.common.constants import MlrunInternalLabels
+from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
@@ -436,7 +436,7 @@ class RunDBMock:
         project: str,
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
-        api_gateway.metadata.labels = {MlrunInternalLabels.nuclio_project_name: project}
+        api_gateway.metadata.labels = {MLRunInternalLabels.nuclio_project_name: project}
         self._api_gateways[key] = api_gateway
         return api_gateway
 

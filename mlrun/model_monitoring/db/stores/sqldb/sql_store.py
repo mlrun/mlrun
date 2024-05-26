@@ -158,21 +158,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 return
 
     def _delete(
-        self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values
-    ):
+        self,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        criteria: list[BinaryExpression],
+    ) -> None:
         """
         Delete records from the SQL table.
 
-        param table: SQLAlchemy declarative table.
+        param table:     SQLAlchemy declarative table.
+        :param criteria: A list of binary expressions that filter the query.
         """
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
-            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).delete(
-                synchronize_session=False
-            )
+            session.query(
+                table  # pyright: ignore[reportOptionalCall]
+            ).filter(*criteria).delete(synchronize_session=False)
             session.commit()
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
@@ -211,17 +211,18 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             criteria=[self.ModelEndpointsTable.uid == endpoint_id],
         )
 
-    def delete_model_endpoint(self, endpoint_id: str):
+    def delete_model_endpoint(self, endpoint_id: str) -> None:
         """
         Deletes the SQL record of a given model endpoint id.
 
         :param endpoint_id: The unique id of the model endpoint.
         """
         self._init_model_endpoints_table()
-
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
         # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.ModelEndpointsTable, **filter_endpoint)
+        self._delete(
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+        )
 
     def get_model_endpoint(
         self,
@@ -470,27 +471,33 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             criteria=criteria,
         )
 
-    def _delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):
+    def _delete_last_analyzed(
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_monitoring_schedules_table()
-
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
-
+        criteria: list[BinaryExpression] = [
+            self.MonitoringSchedulesTable.endpoint_id == endpoint_id
+        ]
+        if application_name is not None:
+            criteria.append(
+                self.MonitoringSchedulesTable.application_name == application_name
+            )
         # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.MonitoringSchedulesTable, **application_filter_dict)
+        self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
     def _delete_application_result(
-        self, endpoint_id: str = "", application_name: str = ""
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
     ):
         self._init_application_results_table()
-
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
-
+        criteria: list[BinaryExpression] = [
+            self.MonitoringSchedulesTable.endpoint_id == endpoint_id
+        ]
+        if application_name is not None:
+            criteria.append(
+                self.MonitoringSchedulesTable.application_name == application_name
+            )
         # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.ApplicationResultsTable, **application_filter_dict)
+        self._delete(table=self.ApplicationResultsTable, criteria=criteria)
 
     def _create_tables_if_not_exist(self):
         self._init_tables()

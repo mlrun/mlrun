@@ -17,6 +17,7 @@ from typing import Optional, Union
 import pandas as pd
 import requests
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
 import mlrun.db
 import mlrun.errors
@@ -26,7 +27,6 @@ import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.utils.clones
 import mlrun.utils.notifications
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 
 
@@ -103,10 +103,10 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
 
         if (
             "V3IO_USERNAME" in os.environ
-            and MLRunInternalLabels.v3io_user not in run.metadata.labels
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
         ):
-            run.metadata.labels[MLRunInternalLabels.v3io_user] = os.environ.get(
-                "V3IO_USERNAME"
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
             )
 
         logger.info(

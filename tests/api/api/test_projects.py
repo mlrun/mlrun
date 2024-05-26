@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -46,7 +47,6 @@ import server.api.utils.singletons.project_member
 import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
-from mlrun.common.constants import MLRunInternalLabels
 from server.api.db.sqldb.models import (
     ArtifactV2,
     Entity,
@@ -1288,7 +1288,7 @@ def _create_resources_of_all_kinds(
 
     # Create several feature sets with several tags
     labels = {
-        MLRunInternalLabels.owner: "nobody",
+        mlrun_constants.MLRunInternalLabels.owner: "nobody",
     }
     feature_set = mlrun.common.schemas.FeatureSet(
         metadata=mlrun.common.schemas.ObjectMetadata(
@@ -1758,7 +1758,7 @@ def _create_schedules(client: TestClient, project_name):
             client,
             project_name,
             mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-            {MLRunInternalLabels.workflow: "workflow"},
+            {mlrun_constants.MLRunInternalLabels.workflow: "workflow"},
         )
     return (
         schedules_count

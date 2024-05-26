@@ -16,12 +16,12 @@ from typing import Optional
 
 import IPython
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 
 
@@ -70,13 +70,16 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def _store_function(
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
-        run.metadata.labels[MLRunInternalLabels.kind] = runtime.kind
+        run.metadata.labels[
+            mlrun_constants.mlrun_constants.MLRunInternalLabels.kind
+        ] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels[MLRunInternalLabels.owner]
+                "{{run.user}}",
+                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
             )
         db = runtime._get_db()
         if db and runtime.kind != "handler":

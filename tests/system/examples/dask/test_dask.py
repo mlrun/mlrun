@@ -21,6 +21,7 @@ import pytest
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.mounts import mount_v3io
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.utils
 from mlrun import (
     _run_pipeline,
@@ -28,7 +29,6 @@ from mlrun import (
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.common.constants import MLRunInternalLabels
 from tests.system.base import TestMLRunSystem
 
 
@@ -63,8 +63,12 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
-                MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
             },
         )
         self._verify_run_spec(
@@ -114,8 +118,12 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                MLRunInternalLabels.v3io_user: self._test_env["V3IO_USERNAME"],
-                MLRunInternalLabels.owner: self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
             },
         )
         self._verify_run_spec(

@@ -15,7 +15,7 @@
 import enum
 import typing
 
-from mlrun.common.constants import MLRunInternalLabels
+import mlrun.common.constants as mlrun_constants
 
 
 class PodPhases:
@@ -124,8 +124,8 @@ class MPIJobCRDVersions:
     @staticmethod
     def role_label_by_version(version):
         return {
-            MPIJobCRDVersions.v1alpha1: MLRunInternalLabels.mpi_role_type,
-            MPIJobCRDVersions.v1: MLRunInternalLabels.mpi_job_role,
+            MPIJobCRDVersions.v1alpha1: mlrun_constants.MLRunInternalLabels.mpi_role_type,
+            MPIJobCRDVersions.v1: mlrun_constants.MLRunInternalLabels.mpi_job_role,
         }[version]
 
 
@@ -196,8 +196,8 @@ class RunStates:
 
 # TODO: remove this class in 1.9.0 - use only MlrunInternalLabels
 class RunLabels(enum.Enum):
-    owner = MLRunInternalLabels.owner
-    v3io_user = MLRunInternalLabels.v3io_user
+    owner = mlrun_constants.MLRunInternalLabels.owner
+    v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user
 
     @staticmethod
     def all():

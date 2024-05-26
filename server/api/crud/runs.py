@@ -20,6 +20,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
@@ -35,7 +36,6 @@ import server.api.runtime_handlers
 import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger
 
 
@@ -131,7 +131,9 @@ class Runs(
         # The client may be using them as in pipeline as input for the next step
         producer_uri = None
         producer_id = (
-            run["metadata"].get("labels", {}).get(MLRunInternalLabels.workflow)
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.workflow)
         )
         if not producer_id:
             producer_id = uid
@@ -298,7 +300,7 @@ class Runs(
                     server.api.utils.singletons.db.get_db(),
                     db_session,
                     object_id=uid,
-                    label_selector=f"{MLRunInternalLabels.project}={project}",
+                    label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
                     force=True,
                 )
 
@@ -457,7 +459,7 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"{MLRunInternalLabels.project}={project},{MLRunInternalLabels.uid}={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )
 
@@ -523,6 +525,6 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"{MLRunInternalLabels.project}={project},{MLRunInternalLabels.uid}={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )

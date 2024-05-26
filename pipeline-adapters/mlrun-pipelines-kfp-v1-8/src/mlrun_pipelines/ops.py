@@ -27,8 +27,8 @@ from mlrun_pipelines.common.helpers import (
 from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.utils import get_in
 
@@ -210,13 +210,20 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
 
 
 def add_labels(cop, function, scrape_metrics=False):
-    cop.add_pod_label(MLRunInternalLabels.mlrun_class, function.kind)
-    cop.add_pod_label(MLRunInternalLabels.function, function.metadata.name)
-    cop.add_pod_label(MLRunInternalLabels.name, cop.human_name)
-    cop.add_pod_label(MLRunInternalLabels.project, function.metadata.project)
-    cop.add_pod_label(MLRunInternalLabels.tag, function.metadata.tag or "latest")
+    cop.add_pod_label(mlrun_constants.MLRunInternalLabels.mlrun_class, function.kind)
     cop.add_pod_label(
-        MLRunInternalLabels.scrape_metrics, "True" if scrape_metrics else "False"
+        mlrun_constants.MLRunInternalLabels.function, function.metadata.name
+    )
+    cop.add_pod_label(mlrun_constants.MLRunInternalLabels.name, cop.human_name)
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.project, function.metadata.project
+    )
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.tag, function.metadata.tag or "latest"
+    )
+    cop.add_pod_label(
+        mlrun_constants.MLRunInternalLabels.scrape_metrics,
+        "True" if scrape_metrics else "False",
     )
 
 

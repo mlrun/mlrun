@@ -20,10 +20,10 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.runtime_handlers.mpijob
 import server.api.utils.helpers
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 from server.api.runtime_handlers import get_runtime_handler
@@ -61,17 +61,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.launcher_pod_labels = {
             "group-name": "kubeflow.org",
-            MLRunInternalLabels.mlrun_class: "mpijob",
-            MLRunInternalLabels.function: "trainer",
-            MLRunInternalLabels.job: "trainer-1b019005",
-            MLRunInternalLabels.name: "trainer",
-            MLRunInternalLabels.mlrun_owner: "iguazio",
-            MLRunInternalLabels.project: self.project,
-            MLRunInternalLabels.scrape_metrics: "True",
-            MLRunInternalLabels.tag: "latest",
-            MLRunInternalLabels.uid: self.run_uid,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "mpijob",
+            mlrun_constants.MLRunInternalLabels.function: "trainer",
+            mlrun_constants.MLRunInternalLabels.job: "trainer-1b019005",
+            mlrun_constants.MLRunInternalLabels.name: "trainer",
+            mlrun_constants.MLRunInternalLabels.mlrun_owner: "iguazio",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "True",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
+            mlrun_constants.MLRunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            MLRunInternalLabels.mpi_job_role: "launcher",
+            mlrun_constants.MLRunInternalLabels.mpi_job_role: "launcher",
         }
         launcher_pod_name = "trainer-1b019005-launcher"
 
@@ -83,17 +83,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.worker_pod_labels = {
             "group-name": "kubeflow.org",
-            MLRunInternalLabels.mlrun_class: "mpijob",
-            MLRunInternalLabels.function: "trainer",
-            MLRunInternalLabels.job: "trainer-1b019005",
-            MLRunInternalLabels.name: "trainer",
-            MLRunInternalLabels.mlrun_owner: "iguazio",
-            MLRunInternalLabels.project: self.project,
-            MLRunInternalLabels.schedule_name: "True",
-            MLRunInternalLabels.tag: "latest",
-            MLRunInternalLabels.uid: self.run_uid,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "mpijob",
+            mlrun_constants.MLRunInternalLabels.function: "trainer",
+            mlrun_constants.MLRunInternalLabels.job: "trainer-1b019005",
+            mlrun_constants.MLRunInternalLabels.name: "trainer",
+            mlrun_constants.MLRunInternalLabels.mlrun_owner: "iguazio",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.schedule_name: "True",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
+            mlrun_constants.MLRunInternalLabels.uid: self.run_uid,
             "mpi-job-name": "trainer-1b019005",
-            MLRunInternalLabels.mpi_job_role: "worker",
+            mlrun_constants.MLRunInternalLabels.mpi_job_role: "worker",
         }
         worker_pod_name = "trainer-1b019005-worker-0"
 
@@ -461,7 +461,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         launcher_pod_image_pull_backoff = self._generate_pod(
             "launcher",
             self._generate_job_labels(
-                image_pull_backoff_job["metadata"]["labels"][MLRunInternalLabels.name],
+                image_pull_backoff_job["metadata"]["labels"][
+                    mlrun_constants.MLRunInternalLabels.name
+                ],
                 uid=image_pull_backoff_job_uid,
                 job_labels=self.launcher_pod_labels,
             ),
@@ -479,7 +481,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             worker_pod = self._generate_pod(
                 f"worker-{name}",
                 self._generate_job_labels(
-                    job["metadata"]["labels"][MLRunInternalLabels.name],
+                    job["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.name],
                     uid=uid,
                     job_labels=self.worker_pod_labels,
                 ),
@@ -488,7 +490,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             launcher_pod = self._generate_pod(
                 f"launcher-{name}",
                 self._generate_job_labels(
-                    job["metadata"]["labels"][MLRunInternalLabels.name],
+                    job["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.name],
                     uid=uid,
                     job_labels=self.launcher_pod_labels,
                 ),
@@ -636,7 +638,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
-            f"{MLRunInternalLabels.uid}={pending_scheduled_stale_uid}",
+            f"{mlrun_constants.MLRunInternalLabels.uid}={pending_scheduled_stale_uid}",
         )
         assert len(stale_runs) == 1
 
@@ -666,9 +668,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
             runtime_handler
         )
-        return (
-            f"{logger_pods_label_selector},{MLRunInternalLabels.mpi_job_role}=launcher"
-        )
+        return f"{logger_pods_label_selector},{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher"
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):
@@ -677,13 +677,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 "name": "train-eaf63df8",
                 "namespace": get_k8s_helper().resolve_namespace(),
                 "labels": {
-                    MLRunInternalLabels.mlrun_class: "mpijob",
-                    MLRunInternalLabels.function: "trainer",
-                    MLRunInternalLabels.name: "train",
-                    MLRunInternalLabels.project: project,
-                    MLRunInternalLabels.scrape_metrics: "False",
-                    MLRunInternalLabels.tag: "latest",
-                    MLRunInternalLabels.uid: uid,
+                    mlrun_constants.MLRunInternalLabels.mlrun_class: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.function: "trainer",
+                    mlrun_constants.MLRunInternalLabels.name: "train",
+                    mlrun_constants.MLRunInternalLabels.project: project,
+                    mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+                    mlrun_constants.MLRunInternalLabels.tag: "latest",
+                    mlrun_constants.MLRunInternalLabels.uid: uid,
                 },
             },
         }

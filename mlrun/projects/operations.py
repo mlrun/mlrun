@@ -18,9 +18,9 @@ from typing import Optional, Union
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.utils import hub_prefix
 
-from ..common.constants import MLRunInternalLabels
 from .pipelines import enrich_function_object, pipeline_context
 
 
@@ -191,7 +191,7 @@ def run_function(
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels[MLRunInternalLabels.workflow] = (
+            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
                 pipeline_context.workflow_id
             )
         if function.kind == "local":

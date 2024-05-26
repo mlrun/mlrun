@@ -21,12 +21,12 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -43,13 +43,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.wait_for_deletion_interval = 0
 
         self.job_labels = {
-            MLRunInternalLabels.mlrun_class: self._get_class_name(),
-            MLRunInternalLabels.function: "my-trainer",
-            MLRunInternalLabels.name: "my-training",
-            MLRunInternalLabels.project: self.project,
-            MLRunInternalLabels.scrape_metrics: "False",
-            MLRunInternalLabels.tag: "latest",
-            MLRunInternalLabels.uid: self.run_uid,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: self._get_class_name(),
+            mlrun_constants.MLRunInternalLabels.function: "my-trainer",
+            mlrun_constants.MLRunInternalLabels.name: "my-training",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
+            mlrun_constants.MLRunInternalLabels.uid: self.run_uid,
         }
         job_pod_name = "my-training-j7dtf"
 
@@ -68,8 +68,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         builder_legacy_labels = {
-            MLRunInternalLabels.mlrun_class: "build",
-            MLRunInternalLabels.task_name: "mlrun-build-hedi-simple-func-legacy",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "build",
+            mlrun_constants.MLRunInternalLabels.task_name: "mlrun-build-hedi-simple-func-legacy",
         }
         builder_legacy_pod_name = "mlrun-build-hedi-simple-legacy-func-8qwrd"
         self.completed_legacy_builder_pod = self._generate_pod(
@@ -584,7 +584,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled", job_labels=self.job_labels
         )
         pending_scheduled_pod = self._generate_pod(
-            pending_scheduled_labels[MLRunInternalLabels.name],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.name],
             pending_scheduled_labels,
             PodPhases.pending,
         )
@@ -600,8 +600,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            pending_scheduled_labels[MLRunInternalLabels.name],
-            pending_scheduled_labels[MLRunInternalLabels.uid],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.name],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod.status.start_time,
         )
 
@@ -609,7 +609,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
-            pending_scheduled_new_labels[MLRunInternalLabels.name],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.name],
             pending_scheduled_new_labels,
             PodPhases.pending,
         )
@@ -618,8 +618,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._store_run(
             db,
-            pending_scheduled_new_labels[MLRunInternalLabels.name],
-            pending_scheduled_new_labels[MLRunInternalLabels.uid],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.name],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
@@ -627,7 +627,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "running_overtime", job_labels=self.job_labels
         )
         running_overtime_pod = self._generate_pod(
-            running_overtime_labels[MLRunInternalLabels.name],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.name],
             running_overtime_labels,
             PodPhases.running,
         )
@@ -638,8 +638,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            running_overtime_labels[MLRunInternalLabels.name],
-            running_overtime_labels[MLRunInternalLabels.uid],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.name],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=running_overtime_pod.status.start_time,
         )
 
@@ -647,7 +647,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "image_pull_backoff", job_labels=self.job_labels
         )
         image_pull_backoff_pod = self._generate_pod(
-            image_pull_backoff_labels[MLRunInternalLabels.name],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.name],
             image_pull_backoff_labels,
             PodPhases.pending,
         )
@@ -674,8 +674,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            image_pull_backoff_labels[MLRunInternalLabels.name],
-            image_pull_backoff_labels[MLRunInternalLabels.uid],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.name],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=image_pull_backoff_pod.status.start_time,
         )
 
@@ -695,9 +695,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_uids = [run["uid"] for run in stale_runs]
         expected_stale_run_uids = [
-            pending_scheduled_pod.metadata.labels[MLRunInternalLabels.uid],
-            running_overtime_pod.metadata.labels[MLRunInternalLabels.uid],
-            image_pull_backoff_pod.metadata.labels[MLRunInternalLabels.uid],
+            pending_scheduled_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
+            running_overtime_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
+            image_pull_backoff_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
         ]
         assert stale_run_uids == expected_stale_run_uids
 

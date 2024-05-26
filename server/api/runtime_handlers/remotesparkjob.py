@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.runtimes
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.runtimes.base import RuntimeClassMode
 from server.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
@@ -37,4 +37,4 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"{MLRunInternalLabels.uid}={object_id}"
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={object_id}"

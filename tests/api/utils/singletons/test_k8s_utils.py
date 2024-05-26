@@ -16,10 +16,10 @@ import unittest.mock
 
 import pytest
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MLRunInternalLabels
 
 
 @pytest.mark.parametrize(
@@ -27,8 +27,16 @@ from mlrun.common.constants import MLRunInternalLabels
     [
         ("job", "", ""),
         ("spark", "", "spark-role=driver"),
-        ("mpijob", "v1", f"{MLRunInternalLabels.mpi_job_role}=launcher"),
-        ("mpijob", "v1alpha1", f"{MLRunInternalLabels.mpi_role_type}=launcher"),
+        (
+            "mpijob",
+            "v1",
+            f"{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher",
+        ),
+        (
+            "mpijob",
+            "v1alpha1",
+            f"{mlrun_constants.MLRunInternalLabels.mpi_role_type}=launcher",
+        ),
     ],
 )
 def test_get_logger_pods_label_selector(
@@ -43,9 +51,9 @@ def test_get_logger_pods_label_selector(
     project = "test-project"
     namespace = "test-namespace"
     selector = (
-        f"{MLRunInternalLabels.mlrun_class},"
-        f"{MLRunInternalLabels.project}={project},"
-        f"{MLRunInternalLabels.uid}={uid}"
+        f"{mlrun_constants.MLRunInternalLabels.mlrun_class},"
+        f"{mlrun_constants.MLRunInternalLabels.project}={project},"
+        f"{mlrun_constants.MLRunInternalLabels.uid}={uid}"
     )
     if extra_selector:
         selector += f",{extra_selector}"

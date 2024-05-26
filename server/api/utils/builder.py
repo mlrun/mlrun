@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -31,7 +32,6 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
@@ -534,9 +534,9 @@ def build_image(
         registry=registry,
         extra_args=extra_args,
         extra_labels={
-            MLRunInternalLabels.name: name,
-            MLRunInternalLabels.function: runtime.metadata.name,
-            MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
+            mlrun_constants.MLRunInternalLabels.name: name,
+            mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
+            mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
     )
 

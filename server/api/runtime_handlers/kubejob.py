@@ -19,8 +19,8 @@ from kubernetes.client.rest import ApiException
 from packaging.version import parse as parse_version
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 from server.api.runtime_handlers import BaseRuntimeHandler
@@ -59,10 +59,10 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         pod_spec = func_to_pod(
             runtime.full_image_path(
                 client_version=run.metadata.labels.get(
-                    MLRunInternalLabels.client_version
+                    mlrun_constants.MLRunInternalLabels.client_version
                 ),
                 client_python_version=run.metadata.labels.get(
-                    MLRunInternalLabels.client_python_version
+                    mlrun_constants.MLRunInternalLabels.client_python_version
                 ),
             ),
             runtime,
@@ -187,7 +187,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"{MLRunInternalLabels.uid}={object_id}"
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_lifecycle():

@@ -25,6 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.projects.pipelines
 import server.api.api.deps
@@ -33,7 +34,6 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils.helpers import logger
 from server.api.api.utils import log_and_raise
@@ -187,20 +187,20 @@ async def submit_workflow(
     workflow_action = "schedule" if workflow_spec.schedule else "run"
     workflow_runner.metadata.labels.update(
         {
-            MLRunInternalLabels.job_type: "workflow-runner",
-            MLRunInternalLabels.workflow: sanitize_label_value(
+            mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
+            mlrun_constants.MLRunInternalLabels.workflow: sanitize_label_value(
                 workflow_request.spec.name
             ),
         }
     )
     if client_version is not None:
-        workflow_runner.metadata.labels[MLRunInternalLabels.client_version] = (
-            sanitize_label_value(client_version)
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_version
+        ] = sanitize_label_value(client_version)
     if client_python_version is not None:
-        workflow_runner.metadata.labels[MLRunInternalLabels.client_python_version] = (
-            sanitize_label_value(client_python_version)
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_python_version
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(

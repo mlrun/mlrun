@@ -22,13 +22,13 @@ import yaml
 from dateutil import parser
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
 from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
-from .common.constants import MLRunInternalLabels
 from .datastore import store_manager
 from .features import Feature
 from .model import HyperParamOptions
@@ -130,7 +130,9 @@ class MLClientCtx:
     @property
     def tag(self):
         """Run tag (uid or workflow id if exists)"""
-        return self._labels.get(MLRunInternalLabels.workflow) or self._uid
+        return (
+            self._labels.get(mlrun_constants.MLRunInternalLabels.workflow) or self._uid
+        )
 
     @property
     def state(self):
@@ -330,9 +332,9 @@ class MLClientCtx:
             "uri": uri,
             "owner": get_in(self._labels, "owner"),
         }
-        if MLRunInternalLabels.workflow in self._labels:
-            resp[MLRunInternalLabels.workflow] = self._labels[
-                MLRunInternalLabels.workflow
+        if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
+            resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[
+                mlrun_constants.MLRunInternalLabels.workflow
             ]
         return resp
 
@@ -399,7 +401,7 @@ class MLClientCtx:
                         self._set_input(k, v)
 
         if host and not is_api:
-            self.set_label(MLRunInternalLabels.host, host)
+            self.set_label(mlrun_constants.MLRunInternalLabels.host, host)
 
         start = get_in(attrs, "status.start_time")
         if start:
@@ -994,12 +996,14 @@ class MLClientCtx:
         # configuration:
         labels = self.labels
         if (
-            MLRunInternalLabels.host in labels
-            and labels.get(MLRunInternalLabels.kind, "job") == "mpijob"
+            mlrun_constants.MLRunInternalLabels.host in labels
+            and labels.get(mlrun_constants.MLRunInternalLabels.kind, "job") == "mpijob"
         ):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(labels[MLRunInternalLabels.host].rsplit("-", 1)[1])
+            rank = int(
+                labels[mlrun_constants.MLRunInternalLabels.host].rsplit("-", 1)[1]
+            )
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:

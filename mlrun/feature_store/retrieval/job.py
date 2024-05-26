@@ -15,7 +15,7 @@
 import uuid
 
 import mlrun
-from mlrun.common.constants import MLRunInternalLabels
+import mlrun.common.constants as mlrun_constants
 from mlrun.config import config as mlconf
 from mlrun.model import DataTargetBase, new_task
 from mlrun.runtimes.function_reference import FunctionReference
@@ -123,9 +123,9 @@ def run_merge_job(
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label(MLRunInternalLabels.job_type, "feature-merge").set_label(
-        MLRunInternalLabels.feature_vector, vector.uri
-    )
+    task.set_label(
+        mlrun_constants.MLRunInternalLabels.job_type, "feature-merge"
+    ).set_label(mlrun_constants.MLRunInternalLabels.feature_vector, vector.uri)
     task.metadata.uid = uuid.uuid4().hex
     vector.status.run_uri = task.metadata.uid
     vector.save()

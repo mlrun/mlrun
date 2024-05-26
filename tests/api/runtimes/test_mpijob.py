@@ -18,10 +18,10 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
@@ -78,10 +78,10 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    MLRunInternalLabels.kind: "mpijob",
-                    MLRunInternalLabels.owner: "tester",
-                    MLRunInternalLabels.v3io_user: "tester",
-                    "mpijob": f"v1/{MLRunInternalLabels.mpi_job_role}=worker",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=worker",
                 },
                 name=self.name,
             ),
@@ -92,10 +92,10 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    MLRunInternalLabels.kind: "mpijob",
-                    MLRunInternalLabels.owner: "tester",
-                    MLRunInternalLabels.v3io_user: "tester",
-                    "mpijob": f"v1/{MLRunInternalLabels.mpi_job_role}=launcher",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher",
                 },
                 name=self.name,
             ),

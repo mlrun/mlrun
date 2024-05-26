@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import tests.integration.sdk_api.base
-from mlrun.common.constants import MLRunInternalLabels
 
 
 class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -66,8 +66,8 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(runs) == 1
 
         # remove the host label
-        assert MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"][MLRunInternalLabels.host]
+        assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
         assert runs[0]["metadata"]["labels"] == {}
 
         ctx.set_label("label-key", "label-value")
@@ -76,12 +76,12 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"][MLRunInternalLabels.host]
+        assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
 
         # mock not logging worker
-        ctx.set_label(MLRunInternalLabels.host, "worker-1")
+        ctx.set_label(mlrun_constants.MLRunInternalLabels.host, "worker-1")
         ctx.set_label("kind", "mpijob")
         assert not ctx.is_logging_worker()
         ctx._update_run(commit=True)
@@ -91,6 +91,6 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"][MLRunInternalLabels.host]
+        assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}

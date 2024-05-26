@@ -18,7 +18,7 @@ from typing import Any, Union
 from tensorflow import keras
 
 import mlrun
-from mlrun.common.constants import MLRunInternalLabels
+import mlrun.common.constants as mlrun_constants
 
 from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
@@ -127,7 +127,7 @@ def apply_mlrun(
     # # Use horovod:
     if use_horovod is None:
         use_horovod = (
-            context.labels.get(MLRunInternalLabels.kind, "") == "mpijob"
+            context.labels.get(mlrun_constants.MLRunInternalLabels.kind, "") == "mpijob"
             if context is not None
             else False
         )

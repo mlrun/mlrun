@@ -14,8 +14,8 @@
 #
 import copy
 
+import mlrun.common.constants as mlrun_constants
 from mlrun import mlconf
-from mlrun.common.constants import MLRunInternalLabels
 
 
 def get_resource_labels(function, run=None, scrape_metrics=None):
@@ -27,25 +27,29 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
         run_uid = run.metadata.uid
         run_name = run.metadata.name
         run_project = run.metadata.project
-        run_owner = run.metadata.labels.get(MLRunInternalLabels.owner)
+        run_owner = run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner)
     labels = copy.deepcopy(function.metadata.labels)
-    labels[MLRunInternalLabels.mlrun_class] = function.kind
-    labels[MLRunInternalLabels.project] = run_project or function.metadata.project
-    labels[MLRunInternalLabels.function] = str(function.metadata.name)
-    labels[MLRunInternalLabels.tag] = str(function.metadata.tag or "latest")
-    labels[MLRunInternalLabels.scrape_metrics] = str(scrape_metrics)
+    labels[mlrun_constants.MLRunInternalLabels.mlrun_class] = function.kind
+    labels[mlrun_constants.MLRunInternalLabels.project] = (
+        run_project or function.metadata.project
+    )
+    labels[mlrun_constants.MLRunInternalLabels.function] = str(function.metadata.name)
+    labels[mlrun_constants.MLRunInternalLabels.tag] = str(
+        function.metadata.tag or "latest"
+    )
+    labels[mlrun_constants.MLRunInternalLabels.scrape_metrics] = str(scrape_metrics)
 
     if run_uid:
-        labels[MLRunInternalLabels.uid] = run_uid
+        labels[mlrun_constants.MLRunInternalLabels.uid] = run_uid
 
     if run_name:
-        labels[MLRunInternalLabels.name] = run_name
+        labels[mlrun_constants.MLRunInternalLabels.name] = run_name
 
     if run_owner:
-        labels[MLRunInternalLabels.mlrun_owner] = run_owner
+        labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] = run_owner
         if "@" in run_owner:
             run_owner, domain = run_owner.split("@")
-            labels[MLRunInternalLabels.mlrun_owner] = run_owner
-            labels[MLRunInternalLabels.owner_domain] = domain
+            labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] = run_owner
+            labels[mlrun_constants.MLRunInternalLabels.owner_domain] = domain
 
     return labels

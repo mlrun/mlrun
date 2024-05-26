@@ -24,6 +24,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
@@ -36,7 +37,6 @@ import server.api.common.runtime_handlers
 import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -238,7 +238,10 @@ class BaseRuntimeHandler(ABC):
 
         if project and project != "*":
             label_selector = ",".join(
-                [label_selector, f"{MLRunInternalLabels.project}={project}"]
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.project}={project}",
+                ]
             )
 
         label_selector = self._add_object_label_selector_if_needed(
@@ -1313,7 +1316,7 @@ class BaseRuntimeHandler(ABC):
             # If the run state thresholds are set, we need to check the pods
             pods = self._list_pods(
                 namespace,
-                label_selector=f"{MLRunInternalLabels.uid}={run['metadata']['uid']}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={run['metadata']['uid']}",
             )
             for pod in pods:
                 _, threshold_exceeded = self._apply_state_threshold(
@@ -1484,9 +1487,13 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        if MLRunInternalLabels.mlrun_class in resource.labels:
-            project = resource.labels.get(MLRunInternalLabels.project, "")
-            mlrun_class = resource.labels[MLRunInternalLabels.mlrun_class]
+        if mlrun_constants.MLRunInternalLabels.mlrun_class in resource.labels:
+            project = resource.labels.get(
+                mlrun_constants.MLRunInternalLabels.project, ""
+            )
+            mlrun_class = resource.labels[
+                mlrun_constants.MLRunInternalLabels.mlrun_class
+            ]
             kind = self._resolve_kind_from_class(mlrun_class)
             self._add_resource_to_grouped_by_field_resources_response(
                 project, kind, resources, resource_field_name, resource
@@ -1498,11 +1505,11 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        if MLRunInternalLabels.uid in resource.labels:
+        if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
             project = resource.labels.get(
-                MLRunInternalLabels.project, config.default_project
+                mlrun_constants.MLRunInternalLabels.project, config.default_project
             )
-            uid = resource.labels[MLRunInternalLabels.uid]
+            uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
             )
@@ -1547,7 +1554,10 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
-        return f"{MLRunInternalLabels.project}={project},{MLRunInternalLabels.uid}={run_uid}"
+        return (
+            f"{mlrun_constants.MLRunInternalLabels.project}={project},"
+            f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
+        )
 
     @staticmethod
     def _ensure_run_logs_collected(
@@ -1683,19 +1693,19 @@ class BaseRuntimeHandler(ABC):
         project = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
-            .get(MLRunInternalLabels.project)
+            .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
             project = config.default_project
         uid = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
-            .get(MLRunInternalLabels.uid)
+            .get(mlrun_constants.MLRunInternalLabels.uid)
         )
         name = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
-            .get(MLRunInternalLabels.name, "no-name")
+            .get(mlrun_constants.MLRunInternalLabels.name, "no-name")
         )
         return project, uid, name
 
@@ -1749,7 +1759,7 @@ class BaseRuntimeHandler(ABC):
         if unique:
             norm_name += uuid.uuid4().hex[:8]
             new_meta.name = norm_name
-            run.set_label(MLRunInternalLabels.job, norm_name)
+            run.set_label(mlrun_constants.MLRunInternalLabels.job, norm_name)
         else:
             new_meta.generate_name = norm_name
         return new_meta

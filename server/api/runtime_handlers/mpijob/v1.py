@@ -17,10 +17,10 @@ from datetime import datetime
 
 from kubernetes import client
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun import mlconf
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in
@@ -54,7 +54,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         meta: client.V1ObjectMeta,
     ) -> dict:
         pod_labels = copy.deepcopy(meta.labels)
-        pod_labels[MLRunInternalLabels.job] = meta.name
+        pod_labels[mlrun_constants.MLRunInternalLabels.job] = meta.name
 
         # Populate mpijob object
 
@@ -71,10 +71,10 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                     "image",
                     runtime.full_image_path(
                         client_version=run.metadata.labels.get(
-                            MLRunInternalLabels.client_version
+                            mlrun_constants.MLRunInternalLabels.client_version
                         ),
                         client_python_version=run.metadata.labels.get(
-                            MLRunInternalLabels.client_python_version
+                            mlrun_constants.MLRunInternalLabels.client_python_version
                         ),
                     ),
                 )
@@ -185,9 +185,9 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     @staticmethod
     def _generate_pods_selector(name: str, launcher: bool) -> str:
-        selector = f"{MLRunInternalLabels.mpi_job_name}={name}"
+        selector = f"{mlrun_constants.MLRunInternalLabels.mpi_job_name}={name}"
         if launcher:
-            selector += f",{MLRunInternalLabels.mpi_job_role}=launcher"
+            selector += f",{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher"
 
         return selector
 
@@ -274,7 +274,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"{MLRunInternalLabels.uid}={object_id}"
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_main_runtime_resource_label_selector() -> str:
@@ -283,7 +283,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
         :return: the label selector
         """
-        return f"{MLRunInternalLabels.mpi_job_role}=launcher"
+        return f"{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher"
 
     @staticmethod
     def _get_crd_info() -> tuple[str, str, str]:

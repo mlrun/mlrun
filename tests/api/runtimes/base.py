@@ -30,6 +30,7 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
@@ -38,7 +39,6 @@ import server.api.crud
 import server.api.utils.functions
 import tests.api.api.utils
 import tests.api.conftest
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
@@ -65,7 +65,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"
         self.artifact_path = "/tmp"
-        self.function_name_label = MLRunInternalLabels.name
+        self.function_name_label = mlrun_constants.MLRunInternalLabels.name
         self.code_filename = str(self.assets_path / "sample_function.py")
         self.requirements_file = str(self.assets_path / "requirements-test.txt")
 
@@ -450,10 +450,10 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
     def _assert_labels(self, labels: dict, expected_class_name):
         expected_labels = {
-            MLRunInternalLabels.mlrun_class: expected_class_name,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: expected_class_name,
             self.function_name_label: self.name,
-            MLRunInternalLabels.project: self.project,
-            MLRunInternalLabels.tag: "latest",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
         }
 
         for key in expected_labels:

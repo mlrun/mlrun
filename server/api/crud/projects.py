@@ -21,6 +21,7 @@ import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
@@ -32,7 +33,6 @@ import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
 import server.api.utils.singletons.scheduler
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.utils import logger, retry_until_successful
 from server.api.utils.singletons.k8s import get_k8s_helper
 
@@ -186,7 +186,7 @@ class Projects(
         # delete runtime resources
         server.api.crud.RuntimeResources().delete_runtime_resources(
             session,
-            label_selector=f"{MLRunInternalLabels.project}={name}",
+            label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
         )
         if mlrun.mlconf.resolve_kfp_url():
@@ -528,8 +528,8 @@ class Projects(
 
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                selector=f"{MLRunInternalLabels.nuclio_project_name}={project_name},"
-                f"{MLRunInternalLabels.nuclio_class}=function"
+                selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_project_name}={project_name},"
+                f"{mlrun_constants.MLRunInternalLabels.nuclio_class}=function"
             )
             if not project_function_pods:
                 logger.debug(

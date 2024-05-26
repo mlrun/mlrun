@@ -33,9 +33,9 @@ from sys import executable
 from nuclio import Event
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.lists import RunList
 
-from ..common.constants import MLRunInternalLabels
 from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..model import RunObject
@@ -258,7 +258,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels.get(MLRunInternalLabels.kind)
+            runobj.metadata.labels.get(mlrun_constants.MLRunInternalLabels.kind)
             == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):

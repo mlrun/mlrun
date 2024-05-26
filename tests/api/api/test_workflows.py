@@ -19,9 +19,9 @@ from http import HTTPStatus
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.crud
-from mlrun.common.constants import MLRunInternalLabels
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
@@ -61,7 +61,7 @@ def test_get_workflow_fail_fast(db: Session, client: TestClient):
         "metadata": {
             "name": "run-name",
             "labels": {
-                MLRunInternalLabels.job_type: "workflow-runner",
+                mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
             },
         },
         "spec": {

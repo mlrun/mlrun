@@ -27,9 +27,9 @@ from typing import Any, Optional, Union
 import pydantic.error_wrappers
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
 
-from .common.constants import MLRunInternalLabels
 from .utils import (
     dict_to_json,
     dict_to_yaml,
@@ -771,7 +771,10 @@ class RunMetadata(ModelObj):
     def is_workflow_runner(self):
         if not self.labels:
             return False
-        return self.labels.get(MLRunInternalLabels.job_type, "") == "workflow-runner"
+        return (
+            self.labels.get(mlrun_constants.MLRunInternalLabels.job_type, "")
+            == "workflow-runner"
+        )
 
 
 class HyperParamStrategies:

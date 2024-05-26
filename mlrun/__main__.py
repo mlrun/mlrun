@@ -31,8 +31,8 @@ from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-from mlrun.common.constants import MLRunInternalLabels
 from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
@@ -257,8 +257,10 @@ def run(
             runobj.metadata.labels[k] = v
 
     if workflow:
-        runobj.metadata.labels[MLRunInternalLabels.workflow] = workflow
-        runobj.metadata.labels[MLRunInternalLabels.runner_pod] = socket.gethostname()
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
+            socket.gethostname()
+        )
 
     if db:
         mlconf.dbpath = db

@@ -31,6 +31,8 @@ tests/project.yaml
 *venv*
 mlrun/utils/version/version.json
 tests/system/env.yml
+project.yaml
+
 # pyenv file for working with several python versions
 .python-version
 *.bak

@@ -364,8 +364,10 @@ class ParquetSource(BaseSourceDriver):
 
     @staticmethod
     def revert_list_filters_to_tuple(additional_filters):
-        ParquetSource.validate_additional_filters(additional_filters=additional_filters)
         tuple_filters = []
+        if not additional_filters:
+            return tuple_filters
+        ParquetSource.validate_additional_filters(additional_filters=additional_filters)
         for additional_filter in additional_filters:
             tuple_filters.append(tuple(additional_filter))
         return tuple_filters

@@ -1032,7 +1032,8 @@ def create_function(pkg_func: str, reload_modules: bool = False):
         # if the function appears in the modules list, we need to reload the code again because it may have changed
         if pkg_module_exists_in_modules:
             logger.warning(
-                "Reloading module - be aware that not all modules can be reloaded again"
+                "Reloading module. Not all associated modules can be reloaded, import them manually."
+                "Or, with Jupyter, restart the Python kernel."
             )
             try:
                 reload(pkg_module)

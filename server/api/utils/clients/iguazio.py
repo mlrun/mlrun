@@ -146,7 +146,7 @@ class Client(
             retry_on_exception=retry_on_exception,
             verbose=True,
         )
-        self._retry_on_post_session = self._session
+        self._retry_on_post_session = None
         if retry_on_exception:
             self._retry_on_post_session = mlrun.utils.HTTPSessionWithRetry(
                 retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
@@ -663,7 +663,7 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         http_session = self._session
-        if retry_on_post:
+        if retry_on_post and self._retry_on_post_session:
             http_session = self._retry_on_post_session
         response = http_session.request(
             method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs

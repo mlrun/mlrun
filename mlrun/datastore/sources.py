@@ -317,7 +317,9 @@ class ParquetSource(BaseSourceDriver):
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
+            print(f"additional_filters before format: {additional_filters}")
             additional_filters = self.revert_list_filters_to_tuple(additional_filters)
+            print(f"additional_filters after format: {additional_filters}")
             attributes["additional_filters"] = additional_filters
 
         super().__init__(
@@ -456,6 +458,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
+        additional_filters = self.revert_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

@@ -70,9 +70,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def _store_function(
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
-        run.metadata.labels[
-            mlrun_constants.MLRunInternalLabels.kind
-        ] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )

@@ -466,7 +466,7 @@ def format_summary_from_kfp_run(
             [
                 "metadata",
                 "labels",
-                mlrun.common.constants.mlrun_constants.MLRunInternalLabels.runner_pod,
+                mlrun.common.constants.MLRunInternalLabels.runner_pod,
             ],
         )
         if step and step in dag:
@@ -623,7 +623,7 @@ def get_kfp_outputs(artifacts, labels, project):
             target = target.replace("v3io:///", "http://v3io-webapi:8081/")
 
         user = labels.get(
-            mlrun.common.constants.mlrun_constants.MLRunInternalLabels.v3io_user, ""
+            mlrun.common.constants.MLRunInternalLabels.v3io_user, ""
         ) or os.environ.get("V3IO_USERNAME", "")
         if target.startswith("/User/"):
             user = user or "admin"

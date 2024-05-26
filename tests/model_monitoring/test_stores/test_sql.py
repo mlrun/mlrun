@@ -26,6 +26,7 @@ from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
     ("connection_string", "expected_table"),
     [
         (None, models.SQLiteApplicationResultTable),
+        ("sqlite://", models.SQLiteApplicationResultTable),
         (
             "mysql+pymysql://<username>:<password>@<host>/<dbname>",
             models.MySQLApplicationResultTable,

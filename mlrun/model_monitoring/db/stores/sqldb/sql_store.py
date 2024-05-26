@@ -132,26 +132,30 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             ).filter(*criteria).update(attributes, synchronize_session=False)
             session.commit()
 
-    def _get(self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values):
+    def _get(
+        self,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        criteria: list[BinaryExpression],
+    ):
         """
         Get a record from the SQL table.
 
-        param table: SQLAlchemy declarative table.
+        param table:     SQLAlchemy declarative table.
+        :param criteria: A list of binary expressions that filter the query.
         """
-
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
-        logger.debug("filter_query_", filter_query_=filter_query_)
         with create_session(dsn=self._sql_connection_string) as session:
             try:
-                q_filter = sqlalchemy.sql.text(*filter_query_)
                 logger.debug(
-                    "Querying the DB", table=table.__name__, filter=q_filter.text
+                    "Querying the DB",
+                    table=table.__name__,
+                    criteria=[str(criterion) for criterion in criteria],
                 )
-                query = session.query(table)
                 # Generate the get query
-                return query.filter(q_filter).one_or_none()
+                return (
+                    session.query(table)  # pyright: ignore[reportOptionalCall]
+                    .filter(*criteria)
+                    .one_or_none()
+                )
             except sqlalchemy.exc.ProgrammingError:
                 # Probably table doesn't exist, try to create tables
                 self._create_tables_if_not_exist()
@@ -239,9 +243,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_model_endpoints_table()
 
-        # Get the model endpoint record using sqlalchemy ORM
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
-        endpoint_record = self._get(table=self.ModelEndpointsTable, **filter_endpoint)
+        # Get the model endpoint record
+        endpoint_record = self._get(
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+        )
 
         if not endpoint_record:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -356,12 +362,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self._init_application_results_table()
 
         application_result_uid = self._generate_application_result_uid(event)
-        application_filter_dict = {
-            mm_schemas.EventFieldType.UID: application_result_uid
-        }
+        criteria = [self.ApplicationResultsTable.uid == application_result_uid]
 
         application_record = self._get(
-            table=self.ApplicationResultsTable, **application_filter_dict
+            table=self.ApplicationResultsTable, criteria=criteria
         )
         if application_record:
             self._convert_to_datetime(
@@ -374,20 +378,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
             # Update an existing application result
             self._update(
-                attributes=event,
-                table=self.ApplicationResultsTable,
-                criteria=[self.ApplicationResultsTable.uid == application_result_uid],
+                attributes=event, table=self.ApplicationResultsTable, criteria=criteria
             )
         else:
             # Write a new application result
-            event[mm_schemas.EventFieldType.UID] = application_filter_dict[
-                mm_schemas.EventFieldType.UID
-            ]
-
-            self._write(
-                table=mm_schemas.FileTargetKind.APP_RESULTS,
-                event=event,
-            )
+            event[mm_schemas.EventFieldType.UID] = application_result_uid
+            self._write(table=mm_schemas.FileTargetKind.APP_RESULTS, event=event)
 
     @staticmethod
     def _convert_to_datetime(event: dict[str, typing.Any], key: str) -> None:
@@ -414,14 +410,14 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         :return: Timestamp as a Unix time.
         :raise:  MLRunNotFoundError if last analyzed value is not found.
-
         """
         self._init_monitoring_schedules_table()
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
         monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, **application_filter_dict
+            table=self.MonitoringSchedulesTable,
+            criteria=[
+                self.MonitoringSchedulesTable.endpoint_id == endpoint_id,
+                self.MonitoringSchedulesTable.application_name == application_name,
+            ],
         )
         if not monitoring_schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -447,11 +443,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             self.MonitoringSchedulesTable.endpoint_id == endpoint_id,
             self.MonitoringSchedulesTable.application_name == application_name,
         ]
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
         monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, **application_filter_dict
+            table=self.MonitoringSchedulesTable, criteria=criteria
         )
         if not monitoring_schedule_record:
             # Add a new record with last analyzed value

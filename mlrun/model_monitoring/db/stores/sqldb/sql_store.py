@@ -21,6 +21,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
+from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -114,25 +115,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self,
         attributes: dict[str, typing.Any],
         table: sqlalchemy.orm.decl_api.DeclarativeMeta,
-        **filtered_values,
-    ):
+        criteria: list[BinaryExpression],
+    ) -> None:
         """
         Update a record in the SQL table.
 
         :param attributes:  Dictionary of attributes that will be used for update the record. Note that the keys
                             of the attributes dictionary should exist in the SQL table.
         :param table:       SQLAlchemy declarative table.
-
+        :param criteria:    A list of binary expressions that filter the query.
         """
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
-
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the update session query
-            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).update(
-                attributes, synchronize_session=False
-            )
+            session.query(
+                table  # pyright: ignore[reportOptionalCall]
+            ).filter(*criteria).update(attributes, synchronize_session=False)
             session.commit()
 
     def _get(self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values):
@@ -211,10 +208,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         attributes.pop(mm_schemas.EventFieldType.ENDPOINT_ID, None)
 
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
-
         self._update(
-            attributes=attributes, table=self.ModelEndpointsTable, **filter_endpoint
+            attributes=attributes,
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
         )
 
     def delete_model_endpoint(self, endpoint_id: str):
@@ -360,8 +357,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         self._init_application_results_table()
 
+        application_result_uid = self._generate_application_result_uid(event)
         application_filter_dict = {
-            mm_schemas.EventFieldType.UID: self._generate_application_result_uid(event)
+            mm_schemas.EventFieldType.UID: application_result_uid
         }
 
         application_record = self._get(
@@ -380,7 +378,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             self._update(
                 attributes=event,
                 table=self.ApplicationResultsTable,
-                **application_filter_dict,
+                criteria=[self.ApplicationResultsTable.uid == application_result_uid],
             )
         else:
             # Write a new application result
@@ -447,6 +445,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_monitoring_schedules_table()
 
+        criteria = [
+            self.MonitoringSchedulesTable.endpoint_id == endpoint_id,
+            self.MonitoringSchedulesTable.application_name == application_name,
+        ]
         application_filter_dict = self.filter_endpoint_and_application_name(
             endpoint_id=endpoint_id, application_name=application_name
         )
@@ -468,7 +470,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self._update(
             attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
             table=self.MonitoringSchedulesTable,
-            **application_filter_dict,
+            criteria=criteria,
         )
 
     def _delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):

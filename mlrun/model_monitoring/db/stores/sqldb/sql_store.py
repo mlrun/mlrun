@@ -29,7 +29,7 @@ import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
-from mlrun.utils import logger
+from mlrun.utils import datetime_now, logger
 
 
 class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -186,12 +186,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Adjust timestamps fields
         endpoint[mm_schemas.EventFieldType.FIRST_REQUEST] = (endpoint)[
             mm_schemas.EventFieldType.LAST_REQUEST
-        ] = mlrun.utils.datetime_now()
+        ] = datetime_now()
 
-        self._write(
-            table=mm_schemas.EventFieldType.MODEL_ENDPOINTS,
-            event=endpoint,
-        )
+        self._write(table=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint)
 
     def update_model_endpoint(
         self, endpoint_id: str, attributes: dict[str, typing.Any]

@@ -24,7 +24,12 @@ import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
+from mlrun.common.schemas.model_monitoring import (
+    FileTargetKind,
+    ProjectSecretKeys,
+    ResultData,
+    WriterEvent,
+)
 from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
 from mlrun.model_monitoring.writer import _AppResultEvent
 
@@ -102,7 +107,7 @@ class TestSQLStore:
 
     @staticmethod
     @pytest.fixture(autouse=True)
-    def init_sql_tables(new_sql_store: SQLStoreBase):
+    def init_sql_tables(new_sql_store: SQLStoreBase) -> None:
         new_sql_store._create_tables_if_not_exist()
 
     @classmethod
@@ -259,3 +264,27 @@ class TestSQLStore:
         )
 
         assert last_analyzed == epoch_time
+
+
+class TestMonitoringSchedules:
+    @staticmethod
+    @pytest.fixture
+    def in_mem_connection() -> str:
+        return "sqlite://"
+
+    @staticmethod
+    @pytest.fixture
+    def sqlite_store(
+        in_mem_connection: str, monkeypatch: pytest.MonkeyPatch
+    ) -> SQLStoreBase:
+        with monkeypatch.context() as mp_ctx:
+            mp_ctx.setenv(
+                ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
+            )
+            store = SQLStoreBase(project="tmp_proj")
+        store._create_tables_if_not_exist()
+        return store
+
+    @staticmethod
+    def test_has_schedules_table(sqlite_store: SQLStoreBase) -> None:
+        sqlite_store._engine.has_table(FileTargetKind.MONITORING_SCHEDULES)

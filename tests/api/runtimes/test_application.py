@@ -73,8 +73,7 @@ class TestApplicationRuntime(TestRuntimeBase):
             self._generate_runtime(self.runtime_kind)
         assert (
             str(exc.value)
-            == "'ApplicationRuntime.__init__' is supported since nuclio 1.13.1, "
-            "currently using nuclio 1.12.14, please upgrade."
+            == "'ApplicationRuntime.__init__' function requires Nuclio v1.13.1 or higher"
         )
 
     def _execute_run(self, runtime, **kwargs):

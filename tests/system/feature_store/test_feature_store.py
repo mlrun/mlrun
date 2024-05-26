@@ -4821,9 +4821,7 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_parquet_filters(self, engine, local):
-        config_parameters = (
-            {} if local else {"image": "tomermamia855/mlrun:parquetfilters"}
-        )
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)

@@ -568,24 +568,6 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return True
 
-    @staticmethod
-    def filter_endpoint_and_application_name(
-        endpoint_id: str, application_name: str
-    ) -> dict[str, str]:
-        """Generate a dictionary filter for endpoint id and application name"""
-        if not endpoint_id and not application_name:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Please provide a valid endpoint_id and/or application_name"
-            )
-        application_filter_dict = {}
-        if endpoint_id:
-            application_filter_dict[mm_schemas.SchedulingKeys.ENDPOINT_ID] = endpoint_id
-        if application_name:
-            application_filter_dict[mm_schemas.SchedulingKeys.APPLICATION_NAME] = (
-                application_name
-            )
-        return application_filter_dict
-
     def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources in both SQL and the time series DB.

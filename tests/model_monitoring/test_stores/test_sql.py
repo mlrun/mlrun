@@ -213,13 +213,15 @@ class TestSQLStore:
 
     @staticmethod
     def assert_application_record(event: _AppResultEvent, new_sql_store: SQLStoreBase):
-        application_filter_dict = new_sql_store.filter_endpoint_and_application_name(
-            endpoint_id=event[WriterEvent.ENDPOINT_ID],
-            application_name=event[WriterEvent.APPLICATION_NAME],
-        )
+        criteria = [
+            new_sql_store.ApplicationResultsTable.endpoint_id
+            == event[WriterEvent.ENDPOINT_ID],
+            new_sql_store.ApplicationResultsTable.application_name
+            == event[WriterEvent.APPLICATION_NAME],
+        ]
 
         application_record = new_sql_store._get(
-            table=new_sql_store.ApplicationResultsTable, **application_filter_dict
+            table=new_sql_store.ApplicationResultsTable, criteria=criteria
         )
 
         assert application_record.endpoint_id == event[WriterEvent.ENDPOINT_ID]

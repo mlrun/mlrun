@@ -16,35 +16,47 @@
 ## v1.6.3 (26 May 2024)
 
 ### Workflows
-| ID          |Description                                                               |
+| ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-3521,5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow). Tech Preview. |
 
+### Infrastructure
+
+| ID    |Description                                                                                         |
+|-------|-----------------------------------------------------------------------------------------------------|
+|ML-5739|MLRun now supports email-like username.
+
 ### Documentation
-| ID          |Description                                                               |
-|----------|---------------------------------------------------------------------------|
-|ML-4620   | Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for new model monitoring feature.|
-|NA        | New page describing {ref}`log-artifacts`.                                 |
-|NA        | New page describing {ref}`parallel-workflows`.                                 |
-|NA        | New page describing {ref}`conditional-workflow`.                                 |
-|NA        | New page describing {ref}`exithandler-workflow`.                                 |
+| ID     |Description                                                               |
+|-------|---------------------------------------------------------------------------|
+|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for new model monitoring feature.|
+|NA     | New page describing {ref}`log-artifacts`.                                 |
+|NA     | New page describing {ref}`parallel-workflows`.                                 |
+|NA     | New page describing {ref}`conditional-workflow`.                                 |
+|NA     | New page describing {ref}`exithandler-workflow`.                                 |
 
 ### Breaking change
 | ID          |Description                                                               |
-|----------|---------------------------------------------------------------------------|
+|-------|---------------------------------------------------------------------------|
 |ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
 
 ###  Closed issue
-| ID          |Description                                                               |
-|----------|---------------------------------------------------------------------------|
+| ID    |Description                                                               |
+|-------|---------------------------------------------------------------------------|
 |ML-5763|The log formatter options can now be changed by an env var.|
+|ML-5772|Resolved: "Projects" screen/counters may show "N/A" or "MySQL server has gone away" transient error.|
 |ML-5776|Concurrent request to project deletion now do not fail.|
+|ML-6000|Improved MLRun startup time on system with large number of runs.|
+|ML-6026|Remote workflows using a large image no longer time-out.|
 |ML-6045|UI: User-filters return all of the matching users.|
 |ML-6048|UI: An admin user can now change its role in the project. |  
 |ML-6051|UI: After an admin user deletes itself from a project, the user is redirected.|
+|ML-6188|If a workflow runner pod fails due to an application error, an immediate response returns the error (and not that the workflow does not exist).|
+|ML-6194|When running workflows with a remote engine, functions files are not synced instead they are loaded dynamically during runtime.|
+|ML-6317|Reduced MLRun memory consumption.|
 |ML-6384|Improved resource consumption of list runs with partitioning query |
 |ML-6397|Artifacts are no longer stored in the run body in the DB, instead a map of artifact keys to URIs is maintained.|
-
+|ML-6489|Resolved jobs transient failures with error 'ClientOSError(104, 'Connection reset by peer')'.|
 
 ## v1.6.2 (29 March 2024)
 
@@ -55,7 +67,7 @@
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
 |ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
-
+|ML-6194||
 
 
 ## v1.6.1 (29 February 2024)

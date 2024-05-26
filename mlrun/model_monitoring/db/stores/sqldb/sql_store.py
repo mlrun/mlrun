@@ -28,6 +28,7 @@ import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
+from mlrun.utils import logger
 
 
 class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -144,14 +145,16 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         filter_query_ = []
         for _filter in filtered_values:
             filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
+        logger.debug("filter_query_", filter_query_=filter_query_)
         with create_session(dsn=self._sql_connection_string) as session:
             try:
-                # Generate the get query
-                return (
-                    session.query(table)
-                    .filter(sqlalchemy.sql.text(*filter_query_))
-                    .one_or_none()
+                q_filter = sqlalchemy.sql.text(*filter_query_)
+                logger.debug(
+                    "Querying the DB", table=table.__name__, filter=q_filter.text
                 )
+                query = session.query(table)
+                # Generate the get query
+                return query.filter(q_filter).one_or_none()
             except sqlalchemy.exc.ProgrammingError:
                 # Probably table doesn't exist, try to create tables
                 self._create_tables_if_not_exist()

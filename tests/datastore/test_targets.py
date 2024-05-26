@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 
 import pandas as pd
@@ -111,3 +112,25 @@ def test_write_with_too_many_partitions():
         match="Maximum number of partitions exceeded. To resolve this.*",
     ):
         parquet_target.write_dataframe(df)
+
+
+def test_revert_list_filters_to_tuple():
+    #  Target-specific to test_revert_list_filters_to_tuple test, which checks all the cases.
+    def json_change(filters):
+        json_data = json.dumps(filters)
+        return json.loads(json_data)
+
+    additional_filters = [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]]
+    parquet_target = ParquetTarget("parquet_target", path="path/to/file")
+    after_json_change_filters = json_change(additional_filters)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="mlrun supports additional_filters only as a list of tuples.",
+    ):
+        parquet_target.as_df(additional_filters=additional_filters)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="mlrun supports additional_filters only as a list of tuples.",
+    ):
+        parquet_target.as_df(additional_filters=after_json_change_filters)

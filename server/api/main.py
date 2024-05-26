@@ -304,13 +304,13 @@ async def _verify_log_collection_started_on_startup(
                 # which might have reached terminal state while the API was down, and their runtime resources
                 # are not deleted
                 last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(
+                                      - datetime.timedelta(
                     seconds=min(
                         int(config.log_collector.api_downtime_grace_period),
                         int(config.runtime_resources_deletion_grace_period),
                     )
                 ),
-                states=mlrun.runtimes.constants.RunStates.terminal_states(),
+                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
         )
         if runs:

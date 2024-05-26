@@ -534,7 +534,6 @@ def _ingest(
     spark_context=None,
     overwrite=None,
 ) -> Optional[pd.DataFrame]:
-    print("in ingest")
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 

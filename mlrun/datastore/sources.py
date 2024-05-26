@@ -374,7 +374,6 @@ class ParquetSource(BaseSourceDriver):
         import storey
 
         attributes = copy(self.attributes)
-        print(f"parquetsource: {self}, additional_filters input: {additional_filters}")
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context

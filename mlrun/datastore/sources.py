@@ -317,9 +317,6 @@ class ParquetSource(BaseSourceDriver):
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
-            print(f"additional_filters before format: {additional_filters}")
-            additional_filters = self.revert_list_filters_to_tuple(additional_filters)
-            print(f"additional_filters after format: {additional_filters}")
             attributes["additional_filters"] = additional_filters
 
         super().__init__(
@@ -351,7 +348,10 @@ class ParquetSource(BaseSourceDriver):
 
     @property
     def additional_filters(self):
-        return self.attributes.get("additional_filters")
+        additional_filters = self.attributes.get("additional_filters")
+        #  ParquetSource object can be created from dict without pass
+        #  __init__, so tuple revert should be implement as property.
+        return self.revert_list_filters_to_tuple(additional_filters)
 
     @staticmethod
     def _convert_to_datetime(time):

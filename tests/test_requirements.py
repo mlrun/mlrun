@@ -144,6 +144,7 @@ def test_requirement_specifiers_convention():
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "scikit-learn": {"~=1.4.0"},
     }
 
     for (

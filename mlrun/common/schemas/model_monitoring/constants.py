@@ -317,6 +317,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
+    custom = 4
 
 
 class ResultStatusApp(IntEnum):

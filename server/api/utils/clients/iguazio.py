@@ -138,11 +138,22 @@ class Client(
 ):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        retry_on_exception = (
+            mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+        )
         self._session = mlrun.utils.HTTPSessionWithRetry(
-            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            retry_on_exception=retry_on_exception,
             verbose=True,
         )
+        self._retry_on_post_session = self._session
+        if retry_on_exception:
+            self._retry_on_post_session = mlrun.utils.HTTPSessionWithRetry(
+                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+                retry_on_post=True,
+                verbose=True,
+            )
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
@@ -171,6 +182,7 @@ class Client(
                 "authorization": request.headers.get("authorization"),
                 "cookie": request.headers.get("cookie"),
             },
+            retry_on_post=True,
         )
         return self._generate_auth_info_from_session_verification_response(
             response.headers, response.json()
@@ -181,7 +193,8 @@ class Client(
             "POST",
             mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
             "Failed verifying iguazio session",
-            session,
+            session=session,
+            retry_on_post=True,
         )
         return self._generate_auth_info_from_session_verification_response(
             response.headers, response.json()
@@ -215,7 +228,8 @@ class Client(
             "POST",
             "self/get_or_create_access_key",
             "Failed getting or creating iguazio access key",
-            session,
+            session=session,
+            retry_on_post=True,
             json=body,
         )
         if response.status_code == http.HTTPStatus.CREATED.value:
@@ -638,11 +652,20 @@ class Client(
         return response.json()
 
     def _send_request_to_api(
-        self, method, path, error_message: str, session=None, **kwargs
+        self,
+        method,
+        path,
+        error_message: str,
+        session=None,
+        retry_on_post=False,
+        **kwargs,
     ):
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        response = self._session.request(
+        http_session = self._session
+        if retry_on_post:
+            http_session = self._retry_on_post_session
+        response = http_session.request(
             method, url, verify=mlrun.config.config.httpdb.http.verify, **kwargs
         )
         if not response.ok:

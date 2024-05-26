@@ -290,7 +290,6 @@ class TestMonitoringSchedules:
         return store
 
     @staticmethod
-    @pytest.mark.xfail(reason="ML-6541")
     def test_unique_last_analyzed_per_app(sqlite_store: SQLStoreBase) -> None:
         endpoint_id = "ep-abc123"
         app1_name = "app-A"

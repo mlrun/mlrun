@@ -24,6 +24,10 @@ import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
 )
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetricType,
+    _compose_full_name,
+)
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
@@ -291,4 +295,13 @@ def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
         model_endpoint_id,
         mm_constants.HistogramDataDriftApplicationConstants.NAME,
         mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+    )
+
+
+def get_invocations_fqn(project: str) -> str:
+    return _compose_full_name(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        type=ModelEndpointMonitoringMetricType.METRIC,
     )

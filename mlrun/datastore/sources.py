@@ -420,6 +420,7 @@ class ParquetSource(BaseSourceDriver):
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
+        additional_filters = self.revert_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         return storey.ParquetSource(

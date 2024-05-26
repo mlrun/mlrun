@@ -225,6 +225,8 @@ class DataStore:
                     kwargs,
                 )
                 try:
+                    print(f"args: {args}")
+                    print(f"kwargs: {kwargs}")
                     return df_module.read_parquet(*args, **kwargs)
                 except pyarrow.lib.ArrowInvalid as ex:
                     if not str(ex).startswith(

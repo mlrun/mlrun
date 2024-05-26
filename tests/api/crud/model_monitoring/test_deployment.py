@@ -19,6 +19,7 @@ import pytest
 
 import mlrun.runtimes
 import server.api.crud.model_monitoring.deployment as mm_dep
+from server.api.db.base import DBInterface
 
 
 @pytest.fixture()
@@ -44,5 +45,7 @@ class TestAppDeployment:
             yield
 
     @staticmethod
-    def test_app_dep(monitoring_deployment: mm_dep.MonitoringDeployment) -> None:
+    def test_app_dep(
+        monitoring_deployment: mm_dep.MonitoringDeployment, db: DBInterface
+    ) -> None:
         monitoring_deployment.deploy_histogram_data_drift_app(image="mlrun/mlrun")

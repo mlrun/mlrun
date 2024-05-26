@@ -394,9 +394,10 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
 
     @staticmethod
-    def _convert_to_datetime(event: dict[str, typing.Any], key: str):
+    def _convert_to_datetime(event: dict[str, typing.Any], key: str) -> None:
         if isinstance(event[key], str):
             event[key] = datetime.datetime.fromisoformat(event[key])
+        event[key] = event[key].astimezone(tz=datetime.timezone.utc)
 
     @staticmethod
     def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
@@ -598,7 +599,6 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources in both SQL and the time series DB.
-
         """
 
         endpoints = self.list_model_endpoints()

@@ -349,8 +349,8 @@ class ParquetSource(BaseSourceDriver):
     @property
     def additional_filters(self):
         additional_filters = self.attributes.get("additional_filters")
-        #  ParquetSource object can be created from dict without pass
-        #  __init__, so tuple revert should be implement as property.
+        # The ParquetSource object can be created from a dict without calling
+        # __init__, so tuple reversion should be implemented as a property.
         return self.revert_list_filters_to_tuple(additional_filters)
 
     @staticmethod

@@ -454,7 +454,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             table=self.MonitoringSchedulesTable, **application_filter_dict
         )
         if not monitoring_schedule_record:
-            # Add a new record with empty last analyzed value
+            # Add a new record with last analyzed value
             self._write(
                 table=mm_schemas.FileTargetKind.MONITORING_SCHEDULES,
                 event={

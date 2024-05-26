@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import math
 import tarfile
 import tempfile
 import typing
@@ -180,3 +181,55 @@ def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str
             FutureWarning,
         )
     return kafka_bootstrap_servers
+
+
+def revert_list_filters_to_tuple(additional_filters):
+    tuple_filters = []
+    if not additional_filters:
+        return tuple_filters
+    validate_additional_filters(additional_filters=additional_filters)
+    for additional_filter in additional_filters:
+        tuple_filters.append(tuple(additional_filter))
+    return tuple_filters
+
+
+def validate_additional_filters(additional_filters):
+    if not additional_filters:
+        return
+    for filter_tuple in additional_filters:
+        if not filter_tuple:
+            continue
+        if not isinstance(filter_tuple, (list, tuple)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"mlrun supports additional_filters only as a list of tuples."
+                f" Current additional_filters: {additional_filters}"
+            )
+        if len(filter_tuple) != 3:
+            if all(isinstance(element, (list, tuple)) for element in filter_tuple):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"mlrun supports additional_filters only as a list of tuples."
+                    f" Current additional_filters: {additional_filters}"
+                )
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"illegal filter tuple length, {filter_tuple} in additional filters:"
+                    f" {additional_filters}"
+                )
+        if isinstance(filter_tuple[0], (list, tuple)) or isinstance(
+            filter_tuple[1], (list, tuple)
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"mlrun supports additional_filters only as a list of tuples."
+                f" Current additional_filters: {additional_filters}"
+            )
+        col_name, op, value = filter_tuple
+        if isinstance(value, float) and math.isnan(value):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "using NaN in additional_filters is not supported"
+            )
+        elif isinstance(value, (list, tuple, set)):
+            for sub_value in value:
+                if isinstance(sub_value, float) and math.isnan(sub_value):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "using NaN in additional_filters is not supported"
+                    )

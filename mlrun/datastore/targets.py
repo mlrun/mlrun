@@ -30,6 +30,7 @@ import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.utils import revert_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
@@ -999,7 +1000,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
-            additional_filters=additional_filters,
+            additional_filters=revert_list_filters_to_tuple(additional_filters),
             **kwargs,
         )
         if not columns:

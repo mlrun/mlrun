@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import math
 import operator
 import os
 import warnings
@@ -31,6 +30,7 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.utils import revert_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -351,7 +351,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters = self.attributes.get("additional_filters")
         # The ParquetSource object can be created from a dict without calling
         # __init__, so tuple reversion should be implemented as a property.
-        return self.revert_list_filters_to_tuple(additional_filters)
+        return revert_list_filters_to_tuple(additional_filters)
 
     @staticmethod
     def _convert_to_datetime(time):
@@ -361,53 +361,6 @@ class ParquetSource(BaseSourceDriver):
             return datetime.fromisoformat(time)
         else:
             return time
-
-    @staticmethod
-    def revert_list_filters_to_tuple(additional_filters):
-        tuple_filters = []
-        if not additional_filters:
-            return tuple_filters
-        ParquetSource.validate_additional_filters(additional_filters=additional_filters)
-        for additional_filter in additional_filters:
-            tuple_filters.append(tuple(additional_filter))
-        return tuple_filters
-
-    @staticmethod
-    def validate_additional_filters(additional_filters):
-        if not additional_filters:
-            return
-        for filter_tuple in additional_filters:
-            if not filter_tuple:
-                continue
-            if len(filter_tuple) != 3:
-                if all(isinstance(element, (list, tuple)) for element in filter_tuple):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"mlrun ParquetSource supports additional_filters only as a list of tuples."
-                        f" Current additional_filters: {additional_filters}"
-                    )
-                else:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"illegal filter tuple length, {filter_tuple} in additional filters:"
-                        f" {additional_filters}"
-                    )
-            if isinstance(filter_tuple[0], (list, tuple)) or isinstance(
-                filter_tuple[1], (list, tuple)
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"mlrun ParquetSource supports additional_filters only as a list of tuples."
-                    f" Current additional_filters: {additional_filters}"
-                )
-            col_name, op, value = filter_tuple
-            if isinstance(value, float) and math.isnan(value):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "using NaN in additional_filters is not supported"
-                )
-            elif isinstance(value, (list, tuple, set)):
-                for sub_value in value:
-                    if isinstance(sub_value, float) and math.isnan(sub_value):
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "using NaN in additional_filters is not supported"
-                        )
 
     def to_step(
         self,
@@ -425,7 +378,7 @@ class ParquetSource(BaseSourceDriver):
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-        additional_filters = self.revert_list_filters_to_tuple(additional_filters)
+        additional_filters = revert_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         return storey.ParquetSource(
@@ -461,7 +414,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
-        additional_filters = self.revert_list_filters_to_tuple(additional_filters)
+        additional_filters = revert_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

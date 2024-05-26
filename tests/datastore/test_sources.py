@@ -108,37 +108,17 @@ def test_timestamp_format_inference(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "additional_filters",
-    [[("age", "=", float("nan"))], [("age", "in", [10, float("nan")])]],
-)
-def test_nan_additional_filters(additional_filters):
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="using NaN in additional_filters is not supported",
-    ):
-        ParquetSource(
-            "parquet_source", path="path/to/file", additional_filters=additional_filters
-        )
-
-
-@pytest.mark.parametrize(
     "additional_filters, message",
     [
         ([("x", "=", 3)], ""),
         (
             [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
-            "mlrun ParquetSource supports additional_filters only",
+            "mlrun supports additional_filters only as a list of tuples.",
         ),
-        (
-            [[("x", "=", 3), ("x", "=", 4)]],
-            "ParquetSource supports additional_filters only",
-        ),
-        ([("x", "in", [3, 4]), ("y", "in", [3, 4])], ""),
-        ([("x", "=", "=", 3), ("y", "in", [3, 4])], "illegal filter tuple length"),
-        ([()], ""),
     ],
 )
 def test_revert_list_filters_to_tuple(additional_filters, message):
+    #  Source-specific to test_revert_list_filters_to_tuple test, which checks all the cases.
     def json_change(filters):
         json_data = json.dumps(filters)
         return json.loads(json_data)

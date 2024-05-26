@@ -25,7 +25,6 @@ import pytest
 import mlrun.common.schemas
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring import (
-    FileTargetKind,
     ProjectSecretKeys,
     ResultData,
     WriterEvent,
@@ -286,5 +285,27 @@ class TestMonitoringSchedules:
         return store
 
     @staticmethod
-    def test_has_schedules_table(sqlite_store: SQLStoreBase) -> None:
-        sqlite_store._engine.has_table(FileTargetKind.MONITORING_SCHEDULES)
+    @pytest.mark.xfail(reason="ML-6541")
+    def test_unique_last_analyzed_per_app(sqlite_store: SQLStoreBase) -> None:
+        endpoint_id = "ep-abc123"
+        app1_name = "app-A"
+        app1_last_analyzed = 1716720842
+        app2_name = "app-B"
+
+        sqlite_store.update_last_analyzed(
+            endpoint_id=endpoint_id,
+            application_name=app1_name,
+            last_analyzed=app1_last_analyzed,
+        )
+
+        assert (
+            sqlite_store.get_last_analyzed(
+                endpoint_id=endpoint_id, application_name=app1_name
+            )
+            == app1_last_analyzed
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            sqlite_store.get_last_analyzed(
+                endpoint_id=endpoint_id, application_name=app2_name
+            )

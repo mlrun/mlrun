@@ -16,6 +16,7 @@ import json
 import time
 import typing
 
+import deepdiff
 import pytest
 
 import mlrun
@@ -325,7 +326,9 @@ class TestAlerts(TestMLRunSystem):
 
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):
-        for notification in notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
-            nuclio_function_url
-        ):
-            assert notification in expected_notifications
+        sent_notifications = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )
+        assert deepdiff.DeepDiff(sent_notifications, expected_notifications) == {}

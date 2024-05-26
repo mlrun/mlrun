@@ -538,6 +538,12 @@ class CustomNotificationPusher(_NotificationPusherBase):
             if notification.is_async
         }
 
+    @property
+    def notifications(self):
+        notifications = self._sync_notifications.copy()
+        notifications.update(self._async_notifications)
+        return notifications
+
     def push(
         self,
         message: str,

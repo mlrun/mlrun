@@ -39,7 +39,6 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     data, the user needs to provide a valid connection string for the database.
     """
 
-    _engine = None
     _tables = {}
 
     def __init__(
@@ -113,7 +112,6 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         :param table_name: Target table name.
         :param event:      Event dictionary that will be written into the DB.
         """
-        self._engine = typing.cast(sqlalchemy.engine.Engine, self._engine)
         with self._engine.connect() as connection:
             # Convert the result into a pandas Dataframe and write it into the database
             event_df = pd.DataFrame([event])
@@ -509,7 +507,6 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
-            self._engine = typing.cast(sqlalchemy.engine.Engine, self._engine)
             if not self._engine.has_table(table):
                 self._tables[table].metadata.create_all(bind=self._engine)
 

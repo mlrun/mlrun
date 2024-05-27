@@ -640,7 +640,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
         """
-        Fetch the model endpoint metrics or results
+        Fetch the model endpoint metrics or results (according to `type`) for the
+        requested endpoint.
         """
         logger.debug(
             "Fetching metrics for model endpoint",
@@ -657,6 +658,8 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             table = self.application_results_table
             name_col = mm_schemas.ResultData.RESULT_NAME
 
+        # Note: the block below does not use self._get, as we need here all the
+        # results, not only `one_or_none`.
         with sqlalchemy.orm.Session(self._engine) as session:
             metric_rows = (
                 session.query(table)  # pyright: ignore[reportOptionalCall]

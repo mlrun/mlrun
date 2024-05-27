@@ -384,6 +384,7 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
+        sys.modules[mod_name] = module
         spec.loader.exec_module(module)
 
     class_args = {}

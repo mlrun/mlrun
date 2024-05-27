@@ -1031,15 +1031,13 @@ def create_function(pkg_func: str, reload_modules: bool = False):
     if reload_modules:
         # if the function appears in the modules list, we need to reload the code again because it may have changed
         if pkg_module_exists_in_modules:
-            logger.warning(
-                "Reloading module. Not all associated modules can be reloaded, import them manually."
-                "Or, with Jupyter, restart the Python kernel."
-            )
             try:
-                reload(pkg_module)
+                logger.debug("Reloading module", module=pkg_func)
+                _reload(pkg_module)
             except Exception as exc:
                 logger.warning(
-                    "Failed to reload module",
+                    "Failed to reload module. Not all associated modules can be reloaded, import them manually."
+                    "Or, with Jupyter, restart the Python kernel.",
                     module=pkg_func,
                     err=mlrun.errors.err_to_str(exc),
                 )
@@ -1652,3 +1650,12 @@ def format_alert_summary(
     result = result.replace("{{name}}", alert.name)
     result = result.replace("{{entity}}", event_data.entity.ids[0])
     return result
+
+
+def _reload(module):
+    """Recursively reload modules."""
+    reload(module)
+    for attribute_name in dir(module):
+        attribute = getattr(module, attribute_name)
+        if type(attribute) is ModuleType:
+            _reload(attribute)

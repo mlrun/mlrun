@@ -17,6 +17,7 @@ from typing import Optional, Union
 import pandas as pd
 import requests
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
 import mlrun.db
 import mlrun.errors
@@ -100,8 +101,13 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
+            )
 
         logger.info(
             "Storing function",

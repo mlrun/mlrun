@@ -415,6 +415,23 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             ]
         )
 
+    @staticmethod
+    def _get_filter_criteria(
+        *,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        endpoint_id: str,
+        application_name: typing.Optional[str] = None,
+    ) -> list[BinaryExpression]:
+        """
+        Return the filter criteria for the given endpoint_id and application_name.
+        Note: the table object must include the relevant columns:
+        `endpoint_id` and `application_name`.
+        """
+        criteria = [table.endpoint_id == endpoint_id]
+        if application_name is not None:
+            criteria.append(table.application_name == application_name)
+        return criteria
+
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
         """
         Get the last analyzed time for the provided model endpoint and application.
@@ -428,10 +445,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self._init_monitoring_schedules_table()
         monitoring_schedule_record = self._get(
             table=self.MonitoringSchedulesTable,
-            criteria=[
-                self.MonitoringSchedulesTable.endpoint_id == endpoint_id,
-                self.MonitoringSchedulesTable.application_name == application_name,
-            ],
+            criteria=self._get_filter_criteria(
+                table=self.MonitoringSchedulesTable,
+                endpoint_id=endpoint_id,
+                application_name=application_name,
+            ),
         )
         if not monitoring_schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -453,10 +471,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_monitoring_schedules_table()
 
-        criteria = [
-            self.MonitoringSchedulesTable.endpoint_id == endpoint_id,
-            self.MonitoringSchedulesTable.application_name == application_name,
-        ]
+        criteria = self._get_filter_criteria(
+            table=self.MonitoringSchedulesTable,
+            endpoint_id=endpoint_id,
+            application_name=application_name,
+        )
         monitoring_schedule_record = self._get(
             table=self.MonitoringSchedulesTable, criteria=criteria
         )
@@ -482,30 +501,37 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self, endpoint_id: str, application_name: typing.Optional[str] = None
     ) -> None:
         self._init_monitoring_schedules_table()
-        criteria: list[BinaryExpression] = [
-            self.MonitoringSchedulesTable.endpoint_id == endpoint_id
-        ]
-        if application_name is not None:
-            criteria.append(
-                self.MonitoringSchedulesTable.application_name == application_name
-            )
+        criteria = self._get_filter_criteria(
+            table=self.MonitoringSchedulesTable,
+            endpoint_id=endpoint_id,
+            application_name=application_name,
+        )
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
-    def _delete_application_result(self, endpoint_id: str) -> None:
+    def _delete_application_result(
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_application_results_table()
-        # Delete the table
-        self._delete(
+        criteria = self._get_filter_criteria(
             table=self.application_results_table,
-            criteria=[self.application_results_table.endpoint_id == endpoint_id],
+            endpoint_id=endpoint_id,
+            application_name=application_name,
         )
+        # Delete the table
+        self._delete(table=self.application_results_table, criteria=criteria)
 
-    def _delete_application_metrics(self, endpoint_id: str) -> None:
+    def _delete_application_metrics(
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_application_metrics_table()
-        self._delete(
+        criteria = self._get_filter_criteria(
             table=self.application_metrics_table,
-            criteria=[self.application_metrics_table.endpoint_id == endpoint_id],
+            endpoint_id=endpoint_id,
+            application_name=application_name,
         )
+        # Delete the table
+        self._delete(table=self.application_metrics_table, criteria=criteria)
 
     def _create_tables_if_not_exist(self):
         self._init_tables()

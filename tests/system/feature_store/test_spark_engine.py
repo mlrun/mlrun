@@ -406,6 +406,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         result = sort_df(result, ["patient_id"])
         assert_frame_equal(result, expected, check_dtype=False)
 
+        #  check get_offline_features vector function:
+        resp = vec.get_offline_features(
+            additional_filters=[
+                ("bad", "not in", [38, 100]),
+                ("movements", "<", 6),
+            ],
+            with_indexes=True,
+            target=get_offline_target,
+            engine="spark",
+            run_config=fstore.RunConfig(local=self.run_local, kind=kind),
+            spark_service=self.spark_service,
+        )
+
+        result = resp.to_dataframe()
+        result.reset_index(drop=False, inplace=True)
+        result = sort_df(result, ["patient_id"])
+        assert_frame_equal(result, expected, check_dtype=False)
+
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"
         name = "measurements"

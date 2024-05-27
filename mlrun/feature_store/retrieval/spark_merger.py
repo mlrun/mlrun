@@ -18,11 +18,12 @@ import semver
 
 import mlrun
 from mlrun.datastore.targets import get_offline_target
-
+from mlrun.datastore.sources import ParquetSource
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
 from .conversion import PandasConversionMixin
+from ...utils import additional_filters_warning
 
 
 def spark_df_to_pandas(spark_df):
@@ -253,6 +254,10 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
+
+        if not isinstance(source_driver, ParquetSource):
+            additional_filters_warning(additional_filters, source_driver)
+            additional_filters = None
         additional_filters_dict = (
             {"additional_filters": additional_filters} if additional_filters else {}
         )

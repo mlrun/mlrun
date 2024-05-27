@@ -19,6 +19,9 @@ import uuid
 
 import pandas as pd
 import sqlalchemy
+import sqlalchemy.exc
+import sqlalchemy.orm
+from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -26,6 +29,7 @@ import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
+from mlrun.utils import datetime_now, logger
 
 
 class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
@@ -111,43 +115,45 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self,
         attributes: dict[str, typing.Any],
         table: sqlalchemy.orm.decl_api.DeclarativeMeta,
-        **filtered_values,
-    ):
+        criteria: list[BinaryExpression],
+    ) -> None:
         """
         Update a record in the SQL table.
 
         :param attributes:  Dictionary of attributes that will be used for update the record. Note that the keys
                             of the attributes dictionary should exist in the SQL table.
         :param table:       SQLAlchemy declarative table.
-
+        :param criteria:    A list of binary expressions that filter the query.
         """
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
-
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the update session query
-            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).update(
-                attributes, synchronize_session=False
-            )
+            session.query(
+                table  # pyright: ignore[reportOptionalCall]
+            ).filter(*criteria).update(attributes, synchronize_session=False)
             session.commit()
 
-    def _get(self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values):
+    def _get(
+        self,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        criteria: list[BinaryExpression],
+    ):
         """
         Get a record from the SQL table.
 
-        param table: SQLAlchemy declarative table.
+        param table:     SQLAlchemy declarative table.
+        :param criteria: A list of binary expressions that filter the query.
         """
-
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
         with create_session(dsn=self._sql_connection_string) as session:
             try:
+                logger.debug(
+                    "Querying the DB",
+                    table=table.__name__,
+                    criteria=[str(criterion) for criterion in criteria],
+                )
                 # Generate the get query
                 return (
-                    session.query(table)
-                    .filter(sqlalchemy.sql.text(*filter_query_))
+                    session.query(table)  # pyright: ignore[reportOptionalCall]
+                    .filter(*criteria)
                     .one_or_none()
                 )
             except sqlalchemy.exc.ProgrammingError:
@@ -156,21 +162,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
                 return
 
     def _delete(
-        self, table: sqlalchemy.orm.decl_api.DeclarativeMeta, **filtered_values
-    ):
+        self,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        criteria: list[BinaryExpression],
+    ) -> None:
         """
         Delete records from the SQL table.
 
-        param table: SQLAlchemy declarative table.
+        param table:     SQLAlchemy declarative table.
+        :param criteria: A list of binary expressions that filter the query.
         """
-        filter_query_ = []
-        for _filter in filtered_values:
-            filter_query_.append(f"{_filter} = '{filtered_values[_filter]}'")
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
-            session.query(table).filter(sqlalchemy.sql.text(*filter_query_)).delete(
-                synchronize_session=False
-            )
+            session.query(
+                table  # pyright: ignore[reportOptionalCall]
+            ).filter(*criteria).delete(synchronize_session=False)
             session.commit()
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
@@ -184,12 +190,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Adjust timestamps fields
         endpoint[mm_schemas.EventFieldType.FIRST_REQUEST] = (endpoint)[
             mm_schemas.EventFieldType.LAST_REQUEST
-        ] = mlrun.utils.datetime_now()
+        ] = datetime_now()
 
-        self._write(
-            table=mm_schemas.EventFieldType.MODEL_ENDPOINTS,
-            event=endpoint,
-        )
+        self._write(table=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint)
 
     def update_model_endpoint(
         self, endpoint_id: str, attributes: dict[str, typing.Any]
@@ -206,23 +209,24 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         attributes.pop(mm_schemas.EventFieldType.ENDPOINT_ID, None)
 
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
-
         self._update(
-            attributes=attributes, table=self.ModelEndpointsTable, **filter_endpoint
+            attributes=attributes,
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
         )
 
-    def delete_model_endpoint(self, endpoint_id: str):
+    def delete_model_endpoint(self, endpoint_id: str) -> None:
         """
         Deletes the SQL record of a given model endpoint id.
 
         :param endpoint_id: The unique id of the model endpoint.
         """
         self._init_model_endpoints_table()
-
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
         # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.ModelEndpointsTable, **filter_endpoint)
+        self._delete(
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+        )
 
     def get_model_endpoint(
         self,
@@ -239,9 +243,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_model_endpoints_table()
 
-        # Get the model endpoint record using sqlalchemy ORM
-        filter_endpoint = {mm_schemas.EventFieldType.UID: endpoint_id}
-        endpoint_record = self._get(table=self.ModelEndpointsTable, **filter_endpoint)
+        # Get the model endpoint record
+        endpoint_record = self._get(
+            table=self.ModelEndpointsTable,
+            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+        )
 
         if not endpoint_record:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -355,12 +361,11 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         self._init_application_results_table()
 
-        application_filter_dict = {
-            mm_schemas.EventFieldType.UID: self._generate_application_result_uid(event)
-        }
+        application_result_uid = self._generate_application_result_uid(event)
+        criteria = [self.ApplicationResultsTable.uid == application_result_uid]
 
         application_record = self._get(
-            table=self.ApplicationResultsTable, **application_filter_dict
+            table=self.ApplicationResultsTable, criteria=criteria
         )
         if application_record:
             self._convert_to_datetime(
@@ -373,35 +378,45 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             )
             # Update an existing application result
             self._update(
-                attributes=event,
-                table=self.ApplicationResultsTable,
-                **application_filter_dict,
+                attributes=event, table=self.ApplicationResultsTable, criteria=criteria
             )
         else:
             # Write a new application result
-            event[mm_schemas.EventFieldType.UID] = application_filter_dict[
-                mm_schemas.EventFieldType.UID
-            ]
-
-            self._write(
-                table=mm_schemas.FileTargetKind.APP_RESULTS,
-                event=event,
-            )
+            event[mm_schemas.EventFieldType.UID] = application_result_uid
+            self._write(table=mm_schemas.FileTargetKind.APP_RESULTS, event=event)
 
     @staticmethod
-    def _convert_to_datetime(event: dict[str, typing.Any], key: str):
+    def _convert_to_datetime(event: dict[str, typing.Any], key: str) -> None:
         if isinstance(event[key], str):
             event[key] = datetime.datetime.fromisoformat(event[key])
+        event[key] = event[key].astimezone(tz=datetime.timezone.utc)
 
     @staticmethod
     def _generate_application_result_uid(event: dict[str, typing.Any]) -> str:
-        return (
-            event[mm_schemas.WriterEvent.ENDPOINT_ID]
-            + "_"
-            + event[mm_schemas.WriterEvent.APPLICATION_NAME]
-            + "_"
-            + event[mm_schemas.ResultData.RESULT_NAME]
+        return "_".join(
+            [
+                event[mm_schemas.WriterEvent.ENDPOINT_ID],
+                event[mm_schemas.WriterEvent.APPLICATION_NAME],
+                event[mm_schemas.ResultData.RESULT_NAME],
+            ]
         )
+
+    @staticmethod
+    def _get_filter_criteria(
+        *,
+        table: sqlalchemy.orm.decl_api.DeclarativeMeta,
+        endpoint_id: str,
+        application_name: typing.Optional[str] = None,
+    ) -> list[BinaryExpression]:
+        """
+        Return the filter criteria for the given endpoint_id and application_name.
+        Note: the table object must include the relevant columns:
+        `endpoint_id` and `application_name`.
+        """
+        criteria = [table.endpoint_id == endpoint_id]
+        if application_name is not None:
+            criteria.append(table.application_name == application_name)
+        return criteria
 
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
         """
@@ -412,14 +427,15 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         :return: Timestamp as a Unix time.
         :raise:  MLRunNotFoundError if last analyzed value is not found.
-
         """
         self._init_monitoring_schedules_table()
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
-        )
         monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, **application_filter_dict
+            table=self.MonitoringSchedulesTable,
+            criteria=self._get_filter_criteria(
+                table=self.MonitoringSchedulesTable,
+                endpoint_id=endpoint_id,
+                application_name=application_name,
+            ),
         )
         if not monitoring_schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
@@ -441,14 +457,16 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         """
         self._init_monitoring_schedules_table()
 
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
+        criteria = self._get_filter_criteria(
+            table=self.MonitoringSchedulesTable,
+            endpoint_id=endpoint_id,
+            application_name=application_name,
         )
         monitoring_schedule_record = self._get(
-            table=self.MonitoringSchedulesTable, **application_filter_dict
+            table=self.MonitoringSchedulesTable, criteria=criteria
         )
         if not monitoring_schedule_record:
-            # Add a new record with empty last analyzed value
+            # Add a new record with last analyzed value
             self._write(
                 table=mm_schemas.FileTargetKind.MONITORING_SCHEDULES,
                 event={
@@ -462,30 +480,32 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         self._update(
             attributes={mm_schemas.SchedulingKeys.LAST_ANALYZED: last_analyzed},
             table=self.MonitoringSchedulesTable,
-            **application_filter_dict,
+            criteria=criteria,
         )
 
-    def _delete_last_analyzed(self, endpoint_id: str = "", application_name: str = ""):
+    def _delete_last_analyzed(
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_monitoring_schedules_table()
-
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
+        criteria = self._get_filter_criteria(
+            table=self.MonitoringSchedulesTable,
+            endpoint_id=endpoint_id,
+            application_name=application_name,
         )
-
         # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.MonitoringSchedulesTable, **application_filter_dict)
+        self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
     def _delete_application_result(
-        self, endpoint_id: str = "", application_name: str = ""
-    ):
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_application_results_table()
-
-        application_filter_dict = self.filter_endpoint_and_application_name(
-            endpoint_id=endpoint_id, application_name=application_name
+        criteria = self._get_filter_criteria(
+            table=self.ApplicationResultsTable,
+            endpoint_id=endpoint_id,
+            application_name=application_name,
         )
-
-        # Delete the model endpoint record using sqlalchemy ORM
-        self._delete(table=self.ApplicationResultsTable, **application_filter_dict)
+        # Delete the table
+        self._delete(table=self.ApplicationResultsTable, criteria=criteria)
 
     def _create_tables_if_not_exist(self):
         self._init_tables()
@@ -572,31 +592,12 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return True
 
-    @staticmethod
-    def filter_endpoint_and_application_name(
-        endpoint_id: str, application_name: str
-    ) -> dict[str, str]:
-        """Generate a dictionary filter for endpoint id and application name"""
-        if not endpoint_id and not application_name:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Please provide a valid endpoint_id and/or application_name"
-            )
-        application_filter_dict = {}
-        if endpoint_id:
-            application_filter_dict[mm_schemas.SchedulingKeys.ENDPOINT_ID] = endpoint_id
-        if application_name:
-            application_filter_dict[mm_schemas.SchedulingKeys.APPLICATION_NAME] = (
-                application_name
-            )
-        return application_filter_dict
-
-    def delete_model_endpoints_resources(self):
+    def delete_model_endpoints_resources(self) -> None:
         """
-        Delete all model endpoints resources in both SQL and the time series DB.
-
+        Delete all the model monitoring resources of the project in the SQL tables.
         """
-
         endpoints = self.list_model_endpoints()
+        logger.debug("Deleting model monitoring resources", project=self.project)
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]

@@ -19,10 +19,10 @@ import semver
 import mlrun
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import get_offline_target
+from mlrun.utils.helpers import additional_filters_warning
 
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
-from ...utils import additional_filters_warning
 from .base import BaseMerger
 from .conversion import PandasConversionMixin
 

@@ -158,7 +158,7 @@ def make_kaniko_pod(
     runtime_spec=None,
     registry=None,
     extra_args="",
-    extra_labels={},
+    extra_labels=None,
     project_secrets=None,
 ):
     extra_runtime_spec = {}

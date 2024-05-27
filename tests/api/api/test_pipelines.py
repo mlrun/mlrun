@@ -556,7 +556,7 @@ def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
         experiment_id,
         job_name,
         pipeline_package_path=None,
-        params={},
+        params=None,
         pipeline_id=None,
         version_id=None,
     ):

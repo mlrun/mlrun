@@ -312,10 +312,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
             return None
 
-    def get_pod_status(self, name, namespace=None):
-        return self.get_pod(
+    def get_pod_phase(self, name, namespace=None):
+        return self._get_pod_status(
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
+
+    def get_pod_status(self, name, namespace=None) -> client.V1PodStatus:
+        return self._get_pod_status(name, namespace, raise_on_not_found=True).status
 
     def delete_crd(
         self,
@@ -857,6 +860,29 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             labels[mlrun_constants.MLRunInternalLabels.username] = username
             labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
+
+    def _get_pod_status(
+        self, name, namespace=None, raise_on_not_found=False
+    ) -> client.V1Pod:
+        try:
+            api_response = self.v1api.read_namespaced_pod_status(
+                name=name, namespace=self.resolve_namespace(namespace)
+            )
+            return api_response
+        except ApiException as exc:
+            if exc.status != 404:
+                logger.error(
+                    "Failed to get pod status",
+                    pod_name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
+            else:
+                if raise_on_not_found:
+                    raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
+            return None
 
     @staticmethod
     def _generate_rand_string(length):

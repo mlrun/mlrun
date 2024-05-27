@@ -554,7 +554,7 @@ def _handle_job_deploy_status(
 
     build_pod_state = server.api.utils.singletons.k8s.get_k8s_helper(
         silent=False
-    ).get_pod_status(pod)
+    ).get_pod_phase(pod)
     logger.debug(
         "Resolved pod status",
         function_name=name,
@@ -580,6 +580,23 @@ def _handle_job_deploy_status(
         )
 
     if (
+        logs
+        and normalized_pod_function_state == mlrun.common.schemas.FunctionState.pending
+    ):
+        build_pod_status = server.api.utils.singletons.k8s.get_k8s_helper(
+            silent=False
+        ).get_pod_status(pod)
+        for container_status in build_pod_status.container_statuses:
+            # container_status: kubernetes.client.V1ContainerStatus
+            if container_status.name == "build":
+                container_state = container_status.state
+                out = f"""
+                Build pod state: {build_pod_state}.
+                Reason: {container_state.reason}.
+                Message: {container_state.message}.
+                """.encode()
+
+    elif (
         (
             logs
             and normalized_pod_function_state

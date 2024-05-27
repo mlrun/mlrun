@@ -1415,7 +1415,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         try:
             text, _ = db.get_builder_status(self, 0, logs=logs)
         except mlrun.db.RunDBError:
-            raise ValueError("function or build process not found")
+            raise ValueError("Function or build process not found")
 
         def print_log(text):
             if text and (

@@ -228,9 +228,9 @@ def run_function(
 class BuildStatus:
     """returned status from build operation"""
 
-    def __init__(self, ready, outputs={}, function=None):
+    def __init__(self, ready, outputs=None, function=None):
         self.ready = ready
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):
@@ -343,9 +343,9 @@ def build_function(
 class DeployStatus:
     """returned status from deploy operation"""
 
-    def __init__(self, state, outputs={}, function=None):
+    def __init__(self, state, outputs=None, function=None):
         self.state = state
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):

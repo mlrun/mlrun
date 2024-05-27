@@ -719,7 +719,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         expected_limits=None,
         expected_requests=None,
         expected_code=None,
-        expected_env={},
+        expected_env=None,
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
@@ -727,7 +727,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
-        expected_env_from_secrets={},
+        expected_env_from_secrets=None,
         expected_args=None,
     ):
         if assert_create_pod_called:
@@ -749,6 +749,8 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         expected_code_found = False
 
+        expected_env = expected_env or {}
+        expected_env_from_secrets = expected_env_from_secrets or {}
         if assert_namespace_env_variable:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 

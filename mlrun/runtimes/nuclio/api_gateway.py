@@ -70,10 +70,6 @@ class NoneAuth(APIGatewayAuthenticator, ModelObj):
 
     _dict_fields = ["authentication_mode"]
 
-    @property
-    def authentication_mode(self) -> str:
-        return schemas.APIGatewayAuthenticationMode.none.value
-
 
 class BasicAuth(APIGatewayAuthenticator, ModelObj):
     """

@@ -478,10 +478,13 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
-    def _delete_application_result(self) -> None:
+    def _delete_application_result(self, endpoint_id: str) -> None:
         self._init_application_results_table()
         # Delete the table
-        self._delete(table=self.ApplicationResultsTable, criteria=[])
+        self._delete(
+            table=self.ApplicationResultsTable,
+            criteria=[self.ApplicationResultsTable.endpoint_id == endpoint_id],
+        )
 
     def _create_tables_if_not_exist(self):
         self._init_tables()
@@ -568,21 +571,21 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         return True
 
-    def delete_model_endpoints_resources(self):
+    def delete_model_endpoints_resources(self) -> None:
         """
-        Delete all model endpoints resources in both SQL and the time series DB.
+        Delete all the model monitoring resources of the project in the SQL tables.
         """
-
         endpoints = self.list_model_endpoints()
-
-        # Delete application results records
-        self._delete_application_result()
+        logger.debug("Deleting model monitoring resources", project=self.project)
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
 
             # Delete last analyzed records
             self._delete_last_analyzed(endpoint_id=endpoint_id)
+
+            # Delete application results records
+            self._delete_application_result(endpoint_id=endpoint_id)
 
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)

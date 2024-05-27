@@ -291,7 +291,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         endpoint_list = []
 
         model_endpoints_table = (
-            self.ModelEndpointsTable.__table__  # pyright: ignore[reportGeneralTypeIssues]
+            self.ModelEndpointsTable.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
 
         # Get the model endpoints records using sqlalchemy ORM

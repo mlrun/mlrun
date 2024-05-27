@@ -168,14 +168,14 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"model-conf-{self.project}-{self.name}"
+                                "name": f"serving-conf-{self.project}-{self.name}"
                                 + (f"-{func_name}" if func_name else "")
                             },
-                            "name": "model-conf",
+                            "name": "serving-conf",
                         },
                         "volumeMount": {
-                            "mountPath": "/tmp/mlrun/model-conf",
-                            "name": "model-conf",
+                            "mountPath": "/tmp/mlrun/serving-conf",
+                            "name": "serving-conf",
                             "readOnly": True,
                         },
                     }

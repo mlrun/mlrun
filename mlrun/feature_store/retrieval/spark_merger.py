@@ -256,7 +256,7 @@ class SparkFeatureMerger(BaseMerger):
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
 
-        if not isinstance(source_driver, ParquetSource):
+        if source_driver != ParquetSource:
             additional_filters_warning(additional_filters, source_driver)
             additional_filters = None
         additional_filters_dict = (

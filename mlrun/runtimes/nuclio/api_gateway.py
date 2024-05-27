@@ -63,21 +63,27 @@ class APIGatewayAuthenticator(typing.Protocol):
         return None
 
 
-class NoneAuth(APIGatewayAuthenticator):
+class NoneAuth(APIGatewayAuthenticator, ModelObj):
     """
     An API gateway authenticator with no authentication.
     """
 
-    pass
+    _dict_fields = ["authentication_mode"]
+
+    @property
+    def authentication_mode(self) -> str:
+        return schemas.APIGatewayAuthenticationMode.none.value
 
 
-class BasicAuth(APIGatewayAuthenticator):
+class BasicAuth(APIGatewayAuthenticator, ModelObj):
     """
     An API gateway authenticator with basic authentication.
 
     :param username: (str) The username for basic authentication.
     :param password: (str) The password for basic authentication.
     """
+
+    _dict_fields = ["authentication_mode"]
 
     def __init__(self, username=None, password=None):
         self._username = username

@@ -114,7 +114,7 @@ def init_data(
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
-    if not is_migration_from_scratch and is_migration_needed:
+    if alembic_util and not is_migration_from_scratch and is_migration_needed:
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online

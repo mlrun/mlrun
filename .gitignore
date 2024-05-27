@@ -32,6 +32,7 @@ tests/project.yaml
 mlrun/utils/version/version.json
 tests/system/env.yml
 project.yaml
+server/api/db/mlrun.db
 
 # pyenv file for working with several python versions
 .python-version

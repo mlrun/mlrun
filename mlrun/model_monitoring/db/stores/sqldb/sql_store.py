@@ -106,19 +106,18 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             self.MonitoringSchedulesTable
         )
 
-    def _write(self, table: str, event: dict[str, typing.Any]):
+    def _write(self, table_name: str, event: dict[str, typing.Any]) -> None:
         """
         Create a new record in the SQL table.
 
-        :param table: Target table name.
-        :param event: Event dictionary that will be written into the DB.
+        :param table_name: Target table name.
+        :param event:      Event dictionary that will be written into the DB.
         """
         self._engine = typing.cast(sqlalchemy.engine.Engine, self._engine)
         with self._engine.connect() as connection:
             # Convert the result into a pandas Dataframe and write it into the database
             event_df = pd.DataFrame([event])
-
-            event_df.to_sql(table, con=connection, index=False, if_exists="append")
+            event_df.to_sql(table_name, con=connection, index=False, if_exists="append")
 
     def _update(
         self,
@@ -201,7 +200,9 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             mm_schemas.EventFieldType.LAST_REQUEST
         ] = datetime_now()
 
-        self._write(table=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint)
+        self._write(
+            table_name=mm_schemas.EventFieldType.MODEL_ENDPOINTS, event=endpoint
+        )
 
     def update_model_endpoint(
         self, endpoint_id: str, attributes: dict[str, typing.Any]
@@ -391,7 +392,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         else:
             # Write a new application result
             event[mm_schemas.EventFieldType.UID] = application_result_uid
-            self._write(table=mm_schemas.FileTargetKind.APP_RESULTS, event=event)
+            self._write(table_name=table_name, event=event)
 
     @staticmethod
     def _convert_to_datetime(event: dict[str, typing.Any], key: str) -> None:
@@ -464,7 +465,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         if not monitoring_schedule_record:
             # Add a new record with last analyzed value
             self._write(
-                table=mm_schemas.FileTargetKind.MONITORING_SCHEDULES,
+                table_name=mm_schemas.FileTargetKind.MONITORING_SCHEDULES,
                 event={
                     mm_schemas.SchedulingKeys.UID: uuid.uuid4().hex,
                     mm_schemas.SchedulingKeys.APPLICATION_NAME: application_name,

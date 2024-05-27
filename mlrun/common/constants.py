@@ -14,7 +14,7 @@
 #
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with registry
-MLRUN_MODEL_CONF = "model-conf"
+MLRUN_MODEL_CONF = "serving-conf"
 MLRUN_SERVING_SPEC_MOUNT_PATH = f"/tmp/mlrun/{MLRUN_MODEL_CONF}"
 MLRUN_SERVING_SPEC_FILENAME = "serving_spec.json"
 MLRUN_SERVING_SPEC_PATH = (

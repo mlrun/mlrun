@@ -19,6 +19,7 @@ import kfp.dsl
 import pytest
 from mlrun_pipelines.mounts import mount_v3io
 
+import mlrun.common.constants as mlrun_constants
 from mlrun import (
     _run_pipeline,
     code_to_function,
@@ -109,9 +110,13 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-training",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
-                "kind": "job",
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.kind: "job",
                 "category": "tests",
             },
         )
@@ -121,9 +126,13 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-validation",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
-                "kind": "job",
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.kind: "job",
             },
         )
         self._verify_run_spec(

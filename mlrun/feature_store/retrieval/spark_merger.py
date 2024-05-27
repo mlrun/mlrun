@@ -17,13 +17,14 @@ import pandas as pd
 import semver
 
 import mlrun
-from mlrun.datastore.targets import get_offline_target
 from mlrun.datastore.sources import ParquetSource
+from mlrun.datastore.targets import get_offline_target
+
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
+from ...utils import additional_filters_warning
 from .base import BaseMerger
 from .conversion import PandasConversionMixin
-from ...utils import additional_filters_warning
 
 
 def spark_df_to_pandas(spark_df):

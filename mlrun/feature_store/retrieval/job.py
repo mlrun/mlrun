@@ -104,9 +104,6 @@ def run_merge_job(
     if end_time and not isinstance(end_time, str):
         end_time = end_time.isoformat()
 
-    additional_filters_dict = (
-        {"additional_filters": additional_filters} if additional_filters else {}
-    )
     task = new_task(
         name=name,
         params={
@@ -121,7 +118,7 @@ def run_merge_job(
             "end_time": end_time,
             "timestamp_for_filtering": timestamp_for_filtering,
             "engine_args": engine_args,
-            **additional_filters_dict,
+            "additional_filters": additional_filters,
         },
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
     )

@@ -613,4 +613,43 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def get_model_endpoint_metrics(
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
-        raise NotImplementedError
+        """
+        Fetch the model endpoint metrics or results
+        """
+        logger.debug(
+            "Fetching metrics for model endpoint",
+            project=self.project,
+            endpoint_id=endpoint_id,
+            type=type,
+        )
+        if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
+            self._init_application_metrics_table()
+            table = self.application_metrics_table
+            name_col = mm_schemas.MetricData.METRIC_NAME
+        else:
+            self._init_application_results_table()
+            table = self.application_results_table
+            name_col = mm_schemas.ResultData.RESULT_NAME
+
+        with sqlalchemy.orm.Session(self._engine) as session:
+            metrics = (
+                session.query(table)  # pyright: ignore[reportOptionalCall]
+                .filter(table.endpoint_id == endpoint_id)
+                .all()
+            )
+
+        return [
+            mm_schemas.ModelEndpointMonitoringMetric(
+                project=self.project,
+                app=metric.application_name,
+                type=type,
+                name=getattr(metric, name_col),
+                full_name=mlrun.model_monitoring.helpers._compose_full_name(
+                    project=self.project,
+                    app=metric.application_name,
+                    type=type,
+                    name=getattr(metric, name_col),
+                ),
+            )
+            for metric in metrics
+        ]

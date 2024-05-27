@@ -658,7 +658,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             name_col = mm_schemas.ResultData.RESULT_NAME
 
         with sqlalchemy.orm.Session(self._engine) as session:
-            metrics = (
+            metric_rows = (
                 session.query(table)  # pyright: ignore[reportOptionalCall]
                 .filter(table.endpoint_id == endpoint_id)
                 .all()
@@ -667,15 +667,15 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         return [
             mm_schemas.ModelEndpointMonitoringMetric(
                 project=self.project,
-                app=metric.application_name,
+                app=metric_row.application_name,
                 type=type,
-                name=getattr(metric, name_col),
+                name=getattr(metric_row, name_col),
                 full_name=mlrun.model_monitoring.helpers._compose_full_name(
                     project=self.project,
-                    app=metric.application_name,
+                    app=metric_row.application_name,
                     type=type,
-                    name=getattr(metric, name_col),
+                    name=getattr(metric_row, name_col),
                 ),
             )
-            for metric in metrics
+            for metric_row in metric_rows
         ]

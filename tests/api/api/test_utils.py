@@ -1690,7 +1690,7 @@ async def test_delete_function_calls_k8s_helper_methods():
         )
 
         assert len(failed_requests) == 0
-        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "serving-conf")
         k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")
 
 

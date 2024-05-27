@@ -54,7 +54,8 @@ def test_http_fs_parquet_with_params_as_df():
 
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
-        "s3://aws-public-blockchain/v1.0/btc/transactions/date=2024-05-26/845161.snappy.parquet"
+        "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
+        "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
     )
     data_item.as_df()
 

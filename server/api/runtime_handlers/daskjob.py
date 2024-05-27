@@ -19,6 +19,7 @@ import semver
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -206,10 +207,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/component")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_component)
             )
             cluster_name = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)
             )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
@@ -438,13 +443,17 @@ def get_obj_status(selector=None, namespace=None):
 
     k8s = server.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ",".join(["dask.org/component=scheduler"] + selector)
+    selector = ",".join(
+        [f"{mlrun_constants.MLRunInternalLabels.dask_component}=scheduler"] + selector
+    )
     pods = k8s.list_pods(namespace, selector=selector)
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
         if status == "running":
-            cluster = pod.metadata.labels.get("dask.org/cluster-name")
+            cluster = pod.metadata.labels.get(
+                mlrun_constants.MLRunInternalLabels.dask_cluster_name
+            )
             logger.info(
                 "Found running dask function",
                 pod_name=pod.metadata.name,

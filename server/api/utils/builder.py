@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -515,7 +516,6 @@ def build_image(
         extra_args=extra_args,
     )
 
-    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -534,9 +534,9 @@ def build_image(
         registry=registry,
         extra_args=extra_args,
         extra_labels={
-            label_prefix + "name": name,
-            label_prefix + "function": runtime.metadata.name,
-            label_prefix + "tag": runtime.metadata.tag or "latest",
+            mlrun_constants.MLRunInternalLabels.name: name,
+            mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
+            mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
     )
 

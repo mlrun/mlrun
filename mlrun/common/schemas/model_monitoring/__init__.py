@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .constants import (
     ControllerPolicy,
@@ -30,20 +28,24 @@ from .constants import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
-    MonitoringTSDBTables,
+    PredictionsQueryConstants,
     ProjectSecretKeys,
     PrometheusEndpoints,
     PrometheusMetric,
     ResultData,
+    ResultKindApp,
     SchedulingKeys,
-    TimeSeriesConnector,
+    SpecialApps,
+    TDEngineSuperTables,
     TSDBTarget,
+    V3IOTSDBTables,
     VersionedModel,
     WriterEvent,
     WriterEventKind,
 )
 from .grafana import (
     GrafanaColumn,
+    GrafanaColumnType,
     GrafanaDataPoint,
     GrafanaNumberColumn,
     GrafanaStringColumn,
@@ -57,7 +59,10 @@ from .model_endpoints import (
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricNoData,
     ModelEndpointMonitoringMetricType,
+    ModelEndpointMonitoringMetricValues,
+    ModelEndpointMonitoringResultValues,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )

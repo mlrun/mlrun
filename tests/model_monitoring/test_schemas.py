@@ -39,7 +39,19 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ),
             does_not_raise(),
         ),
+        (
+            "proj_j.app-123.metric.error-count",
+            ModelEndpointMonitoringMetric(
+                project="proj_j",
+                app="app-123",
+                type=ModelEndpointMonitoringMetricType.METRIC,
+                name="error-count",
+                full_name="proj_j.app-123.metric.error-count",
+            ),
+            does_not_raise(),
+        ),
         ("invalid..fqn", None, pytest.raises(ValueError)),
+        ("prj.a.non-type.name", None, pytest.raises(ValueError)),
     ],
 )
 def test_fqn_parsing(

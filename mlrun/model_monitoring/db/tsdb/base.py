@@ -11,17 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-
-from abc import ABC
+import typing
+from abc import ABC, abstractmethod
+from datetime import datetime
 
 import pandas as pd
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class TSDBConnector(ABC):
+    type: str = ""
+
     def __init__(self, project: str):
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
@@ -56,14 +58,13 @@ class TSDBConnector(ABC):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> None:
         """
         Write a single application or metric to TSDB.
 
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
-        pass
 
     def delete_tsdb_resources(self):
         """
@@ -76,8 +77,8 @@ class TSDBConnector(ABC):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -98,38 +99,113 @@ class TSDBConnector(ABC):
         """
         pass
 
+    @abstractmethod
     def get_records(
         self,
         table: str,
-        columns: list[str] = None,
+        start: str,
+        end: str,
+        columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
         :param table:            Table name, e.g. 'metrics', 'app_results'.
+        :param start:            The start time of the metrics.
+                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
+                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
+                                 time.
+                                 If using TDEngine, can be represented by datetime.
+        :param end:              The end time of the metrics.
+                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
+                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
+                                 time.
+                                 If using TDEngine, can be represented by datetime.
         :param columns:          Columns to include in the result.
         :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
                                  connector type.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
+
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
-        pass
 
-    def create_tsdb_application_tables(self):
+    def create_tables(self) -> None:
         """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction.
         """
-        pass
+
+    @abstractmethod
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list.
+
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       The start time of the query.
+        :param end:         The end time of the query.
+        :param metrics:     The list of metrics to get the values for.
+        :param type:        "metrics" or "results" - the type of each item in metrics.
+        :return:            A list of result values or a list of metric values.
+        """
+
+    @abstractmethod
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+    ) -> typing.Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        """
+        Read the "invocations" metric for the provided model endpoint in the given time range,
+        and return the metric values if any, otherwise signify with the "no data" object.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+        :param aggregation_window: On what time window length should the invocations be aggregated.
+        :return:                   Metric values object or no data object.
+        """
+
+    @abstractmethod
+    def read_prediction_metric_for_endpoint_if_exists(
+        self, endpoint_id: str
+    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Read the "invocations" metric for the provided model endpoint, and return the metric object
+        if it exists.
+
+        :param endpoint_id: The model endpoint identifier.
+        :return:            `None` if the invocations metric does not exist, otherwise return the
+                            corresponding metric object.
+        """

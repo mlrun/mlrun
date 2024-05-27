@@ -41,6 +41,7 @@ import server.api.middlewares
 import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
+import server.api.utils.notification_pusher
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -145,13 +146,24 @@ async def http_status_error_handler(
         request_id = request.state.request_id
     status_code = exc.response.status_code
     error_message = repr(exc)
-    logger.warning(
-        "Request handling returned error status",
-        error_message=error_message,
-        status_code=status_code,
-        traceback=traceback.format_exc(),
-        request_id=request_id,
-    )
+    log_message = "Request handling returned error status"
+
+    if isinstance(exc, mlrun.errors.EXPECTED_ERRORS):
+        logger.debug(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            request_id=request_id,
+        )
+    else:
+        logger.warning(
+            log_message,
+            error_message=error_message,
+            status_code=status_code,
+            traceback=traceback.format_exc(),
+            request_id=request_id,
+        )
+
     return await http_exception_handler(
         request,
         fastapi.HTTPException(status_code=status_code, detail=error_message),
@@ -266,51 +278,55 @@ async def _verify_log_collection_started_on_startup(
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-    logger.debug(
-        "Getting all runs which are in non terminal state and require logs collection"
-    )
-    runs = await fastapi.concurrency.run_in_threadpool(
-        get_db().list_distinct_runs_uids,
-        db_session,
-        requested_logs_modes=[None, False],
-        only_uids=False,
-        states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
-    )
-    logger.debug(
-        "Getting all runs which might have reached terminal state while the API was down",
-        api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
-    )
-    runs.extend(
-        await fastapi.concurrency.run_in_threadpool(
+    try:
+        logger.debug(
+            "Getting all runs which are in non terminal state and require logs collection"
+        )
+        runs = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[None, False],
             only_uids=False,
-            # We take the minimum between the api_downtime_grace_period and the runtime_resources_deletion_grace_period
-            # because we want to make sure that we don't miss any runs which might have reached terminal state while the
-            # API was down, and their runtime resources are not deleted
-            last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-            - datetime.timedelta(
-                seconds=min(
-                    int(config.log_collector.api_downtime_grace_period),
-                    int(config.runtime_resources_deletion_grace_period),
-                )
-            ),
-            states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
         )
-    )
-    if runs:
         logger.debug(
-            "Found runs which require logs collection on startup",
-            runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
+            "Getting all runs which might have reached terminal state while the API was down",
+            api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
         )
+        runs.extend(
+            await fastapi.concurrency.run_in_threadpool(
+                get_db().list_distinct_runs_uids,
+                db_session,
+                requested_logs_modes=[None, False],
+                only_uids=False,
+                # We take the minimum between the api_downtime_grace_period and the
+                # runtime_resources_deletion_grace_period because we want to make sure that we don't miss any runs
+                # which might have reached terminal state while the API was down, and their runtime resources
+                # are not deleted
+                last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(
+                    seconds=min(
+                        int(config.log_collector.api_downtime_grace_period),
+                        int(config.runtime_resources_deletion_grace_period),
+                    )
+                ),
+                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+            )
+        )
+        if runs:
+            logger.debug(
+                "Found runs which require logs collection on startup",
+                runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
+            )
 
-        # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
-        # where the log collection failed (e.g. when the pod is not found for runs that might have reached terminal
-        # state while the API was down)
-        await _start_log_and_update_runs(
-            start_logs_limit, db_session, runs, best_effort=True
-        )
+            # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
+            # where the log collection failed (e.g. when the pod is not found for runs that might have reached terminal
+            # state while the API was down)
+            await _start_log_and_update_runs(
+                start_logs_limit, db_session, runs, best_effort=True
+            )
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
@@ -405,6 +421,7 @@ async def _start_log_and_update_runs(
         logger.debug(
             "Updating runs to indicate that we requested logs collection for them",
             runs_uids=runs_to_mark_as_requested_logs,
+            start_log_request_counters_len=len(_run_uid_start_log_request_counters),
         )
         # update the runs to indicate that we have requested log collection for them
         await fastapi.concurrency.run_in_threadpool(
@@ -757,7 +774,7 @@ def _push_terminal_run_notifications(
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
+    server.api.utils.notification_pusher.RunNotificationPusher(unmasked_runs).push()
 
 
 def _generate_event_on_failed_runs(
@@ -776,14 +793,16 @@ def _generate_event_on_failed_runs(
 
     for run in runs:
         project = run["metadata"]["project"]
-        uid = run["metadata"]["uid"]
-        entity = {
-            "kind": alert_objects.EventEntityKind.JOB,
-            "project": project,
-            "ids": [uid],
-        }
+        run_uid = run["metadata"]["uid"]
+        run_name = run["metadata"]["name"]
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.JOB,
+            project=project,
+            ids=[run_name],
+        )
+        event_value = {"uid": run_uid}
         event_data = mlrun.common.schemas.Event(
-            kind=alert_objects.EventKind.FAILED, entity=entity
+            kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
         )
         mlrun.get_run_db().generate_event(alert_objects.EventKind.FAILED, event_data)
 

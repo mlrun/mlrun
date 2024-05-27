@@ -888,19 +888,23 @@ class _RemoteRunner(_PipelineRunner):
     ):
         inner_runner = inner_runner or _KFPRunner
         if inner_runner.engine == _KFPRunner.engine:
-            # ignore notifiers, as they are handled by the remote pipeline notifications,
-            # so overriding with CustomNotificationPusher with empty list of notifiers
-            state, had_errors, text = inner_runner.get_run_status(
+            # ignore notifiers for remote notifications, as they are handled by the remote pipeline notifications,
+            # so overriding with CustomNotificationPusher with empty list of notifiers or only local notifiers
+            local_project_notifiers = list(
+                set(mlrun.utils.notifications.NotificationTypes.local()).intersection(
+                    set(project.notifiers.notifications.keys())
+                )
+            )
+            notifiers = mlrun.utils.notifications.CustomNotificationPusher(
+                local_project_notifiers
+            )
+            return _KFPRunner.get_run_status(
                 project,
                 run,
                 timeout,
                 expected_statuses,
-                notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
+                notifiers=notifiers,
             )
-
-            # indicate the pipeline status since we don't push the notifications in the remote runner
-            logger.info(text)
-            return state, had_errors, text
 
         elif inner_runner.engine == _LocalRunner.engine:
             mldb = mlrun.db.get_run_db(secrets=project._secrets)

@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -1249,11 +1250,11 @@ def _create_resources_of_all_kinds(
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         entities={
-            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
             "project": project,
-            "ids": ["*"],
+            "ids": [1234],
         },
-        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
         notifications=[{"notification": notification.to_dict()}],
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
     )
@@ -1287,7 +1288,7 @@ def _create_resources_of_all_kinds(
 
     # Create several feature sets with several tags
     labels = {
-        "owner": "nobody",
+        mlrun_constants.MLRunInternalLabels.owner: "nobody",
     }
     feature_set = mlrun.common.schemas.FeatureSet(
         metadata=mlrun.common.schemas.ObjectMetadata(
@@ -1757,7 +1758,7 @@ def _create_schedules(client: TestClient, project_name):
             client,
             project_name,
             mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-            {"workflow": "workflow"},
+            {mlrun_constants.MLRunInternalLabels.workflow: "workflow"},
         )
     return (
         schedules_count

@@ -22,7 +22,7 @@ from mlrun.common.types import StrEnum
 
 
 class EventEntityKind(StrEnum):
-    MODEL = "model"
+    MODEL_ENDPOINT_RESULT = "model-endpoint-result"
     JOB = "job"
 
 
@@ -33,14 +33,34 @@ class EventEntities(pydantic.BaseModel):
 
 
 class EventKind(StrEnum):
-    DRIFT_DETECTED = "drift_detected"
-    DRIFT_SUSPECTED = "drift_suspected"
+    DATA_DRIFT_DETECTED = "data_drift_detected"
+    DATA_DRIFT_SUSPECTED = "data_drift_suspected"
+    CONCEPT_DRIFT_DETECTED = "concept_drift_detected"
+    CONCEPT_DRIFT_SUSPECTED = "concept_drift_suspected"
+    MODEL_PERFORMANCE_DETECTED = "model_performance_detected"
+    MODEL_PERFORMANCE_SUSPECTED = "model_performance_suspected"
+    MODEL_SERVING_PERFORMANCE_DETECTED = "model_serving_performance_detected"
+    MODEL_SERVING_PERFORMANCE_SUSPECTED = "model_serving_performance_suspected"
+    MM_APP_ANOMALY_DETECTED = "mm_app_anomaly_detected"
+    MM_APP_ANOMALY_SUSPECTED = "mm_app_anomaly_suspected"
     FAILED = "failed"
 
 
 _event_kind_entity_map = {
-    EventKind.DRIFT_SUSPECTED: [EventEntityKind.MODEL],
-    EventKind.DRIFT_DETECTED: [EventEntityKind.MODEL],
+    EventKind.DATA_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.DATA_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.CONCEPT_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MODEL_SERVING_PERFORMANCE_DETECTED: [
+        EventEntityKind.MODEL_ENDPOINT_RESULT
+    ],
+    EventKind.MODEL_SERVING_PERFORMANCE_SUSPECTED: [
+        EventEntityKind.MODEL_ENDPOINT_RESULT
+    ],
+    EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_ANOMALY_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.FAILED: [EventEntityKind.JOB],
 }
 
@@ -123,7 +143,8 @@ class AlertConfig(pydantic.BaseModel):
         pydantic.Field(
             description=(
                 "String to be sent in the notifications generated."
-                "e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+                "e.g. 'Model {{project}}/{{entity}} is drifting.'"
+                "Supported variables: project, entity, name"
             )
         ),
     ]
@@ -161,8 +182,9 @@ class AlertTemplate(
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    description: Optional[str] = (
-        "String to be sent in the generated notifications e.g. 'Model {{ $project }}/{{ $entity }} is drifting.'"
+    summary: Optional[str] = (
+        "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
+        "See AlertConfig.summary description"
     )
     severity: AlertSeverity
     trigger: AlertTrigger
@@ -173,7 +195,7 @@ class AlertTemplate(
     def templates_differ(self, other):
         return (
             self.template_description != other.template_description
-            or self.description != other.description
+            or self.summary != other.summary
             or self.severity != other.severity
             or self.trigger != other.trigger
             or self.reset_policy != other.reset_policy

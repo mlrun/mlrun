@@ -531,6 +531,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
                 or config.model_endpoint_monitoring.endpoint_store_connection
             )
+            config.model_endpoint_monitoring.tsdb_connection = (
+                server_cfg.get("model_monitoring_tsdb_connection")
+                or config.model_endpoint_monitoring.tsdb_connection
+            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:
@@ -794,7 +798,7 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
             of a label (i.e. list("key=value")) or by looking for the existence of a given
             key (i.e. "key").
-        :param state: List only runs whose state is specified.
+        :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -828,6 +832,13 @@ class HTTPRunDB(RunDBInterface):
             # TODO: Remove this in 1.8.0
             warnings.warn(
                 "'last' is deprecated and will be removed in 1.8.0.",
+                FutureWarning,
+            )
+
+        if state:
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
                 FutureWarning,
             )
 

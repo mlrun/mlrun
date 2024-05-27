@@ -3102,17 +3102,18 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_credentials(
         self,
-        access_key: str = None,
-        endpoint_store_connection: str = None,
-        stream_path: str = None,
+        access_key: Optional[str] = None,
+        endpoint_store_connection: Optional[str] = None,
+        stream_path: Optional[str] = None,
+        tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
         :param access_key:                Model Monitoring access key for managing user permissions
-        :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream
+        :param tsdb_connection:           Connection string to the time series database
         """
 
         secrets_dict = {}
@@ -3134,6 +3135,16 @@ class MlrunProject(ModelObj):
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
+
+        if tsdb_connection:
+            if not tsdb_connection.startswith("taosws://"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
+                    "please provide a full URL (e.g. taosws://user:password@host:port)"
+                )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ] = tsdb_connection
 
         self.set_secrets(
             secrets=secrets_dict,
@@ -3730,11 +3741,11 @@ class MlrunProject(ModelObj):
         :param labels:  A list of labels to filter by. Label filters work by either filtering a specific value
                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                 key (i.e. "key").
-        :param state: List only runs whose state is specified.
+        :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.8.0).
+        :param last: Deprecated - currently not used (will be removed in 1.9.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -3742,6 +3753,13 @@ class MlrunProject(ModelObj):
             last_update_time_to)``.
         :param last_update_time_to: Filter by run last update time in ``(last_update_time_from, last_update_time_to)``.
         """
+        if state:
+            # TODO: Remove this in 1.9.0
+            warnings.warn(
+                "'state' is deprecated and will be removed in 1.9.0. Use 'states' instead.",
+                FutureWarning,
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_runs(
             name,

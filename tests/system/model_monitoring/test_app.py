@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import concurrent
 import concurrent.futures
 import json
+import os
 import pickle
 import time
 import typing
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -99,18 +98,37 @@ class _V3IORecordsChecker:
     app_interval: int
 
     @classmethod
-    def custom_setup_class(cls, project_name: str) -> None:
-        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name
-        )
+    def custom_setup(cls, project_name: str) -> None:
+        if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
+            project = mlrun.get_or_create_project(
+                project_name, "./", allow_cross_project=True
+            )
+            project.set_model_monitoring_credentials(
+                tsdb_connection=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                )
+            )
+
+            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name,
+                TSDB_CONNECTION=os.getenv(
+                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
+                ),
+            )
+        else:
+            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name
+            )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
-    def _test_kv_record(cls, ep_id: str) -> None:
+    def _test_results_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
             app_name = app_data.class_.NAME
-            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            cls._logger.debug(
+                "Checking the results KV record of app", app_name=app_name
+            )
 
             resp = cls._kv_storage.client.kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
@@ -124,12 +142,48 @@ class _V3IORecordsChecker:
                 ), "The KV saved metrics are different than expected"
 
     @classmethod
+    def _test_metrics_kv_record(cls, ep_id: str) -> None:
+        for app_data in cls.apps_data:
+            if not app_data.metrics:
+                return
+
+            app_name = app_data.class_.NAME
+            table_path = f"{ep_id}_metrics"
+
+            for metric in app_data.metrics:
+                cls._logger.debug(
+                    "Checking a metric KV record of app",
+                    app_name=app_name,
+                    metric=metric,
+                )
+                resp = cls._kv_storage.client.kv.get(
+                    container=cls._v3io_container,
+                    table_path=table_path,
+                    key=f"{app_name}.{metric}",
+                )
+                assert (
+                    resp.output.item
+                ), f"V3IO KV app data is empty for app {app_name} and metric {metric}"
+
+    @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.MonitoringTSDBTables.APP_RESULTS,
-            start=f"now-{5 * cls.app_interval}m",
-            end="now",
-        )
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            # V3IO TSDB
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+                start=f"now-{10 * cls.app_interval}m",
+                end="now",
+            )
+        else:
+            # TDEngine
+            df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.TDEngineSuperTables.APP_RESULTS,
+                start=datetime.now().astimezone()
+                - timedelta(minutes=10 * cls.app_interval),
+                end=datetime.now().astimezone(),
+                timestamp_column=mm_constants.WriterEvent.END_INFER_TIME,
+            )
+
         assert not df.empty, "No TSDB data"
         assert (
             df.endpoint_id == ep_id
@@ -147,6 +201,16 @@ class _V3IORecordsChecker:
                 assert (
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
+
+    @classmethod
+    def _test_predictions_table(cls, ep_id: str) -> None:
+        predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+            table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+        )
+        assert not predictions_df.empty, "No TSDB predictions data"
+        assert (
+            predictions_df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
     def _test_apps_parquet(
@@ -176,27 +240,49 @@ class _V3IORecordsChecker:
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:
         cls._test_apps_parquet(ep_id, inputs, outputs)
-        cls._test_kv_record(ep_id)
+        cls._test_results_kv_record(ep_id)
+        cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
+        cls._test_predictions_table(ep_id)
 
     @classmethod
-    def _test_api_get_results(
-        cls, ep_id: str, app_data: _AppData, run_db: mlrun.db.httpdb.HTTPRunDB
+    def _test_api_get_metrics(
+        cls,
+        ep_id: str,
+        app_data: _AppData,
+        run_db: mlrun.db.httpdb.HTTPRunDB,
+        type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
-        cls._logger.debug("Checking GET /metrics API")
+        cls._logger.debug("Checking GET /metrics API", type=type)
         response = run_db.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type=results",
+            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics?type={type}",
         )
         get_app_results: set[str] = set()
         app_results_full_names: list[str] = []
-        for result in json.loads(response.content.decode()):
-            if result["app"] == app_data.class_.NAME:
+
+        parsed_response = json.loads(response.content.decode())
+
+        if type == "metrics":
+            assert {
+                "project": cls.project_name,
+                "app": "mlrun-infra",
+                "type": "metric",
+                "name": "invocations",
+                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
+            } in parsed_response
+
+        for result in parsed_response:
+            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert app_data.results == get_app_results
-        assert app_results_full_names, "No results"
+        expected_results = getattr(app_data, type)
+        if type == "metrics":
+            expected_results.add("invocations")
+
+        assert get_app_results == getattr(app_data, type)
+        assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
     @classmethod
@@ -224,12 +310,20 @@ class _V3IORecordsChecker:
     def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
-        results_full_names = cls._test_api_get_results(
-            ep_id=ep_id, app_data=app_data, run_db=run_db
+        metrics_full_names = cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
         )
-        cls._test_api_get_values(
-            ep_id=ep_id, results_full_names=results_full_names, run_db=run_db
+        results_full_names = cls._test_api_get_metrics(
+            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
+
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            # TODO : implement for TDEngine once the API is supported
+            cls._test_api_get_values(
+                ep_id=ep_id,
+                results_full_names=metrics_full_names + results_full_names,
+                run_db=run_db,
+            )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -280,7 +374,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         cls.run_db = mlrun.get_run_db()
 
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+    @classmethod
+    def custom_setup(cls) -> None:
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
@@ -292,7 +388,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
                 if app_data.deploy:
                     fn = self.project.set_model_monitoring_function(
@@ -407,7 +503,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(
                 self._submit_controller_and_deploy_writer,
                 deploy_histogram_data_drift_app=_DefaultDataDriftAppData
@@ -512,7 +608,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
         cls.apps_data = [_DefaultDataDriftAppData, cls.app_data]
-        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
     @classmethod
     def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
@@ -573,7 +669,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def test_inference_feature_set(self) -> None:
         self._log_model()
 
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.submit(self._deploy_monitoring_app)
             executor.submit(self._deploy_monitoring_infra)
 
@@ -776,7 +872,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             deploy_histogram_data_drift_app=False,
         )
         futures = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             for model_name, model_dict in self.models.items():
                 self._log_model(
                     model_name,
@@ -790,7 +886,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             future.result()
 
         futures_2 = []
-        with ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:

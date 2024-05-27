@@ -746,9 +746,6 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
-    def __init__(self):
-        self.inner_runner: type[_PipelineRunner] = _KFPRunner
-
     @classmethod
     def run(
         cls,

@@ -478,13 +478,17 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(table=self.MonitoringSchedulesTable, criteria=criteria)
 
-    def _delete_application_result(self, endpoint_id: str) -> None:
+    def _delete_application_result(
+        self, endpoint_id: str, application_name: typing.Optional[str] = None
+    ) -> None:
         self._init_application_results_table()
+        criteria = [self.ApplicationResultsTable.endpoint_id == endpoint_id]
+        if application_name is not None:
+            criteria.append(
+                self.ApplicationResultsTable.application_name == application_name
+            )
         # Delete the table
-        self._delete(
-            table=self.ApplicationResultsTable,
-            criteria=[self.ApplicationResultsTable.endpoint_id == endpoint_id],
-        )
+        self._delete(table=self.ApplicationResultsTable, criteria=criteria)
 
     def _create_tables_if_not_exist(self):
         self._init_tables()

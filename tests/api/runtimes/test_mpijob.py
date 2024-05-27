@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
@@ -77,10 +78,10 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
-                    "mpijob": "v1/mpi-job-role=worker",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=worker",
                 },
                 name=self.name,
             ),
@@ -91,10 +92,10 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
-                    "mpijob": "v1/mpi-job-role=launcher",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher",
                 },
                 name=self.name,
             ),

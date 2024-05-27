@@ -22,6 +22,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.common.secrets as mlsecrets
@@ -269,16 +270,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         )
         extra_selectors = {
-            "spark": "spark-role=driver",
+            "spark": f"{mlrun_constants.MLRunInternalLabels.spark_role}=driver",
             "mpijob": f"{mpijob_role_label}=launcher",
         }
 
-        # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
-        #  inclusive place.
         selectors = [
-            "mlrun/class",
-            f"mlrun/project={project}",
-            f"mlrun/uid={uid}",
+            mlrun_constants.MLRunInternalLabels.mlrun_class,
+            f"{mlrun_constants.MLRunInternalLabels.project}={project}",
+            f"{mlrun_constants.MLRunInternalLabels.uid}={uid}",
         ]
 
         # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for
@@ -553,7 +552,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
-        label_name = "resource_name"
+        label_name = mlrun_constants.MLRunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
 
         configmap_with_label = self.get_configmap(name, resource, namespace)
@@ -605,7 +604,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def get_configmap(self, name: str, resource: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
-        label_name = "resource_name"
+        label_name = mlrun_constants.MLRunInternalLabels.resource_name
         full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
             namespace=namespace, label_selector=f"{label_name}={full_name}"
@@ -687,12 +686,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         if not username:
             return {}
         labels = {
-            "mlrun/username": username,
+            mlrun_constants.MLRunInternalLabels.username: username,
         }
         if "@" in username:
             username, domain = username.split("@")
-            labels["mlrun/username"] = username
-            labels["mlrun/username_domain"] = domain
+            labels[mlrun_constants.MLRunInternalLabels.username] = username
+            labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
 
 
@@ -722,9 +721,9 @@ class BasePod:
         self.node_selector = None
         self.project = project or mlrun.mlconf.default_project
         self._labels = {
-            "mlrun/task-name": task_name,
-            "mlrun/class": kind,
-            "mlrun/project": self.project,
+            mlrun_constants.MLRunInternalLabels.task_name: task_name,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: kind,
+            mlrun_constants.MLRunInternalLabels.project: self.project,
         } | (labels or {})
         self._annotations = {}
         self._init_containers = []

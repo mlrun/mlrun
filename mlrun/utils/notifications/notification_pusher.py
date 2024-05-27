@@ -24,6 +24,7 @@ import kfp
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
@@ -239,8 +240,8 @@ class NotificationPusher(_NotificationPusherBase):
         resource = "Run"
         runs = [run.to_dict()]
 
-        if "workflow" in run.metadata.labels:
-            resource = "Workflow"
+        if mlrun_constants.MLRunInternalLabels.workflow in run.metadata.labels:
+            resource = mlrun_constants.MLRunInternalLabels.workflow
             custom_message = (
                 f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
@@ -396,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
-                    labels=f"mlrun/runner-pod={_step.node_name}",
+                    labels=f"mlrun_constants.MLRunInternalLabels.runner_pod={_step.node_name}",
                 )[0]
             except IndexError:
                 _run = {

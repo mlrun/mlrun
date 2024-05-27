@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -966,6 +967,10 @@ class Config:
 
         self.httpdb.clusterization.chief.url = chief_api_url
         return self.httpdb.clusterization.chief.url
+
+    @staticmethod
+    def internal_labels():
+        return mlrun.common.constants.MLRunInternalLabels.all()
 
     @staticmethod
     def get_storage_auto_mount_params():

@@ -15,6 +15,7 @@ import os
 import pathlib
 from typing import Callable, Optional, Union
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import mlrun.launcher.client as launcher
@@ -132,8 +133,13 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-        if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
+            )
 
         # store function object in db unless running from within a run pod
         if not runtime.is_child:

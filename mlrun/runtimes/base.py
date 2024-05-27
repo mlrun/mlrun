@@ -25,6 +25,7 @@ from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -473,7 +474,7 @@ class BaseRuntime(ModelObj):
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels["owner"]
+                "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
             )
 
         if db and self.kind != "handler":

@@ -14,6 +14,7 @@
 
 import typing
 from datetime import datetime
+from io import StringIO
 
 import pandas as pd
 import taosws
@@ -21,6 +22,7 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
+import mlrun.model_monitoring.helpers
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
@@ -186,34 +188,55 @@ class TDEngineConnector(TSDBConnector):
     def get_records(
         self,
         table: str,
-        start: str,
-        end: str,
+        start: datetime,
+        end: datetime,
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
+        interval: str = "",
+        agg: typing.Optional[list] = None,
+        limit: int = 0,
+        sliding_window: str = "",
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
         :param table:            Either a supertable or a subtable name.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
-                                 connector type.
         :param start:            The start time of the metrics.
         :param end:              The end time of the metrics.
+        :param columns:          Columns to include in the result.
+        :param filter_query:     Optional filter expression as a string. TDengine supports SQL-like syntax.
+        :param interval:         The interval to aggregate the data by. Note that if interval is provided,
+                                 agg must bg provided as well. Provided as a string in the format of
+                                 '1m', '1h', etc.
+        :param agg:              The aggregation functions to apply on the columns. Note that if agg is provided,
+                                 interval must bg provided as well. Provided as a list of strings in the format of
+                                 ['sum', 'avg', 'count', ...].
+        :param limit:            The maximum number of records to return.
+        :param sliding_window:   The time step for which the time window moves forward. Note that if sliding_window is
+                                 provided, interval must be provided as well. Provided as a string in the format of
+                                 '1m', '1h', etc.
         :param timestamp_column: The column name that holds the timestamp.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
         """
-
-        filter_query += f" project = '{self.project}'"
+        with StringIO() as query:
+            if filter_query:
+                query.write(filter_query)
+                query.write(" and ")
+            query.write(f"project = '{self.project}'")
+            filter_query = query.getvalue()
 
         full_query = tdengine_schemas.TDEngineSchema._get_records_query(
             table=table,
-            columns_to_filter=columns,
-            filter_query=filter_query,
             start=start,
             end=end,
+            columns_to_filter=columns,
+            filter_query=filter_query,
+            interval=interval,
+            limit=limit,
+            agg=agg,
+            sliding_window=sliding_window,
             timestamp_column=timestamp_column,
             database=self.database,
         )
@@ -251,7 +274,50 @@ class TDEngineConnector(TSDBConnector):
             ],
         ],
     ]:
-        raise NotImplementedError
+        if type == "metrics":
+            table = mm_schemas.TDEngineSuperTables.METRICS
+            name = mm_schemas.MetricData.METRIC_NAME
+            df_handler = self.df_to_metrics_values
+        elif type == "results":
+            table = mm_schemas.TDEngineSuperTables.APP_RESULTS
+            name = mm_schemas.ResultData.RESULT_NAME
+            df_handler = self.df_to_results_values
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid type {type}, must be either 'metrics' or 'results'."
+            )
+
+        list_of_metrics = [
+            f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+            for metric in metrics
+        ]
+        with StringIO() as query:
+            query.write(f"endpoint_id='{endpoint_id}' ")
+            query.write("AND ")
+            query.write(" OR ".join(list_of_metrics))
+            filter_query = query.getvalue()
+
+        df = self.get_records(
+            table=table,
+            start=start,
+            end=end,
+            filter_query=filter_query,
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+        )
+
+        df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(
+            df[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
+
+        logger.debug(
+            "Read a data-frame",
+            project=self.project,
+            endpoint_id=endpoint_id,
+            is_empty=df.empty,
+        )
+
+        return df_handler(df=df, metrics=metrics, project=self.project)
 
     def read_predictions(
         self,
@@ -260,13 +326,62 @@ class TDEngineConnector(TSDBConnector):
         start: datetime,
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
+        limit: typing.Optional[int] = None,
     ) -> typing.Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
-        raise NotImplementedError
+        if not aggregation_window:
+            logger.warning(
+                "Aggregation window is not provided, defaulting to 10 minute."
+            )
+            aggregation_window = "10m"
+
+        df = self.get_records(
+            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=["latency"],
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            agg=["count"],
+            interval=aggregation_window,
+            limit=limit,
+        )
+
+        full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(self.project)
+
+        if df.empty:
+            return mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+
+        df["_wend"] = pd.to_datetime(df["_wend"])
+        df.set_index("_wend", inplace=True)
+        return mm_schemas.ModelEndpointMonitoringMetricValues(
+            full_name=full_name,
+            values=list(
+                zip(
+                    df.index,
+                    df["count(latency)"],
+                )
+            ),  # pyright: ignore[reportArgumentType]
+        )
 
     def read_prediction_metric_for_endpoint_if_exists(
         self, endpoint_id: str
     ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        raise NotImplementedError
+        # Read just one record, because we just want to check if there is any data for this endpoint_id
+        predictions = self.read_predictions(
+            endpoint_id=endpoint_id, start=datetime.min, end=datetime.now(), limit=1
+        )
+        if predictions:
+            return mm_schemas.ModelEndpointMonitoringMetric(
+                project=self.project,
+                app=mm_schemas.SpecialApps.MLRUN_INFRA,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
+                full_name=mlrun.model_monitoring.helpers.get_invocations_fqn(
+                    self.project
+                ),
+            )

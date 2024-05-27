@@ -26,7 +26,6 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.model_endpoints import _compose_full_name
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
@@ -34,19 +33,6 @@ from mlrun.utils import logger
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
-
-
-def _get_result_kind(result_df: pd.DataFrame) -> mm_schemas.ResultKindApp:
-    kind_series = result_df[mm_schemas.ResultData.RESULT_KIND]
-    unique_kinds = kind_series.unique()
-    if len(unique_kinds) > 1:
-        logger.warning(
-            "The result has more than one kind",
-            kinds=list(unique_kinds),
-            application_name=result_df[mm_schemas.WriterEvent.APPLICATION_NAME],
-            result_name=result_df[mm_schemas.ResultData.RESULT_NAME],
-        )
-    return unique_kinds[0]
 
 
 class V3IOTSDBConnector(TSDBConnector):
@@ -545,138 +531,6 @@ class V3IOTSDBConnector(TSDBConnector):
 
             query.write(";")
             return query.getvalue()
-
-    @staticmethod
-    def df_to_results_values(
-        *,
-        df: pd.DataFrame,
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
-        project: str,
-    ) -> list[
-        Union[
-            mm_schemas.ModelEndpointMonitoringResultValues,
-            mm_schemas.ModelEndpointMonitoringMetricNoData,
-        ]
-    ]:
-        """
-        Parse a time-indexed data-frame of results from the TSDB into a list of
-        results values per distinct results.
-        When a result is not found in the data-frame, it is represented in no-data object.
-        """
-        metrics_without_data = {metric.full_name: metric for metric in metrics}
-
-        metrics_values: list[
-            Union[
-                mm_schemas.ModelEndpointMonitoringResultValues,
-                mm_schemas.ModelEndpointMonitoringMetricNoData,
-            ]
-        ] = []
-        if not df.empty:
-            grouped = df.groupby(
-                [
-                    mm_schemas.WriterEvent.APPLICATION_NAME,
-                    mm_schemas.ResultData.RESULT_NAME,
-                ],
-                observed=False,
-            )
-        else:
-            grouped = []
-            logger.debug("No results", missing_results=metrics_without_data.keys())
-        for (app_name, name), sub_df in grouped:
-            result_kind = _get_result_kind(sub_df)
-            full_name = _compose_full_name(project=project, app=app_name, name=name)
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringResultValues(
-                    full_name=full_name,
-                    result_kind=result_kind,
-                    values=list(
-                        zip(
-                            sub_df.index,
-                            sub_df[mm_schemas.ResultData.RESULT_VALUE],
-                            sub_df[mm_schemas.ResultData.RESULT_STATUS],
-                        )
-                    ),  # pyright: ignore[reportArgumentType]
-                )
-            )
-            del metrics_without_data[full_name]
-
-        for metric in metrics_without_data.values():
-            if metric.full_name == get_invocations_fqn(project):
-                continue
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringMetricNoData(
-                    full_name=metric.full_name,
-                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
-                )
-            )
-
-        return metrics_values
-
-    @staticmethod
-    def df_to_metrics_values(
-        *,
-        df: pd.DataFrame,
-        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
-        project: str,
-    ) -> list[
-        Union[
-            mm_schemas.ModelEndpointMonitoringMetricValues,
-            mm_schemas.ModelEndpointMonitoringMetricNoData,
-        ]
-    ]:
-        """
-        Parse a time-indexed data-frame of metrics from the TSDB into a list of
-        metrics values per distinct results.
-        When a metric is not found in the data-frame, it is represented in no-data object.
-        """
-        metrics_without_data = {metric.full_name: metric for metric in metrics}
-
-        metrics_values: list[
-            Union[
-                mm_schemas.ModelEndpointMonitoringMetricValues,
-                mm_schemas.ModelEndpointMonitoringMetricNoData,
-            ]
-        ] = []
-        if not df.empty:
-            grouped = df.groupby(
-                [
-                    mm_schemas.WriterEvent.APPLICATION_NAME,
-                    mm_schemas.MetricData.METRIC_NAME,
-                ],
-                observed=False,
-            )
-        else:
-            logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
-            grouped = []
-        for (app_name, name), sub_df in grouped:
-            full_name = _compose_full_name(
-                project=project,
-                app=app_name,
-                name=name,
-                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-            )
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringMetricValues(
-                    full_name=full_name,
-                    values=list(
-                        zip(
-                            sub_df.index,
-                            sub_df[mm_schemas.MetricData.METRIC_VALUE],
-                        )
-                    ),  # pyright: ignore[reportArgumentType]
-                )
-            )
-            del metrics_without_data[full_name]
-
-        for metric in metrics_without_data.values():
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringMetricNoData(
-                    full_name=metric.full_name,
-                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                )
-            )
-
-        return metrics_values
 
     def read_predictions(
         self,

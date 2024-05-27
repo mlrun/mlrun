@@ -50,11 +50,20 @@ def init_data(
 ) -> None:
     logger.info("Initializing DB data")
 
+    alembic_util = None
+
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
     mysql_util = server.api.utils.db.mysql.MySQLUtil(logger)
     if mysql_util.get_mysql_dsn_data():
         mysql_util.wait_for_db_liveness()
         mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+
+        alembic_util = _create_alembic_util()
+        (
+            is_migration_needed,
+            is_migration_from_scratch,
+            is_backup_needed,
+        ) = _resolve_needed_operations(alembic_util, from_scratch)
     else:
         dsn = mysql_util.get_dsn()
         if "sqlite" in dsn:
@@ -64,12 +73,10 @@ def init_data(
                 f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
             )
 
-    alembic_util = _create_alembic_util()
-    (
-        is_migration_needed,
-        is_migration_from_scratch,
-        is_backup_needed,
-    ) = _resolve_needed_operations(alembic_util, from_scratch)
+        # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
+        is_migration_from_scratch = True
+        is_migration_needed = False
+        is_backup_needed = False
 
     if (
         not is_migration_from_scratch
@@ -176,13 +183,9 @@ def _resolve_needed_operations(
 
 
 def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
-    alembic_config_file_name = "alembic.ini"
-    if server.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data():
-        alembic_config_file_name = "alembic_mysql.ini"
-
     # run schema migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-    alembic_config_path = dir_path / alembic_config_file_name
+    alembic_config_path = dir_path / "alembic.ini"
 
     alembic_util = server.api.utils.db.alembic.AlembicUtil(
         alembic_config_path, _is_latest_data_version()
@@ -191,8 +194,9 @@ def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
 
 
 def _perform_schema_migrations(alembic_util: server.api.utils.db.alembic.AlembicUtil):
-    logger.info("Performing schema migration")
-    alembic_util.init_alembic()
+    if alembic_util:
+        logger.info("Performing schema migration")
+        alembic_util.init_alembic()
 
 
 def _is_latest_data_version():

@@ -114,16 +114,12 @@ install-all-requirements: ## Install all requirements needed for development and
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	python -m pip install .[all]
 
-.PHONY: create-migration-sqlite
-create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-	./automation/scripts/create_migration_sqlite.sh
-
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 	./automation/scripts/create_migration_mysql.sh
 
 .PHONY: create-migration
-create-migration: create-migration-sqlite create-migration-mysql
+create-migration: create-migration-mysql
 	@echo "Migrations created successfully"
 
 .PHONY: bump-version
@@ -487,13 +483,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	python -m pytest -v \
-		--capture=no \
-		--disable-warnings \
-		--durations=100 \
-		-rf \
-		--test-alembic \
-		server/api/migrations_sqlite/tests/*
+	./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container

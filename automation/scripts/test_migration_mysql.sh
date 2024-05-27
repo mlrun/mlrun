@@ -16,11 +16,6 @@
 
 set -e
 
-if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
-	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
-	exit 1
-fi
-
 function cleanup {
 	docker kill migration-db
 }
@@ -58,5 +53,10 @@ done
 export PYTHONPATH=$ROOT_DIR
 
 cd ${ROOT_DIR}/server/api
-alembic upgrade head
-alembic revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+
+python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		-rf \
+		migrations/tests/*

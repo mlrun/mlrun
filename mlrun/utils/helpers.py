@@ -1102,7 +1102,7 @@ def get_class(class_name, namespace=None):
 
 
 def get_function(function, namespaces, reload_modules: bool = False):
-    """return function callable object from function name string
+    """Return function callable object from function name string
 
     :param function: path to the function ([class_name::]function)
     :param namespaces: one or list of namespaces/modules to search the function in
@@ -1137,7 +1137,7 @@ def get_handler_extended(
     namespaces=None,
     reload_modules: bool = False,
 ):
-    """get function handler from [class_name::]handler string
+    """Get function handler from [class_name::]handler string
 
     :param handler_path:  path to the function ([class_name::]handler)
     :param context:       MLRun function/job client context

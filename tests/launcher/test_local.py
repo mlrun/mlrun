@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import pathlib
 import sys
 
@@ -120,13 +119,12 @@ def test_validate_runtime_success():
     launcher._validate_runtime(runtime, run)
 
 
-def test_launch_local_reload_module():
+def test_launch_local_reload_module(tmp_path):
     """This test ensures that the function code is updated when running a relative handler in local
     mode when the code changes during execution"""
-    sys.path.append(str(pathlib.Path(__file__).parent))
-    file_path = f"{assets_path}/temp_function.py"
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    sys.path.append(str(tmp_path.parent))
+    dir_name = tmp_path.name
+    file_path = f"{tmp_path}/temp_function.py"
 
     function_code = '''def func():
     return "dummy value"'''
@@ -135,7 +133,7 @@ def test_launch_local_reload_module():
         file.write(function_code)
 
     project = mlrun.new_project("some-project")
-    project.set_function(name="func", handler="assets.temp_function.func")
+    project.set_function(name="func", handler=f"{dir_name}.temp_function.func")
     run = project.run_function("func", local=True)
     assert run.output("return") == "dummy value"
 
@@ -148,5 +146,3 @@ def test_launch_local_reload_module():
 
     run = project.run_function("func", local=True)
     assert run.output("return") == "dummy value updated"
-
-    os.remove(file_path)

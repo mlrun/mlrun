@@ -97,10 +97,12 @@ class BasicAuth(APIGatewayAuthenticator):
         }
 
 
-class AccessKeyAuth(APIGatewayAuthenticator):
+class AccessKeyAuth(APIGatewayAuthenticator, ModelObj):
     """
     An API gateway authenticator with access key authentication.
     """
+
+    _dict_fields = ["authentication_mode"]
 
     @property
     def authentication_mode(self) -> str:

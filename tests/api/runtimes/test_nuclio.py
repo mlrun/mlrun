@@ -303,12 +303,12 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         expected_cm_volume = {
             "volume": {
-                "name": "model-conf",
-                "configMap": {"name": "model-conf-test-project-test-function"},
+                "name": "serving-conf",
+                "configMap": {"name": "serving-conf-test-project-test-function"},
             },
             "volumeMount": {
-                "name": "model-conf",
-                "mountPath": "/tmp/mlrun/model-conf",
+                "name": "serving-conf",
+                "mountPath": "/tmp/mlrun/serving-conf",
                 "readOnly": True,
             },
         }

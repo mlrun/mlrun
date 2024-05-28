@@ -30,7 +30,6 @@ export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
 docker run \
 	--name=migration-db \
 	--rm \
-	-v "${ROOT_DIR}:/mlrun" \
 	-p 3306:3306 \
 	-e MYSQL_ROOT_PASSWORD="pass" \
 	-e MYSQL_ROOT_HOST="%" \
@@ -52,11 +51,9 @@ done
 
 export PYTHONPATH=$ROOT_DIR
 
-cd ${ROOT_DIR}/server/api
-
 python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		migrations/tests/*
+		${ROOT_DIR}/server/api/migrations/tests/*

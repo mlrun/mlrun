@@ -477,6 +477,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-t \
 		--rm \
 		--network='host' \
+		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations

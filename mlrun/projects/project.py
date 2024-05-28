@@ -78,7 +78,10 @@ from ..utils.clones import (
     clone_zip,
     get_repo_url,
 )
-from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
+from ..utils.helpers import (
+    ensure_git_branch,
+    resolve_git_reference_from_source,
+)
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -1271,6 +1274,14 @@ class MlrunProject(ModelObj):
     @description.setter
     def description(self, description):
         self.spec.description = description
+
+    @property
+    def default_function_node_selector(self) -> dict:
+        return self.spec.default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, default_function_node_selector):
+        self.spec.default_function_node_selector = default_function_node_selector
 
     @property
     def default_image(self) -> str:

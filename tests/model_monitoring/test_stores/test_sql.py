@@ -130,11 +130,11 @@ class TestSQLStore:
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 
+    @staticmethod
     def test_sql_target_list_model_endpoints(
-        cls,
         new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
+    ) -> None:
         """Testing list model endpoint using SQLStoreBase object. In the following test
         we create two model endpoints and list these endpoints. In addition, this test validates the
         filter optional operation within the list model endpoints API.
@@ -162,11 +162,11 @@ class TestSQLStore:
         )
         assert len(filtered_list_of_endpoints) == 1
 
+    @staticmethod
     def test_sql_target_patch_endpoint(
-        cls,
         new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
-    ):
+    ) -> None:
         """Testing the update of a model endpoint using SQLStoreBase object. In the following
         test we update attributes within the model endpoint spec and status and then validate that there
         attributes were actually updated.
@@ -191,6 +191,7 @@ class TestSQLStore:
         assert endpoint_dict["model"] == "test_model"
         assert endpoint_dict["error_count"] == 2
 
+    @classmethod
     def test_sql_write_application_event(
         cls,
         event: _AppResultEvent,

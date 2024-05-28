@@ -727,7 +727,7 @@ class BaseStoreTarget(DataTargetBase):
 
     def purge(self):
         store, path_in_store, target_path = self._get_store_and_path()
-        store.rm(target_path, recursive=True)
+        store.rm(path_in_store, recursive=True)
 
     def as_df(
         self,

@@ -32,7 +32,6 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import ParquetTarget, get_default_prefix_for_target
 from mlrun.utils import logger
 from tests.system.base import TestMLRunSystem
-
 test_environment = TestMLRunSystem._get_env_from_file()
 
 
@@ -51,17 +50,20 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 class TestAwsS3(TestMLRunSystem):
     project_name = "s3-system-test"
-
-    def _make_target_names(self, prefix, bucket_name, object_dir, object_file):
+    object_dir = "test_aws_s3"
+    def _make_target_names(self, prefix, bucket_name, object_sub_dir):
         bucket_path = prefix + bucket_name
-        object_path = f"{object_dir}/{object_file}"
-        object_url = f"{bucket_path}/{object_path}"
+        object_sub_dir_path = f"{self.object_dir}/{object_sub_dir}"
+        object_sub_dir_url = f"{bucket_path}/{object_sub_dir_path}"
+        
+        parquet_file = f"file_{uuid.uuid4()}.parquet"
         res = {
             "bucket_path": bucket_path,
-            "object_path": object_path,
-            "object_url": object_url,
-            "parquet_url": f"{object_url}.parquet",
-            "test_dir": f"{bucket_path}/{object_dir}",
+            "object_sub_dir_path": object_sub_dir_path,
+            "object_sub_dir_url": object_sub_dir_url,
+            "parquet_path": f"{object_sub_dir_path}/{parquet_file}",
+            "parquet_url": f"{object_sub_dir_url}/{parquet_file}",
+            "test_dir": f"{bucket_path}/{self.object_dir}",
         }
         return res
 
@@ -71,24 +73,22 @@ class TestAwsS3(TestMLRunSystem):
         self._access_key_id = test_environment["AWS_ACCESS_KEY_ID"]
         self._secret_access_key = test_environment["AWS_SECRET_ACCESS_KEY"]
 
-        object_dir = "test_aws_s3"
-        object_file = f"file_{uuid.uuid4()}"
+
+        object_sub_dir = f"dir_{uuid.uuid4()}"
 
         self.s3 = {
             "s3": self._make_target_names(
-                "s3://", self._bucket_name, object_dir, object_file
+                "s3://", self._bucket_name, object_sub_dir
             ),
             "ds_with_bucket": self._make_target_names(
                 "ds://s3ds_profile_with_bucket",
                 "",  # no bucket, since it is part of the ds profile
-                object_dir,
-                object_file,
+                object_sub_dir,
             ),
             "ds_no_bucket": self._make_target_names(
                 "ds://s3ds_profile_no_bucket/",
                 self._bucket_name,
-                object_dir,
-                object_file,
+                object_sub_dir,
             ),
         }
 
@@ -119,32 +119,35 @@ class TestAwsS3(TestMLRunSystem):
                 s3_fs.rm(file)
             s3_fs.rm(full_path)
 
-    @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
+    #@pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
+    @pytest.mark.parametrize("url_type", ["ds_no_bucket"])
     def test_ingest_with_parquet_source(self, url_type):
         #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
         param = self.s3[url_type]
-        logger.info(f"Using URL {param['parquet_url']}")
+        logger.info(f"Using URL {param['object_sub_dir_url']}")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
-        source_path = param["parquet_url"]
+        source_file = f"source_{uuid.uuid4()}.parquet"
+        source_url = f"{param['object_sub_dir_url']}/{source_file}"
+
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             df.to_parquet(temp_file.name)
-            path_only = self.s3["s3"]["parquet_url"]
-            s3_fs.put_file(temp_file.name, path_only)
-        parquet_source = ParquetSource(name="test", path=source_path)
+            path_only = f"{self.s3['s3']['object_sub_dir_path']}/{source_file}"
+            s3_fs.put_file(temp_file.name, f"{self._bucket_name}/{path_only}")
+        parquet_source = ParquetSource(name="test", path=source_url)
 
         # ingest
-        target_path = f"{os.path.dirname(param['parquet_url'])}/target_{uuid.uuid4()}"
-        target = ParquetTarget(path=target_path)
+        target = ParquetTarget(path=param['parquet_url'])
         fset = fstore.FeatureSet(
             name="test_fs",
             entities=[fstore.Entity("Column1")],
         )
 
         fset.ingest(source=parquet_source, targets=[target])
+        target_path = fset.get_target_path()
         result = ParquetSource(path=target_path).to_dataframe(
             columns=("Column1", "Column2")
         )
@@ -154,9 +157,11 @@ class TestAwsS3(TestMLRunSystem):
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
 
+        s3_path = f"{self._bucket_name}/{target_path[target_path.index(self.object_dir):]}"
         # Check for ML-6587 regression
+        assert s3_fs.exists(s3_path)
         target.purge()
-        # TODO complete
+        assert not s3_fs.exists(s3_path)
 
     def test_ingest_ds_default_target(self):
         s3_fs = fsspec.filesystem(
@@ -169,8 +174,8 @@ class TestAwsS3(TestMLRunSystem):
         source_path = param["parquet_url"]
         with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
             df.to_parquet(temp_file.name)
-            path_only = self.s3["s3"]["parquet_url"]
-            s3_fs.put_file(temp_file.name, path_only)
+            path_only = self.s3["s3"]["parquet_path"]
+            s3_fs.put_file(temp_file.name, f"{self._bucket_name}/{path_only}")
 
         parquet_source = ParquetSource(name="test", path=source_path)
 

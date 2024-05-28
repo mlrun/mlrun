@@ -1397,7 +1397,7 @@ async def _delete_nuclio_functions_in_batches(
                 nuclio_name, error_message = result
                 if error_message:
                     failed_requests.append(
-                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
+                        error_message
                     )
 
     return failed_requests

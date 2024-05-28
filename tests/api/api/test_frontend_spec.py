@@ -106,6 +106,8 @@ def test_get_frontend_spec(
         == server.api.utils.builder.resolve_mlrun_install_command_version()
     )
 
+    assert frontend_spec.internal_labels == mlrun.mlconf.internal_labels()
+
 
 def test_get_frontend_spec_jobs_dashboard_url_resolution(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

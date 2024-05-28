@@ -27,6 +27,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
@@ -53,7 +54,7 @@ class Scheduler:
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"
-    _db_record_auth_label = "mlrun-auth-key"
+    _db_record_auth_label = mlrun_constants.MLRunInternalLabels.mlrun_auth_key
 
     def __init__(self):
         scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)

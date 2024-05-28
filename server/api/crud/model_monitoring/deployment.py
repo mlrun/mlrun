@@ -23,7 +23,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
@@ -33,8 +32,6 @@ import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
 import server.api.utils.functions
-import server.api.utils.scheduler
-import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
@@ -109,6 +106,8 @@ class MonitoringDeployment:
         self.deploy_model_monitoring_stream_processing(stream_image=image)
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
+        # Create tsdb tables that will be used for storing the model monitoring data
+        self._create_tsdb_tables()
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -231,7 +230,7 @@ class MonitoringDeployment:
             )
 
             # Adding label to the function - will be used to identify the writer pod
-            fn.metadata.labels = {"type": "model-monitoring-writer"}
+            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.WRITER}
 
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
@@ -242,8 +241,6 @@ class MonitoringDeployment:
                 writer_data=fn.to_dict(),
                 writer_ready=ready,
             )
-            # Create tsdb table for model monitoring application results
-            self._create_tsdb_application_tables(project=fn.metadata.project)
 
     def apply_and_create_stream_trigger(
         self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
@@ -286,7 +283,7 @@ class MonitoringDeployment:
                         stream_args = (
                             config.model_endpoint_monitoring.serving_stream_args
                         )
-                        access_key = os.environ.get("V3IO_ACCESS_KEY")
+                        access_key = os.getenv("V3IO_ACCESS_KEY")
                         kwargs = {}
                     if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
                         kwargs["explicit_ack_mode"] = "explicitOnly"
@@ -355,7 +352,12 @@ class MonitoringDeployment:
         )
 
         # Create monitoring serving graph
-        stream_processor.apply_monitoring_serving_graph(function)
+        stream_processor.apply_monitoring_serving_graph(
+            function,
+            tsdb_service_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=self.project
+            ),
+        )
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -465,9 +467,17 @@ class MonitoringDeployment:
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
+
         # Create writer monitoring serving graph
         graph = function.set_topology(mlrun.serving.states.StepKinds.flow)
-        graph.to(ModelMonitoringWriter(project=self.project)).respond()  # writer
+        graph.to(
+            ModelMonitoringWriter(
+                project=self.project,
+                tsdb_secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
+            )
+        ).respond()  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -589,18 +599,22 @@ class MonitoringDeployment:
             return False
         return True
 
-    @staticmethod
-    def _create_tsdb_application_tables(project: str):
-        """Each project writer service writes the application results into a single TSDB table and therefore the
-        target table is created during the writer deployment"""
+    def _create_tsdb_tables(self):
+        """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
+        - app_results: a detailed result that includes status, kind, extra data, etc.
+        - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction."""
 
         tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
             mlrun.model_monitoring.get_tsdb_connector(
-                project=project,
+                project=self.project,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=self.project
+                ),
             )
         )
 
-        tsdb_connector.create_tsdb_application_tables()
+        tsdb_connector.create_tables()
 
 
 def get_endpoint_features(

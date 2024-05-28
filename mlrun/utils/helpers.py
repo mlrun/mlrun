@@ -973,6 +973,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_model_endpoint_url(project, model_name, model_endpoint_id):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/models"
+        if model_name:
+            url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
+    return url
+
+
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
@@ -1097,7 +1106,7 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str, context=None, class_args: dict = None, namespaces=None
 ):
     """get function handler from [class_name::]handler string
 
@@ -1107,6 +1116,7 @@ def get_handler_extended(
     :param namespaces:    one or list of namespaces/modules to search the handler in
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
         return get_function(handler_path, namespaces)
 
@@ -1183,7 +1193,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def template_artifact_path(artifact_path, project, run_uid="project"):
+def template_artifact_path(artifact_path, project, run_uid=None):
     """
     Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
     If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
@@ -1191,6 +1201,7 @@ def template_artifact_path(artifact_path, project, run_uid="project"):
     """
     if not artifact_path:
         return artifact_path
+    run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
     return artifact_path
@@ -1603,3 +1614,12 @@ def validate_component_version_compatibility(
         if parsed_current_version < parsed_min_version:
             return False
     return True
+
+
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
+    result = alert.summary.replace("{{project}}", alert.project)
+    result = result.replace("{{name}}", alert.name)
+    result = result.replace("{{entity}}", event_data.entity.ids[0])
+    return result

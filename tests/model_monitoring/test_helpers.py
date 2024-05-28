@@ -38,6 +38,7 @@ from mlrun.model_monitoring.controller import (
 )
 from mlrun.model_monitoring.helpers import (
     _get_monitoring_time_window_from_controller_run,
+    get_invocations_fqn,
     update_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
@@ -434,3 +435,7 @@ class TestBumpModelEndpointLastRequest:
                 project=project,
                 db=db,
             ) == datetime.timedelta(minutes=1), "The window is different than expected"
+
+
+def test_get_invocations_fqn() -> None:
+    assert get_invocations_fqn("project") == "project.mlrun-infra.metric.invocations"

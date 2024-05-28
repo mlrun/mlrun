@@ -22,6 +22,7 @@ import requests
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
@@ -220,12 +221,12 @@ def _compile_function_config(
             )
             k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
             confmap_name = k8s_helper.ensure_configmap(
-                mlrun.common.constants.MLRUN_MODEL_CONF,
+                mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
-                labels={mlrun.common.constants.MLRUN_CREATED_LABEL: "true"},
+                labels={mlrun_constants.MLRunInternalLabels.created: "true"},
             )
-            volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
+            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
             volume_mount = {
                 "name": volume_name,
                 "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
@@ -320,7 +321,7 @@ def _compile_function_config(
 
 def _set_function_labels(function):
     labels = function.metadata.labels or {}
-    labels.update({"mlrun/class": function.kind})
+    labels.update({mlrun_constants.MLRunInternalLabels.mlrun_class: function.kind})
     for key, value in labels.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
         function.set_config(f"metadata.labels.\\{key}\\", value)

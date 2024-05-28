@@ -11,32 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+import datetime
 import string
 import time
-import typing
 import unittest.mock
+from collections.abc import Iterator
+from pathlib import Path
 from random import choice, randint
-from typing import Optional
+from typing import Optional, Union, cast
+from zoneinfo import ZoneInfo
 
 import pytest
 
 import mlrun.common.schemas
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores.sqldb.sql_store
-from mlrun.common.schemas.model_monitoring import ResultData, WriterEvent
-from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    StoreBase,
+from mlrun.common.schemas.model_monitoring import (
+    ProjectSecretKeys,
+    ResultData,
+    WriterEvent,
 )
+from mlrun.model_monitoring.db.stores.sqldb import models
+from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
 from mlrun.model_monitoring.writer import _AppResultEvent
-
-SQLStoreBase = typing.TypeVar("SQLStoreBase", bound="StoreBase")
 
 
 class TestSQLStore:
     _TEST_PROJECT = "test_model_endpoints"
     _MODEL_ENDPOINT_ID = "some-ep-id"
-    _STORE_CONNECTION = "sqlite:///test.db"
+
+    @staticmethod
+    @pytest.fixture
+    def store_connection(tmp_path: Path) -> str:
+        return f"sqlite:///{tmp_path / 'test.db'}"
 
     @pytest.fixture()
     def _mock_random_endpoint(
@@ -102,20 +109,21 @@ class TestSQLStore:
 
     @staticmethod
     @pytest.fixture(autouse=True)
-    def init_sql_tables(new_sql_store: SQLStoreBase):
+    def init_sql_tables(new_sql_store: SQLStoreBase) -> None:
         new_sql_store._create_tables_if_not_exist()
 
     @classmethod
     @pytest.fixture
-    def new_sql_store(cls) -> SQLStoreBase:
+    def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:
         # Generate store object target
         store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
-            return_value=cls._STORE_CONNECTION,
+            return_value=store_connection,
         ):
-            sql_store: SQLStoreBase = store_type_object.to_object_store(
-                project=cls._TEST_PROJECT
+            sql_store = cast(
+                SQLStoreBase,
+                store_type_object.to_object_store(project=cls._TEST_PROJECT),
             )
             yield sql_store
             sql_store.delete_model_endpoints_resources()
@@ -205,13 +213,15 @@ class TestSQLStore:
 
     @staticmethod
     def assert_application_record(event: _AppResultEvent, new_sql_store: SQLStoreBase):
-        application_filter_dict = new_sql_store.filter_endpoint_and_application_name(
-            endpoint_id=event[WriterEvent.ENDPOINT_ID],
-            application_name=event[WriterEvent.APPLICATION_NAME],
-        )
+        criteria = [
+            new_sql_store.ApplicationResultsTable.endpoint_id
+            == event[WriterEvent.ENDPOINT_ID],
+            new_sql_store.ApplicationResultsTable.application_name
+            == event[WriterEvent.APPLICATION_NAME],
+        ]
 
         application_record = new_sql_store._get(
-            table=new_sql_store.ApplicationResultsTable, **application_filter_dict
+            table=new_sql_store.ApplicationResultsTable, criteria=criteria
         )
 
         assert application_record.endpoint_id == event[WriterEvent.ENDPOINT_ID]
@@ -258,3 +268,84 @@ class TestSQLStore:
         )
 
         assert last_analyzed == epoch_time
+
+
+class TestMonitoringSchedules:
+    @staticmethod
+    @pytest.fixture
+    def in_mem_connection() -> str:
+        return "sqlite://"
+
+    @staticmethod
+    @pytest.fixture
+    def sqlite_store(
+        in_mem_connection: str, monkeypatch: pytest.MonkeyPatch
+    ) -> SQLStoreBase:
+        with monkeypatch.context() as mp_ctx:
+            mp_ctx.setenv(
+                ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
+            )
+            store = SQLStoreBase(project="tmp_proj")
+        store._create_tables_if_not_exist()
+        return store
+
+    @staticmethod
+    def test_unique_last_analyzed_per_app(sqlite_store: SQLStoreBase) -> None:
+        endpoint_id = "ep-abc123"
+        app1_name = "app-A"
+        app1_last_analyzed = 1716720842
+        app2_name = "app-B"
+
+        sqlite_store.update_last_analyzed(
+            endpoint_id=endpoint_id,
+            application_name=app1_name,
+            last_analyzed=app1_last_analyzed,
+        )
+
+        assert (
+            sqlite_store.get_last_analyzed(
+                endpoint_id=endpoint_id, application_name=app1_name
+            )
+            == app1_last_analyzed
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            sqlite_store.get_last_analyzed(
+                endpoint_id=endpoint_id, application_name=app2_name
+            )
+
+
+@pytest.mark.parametrize(
+    ("connection_string", "expected_table"),
+    [
+        (None, models.SQLiteApplicationResultTable),
+        ("sqlite://", models.SQLiteApplicationResultTable),
+        (
+            "mysql+pymysql://<username>:<password>@<host>/<dbname>",
+            models.MySQLApplicationResultTable,
+        ),
+    ],
+)
+def test_get_app_metrics_table(
+    connection_string: Optional[str], expected_table: type
+) -> None:
+    assert (
+        models._get_application_result_table(connection_string=connection_string)
+        == expected_table
+    ), "The metrics table is different than expected"
+
+
+@pytest.mark.parametrize(
+    "time",
+    [
+        datetime.datetime.now(tz=ZoneInfo("Asia/Jerusalem")),
+        "2020-05-22T08:59:54.279435+00:00",
+    ],
+)
+def test_convert_to_datetime(time: Union[str, datetime.datetime]) -> None:
+    time_key = "time"
+    event = {time_key: time}
+    SQLStoreBase._convert_to_datetime(event=event, key=time_key)
+    new_time = event[time_key]
+    assert isinstance(new_time, datetime.datetime)
+    assert new_time.tzinfo == datetime.timezone.utc

@@ -104,9 +104,9 @@ alembic_runner = pytest_alembic.plugin.fixtures.create_alembic_fixture(
 
 @pytest.fixture
 def alembic_session(alembic_engine):
-    Session = sessionmaker()
-    Session.configure(bind=alembic_engine)
-    session = Session()
+    session_maker = sessionmaker()
+    session_maker.configure(bind=alembic_engine)
+    session = session_maker()
     return session
 
 

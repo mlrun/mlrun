@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -336,7 +337,7 @@ class SQLDB(DBInterface):
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        states: typing.Optional[list[str]] = None,
+        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -936,7 +937,7 @@ class SQLDB(DBInterface):
             session,
             ArtifactV2,
             project=project,
-        ).filter(
+        ).with_entities(ArtifactV2.id).filter(
             ArtifactV2.key.in_(artifacts_keys),
         ).order_by(ArtifactV2.id.asc()).populate_existing().with_for_update().all()
 
@@ -1305,7 +1306,15 @@ class SQLDB(DBInterface):
             for artifact in query:
                 artifact_struct = artifact.full_object
                 artifact_struct.setdefault("spec", {}).setdefault("producer", {})
-                if artifact_struct["spec"]["producer"].get("uri") == producer_uri:
+                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
+                    "uri", None
+                )
+                # We check if the producer uri is a substring of the artifact producer uri because the producer uri
+                # may contain additional information (like the run iteration) that we don't want to filter by.
+                if (
+                    artifact_producer_uri is not None
+                    and producer_uri in artifact_producer_uri
+                ):
                     artifacts.append(artifact)
 
             return artifacts
@@ -1684,8 +1693,8 @@ class SQLDB(DBInterface):
         name,
         updates: dict,
         project: str = None,
-        tag: str = None,
-        hash_key: str = None,
+        tag: str = "",
+        hash_key: str = "",
     ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
@@ -2318,7 +2327,11 @@ class SQLDB(DBInterface):
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
-            .filter(Schedule.Label.name.in_(["workflow", "kind"]))
+            .filter(
+                Schedule.Label.name.in_(
+                    [mlrun_constants.MLRunInternalLabels.workflow, "kind"]
+                )
+            )
             .all()
         )
 
@@ -2326,7 +2339,10 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if result[2].to_dict()["name"] == "workflow":
+            if (
+                result[2].to_dict()["name"]
+                == mlrun_constants.MLRunInternalLabels.workflow
+            ):
                 project_to_schedule_pending_workflows_count[result[0]] += 1
             elif result[2].to_dict()["value"] == "job":
                 project_to_schedule_pending_jobs_count[result[0]] += 1

@@ -30,7 +30,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
     Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
-    
+
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,

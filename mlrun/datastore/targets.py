@@ -758,7 +758,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options={}):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         return df
 
     def get_dask_options(self):

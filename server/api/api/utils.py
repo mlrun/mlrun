@@ -1366,7 +1366,7 @@ async def _delete_nuclio_functions_in_batches(
                 await nuclio_client.delete_function(name=function, project_name=project)
 
                 config_map = k8s_helper.get_configmap(
-                    function, mlrun.common.constants.MLRUN_MODEL_CONF
+                    function, mlrun.common.constants.MLRUN_SERVING_CONF
                 )
                 if config_map:
                     k8s_helper.delete_configmap(config_map.metadata.name)

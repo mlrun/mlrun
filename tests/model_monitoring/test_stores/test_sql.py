@@ -27,9 +27,13 @@ import pytest
 import mlrun.common.schemas
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring import (
+    MetricData,
+    ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricType,
     ProjectSecretKeys,
     ResultData,
     WriterEvent,
+    WriterEventKind,
 )
 from mlrun.model_monitoring.db.stores.sqldb import models
 from mlrun.model_monitoring.db.stores.sqldb.sql_store import SQLStoreBase
@@ -104,6 +108,22 @@ class TestSQLStore:
                 ResultData.RESULT_VALUE: 5.15,
                 ResultData.RESULT_STATUS: 1,
                 ResultData.RESULT_EXTRA_DATA: "",
+            }
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def metric_event(
+        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> _AppResultEvent:
+        return _AppResultEvent(
+            {
+                WriterEvent.ENDPOINT_ID: _mock_random_endpoint.metadata.uid,
+                WriterEvent.START_INFER_TIME: "2023-09-22 14:26:06.501084",
+                WriterEvent.END_INFER_TIME: "2023-09-22 16:26:06.501084",
+                WriterEvent.APPLICATION_NAME: "smart-app",
+                MetricData.METRIC_NAME: "met-metric",
+                MetricData.METRIC_VALUE: 0.4,
             }
         )
 
@@ -230,10 +250,7 @@ class TestSQLStore:
             application_record.application_name == event[WriterEvent.APPLICATION_NAME]
         )
 
-        assert (
-            application_record.result_value
-            == event[mlrun.common.schemas.model_monitoring.ResultData.RESULT_VALUE]
-        )
+        assert application_record.result_value == event[ResultData.RESULT_VALUE]
 
         assert application_record.uid == new_sql_store._generate_application_result_uid(
             event=event
@@ -269,6 +286,33 @@ class TestSQLStore:
         )
 
         assert last_analyzed == epoch_time
+
+    @classmethod
+    def test_get_metrics(
+        cls,
+        new_sql_store: SQLStoreBase,
+        metric_event: _AppResultEvent,
+        _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
+    ) -> None:
+        def get_metrics() -> list[ModelEndpointMonitoringMetric]:
+            return new_sql_store.get_model_endpoint_metrics(
+                endpoint_id=cls._MODEL_ENDPOINT_ID,
+                type=ModelEndpointMonitoringMetricType.METRIC,
+            )
+
+        new_sql_store.write_model_endpoint(endpoint=_mock_random_endpoint.flat_dict())
+        new_sql_store.write_application_event(
+            event=metric_event, kind=WriterEventKind.METRIC
+        )
+        metrics = get_metrics()
+        assert len(metrics) == 1, "The metrics number is wrong"
+        assert (
+            metrics[0].full_name == f"{cls._TEST_PROJECT}.smart-app.metric.met-metric"
+        ), "The metric FQN is different than expected"
+        new_sql_store._delete_application_result(
+            endpoint_id=cls._MODEL_ENDPOINT_ID, application_name="smart-app"
+        )
+        assert get_metrics() == [], "Metric remained after deletion"
 
 
 class TestMonitoringSchedules:

@@ -4017,8 +4017,8 @@ class MlrunProject(ModelObj):
         self,
         action: Callable,
         remote: str,
-        args: list = [],
-        kwargs: dict = {},
+        args: list = None,
+        kwargs: dict = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """Run an arbitrary Git routine while the remote is enriched with secrets
@@ -4038,6 +4038,8 @@ class MlrunProject(ModelObj):
         try:
             if is_remote_enriched:
                 self.spec.repo.remotes[remote].set_url(enriched_remote, clean_remote)
+            args = args or []
+            kwargs = kwargs or {}
             action(*args, **kwargs)
         except RuntimeError as e:
             raise mlrun.errors.MLRunRuntimeError(

@@ -147,7 +147,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_class="remote",
         call_count=1,
-        expected_params=[],
+        expected_params=None,
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,

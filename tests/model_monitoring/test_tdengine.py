@@ -226,6 +226,7 @@ class TestTDEngineSchema:
                 f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
                 f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
             )
+
         assert (
             super_table._get_records_query(
                 table=subtable,
@@ -234,6 +235,130 @@ class TestTDEngineSchema:
                 start=start,
                 end=end,
                 timestamp_column=timestamp_column,
+            )
+            == expected_query
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "subtable",
+            "columns_to_filter",
+            "start",
+            "end",
+            "timestamp_column",
+            "interval",
+            "limit",
+            "agg",
+            "sliding_window",
+        ),
+        [
+            (
+                "subtable_1",
+                ["column2"],
+                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
+                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                "time_column",
+                "3m",
+                2,
+                ["count"],
+                "1m",
+            ),
+            (
+                "subtable_2",
+                ["column2", "column3", "column4", "column5"],
+                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
+                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                "time_column_v2",
+                "3h",
+                50,
+                ["avg", "max", "sum"],
+                "12m",
+            ),
+        ],
+    )
+    def test_get_records_with_interval_query(
+        self,
+        super_table: TDEngineSchema,
+        subtable: str,
+        columns_to_filter: list[str],
+        start: str,
+        end: str,
+        timestamp_column: str,
+        interval: str,
+        limit: int,
+        agg: list,
+        sliding_window: str,
+    ):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide aggregation functions without columns to filter
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                timestamp_column=timestamp_column,
+                interval=interval,
+                limit=limit,
+                agg=agg,
+                sliding_window=sliding_window,
+            )
+            assert (
+                "columns_to_filter must be provided when using aggregate functions"
+                in str(err.value)
+            )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide aggregation functions without interval
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                columns_to_filter=columns_to_filter,
+                timestamp_column=timestamp_column,
+                limit=limit,
+                agg=agg,
+                sliding_window=sliding_window,
+            )
+            assert (
+                "both interval and aggregate function must be provided or neither"
+                in str(err.value)
+            )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide sliding window without interval
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                columns_to_filter=columns_to_filter,
+                timestamp_column=timestamp_column,
+                limit=limit,
+                agg=agg,
+                sliding_window=sliding_window,
+            )
+            assert "interval must be provided when using sliding window" in str(
+                err.value
+            )
+        columns_to_select = ", ".join(
+            [f"{a}({col})" for a in agg for col in columns_to_filter]
+        )
+        expected_query = (
+            f""
+            f"SELECT _wstart, _wend, {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
+            f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}' "
+            f"INTERVAL({interval}) SLIDING({sliding_window}) LIMIT {limit};"
+        )
+
+        assert (
+            super_table._get_records_query(
+                table=subtable,
+                columns_to_filter=columns_to_filter,
+                start=start,
+                end=end,
+                timestamp_column=timestamp_column,
+                interval=interval,
+                limit=limit,
+                agg=agg,
+                sliding_window=sliding_window,
             )
             == expected_query
         )

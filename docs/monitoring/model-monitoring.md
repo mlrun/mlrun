@@ -124,7 +124,7 @@ See the [Model monitoring and drift detection tutorial](../tutorials/05-model-mo
 
 The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
 window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
-From this point on, the applications are triggered by the controller. The controller checks the Parquet DB every 10 minutes (or non-default 
+The controller checks the Parquet DB every 10 minutes (or non-default 
 `base_period`) and streams any new data to the app.
 
 

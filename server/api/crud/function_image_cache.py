@@ -62,7 +62,7 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     def list_function_image_cache_records(
         session: sqlalchemy.orm.Session,
         function_name: str,
-        image: str,
+        image: str = None,
         mlrun_version: str = None,
         nuclio_version: str = None,
         base_image: str = None,
@@ -83,7 +83,7 @@ class FunctionImageCache(metaclass=mlrun.utils.singleton.Singleton):
     def delete_function_image_cache_record(
         session: sqlalchemy.orm.Session,
         function_name: str,
-        image: str,
+        image: str = None,
         mlrun_version: str = None,
         nuclio_version: str = None,
         base_image: str = None,

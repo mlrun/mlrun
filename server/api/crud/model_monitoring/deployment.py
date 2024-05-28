@@ -139,6 +139,8 @@ class MonitoringDeployment:
             # args for _cache_images
             image,
             extra_functions,
+            force_build,
+            base_period,
         )
 
     def deploy_model_monitoring_stream_processing(
@@ -731,7 +733,13 @@ class MonitoringDeployment:
             return record.image
         return None
 
-    def _cache_images(self, base_image: str, extra_functions: list[str] = None):
+    def _cache_images(
+        self,
+        base_image: str,
+        extra_functions: list[str] = None,
+        force_build: bool = False,
+        base_period: int = 10,
+    ):
         """Save the nuclio images of the functions in the cache for future use"""
         extra_functions = extra_functions or []
         functions = mm_constants.MonitoringFunctionNames.list() + extra_functions
@@ -740,20 +748,32 @@ class MonitoringDeployment:
             self._wait_for_function_and_cache_image(
                 function_name=function_name,
                 base_image=base_image,
+                force_build=force_build,
+                base_period=base_period,
+                retry=True,
             )
             for function_name in functions
         ]
         with concurrent.futures.ThreadPoolExecutor() as executor:
             executor.map(lambda task: task, tasks)
 
-    def _wait_for_function_and_cache_image(self, function_name: str, base_image: str):
+    def _wait_for_function_and_cache_image(
+        self,
+        function_name: str,
+        base_image: str,
+        force_build: bool = False,
+        base_period: int = 10,
+        retry: bool = False,
+    ):
         # check if there is already a cached image for the function with the same base image
         cached_image = self._get_existing_nuclio_image(
             name=function_name,
             base_image=base_image,
         )
-        if cached_image:
-            # if the function is already in the cache with the same base image, don't override it
+
+        # if the function is already in the cache with the same base image, and we build wasn't requested
+        # explicitly - don't override it
+        if cached_image and not force_build:
             return
 
         def _get_function_status():
@@ -765,6 +785,12 @@ class MonitoringDeployment:
                     auth_info=self.auth_info,
                 )
             )
+
+            if state in ["error", "unhealthy"]:
+                logger.warn(
+                    f"Function {function_name} is in state {state}",
+                )
+                return function_status
 
             if state != "ready":
                 raise Exception(f"Function {function_name} is not ready yet")
@@ -782,8 +808,39 @@ class MonitoringDeployment:
         except Exception as exc:
             # we don't want to fail the entire process if one of the functions is not ready yet
             logger.warn(
-                f"Failed to get the status of the function {function_name}",
+                f"Function deployment was not successful for {function_name} in the project {self.project} in the "
+                f"timeout of {config.model_endpoint_monitoring.image_cache.update_retry_timeout} seconds",
                 exc=str(exc),
+            )
+            return
+
+        if status.get("state") != "ready":
+            if cached_image:
+                # invalidate the cached image, as there might have been an issue with it
+                server.api.crud.function_image_cache.FunctionImageCache().delete_function_image_cache_record(
+                    session=self.db_session,
+                    function_name=function_name,
+                    mlrun_version=config.version,
+                    nuclio_version=resolve_nuclio_version(),
+                    base_image=base_image,
+                )
+
+            # if the build was requested explicitly, we don't want to retry the deployment
+            if force_build or not retry:
+                return
+
+            # retry the deployment with force_build=True only once
+            self._deploy_monitoring_function(
+                function_name=function_name,
+                base_image=base_image,
+                base_period=base_period,
+                force_build=True,
+            )
+            self._wait_for_function_and_cache_image(
+                function_name=function_name,
+                base_image=base_image,
+                force_build=True,
+                retry=False,
             )
             return
 
@@ -824,6 +881,48 @@ class MonitoringDeployment:
         function.set_config("spec.build.functionSourceCode", "")
         function.set_config("spec.build.path", "")
         function.set_config("spec.build.image", "")
+
+    def _deploy_monitoring_function(
+        self,
+        function_name: str,
+        base_image: str,
+        base_period: int,
+        force_build: bool,
+    ):
+        deploying_callback_mapping = {
+            mm_constants.MonitoringFunctionNames.STREAM: {
+                "callback": self.deploy_model_monitoring_stream_processing,
+                "kwargs": {
+                    "stream_image": base_image,
+                    "force_build": force_build,
+                },
+            },
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER: {
+                "callback": self.deploy_model_monitoring_controller,
+                "kwargs": {
+                    "controller_image": base_image,
+                    "base_period": base_period,
+                    "force_build": force_build,
+                },
+            },
+            mm_constants.MonitoringFunctionNames.WRITER: {
+                "callback": self.deploy_model_monitoring_writer_application,
+                "kwargs": {
+                    "writer_image": base_image,
+                    "force_build": force_build,
+                },
+            },
+            mm_constants.HistogramDataDriftApplicationConstants.NAME: {
+                "callback": self.deploy_histogram_data_drift_app,
+                "kwargs": {
+                    "image": base_image,
+                    "force_build": force_build,
+                },
+            },
+        }
+        return deploying_callback_mapping[function_name]["callback"](
+            **deploying_callback_mapping[function_name]["kwargs"]
+        )
 
 
 def get_endpoint_features(

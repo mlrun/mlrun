@@ -528,7 +528,7 @@ default_config = {
         "tsdb_connection": "",
         "image_cache": {
             "update_retry_interval": 10,
-            "update_retry_timeout": 400,
+            "update_retry_timeout": 600,
         },
     },
     "secret_stores": {

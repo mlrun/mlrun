@@ -204,9 +204,17 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str) -> None:
-        predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
-        )
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+            )
+        else:
+            # TDEngine
+            predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+                table=mm_constants.TDEngineSuperTables.PREDICTIONS,
+                start=datetime.min,
+                end=datetime.now().astimezone(),
+            )
         assert not predictions_df.empty, "No TSDB predictions data"
         assert (
             predictions_df.endpoint_id == ep_id
@@ -317,13 +325,11 @@ class _V3IORecordsChecker:
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
 
-        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            # TODO : implement for TDEngine once the API is supported
-            cls._test_api_get_values(
-                ep_id=ep_id,
-                results_full_names=metrics_full_names + results_full_names,
-                run_db=run_db,
-            )
+        cls._test_api_get_values(
+            ep_id=ep_id,
+            results_full_names=metrics_full_names + results_full_names,
+            run_db=run_db,
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

@@ -3600,6 +3600,7 @@ class HTTPRunDB(RunDBInterface):
     def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
+        
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
         :return: :py:class:`~mlrun.common.schemas.APIGateways`.
@@ -3613,6 +3614,7 @@ class HTTPRunDB(RunDBInterface):
     def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
         """
         Returns an API gateway
+        
         :param name: API gateway name
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
@@ -3627,6 +3629,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_api_gateway(self, name, project=None):
         """
         Deletes an API gateway
+        
         :param name: API gateway name
         :param project: Project name
         """
@@ -3646,7 +3649,8 @@ class HTTPRunDB(RunDBInterface):
         """
         Stores an API Gateway.
 
-        :param api_gateway {py:class}`~mlrun.runtimes.nuclio.APIGateway` or {py:class}`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param api_gateway {py:class}`~mlrun.runtimes.nuclio.APIGateway` or 
+            {py:class}`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
 
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
@@ -3667,6 +3671,7 @@ class HTTPRunDB(RunDBInterface):
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
+        
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
         response = self.api_call(
@@ -3862,15 +3867,16 @@ class HTTPRunDB(RunDBInterface):
     ) -> str:
         """
         Loading a project remotely from the given source.
+        
         :param name:    project name
         :param url:     git or tar.gz or .zip sources archive path e.g.:
-        git://github.com/mlrun/demo-xgb-project.git
-        http://mysite/archived-project.zip
-        The git project should include the project yaml file.
+            git://github.com/mlrun/demo-xgb-project.git
+            http://mysite/archived-project.zip
+            The git project should include the project yaml file.
         :param secrets:         Secrets to store in project in order to load it from the provided url. For more
-        information see :py:func:`mlrun.load_project` function.
+            information see :py:func:`mlrun.load_project` function.
         :param save_secrets:    Whether to store secrets in the loaded project. Setting to False will cause waiting
-        for the process completion.
+            for the process completion.
 
         :returns:               The terminal state of load project process.
         """

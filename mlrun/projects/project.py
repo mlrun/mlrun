@@ -3864,10 +3864,10 @@ class MlrunProject(ModelObj):
         on MLRun and Nuclio sides, such as the 'host' attribute.
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param api_gateway:        An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-            of the API Gateway to be created or updated.
-        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
-            after creation or update (default is True)
+        :param api_gateway:        An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the 
+            configuration of the API Gateway to be created or updated.
+        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become 
+            ready after creation or update (default is True).
         :param max_wait_time:      (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
 
 

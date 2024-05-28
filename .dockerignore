@@ -5,6 +5,15 @@
 .import_linter_cache
 .run
 venv
-venv*
 __pycache__
 .idea
+.DS_Store
+.git-blame-ignore-revs
+.gitignore
+.hypothesis
+.ruff_cache
+kubeconfig
+**/env.yml
+**/patch_env.yml
+**/mlrun.env
+mlrun.egg-info

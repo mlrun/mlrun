@@ -1106,7 +1106,7 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str, context=None, class_args: dict = None, namespaces=None
 ):
     """get function handler from [class_name::]handler string
 
@@ -1116,6 +1116,7 @@ def get_handler_extended(
     :param namespaces:    one or list of namespaces/modules to search the handler in
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
         return get_function(handler_path, namespaces)
 

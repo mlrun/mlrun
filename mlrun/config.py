@@ -88,7 +88,7 @@ default_config = {
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
     "log_level": "INFO",
-    # log formatter (options: human | json)
+    # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds

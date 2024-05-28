@@ -221,12 +221,12 @@ def _compile_function_config(
             )
             k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
             confmap_name = k8s_helper.ensure_configmap(
-                mlrun.common.constants.MLRUN_MODEL_CONF,
+                mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
                 labels={mlrun_constants.MLRunInternalLabels.created: "true"},
             )
-            volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
+            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
             volume_mount = {
                 "name": volume_name,
                 "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,

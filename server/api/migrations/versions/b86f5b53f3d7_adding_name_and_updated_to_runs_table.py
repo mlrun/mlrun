@@ -25,7 +25,7 @@ import datetime
 import sqlalchemy as sa
 from alembic import op
 
-import server.api.utils.db.sql_collation
+import server.api.utils.db.sql_types
 
 # revision identifiers, used by Alembic.
 revision = "b86f5b53f3d7"
@@ -42,7 +42,7 @@ def upgrade():
             "name",
             sa.String(
                 length=255,
-                collation=server.api.utils.db.sql_collation.SQLCollationUtil.collation(),
+                collation=server.api.utils.db.sql_types.SQLTypesUtil.collation(),
             ),
             default="no-name",
         ),

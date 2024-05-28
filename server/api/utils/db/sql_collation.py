@@ -19,7 +19,7 @@ class SQLCollationUtil:
     class Collations:
         # with sqlite we use the default collation
         sqlite = None
-        mysql = "utf8_bin"
+        mysql = "utf8mb3_bin"
 
     @staticmethod
     def collation():

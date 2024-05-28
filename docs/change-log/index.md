@@ -22,14 +22,14 @@
 
 ### Infrastructure
 
-| ID    |Description                                                                                         |
-|-------|-----------------------------------------------------------------------------------------------------|
-|ML-5739|MLRun now supports email-like username.
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5739|MLRun now supports email-like username.|
 
 ### Documentation
-| ID     |Description                                                               |
+| ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
-|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for new model monitoring feature.|
+|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
 |NA     | New page describing {ref}`log-artifacts`.                                 |
 |NA     | New page describing {ref}`parallel-workflows`.                                 |
 |NA     | New page describing {ref}`conditional-workflow`.                                 |
@@ -40,9 +40,10 @@
 |-------|---------------------------------------------------------------------------|
 |ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
 
-###  Closed issue
-| ID    |Description                                                               |
-|-------|---------------------------------------------------------------------------|
+###  Closed issues
+
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
 |ML-4149|Workflows are now listed from newest to oldest.|
 |ML-5763|The log formatter options can now be changed by an env var.|
 |ML-5772|Resolved: "Projects" screen/counters may show "N/A" or "MySQL server has gone away" transient error.|
@@ -68,8 +69,6 @@
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
 |ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
-|ML-6194||
-
 
 ## v1.6.1 (29 February 2024)
 

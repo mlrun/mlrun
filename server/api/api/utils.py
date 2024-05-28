@@ -1396,8 +1396,6 @@ async def _delete_nuclio_functions_in_batches(
             if isinstance(result, tuple):
                 nuclio_name, error_message = result
                 if error_message:
-                    failed_requests.append(
-                        error_message
-                    )
+                    failed_requests.append(error_message)
 
     return failed_requests

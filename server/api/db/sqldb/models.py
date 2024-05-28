@@ -455,7 +455,7 @@ with warnings.catch_warnings():
         labels = relationship(Label, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.name}"
+            return f"{self.feature_set_id}/{self.name}"
 
     class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"

@@ -17,6 +17,7 @@ import http
 import pytest
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -69,7 +70,7 @@ async def test_nuclio_get_api_gateway(
 
     expected_payload = api_gateway.to_scheme()
     expected_payload.metadata.labels = {
-        mlrun.runtimes.nuclio.api_gateway.PROJECT_NAME_LABEL: "default-project"
+        mlrun.common.constants.MLRunInternalLabels.nuclio_project_name: "default-project"
     }
     mock_aioresponse.get(
         request_url,

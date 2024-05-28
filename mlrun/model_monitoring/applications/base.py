@@ -21,10 +21,10 @@ import pandas as pd
 import mlrun
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
-from mlrun.serving.utils import StepToDict
+from mlrun.serving.utils import MonitoringApplicationToDict
 
 
-class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
+class ModelMonitoringApplicationBaseV2(MonitoringApplicationToDict, ABC):
     """
     A base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.
@@ -113,7 +113,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         raise NotImplementedError
 
 
-class ModelMonitoringApplicationBase(StepToDict, ABC):
+class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     """
     A base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.

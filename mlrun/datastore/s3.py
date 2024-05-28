@@ -198,11 +198,6 @@ class S3Store(DataStore):
         bucket = self.s3.Bucket(bucket)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]
 
-    def rm(self, path, recursive=False, maxdepth=None):
-        bucket, key = self.get_bucket_and_key(path)
-        path = f"{bucket}/{key}"
-        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
-
 
 def parse_s3_bucket_and_key(s3_path):
     try:

@@ -840,18 +840,26 @@ class SQLDB(DBInterface):
         """
         :return: a list of Tuple of (project, artifact.key, tag)
         """
-        artifacts = self.list_artifacts(session, project=project, category=category)
+
+        # query artifact key and tag from the db
+        query = (
+            self._query(session, ArtifactV2, project=project)
+            .join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            .with_entities(ArtifactV2.key, ArtifactV2.Tag.name)
+        )
+        if category:
+            query = self._add_artifact_category_query(category, query)
+
         results = []
-        for artifact in artifacts:
+        for artifact_key, tag in query:
             # we want to return only artifacts that have tags when listing tags
-            if artifact["metadata"].get("tag"):
-                results.append(
-                    (
-                        project,
-                        artifact["spec"].get("db_key"),
-                        artifact["metadata"].get("tag"),
-                    )
+            results.append(
+                (
+                    project,
+                    artifact_key,
+                    tag,
                 )
+            )
 
         return results
 
@@ -1219,20 +1227,6 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _add_artifact_name_query(self, query, name=None):
-        if not name:
-            return query
-
-        if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
-            )
-
-        return query.filter(ArtifactV2.key == name)
-
     def _find_artifacts(
         self,
         session,
@@ -1291,11 +1285,7 @@ class SQLDB(DBInterface):
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
         elif category:
-            kinds, exclude = category.to_kinds_filter()
-            if exclude:
-                query = query.filter(ArtifactV2.kind.notin_(kinds))
-            else:
-                query = query.filter(ArtifactV2.kind.in_(kinds))
+            query = self._add_artifact_category_query(category, query)
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
@@ -1320,6 +1310,29 @@ class SQLDB(DBInterface):
             return artifacts
 
         return query.all()
+
+    def _add_artifact_name_query(self, query, name=None):
+        if not name:
+            return query
+
+        if name.startswith("~"):
+            # Escape special chars (_,%) since we still need to do a like query.
+            exact_name = self._escape_characters_for_like_query(name)
+            # Use Like query to find substring matches
+            return query.filter(
+                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            )
+
+        return query.filter(ArtifactV2.key == name)
+
+    @staticmethod
+    def _add_artifact_category_query(category, query):
+        kinds, exclude = category.to_kinds_filter()
+        if exclude:
+            query = query.filter(ArtifactV2.kind.notin_(kinds))
+        else:
+            query = query.filter(ArtifactV2.kind.in_(kinds))
+        return query
 
     def _get_existing_artifact(
         self,

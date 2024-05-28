@@ -110,15 +110,17 @@ async def list_artifact_tags(
         ),
         auth_info,
     )
-    tags = [
+
+    # create a tags set to remove duplicates
+    tags = {
         tag_tuple[2]
         for tag_tuple in tag_tuples
         if tag_tuple[1] in allowed_artifact_keys
-    ]
+    }
+
     return {
         "project": project,
-        # Remove duplicities
-        "tags": list(set(tags)),
+        "tags": list(tags),
     }
 
 

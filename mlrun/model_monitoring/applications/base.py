@@ -30,7 +30,7 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
     Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
-        # mlrun: start-code
+    
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
@@ -49,7 +49,6 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
                 )
 
 
-        # mlrun: end-code
     """
 
     kind = "monitoring_application"
@@ -119,7 +118,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
-        # mlrun: start-code
+
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
@@ -145,7 +144,6 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 )
 
 
-        # mlrun: end-code
     """
 
     kind = "monitoring_application"

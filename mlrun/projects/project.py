@@ -2005,6 +2005,7 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
+        
         _, function_object, _ = self._instantiate_model_monitoring_function(
             func,
             application_class,
@@ -2892,9 +2893,10 @@ class MlrunProject(ModelObj):
                           For using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a one of:
-                            1. Remote URL which is loaded dynamically to the workflow runner.
-                            2. A path to the project's context on the workflow runner's image.
+                          Can be one of:
+                          
+                          * Remote URL which is loaded dynamically to the workflow runner.
+                          * A path to the project's context on the workflow runner's image.
                           Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
                           (enriched when building a project image with source, see `MlrunProject.build_image`).
                           For other engines the source is used to validate that the code is up-to-date.

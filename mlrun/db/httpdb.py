@@ -3626,8 +3626,8 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.APIGateway:
         """
         Stores an API Gateway.
-        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
-            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        
+        :param api_gateway {py:class}`~mlrun.runtimes.nuclio.APIGateway` or {py:class}`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
 
         :return:  :py:class:`~mlrun.common.schemas.APIGateway`.
@@ -3949,9 +3949,10 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Generate an event.
-        :param name: The name of the event.
+        
+        :param name:       The name of the event.
         :param event_data: The data of the event.
-        :param project: The project that the event belongs to.
+        :param project:    The project that the event belongs to.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/events/{name}"
@@ -3970,10 +3971,11 @@ class HTTPRunDB(RunDBInterface):
     ) -> AlertConfig:
         """
         Create/modify an alert.
+        
         :param alert_name: The name of the alert.
         :param alert_data: The data of the alert.
-        :param project: the project that the alert belongs to.
-        :return: The created/modified alert.
+        :param project:    The project that the alert belongs to.
+        :return:           The created/modified alert.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
@@ -3993,9 +3995,11 @@ class HTTPRunDB(RunDBInterface):
     def get_alert_config(self, alert_name: str, project="") -> AlertConfig:
         """
         Retrieve an alert.
+        
         :param alert_name: The name of the alert to retrieve.
-        :param project: The project that the alert belongs to.
-        :return: The alert object.
+        :param project:    The project that the alert belongs to.
+       
+        :returns:           The alert object.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
@@ -4006,8 +4010,10 @@ class HTTPRunDB(RunDBInterface):
     def list_alerts_configs(self, project="") -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+        
         :param project: The project name.
-        :return: All the alerts objects of the project.
+        
+        :returns: All the alerts objects of the project.
         """
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts"
@@ -4045,7 +4051,9 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.AlertTemplate:
         """
         Retrieve a specific alert template.
+        
         :param template_name: The name of the template to retrieve.
+        
         :return: The template object.
         """
         endpoint_path = f"alert-templates/{template_name}"
@@ -4056,6 +4064,7 @@ class HTTPRunDB(RunDBInterface):
     def list_alert_templates(self) -> list[mlrun.common.schemas.AlertTemplate]:
         """
         Retrieve list of all alert templates.
+        
         :return: All the alert template objects in the database.
         """
         endpoint_path = "alert-templates"

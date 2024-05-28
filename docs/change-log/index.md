@@ -43,6 +43,7 @@
 ###  Closed issue
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
+|ML-4149|Workflows are now listed from newest to oldest.|
 |ML-5763|The log formatter options can now be changed by an env var.|
 |ML-5772|Resolved: "Projects" screen/counters may show "N/A" or "MySQL server has gone away" transient error.|
 |ML-5776|Concurrent request to project deletion now do not fail.|

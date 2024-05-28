@@ -18,7 +18,7 @@ from typing import Optional
 import pydantic
 
 import mlrun.common.types
-from mlrun.common.constants import MLRUN_FUNCTIONS_LABEL
+from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
 
 
 class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
@@ -117,15 +117,17 @@ class APIGateway(_APIGatewayBaseModel):
 
         self.spec.upstreams = upstream_with_nuclio_names
         if len(mlrun_function_uris) == 1:
-            self.metadata.annotations[MLRUN_FUNCTIONS_LABEL] = mlrun_function_uris[0]
+            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = mlrun_function_uris[
+                0
+            ]
         elif len(mlrun_function_uris) == 2:
-            self.metadata.annotations[MLRUN_FUNCTIONS_LABEL] = "&".join(
+            self.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION] = "&".join(
                 mlrun_function_uris
             )
         return self
 
     def replace_nuclio_names_with_mlrun_uri(self):
-        mlrun_functions = self.metadata.annotations.get(MLRUN_FUNCTIONS_LABEL)
+        mlrun_functions = self.metadata.annotations.get(MLRUN_FUNCTIONS_ANNOTATION)
         if mlrun_functions:
             mlrun_function_uris = (
                 mlrun_functions.split("&")
@@ -135,7 +137,7 @@ class APIGateway(_APIGatewayBaseModel):
             if len(mlrun_function_uris) != len(self.spec.upstreams):
                 raise mlrun.errors.MLRunValueError(
                     "Error when translating nuclio names to mlrun names in api gateway:"
-                    " upstream length doesn't match with mlrun functions label"
+                    "  number of functions doesn't match the mlrun functions in annotation"
                 )
             for i in range(len(mlrun_function_uris)):
                 self.spec.upstreams[i].nucliofunction["name"] = mlrun_function_uris[i]

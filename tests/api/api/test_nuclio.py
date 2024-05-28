@@ -23,7 +23,7 @@ import mlrun.common.schemas
 import mlrun.runtimes.nuclio
 import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
-from mlrun.common.constants import MLRUN_FUNCTIONS_LABEL
+from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
 
 PROJECT = "project-name"
 
@@ -171,6 +171,16 @@ def test_store_api_gateway(
             ["test-project-test-func1", "test-project-test-func2"],
             "test-project/test-func1&test-project/test-func2",
         ),
+        (
+            ["test-func1:latest", "test-func2:latest"],
+            ["test-project-test-func1", "test-project-test-func2"],
+            "test-project/test-func1:latest&test-project/test-func2:latest",
+        ),
+        (
+            ["test-func1:tag1", "test-func2:tag2"],
+            ["test-project-test-func1-tag1", "test-project-test-func2-tag2"],
+            "test-project/test-func1:tag1&test-project/test-func2:tag2",
+        ),
     ],
 )
 def test_mlrun_function_translation_to_nuclio(
@@ -191,7 +201,7 @@ def test_mlrun_function_translation_to_nuclio(
     )
 
     assert (
-        api_gateway_server_side.metadata.annotations[MLRUN_FUNCTIONS_LABEL]
+        api_gateway_server_side.metadata.annotations[MLRUN_FUNCTIONS_ANNOTATION]
         == expected_mlrun_functions_label
     )
     api_gateway_with_replaced_nuclio_names_to_mlrun = (

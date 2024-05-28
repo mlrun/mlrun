@@ -284,7 +284,7 @@ class APIGatewaySpec(ModelObj):
         for func in functions:
             if isinstance(func, str):
                 # check whether the function was passed as a URI or just a name
-                parsed_project, function_name, tag, hash_key = (
+                parsed_project, function_name, _, _ = (
                     mlrun.common.helpers.parse_versioned_object_uri(func)
                 )
 

@@ -30,6 +30,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import ParquetTarget, get_default_prefix_for_target
+from mlrun.utils import logger
 from tests.system.base import TestMLRunSystem
 
 test_environment = TestMLRunSystem._get_env_from_file()
@@ -125,7 +126,7 @@ class TestAwsS3(TestMLRunSystem):
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
         param = self.s3[url_type]
-        print(f"Using URL {param['parquet_url']}\n")
+        logger.info(f"Using URL {param['parquet_url']}")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
         source_path = param["parquet_url"]
@@ -137,13 +138,13 @@ class TestAwsS3(TestMLRunSystem):
 
         # ingest
         target_path = f"{os.path.dirname(param['parquet_url'])}/target_{uuid.uuid4()}"
-        targets = [ParquetTarget(path=target_path)]
+        target = ParquetTarget(path=target_path)
         fset = fstore.FeatureSet(
             name="test_fs",
             entities=[fstore.Entity("Column1")],
         )
 
-        fset.ingest(source=parquet_source, targets=targets)
+        fset.ingest(source=parquet_source, targets=[target])
         result = ParquetSource(path=target_path).to_dataframe(
             columns=("Column1", "Column2")
         )
@@ -153,12 +154,16 @@ class TestAwsS3(TestMLRunSystem):
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
 
+        # Check for ML-6587 regression
+        target.purge()
+        # TODO complete
+
     def test_ingest_ds_default_target(self):
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
         )
         param = self.s3["ds_with_bucket"]
-        print(f"Using URL {param['parquet_url']}\n")
+        logger.info(f"Using URL {param['parquet_url']}")
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
         source_path = param["parquet_url"]
@@ -169,20 +174,20 @@ class TestAwsS3(TestMLRunSystem):
 
         parquet_source = ParquetSource(name="test", path=source_path)
 
-        targets = [ParquetTarget(path="ds://s3ds_profile_with_bucket")]
+        target = ParquetTarget(path="ds://s3ds_profile_with_bucket")
         fset = fstore.FeatureSet(
             name="test_fs",
             entities=[fstore.Entity("Column1")],
         )
 
-        fset.ingest(source=parquet_source, targets=targets)
+        fset.ingest(source=parquet_source, targets=[target])
 
         expected_default_ds_data_prefix = get_default_prefix_for_target(
             "dsnosql"
         ).format(
             ds_profile_name="s3ds_profile_with_bucket",
             project=fset.metadata.project,
-            kind=targets[0].kind,
+            kind=target.kind,
             name=fset.metadata.name,
         )
 
@@ -196,3 +201,7 @@ class TestAwsS3(TestMLRunSystem):
         assert_frame_equal(
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
+
+        # Check for ML-6587 regression
+        target.purge()
+        # TODO complete

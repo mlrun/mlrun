@@ -106,8 +106,8 @@ class TSDBConnector(ABC):
     def get_records(
         self,
         table: str,
-        start: str,
-        end: str,
+        start: typing.Union[datetime, str],
+        end: typing.Union[datetime, str],
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
     ) -> pd.DataFrame:

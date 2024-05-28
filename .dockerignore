@@ -31,5 +31,3 @@ mlrun.egg-info
 **/project.yaml
 **/patch-env.yml
 **/google-big-query-credentials.json
-
-

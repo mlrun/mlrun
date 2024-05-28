@@ -485,8 +485,13 @@ def test_tracking_on_serving(
 
     config_map = unittest.mock.Mock()
     config_map.items = []
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
-        return_value=config_map
+
+    mock_list_namespaced_config_map = unittest.mock.Mock(return_value=config_map)
+
+    monkeypatch.setattr(
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        "list_namespaced_config_map",
+        mock_list_namespaced_config_map,
     )
 
     # Generate a test project

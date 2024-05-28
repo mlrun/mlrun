@@ -182,7 +182,7 @@ class TDEngineSchema:
                 if interval:
                     query.write(f" INTERVAL({interval})")
                 if limit:
-                    query.write(f" LIMIT{limit}")
+                    query.write(f" LIMIT({limit})")
                 if sliding_window:
                     query.write(f" SLIDING({sliding_window})")
                 full_query = query.getvalue()

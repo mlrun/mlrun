@@ -18,10 +18,10 @@ from http import HTTPStatus
 
 import aiohttp
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
-from mlrun.common.constants import MLRUN_CREATED_LABEL
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
@@ -29,7 +29,6 @@ NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
-NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
 class Client:
@@ -138,8 +137,12 @@ class Client:
         )
 
     def _set_iguazio_labels(self, nuclio_object, project_name):
-        nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
-        nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
+        nuclio_object.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        ] = project_name
+        nuclio_object.metadata.labels[mlrun_constants.MLRunInternalLabels.created] = (
+            "true"
+        )
 
     async def _ensure_async_session(self):
         if not self._session:

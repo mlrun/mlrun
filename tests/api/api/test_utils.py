@@ -42,7 +42,7 @@ from server.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
-    _update_functions_with_deletion_task_ids,
+    _update_functions_with_deletion_info,
     ensure_function_has_auth_set,
     ensure_function_security_context,
     get_scheduler,
@@ -1690,12 +1690,12 @@ async def test_delete_function_calls_k8s_helper_methods():
         )
 
         assert len(failed_requests) == 0
-        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "serving-conf")
         k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")
 
 
 @pytest.mark.asyncio
-async def test_update_functions_with_deletion_task_ids(db: sqlalchemy.orm.Session):
+async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
     project = "my_project"
     deletion_task_id = "12345"
     function_name = "test_function"
@@ -1708,8 +1708,12 @@ async def test_update_functions_with_deletion_task_ids(db: sqlalchemy.orm.Sessio
     )
     functions = [function]
 
-    await _update_functions_with_deletion_task_ids(
-        db, functions, project, deletion_task_id
+    await _update_functions_with_deletion_info(
+        functions,
+        project,
+        updates={
+            "status.deletion_task_id": deletion_task_id,
+        },
     )
     function = server.api.crud.Functions().get_function(
         db, name=function_name, project=project, tag=function_tag

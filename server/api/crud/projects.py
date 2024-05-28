@@ -19,9 +19,9 @@ import typing
 
 import fastapi.concurrency
 import humanfriendly
-import mlrun_pipelines
 import sqlalchemy.orm
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
@@ -186,7 +186,7 @@ class Projects(
         # delete runtime resources
         server.api.crud.RuntimeResources().delete_runtime_resources(
             session,
-            label_selector=f"mlrun/project={name}",
+            label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
         )
         if mlrun.mlconf.resolve_kfp_url():
@@ -295,6 +295,8 @@ class Projects(
         (
             project_to_files_count,
             project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
             project_to_feature_set_count,
             project_to_models_count,
             project_to_recent_completed_runs_count,
@@ -310,7 +312,7 @@ class Projects(
                 mlrun.common.schemas.ProjectSummary(
                     name=project,
                     files_count=project_to_files_count.get(project, 0),
-                    schedules_count=project_to_schedule_count.get(project, 0),
+                    distinct_schedules_count=project_to_schedule_count.get(project, 0),
                     feature_sets_count=project_to_feature_set_count.get(project, 0),
                     models_count=project_to_models_count.get(project, 0),
                     runs_completed_recent_count=project_to_recent_completed_runs_count.get(
@@ -320,7 +322,7 @@ class Projects(
                         project, 0
                     ),
                     runs_running_count=project_to_running_runs_count.get(project, 0),
-                    # project_.*_pipelines_count is a defaultdict so it will return None if using dict.get()
+                    # the following are defaultdict so it will return None if using dict.get()
                     # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
                     pipelines_completed_recent_count=project_to_recent_completed_pipelines_count[
                         project
@@ -329,13 +331,29 @@ class Projects(
                         project
                     ],
                     pipelines_running_count=project_to_running_pipelines_count[project],
+                    distinct_scheduled_jobs_pending_count=project_to_schedule_pending_jobs_count[
+                        project
+                    ],
+                    distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
+                        project
+                    ],
                 )
             )
         return project_summaries
 
+    @staticmethod
+    def _failed_statuses():
+        return [
+            mlrun.run.RunStatuses.failed,
+            mlrun.run.RunStatuses.error,
+            mlrun.run.RunStatuses.canceled,
+        ]
+
     async def _get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -364,6 +382,8 @@ class Projects(
             (
                 project_to_files_count,
                 project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_completed_runs_count,
@@ -378,6 +398,8 @@ class Projects(
             self._cache["project_resources_counters"]["result"] = (
                 project_to_files_count,
                 project_to_schedule_count,
+                project_to_schedule_pending_jobs_count,
+                project_to_schedule_pending_workflows_count,
                 project_to_feature_set_count,
                 project_to_models_count,
                 project_to_recent_completed_runs_count,
@@ -455,10 +477,7 @@ class Projects(
                                 project_to_recent_completed_pipelines_count[
                                     pipeline["project"]
                                 ] += 1
-                            elif (
-                                pipeline["status"]
-                                in mlrun.run.RunStatuses.failed_statuses()
-                            ):
+                            elif pipeline["status"] in self._failed_statuses():
                                 project_to_recent_failed_pipelines_count[
                                     pipeline["project"]
                                 ] += 1
@@ -473,16 +492,9 @@ class Projects(
             )
             # this function should return project_to_recent_completed_pipelines_count,
             # project_to_recent_failed_pipelines_count, project_to_running_pipelines_count,
-            # in case of exception we want to return 3 * defaultdict of None because this function
+            # in case of exception we want to return 3 * defaultdict because this function
             # returns 3 values
-            return [collections.defaultdict(lambda: None)] * 3
-
-        for pipeline in pipelines:
-            if (
-                pipeline["status"]
-                not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
-            ):
-                project_to_running_pipelines_count[pipeline["project"]] += 1
+            return [collections.defaultdict(lambda: 0)] * 3
 
         return (
             project_to_recent_completed_pipelines_count,
@@ -516,7 +528,8 @@ class Projects(
 
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                selector=f"nuclio.io/project-name={project_name},nuclio.io/class=function"
+                selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_project_name}={project_name},"
+                f"{mlrun_constants.MLRunInternalLabels.nuclio_class}=function"
             )
             if not project_function_pods:
                 logger.debug(

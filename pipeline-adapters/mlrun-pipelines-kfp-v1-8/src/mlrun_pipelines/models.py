@@ -14,14 +14,55 @@
 #
 
 import json
+import typing
 from typing import Any, Union
 
 from kfp.dsl import ContainerOp
 from kfp_server_api.models.api_run_detail import ApiRunDetail
 from mlrun_pipelines.common.helpers import FlexibleMapper
 
+# Disable the warning about reusing components
+ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+
+
 # class pointer for type checking on the main MLRun codebase
 PipelineNodeWrapper = ContainerOp
+
+
+class PipelineStep(FlexibleMapper):
+    def __init__(self, step_type, node_name, node, node_template):
+        data = {
+            "step_type": step_type,
+            "node_name": node_name,
+            "node": node,
+            "node_template": node_template,
+        }
+        super().__init__(data)
+
+    @property
+    def step_type(self):
+        return self._external_data["step_type"]
+
+    @property
+    def node_name(self):
+        return self._external_data["node_name"]
+
+    @property
+    def phase(self):
+        return self._external_data["node"]["phase"]
+
+    @property
+    def skipped(self):
+        return self._external_data["node"]["type"] == "Skipped"
+
+    @property
+    def display_name(self):
+        return self._external_data["node"]["displayName"]
+
+    def get_annotation(self, annotation_name: str):
+        return self._external_data["node_template"]["metadata"]["annotations"].get(
+            annotation_name
+        )
 
 
 class PipelineManifest(FlexibleMapper):
@@ -32,10 +73,30 @@ class PipelineManifest(FlexibleMapper):
             main_manifest = json.loads(workflow_manifest)
         except TypeError:
             main_manifest = workflow_manifest
-        if pipeline_manifest:
+        if pipeline_manifest != "{}":
             pipeline_manifest = json.loads(pipeline_manifest)
             main_manifest["status"] = pipeline_manifest.get("status", {})
         super().__init__(main_manifest)
+
+    def get_steps(self) -> typing.Generator[PipelineStep, None, None]:
+        nodes = sorted(
+            self._external_data["status"]["nodes"].items(),
+            key=lambda _node: _node[1]["finishedAt"],
+        )
+        for node_name, node in nodes:
+            if node["type"] == "DAG":
+                # Skip the parent DAG node
+                continue
+
+            node_template = next(
+                template
+                for template in self._external_data["spec"]["templates"]
+                if template["name"] == node["templateName"]
+            )
+            step_type = node_template["metadata"]["annotations"].get(
+                "mlrun/pipeline-step-type"
+            )
+            yield PipelineStep(step_type, node_name, node, node_template)
 
 
 class PipelineRun(FlexibleMapper):
@@ -105,6 +166,18 @@ class PipelineRun(FlexibleMapper):
     @finished_at.setter
     def finished_at(self, finished_at):
         self._external_data["finished_at"] = finished_at
+
+    @property
+    def experiment_id(self) -> str:
+        for reference in self._external_data.get("resource_references") or []:
+            data = reference.get("key", {})
+            if (
+                data.get("type", "") == "EXPERIMENT"
+                and reference.get("relationship", "") == "OWNER"
+                and reference.get("name", "") != "Default"
+            ):
+                return data.get("id", "")
+        return ""
 
     def workflow_manifest(self) -> PipelineManifest:
         return self._workflow_manifest

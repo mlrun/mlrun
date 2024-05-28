@@ -18,6 +18,7 @@ from typing import Optional, Union
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context
@@ -190,7 +191,9 @@ def run_function(
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels["workflow"] = pipeline_context.workflow_id
+            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
+                pipeline_context.workflow_id
+            )
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
@@ -225,9 +228,9 @@ def run_function(
 class BuildStatus:
     """returned status from build operation"""
 
-    def __init__(self, ready, outputs={}, function=None):
+    def __init__(self, ready, outputs=None, function=None):
         self.ready = ready
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):
@@ -340,9 +343,9 @@ def build_function(
 class DeployStatus:
     """returned status from deploy operation"""
 
-    def __init__(self, state, outputs={}, function=None):
+    def __init__(self, state, outputs=None, function=None):
         self.state = state
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):

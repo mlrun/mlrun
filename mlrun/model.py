@@ -27,6 +27,7 @@ from typing import Any, Optional, Union
 import pydantic.error_wrappers
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
 
 from .utils import (
@@ -681,10 +682,14 @@ class Notification(ModelObj):
 
     def __init__(
         self,
-        kind=None,
+        kind: mlrun.common.schemas.notification.NotificationKind = (
+            mlrun.common.schemas.notification.NotificationKind.slack
+        ),
         name=None,
         message=None,
-        severity=None,
+        severity: mlrun.common.schemas.notification.NotificationSeverity = (
+            mlrun.common.schemas.notification.NotificationSeverity.INFO
+        ),
         when=None,
         condition=None,
         secret_params=None,
@@ -693,12 +698,10 @@ class Notification(ModelObj):
         sent_time=None,
         reason=None,
     ):
-        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.kind = kind
         self.name = name or ""
         self.message = message or ""
-        self.severity = (
-            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
-        )
+        self.severity = severity
         self.when = when or ["completed"]
         self.condition = condition or ""
         self.secret_params = secret_params or {}
@@ -768,7 +771,10 @@ class RunMetadata(ModelObj):
     def is_workflow_runner(self):
         if not self.labels:
             return False
-        return self.labels.get("job-type", "") == "workflow-runner"
+        return (
+            self.labels.get(mlrun_constants.MLRunInternalLabels.job_type, "")
+            == "workflow-runner"
+        )
 
 
 class HyperParamStrategies:

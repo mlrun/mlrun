@@ -28,6 +28,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.nuclio.function
@@ -146,7 +147,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_class="remote",
         call_count=1,
-        expected_params=[],
+        expected_params=None,
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,
@@ -184,7 +185,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
-            labels_for_diff.update({"mlrun/class": expected_class})
+            labels_for_diff.update(
+                {mlrun_constants.MLRunInternalLabels.mlrun_class: expected_class}
+            )
             if parent_function:
                 labels_for_diff.update({"mlrun/parent-function": parent_function})
             assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}

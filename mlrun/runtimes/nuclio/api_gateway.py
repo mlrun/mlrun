@@ -21,6 +21,7 @@ from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas as schemas
 import mlrun.common.types
 from mlrun.model import ModelObj
@@ -28,8 +29,6 @@ from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
 from .function import get_fullname, min_nuclio_versions
-
-PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
 class APIGatewayAuthenticator(typing.Protocol):
@@ -526,7 +525,9 @@ class APIGateway(ModelObj):
 
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
-        project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
+        project = api_gateway.metadata.labels.get(
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        )
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (
             api_gateway.status.state

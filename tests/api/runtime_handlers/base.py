@@ -24,6 +24,7 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import server.api.crud
@@ -153,8 +154,8 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_job_labels(run_name, uid=None, job_labels=None):
         labels = job_labels.copy() if job_labels else {}
-        labels["mlrun/uid"] = uid or str(uuid.uuid4())
-        labels["mlrun/name"] = run_name
+        labels[mlrun_constants.MLRunInternalLabels.uid] = uid or str(uuid.uuid4())
+        labels[mlrun_constants.MLRunInternalLabels.name] = run_name
         return labels
 
     @staticmethod
@@ -192,7 +193,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{mlrun_constants.MLRunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = (
@@ -203,7 +204,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{mlrun_constants.MLRunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
@@ -249,7 +250,10 @@ class TestRuntimeHandlerBase:
     ):
         self._assert_list_resources_grouped_by_response(
             resources,
-            lambda labels: (labels["mlrun/project"], labels["mlrun/uid"]),
+            lambda labels: (
+                labels[mlrun_constants.MLRunInternalLabels.project],
+                labels[mlrun_constants.MLRunInternalLabels.uid],
+            ),
             expected_crds,
             expected_pods,
             expected_services,
@@ -266,8 +270,8 @@ class TestRuntimeHandlerBase:
         def _extract_project_and_kind_from_runtime_resources_labels(
             labels: dict,
         ) -> tuple[str, str]:
-            project = labels.get("mlrun/project", "")
-            class_ = labels["mlrun/class"]
+            project = labels.get(mlrun_constants.MLRunInternalLabels.project, "")
+            class_ = labels[mlrun_constants.MLRunInternalLabels.mlrun_class]
             kind = runtime_handler._resolve_kind_from_class(class_)
             return project, kind
 

@@ -298,6 +298,7 @@ class ModelEndpointList(BaseModel):
 
 class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
     RESULT = "result"
+    METRIC = "metric"
 
 
 class ModelEndpointMonitoringMetric(BaseModel):
@@ -322,7 +323,7 @@ _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
 _FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
-    rf"(?P<type>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
     rf"(?P<name>{_FQN_PART_PATTERN})$"
 )
 _FQN_REGEX = re.compile(_FQN_PATTERN)
@@ -337,27 +338,37 @@ def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringM
     )
 
 
+class _MetricPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+
+
 class _ResultPoint(NamedTuple):
     timestamp: datetime
     value: float
     status: ResultStatusApp
 
 
-class _ModelEndpointMonitoringResultValuesBase(BaseModel):
+class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     data: bool
 
 
-class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringResultValuesBase):
-    full_name: str
-    type: ModelEndpointMonitoringMetricType
+class ModelEndpointMonitoringMetricValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
+    values: list[_MetricPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT
     result_kind: ResultKindApp
     values: list[_ResultPoint]
     data: bool = True
 
 
-class ModelEndpointMonitoringResultNoData(_ModelEndpointMonitoringResultValuesBase):
+class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBase):
     full_name: str
     type: ModelEndpointMonitoringMetricType
     data: bool = False

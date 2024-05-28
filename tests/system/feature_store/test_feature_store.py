@@ -37,6 +37,7 @@ from storey import MapClass
 from storey.dtypes import V3ioError
 
 import mlrun
+import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
@@ -70,6 +71,7 @@ from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotE
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
+from tests.system.feature_store.utils import sort_df
 
 from .data_sample import quotes, stocks, trades
 
@@ -4335,7 +4337,7 @@ class TestFeatureStore(TestMLRunSystem):
             orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
         parquet_path = f"v3io:///projects/{self.project_name}/trfsinojud.parquet"
         orig_df.to_parquet(parquet_path)
-        gnrxRnIYSr = ParquetSource(path=parquet_path)
+        source = ParquetSource(path=parquet_path)
 
         if with_indexes:
             fset = fstore.FeatureSet(
@@ -4345,7 +4347,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
         else:
             fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
-        df = fset.ingest(source=gnrxRnIYSr)
+        df = fset.ingest(source=source)
         assert df.equals(orig_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -4816,14 +4818,6 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
-    @staticmethod
-    def _sort_df(df: pd.DataFrame, sort_column: str):
-        return (
-            df.reindex(sorted(df.columns), axis=1)
-            .sort_values(by=sort_column)
-            .reset_index(drop=True)
-        )
-
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_parquet_filters(self, engine):
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
@@ -4859,8 +4853,8 @@ class TestFeatureStore(TestMLRunSystem):
         result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
         # We want to include patient_id in the comparison,
         # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = self._sort_df(result, "patient_id")
-        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
+        result = sort_df(result, "patient_id")
+        expected = sort_df(filtered_df.query("room == 1"), "patient_id")
         # the content of category column is still checked:
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
         vec = fstore.FeatureVector(
@@ -4876,8 +4870,8 @@ class TestFeatureStore(TestMLRunSystem):
             .to_dataframe()
             .reset_index()
         )
-        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
-        result = self._sort_df(result, "patient_id")
+        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
+        result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
 

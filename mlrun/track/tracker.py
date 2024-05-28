@@ -31,8 +31,9 @@ class Tracker(ABC):
     * Offline: Manually importing models and artifacts into an MLRun project using the `import_x` methods.
     """
 
+    @staticmethod
     @abstractmethod
-    def is_enabled(self) -> bool:
+    def is_enabled() -> bool:
         """
         Checks if tracker is enabled.
 

@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -521,7 +522,9 @@ default_config = {
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connector_type": "v3io-tsdb",
+        "tsdb_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -966,6 +969,10 @@ class Config:
         return self.httpdb.clusterization.chief.url
 
     @staticmethod
+    def internal_labels():
+        return mlrun.common.constants.MLRunInternalLabels.all()
+
+    @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
         if config.storage.auto_mount_params:
@@ -1406,14 +1413,14 @@ def read_env(env=None, prefix=env_prefix):
     if log_formatter_name := config.get("log_formatter"):
         import mlrun.utils.logger
 
-        log_formatter = mlrun.utils.create_formatter_instance(
+        log_formatter = mlrun.utils.resolve_formatter_by_kind(
             mlrun.utils.FormatterKinds(log_formatter_name)
         )
         current_handler = mlrun.utils.logger.get_handler("default")
         current_formatter_name = current_handler.formatter.__class__.__name__
-        desired_formatter_name = log_formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__name__
         if current_formatter_name != desired_formatter_name:
-            current_handler.setFormatter(log_formatter)
+            current_handler.setFormatter(log_formatter())
 
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.

@@ -20,6 +20,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
@@ -119,12 +120,48 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().read_run(
+        run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
+
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        producer_uri = None
+        producer_id = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.workflow)
+        )
+        if not producer_id:
+            producer_id = uid
+        else:
+            # Producer URI is the URI of the MLClientCtx object that produced the artifact
+            producer_uri = f"{project}/{run['metadata']['uid']}"
+            if iter:
+                producer_uri += f"-{iter}"
+
+        best_iteration = False
+        if not iter:
+            iter = None
+            best_iteration = True
+
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            iter=iter,
+            best_iteration=best_iteration,
+            producer_id=producer_id,
+            producer_uri=producer_uri,
+            project=project,
+        )
+
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
+
+        return run
 
     def list_runs(
         self,
@@ -133,8 +170,10 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        state: typing.Optional[str] = None,
-        states: typing.Optional[list[str]] = None,  # Backward compatibility
+        state: typing.Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[typing.Union[str, list[str]]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -199,7 +238,9 @@ class Runs(
             uid=uid,
             project=project,
             labels=labels,
-            states=[state] if state is not None else states or None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -259,7 +300,7 @@ class Runs(
                     server.api.utils.singletons.db.get_db(),
                     db_session,
                     object_id=uid,
-                    label_selector=f"mlrun/project={project}",
+                    label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
                     force=True,
                 )
 
@@ -418,7 +459,7 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )
 
@@ -484,6 +525,6 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )

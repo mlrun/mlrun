@@ -15,10 +15,12 @@
 import unittest.mock
 import uuid
 
+import deepdiff
 import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud
@@ -39,8 +41,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": "uid",
                     "labels": {
-                        "kind": "job",
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -65,9 +68,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                 metadata=k8s_client.V1ObjectMeta(
                                     name="pod-name",
                                     labels={
-                                        "mlrun/class": "job",
-                                        "mlrun/project": project,
-                                        "mlrun/uid": "uid",
+                                        mlrun_constants.MLRunInternalLabels.mlrun_class: "job",
+                                        mlrun_constants.MLRunInternalLabels.project: project,
+                                        mlrun_constants.MLRunInternalLabels.uid: "uid",
                                     },
                                 ),
                                 status=k8s_client.V1PodStatus(phase="Running"),
@@ -106,7 +109,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            "kind": "job",
+                            mlrun_constants.MLRunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -158,7 +161,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "metadata": {
                         "name": run_name,
                         "labels": {
-                            "kind": "job",
+                            mlrun_constants.MLRunInternalLabels.kind: "job",
                         },
                         "uid": str(uid),
                         "iteration": 0,
@@ -213,7 +216,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {"state": run_state},
@@ -237,8 +240,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             {
                 "metadata": {
                     "name": "run-name",
+                    "uid": run_uid,
                     "labels": {
-                        "kind": "job",
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
                     },
                 },
             },
@@ -269,7 +273,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -307,7 +311,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
             "key1": "store://artifacts/project-name/db_key1@tree1",
@@ -324,7 +330,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "labels": {
-                        "kind": "job",
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
                     },
                 },
                 "status": {
@@ -375,10 +381,267 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             },
         )
 
-        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        runs = server.api.crud.Runs().list_runs(db, project=project)
+        assert len(runs) == 1
+        run = runs[0]
         assert "artifacts" not in run["status"]
         assert run["status"]["artifact_uris"] == {
             "key1": "store://artifacts/project-name/db_key1@tree1",
             "key2": "store://artifacts/project-name/db_key2@tree2",
             "key3": "store://artifacts/project-name/db_key3@tree3",
         }
+
+    def test_get_run_restore_artifacts_metadata(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
+
+    def test_get_workflow_run_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid, workflow_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid)
+
+    def test_get_workflow_run_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        iter = 3
+        artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=iter,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "iter": iter,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            iter=iter,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts, db, project, run_uid, iter)
+
+    def test_get_workflow_run_best_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        best_iteration = 3
+        best_iteration_count = 5
+        best_iteration_artifacts = self._generate_artifacts(
+            project,
+            run_uid,
+            workflow_uid,
+            artifacts_len=best_iteration_count,
+            iter=best_iteration,
+        )
+
+        for artifact in best_iteration_artifacts:
+            server.api.utils.singletons.db.get_db().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                None,
+                iter=best_iteration,
+                tag="latest",
+                project=project,
+                best_iteration=True,
+            )
+
+        bad_iteration = 5
+        bad_iteration_count = 3
+        bad_iteration_artifacts = self._generate_artifacts(
+            project,
+            run_uid,
+            workflow_uid,
+            artifacts_len=bad_iteration_count,
+            iter=bad_iteration,
+            key_prefix="bad_key",
+        )
+        for artifact in bad_iteration_artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=bad_iteration,
+                project=project,
+            )
+
+        parent_run_count = 1
+        parent_run_arts = self._generate_artifacts(
+            project,
+            run_uid,
+            workflow_uid,
+            artifacts_len=parent_run_count,
+            key_prefix="parent_key",
+        )
+        for artifact in parent_run_arts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(
+            best_iteration_artifacts + parent_run_arts, db, project, run_uid
+        )
+
+    @staticmethod
+    def _generate_artifacts(
+        project,
+        run_uid,
+        workflow_uid=None,
+        artifacts_len=2,
+        iter=None,
+        key_prefix="key",
+    ):
+        artifacts = []
+        i = 0
+        while len(artifacts) < artifacts_len:
+            artifact = {
+                mlrun_constants.MLRunInternalLabels.kind: "artifact",
+                "metadata": {
+                    "key": f"{key_prefix}{i}",
+                    "tree": workflow_uid or run_uid,
+                    "uid": f"uid{i}",
+                    "project": project,
+                    "iter": iter,
+                },
+                "spec": {
+                    "db_key": f"db_key{i}",
+                },
+                "status": {},
+            }
+            if workflow_uid:
+                producer_uri = f"{project}/{run_uid}"
+                if iter:
+                    producer_uri += f"-{iter}"
+                artifact["spec"]["producer"] = {
+                    "uri": producer_uri,
+                }
+            artifacts.append(artifact)
+            i += 1
+        return artifacts
+
+    @staticmethod
+    def _validate_run_artifacts(artifacts, db, project, run_uid, iter=0):
+        run = server.api.crud.Runs().get_run(db, run_uid, iter, project)
+        assert "artifacts" in run["status"]
+        enriched_artifacts = list(run["status"]["artifacts"])
+
+        def sort_by_key(e):
+            return e["metadata"]["key"]
+
+        assert len(enriched_artifacts) == len(
+            artifacts
+        ), "Number of artifacts is different"
+        enriched_artifacts.sort(key=sort_by_key)
+        artifacts.sort(key=sort_by_key)
+        for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):
+            assert (
+                deepdiff.DeepDiff(
+                    artifact,
+                    enriched_artifact,
+                    exclude_paths="root['metadata']['tag']",
+                )
+                == {}
+            )

@@ -28,8 +28,10 @@ import pytest
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
+import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -1813,10 +1815,13 @@ def test_create_api_gateway_valid(
     upstreams,
     authentication_mode,
 ):
+    mlrun.mlconf.igz_version = "3.6.0"
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
-            labels={"nuclio.io/project-name": "project-name"},
+            labels={
+                mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+            },
         ),
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
@@ -1937,7 +1942,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test",
@@ -1953,7 +1960,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test2": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test2",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test2",

@@ -1919,6 +1919,7 @@ class MlrunProject(ModelObj):
         call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
+        
             project.set_model_monitoring_function(
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
@@ -1984,6 +1985,7 @@ class MlrunProject(ModelObj):
         Create a monitoring function object without setting it to the project
 
         examples::
+        
             project.create_model_monitoring_function(
                 application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
             )
@@ -3833,15 +3835,15 @@ class MlrunProject(ModelObj):
         on MLRun and Nuclio sides, such as the 'host' attribute.
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-        of the API Gateway to be created or updated.
+        :param api_gateway:        An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
+            of the API Gateway to be created or updated.
         :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
             after creation or update (default is True)
-        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
+        :param max_wait_time:      (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
 
 
-        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
-        information retrieved from the Nuclio API
+        :returns: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+            information retrieved from the Nuclio API
         """
 
         api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
@@ -3863,8 +3865,8 @@ class MlrunProject(ModelObj):
         """
         Retrieves a list of Nuclio API gateways associated with the project.
 
-        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
-        the Nuclio API gateways associated with the project.
+        :returns: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+           the Nuclio API gateways associated with the project.
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [

@@ -2537,10 +2537,10 @@ class MlrunProject(ModelObj):
     def create_remote(self, url, name="origin", branch=None):
         """Create remote for the project git
 
-         This method creates a new remote repository associated with the project's Git repository.
-         If a remote with the specified name already exists, it will not be overwritten.
+        This method creates a new remote repository associated with the project's Git repository.
+        If a remote with the specified name already exists, it will not be overwritten.
 
-         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
+        If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
@@ -3907,6 +3907,7 @@ class MlrunProject(ModelObj):
     ) -> AlertConfig:
         """
         Create/modify an alert.
+        
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert.
         :return: the created/modified alert.
@@ -3919,6 +3920,7 @@ class MlrunProject(ModelObj):
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
         Retrieve an alert.
+        
         :param alert_name: The name of the alert to retrieve.
         :return: The alert object.
         """
@@ -3928,6 +3930,7 @@ class MlrunProject(ModelObj):
     def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+        
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3938,6 +3941,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Delete an alert.
+        
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to delete.
         """
@@ -3957,6 +3961,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Reset an alert.
+        
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to reset.
         """
@@ -3974,6 +3979,7 @@ class MlrunProject(ModelObj):
     def get_alert_template(self, template_name: str) -> AlertTemplate:
         """
         Retrieve a specific alert template.
+        
         :param template_name: The name of the template to retrieve.
         :return: The template object.
         """
@@ -3983,6 +3989,7 @@ class MlrunProject(ModelObj):
     def list_alert_templates(self) -> list[AlertTemplate]:
         """
         Retrieve list of all alert templates.
+        
         :return: All the alert template objects in the database.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)

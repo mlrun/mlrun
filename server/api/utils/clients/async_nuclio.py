@@ -127,7 +127,8 @@ class Client:
         )
 
     async def delete_function(self, name: str, project_name: str = None):
-        headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: True}
+        # this header allows nuclio to delete function along with its api gateways
+        headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name

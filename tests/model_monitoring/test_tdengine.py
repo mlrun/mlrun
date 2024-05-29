@@ -186,16 +186,16 @@ class TestTDEngineSchema:
                 "subtable_1",
                 [],
                 "",
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
-                datetime.datetime.now().astimezone(),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                mlrun.utils.datetime_now(),
                 "time",
             ),
             (
                 "subtable_2",
                 ["column2", "column3"],
                 "column2 > 0",
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 "time_column",
             ),
         ],
@@ -248,7 +248,7 @@ class TestTDEngineSchema:
             "timestamp_column",
             "interval",
             "limit",
-            "agg",
+            "agg_func",
             "sliding_window_step",
         ),
         [
@@ -286,7 +286,7 @@ class TestTDEngineSchema:
         timestamp_column: str,
         interval: str,
         limit: int,
-        agg: list,
+        agg_func: list,
         sliding_window_step: str,
     ):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
@@ -298,7 +298,7 @@ class TestTDEngineSchema:
                 timestamp_column=timestamp_column,
                 interval=interval,
                 limit=limit,
-                agg=agg,
+                agg_func=agg_func,
                 sliding_window_step=sliding_window_step,
             )
             assert (
@@ -315,12 +315,11 @@ class TestTDEngineSchema:
                 columns_to_filter=columns_to_filter,
                 timestamp_column=timestamp_column,
                 limit=limit,
-                agg=agg,
+                agg_func=agg_func,
                 sliding_window_step=sliding_window_step,
             )
-            assert (
-                "both interval and aggregate function must be provided or neither"
-                in str(err.value)
+            assert "Both `interval` and `agg` must be provided or neither" in str(
+                err.value
             )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
@@ -332,14 +331,14 @@ class TestTDEngineSchema:
                 columns_to_filter=columns_to_filter,
                 timestamp_column=timestamp_column,
                 limit=limit,
-                agg=agg,
+                agg_func=agg_func,
                 sliding_window_step=sliding_window_step,
             )
             assert "interval must be provided when using sliding window" in str(
                 err.value
             )
         columns_to_select = ", ".join(
-            [f"{a}({col})" for a in agg for col in columns_to_filter]
+            [f"{a}({col})" for a in agg_func for col in columns_to_filter]
         )
         expected_query = (
             f""
@@ -357,7 +356,7 @@ class TestTDEngineSchema:
                 timestamp_column=timestamp_column,
                 interval=interval,
                 limit=limit,
-                agg=agg,
+                agg_func=agg_func,
                 sliding_window_step=sliding_window_step,
             )
             == expected_query

@@ -106,29 +106,43 @@ class TSDBConnector(ABC):
     def get_records(
         self,
         table: str,
-        start: typing.Union[datetime, str],
-        end: typing.Union[datetime, str],
+        start: datetime,
+        end: datetime,
         columns: typing.Optional[list[str]] = None,
-        filter_query: str = "",
+        filter_query: typing.Optional[str] = None,
+        interval: typing.Optional[str] = None,
+        agg_func: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
+        sliding_window_step: typing.Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
-        :param table:            Table name, e.g. 'metrics', 'app_results'.
-        :param start:            The start time of the metrics.
-                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
-                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
-                                 time.
-                                 If using TDEngine, can be represented by datetime.
-        :param end:              The end time of the metrics.
-                                 If using V3IO, can be represented by a string containing an RFC 3339 time, a  Unix
-                                 timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
-                                 `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the earliest
-                                 time.
-                                 If using TDEngine, can be represented by datetime.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
-                                 connector type.
+        :param table:                 Table name, e.g. 'metrics', 'app_results'.
+        :param start:                 The start time of the metrics.
+                                      If using V3IO, can be represented by a string containing an RFC 3339 time, a Unix
+                                      timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the
+                                      earliest time.
+                                      If using TDEngine, can be represented by datetime.
+        :param end:                   The end time of the metrics.
+                                      If using V3IO, can be represented by a string containing an RFC 3339 time, a Unix
+                                      timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                                      `m` = minutes, `h` = hours, `'d'` = days, and `'s'` = seconds), or 0 for the
+                                      earliest time.
+                                      If using TDEngine, can be represented by datetime.
+        :param columns:               Columns to include in the result.
+        :param filter_query:          Optional filter expression as a string. The filter structure depends on the TSDB
+                                      connector type.
+        :param interval:              The interval to aggregate the data by. Note that if interval is provided,
+                                      agg_func must bg provided as well. Provided as a string in the format of '1m',
+                                      '1h', etc.
+        :param agg_func:              The aggregation functions to apply on the columns. Note that if agg_func is
+                                      provided, interval must bg provided as well. Provided as a list of strings in
+                                      the format of ['sum', 'avg', 'count', ...].
+        :param limit:                 The maximum number of records to return.
+        :param sliding_window_step:   The time step for which the time window moves forward. Note that if
+                                      sliding_window_step is provided, interval must be provided as well. Provided
+                                      as a string in the format of '1m', '1h', etc.
 
 
         :return: DataFrame with the provided attributes from the data collection.
@@ -228,7 +242,7 @@ class TSDBConnector(ABC):
         """
         Parse a time-indexed data-frame of metrics from the TSDB into a list of
         metrics values per distinct results.
-        When a metric is not found in the data-frame, it is represented in no-data object.
+        When a metric is not found in the data-frame, it is represented in a no-data object.
         """
         metrics_without_data = {metric.full_name: metric for metric in metrics}
 

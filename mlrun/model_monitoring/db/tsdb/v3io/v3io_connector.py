@@ -374,23 +374,37 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Union[datetime, str],
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
+        interval: typing.Optional[str] = None,
+        agg_func: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
+        sliding_window_step: typing.Optional[str] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
          Getting records from V3IO TSDB data collection.
-        :param table:            Path to the collection to query.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
-                                 `'s'` = seconds), or 0 for the earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
-                                 `'s'` = seconds), or 0 for the earliest time.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     V3IO filter expression. The expected filter expression includes different conditions,
-                                 divided by ' AND '.
-        :param kwargs:          Additional keyword arguments passed to the read method of frames client.
+        :param table:                 Path to the collection to query.
+        :param start:                 The start time of the metrics. Can be represented by a string containing an RFC
+                                      3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                      `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
+                                      `'s'` = seconds), or 0 for the earliest time.
+        :param end:                   The end time of the metrics. Can be represented by a string containing an RFC
+                                      3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                      `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and
+                                      `'s'` = seconds), or 0 for the earliest time.
+        :param columns:               Columns to include in the result.
+        :param filter_query:          V3IO filter expression. The expected filter expression includes different
+                                      conditions, divided by ' AND '.
+        :param interval:              The interval to aggregate the data by. Note that if interval is provided,
+                                      agg_func must bg provided as well. Provided as a string in the format of '1m',
+                                      '1h', etc.
+        :param agg_func:              The aggregation functions to apply on the columns. Note that if agg_func is
+                                      provided, interval must bg provided as well. Provided as a list of strings in
+                                      the format of ['sum', 'avg', 'count', ...].
+        :param limit:                 The maximum number of records to return.
+        :param sliding_window_step:   The time step for which the time window moves forward. Note that if
+                                      sliding_window_step is provided, interval must be provided as well. Provided
+                                      as a string in the format of '1m', '1h', etc.
+        :param kwargs:                Additional keyword arguments passed to the read method of frames client.
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunNotFoundError if the provided table wasn't found.
         """
@@ -399,6 +413,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Table '{table}' does not exist in the tables list of the TSDB connector. "
                 f"Available tables: {list(self.tables.keys())}"
             )
+
+        if agg_func:
+            # Frame client expects the aggregators to be a string, separated by commas
+            agg_func = ",".join(agg_func)
         table_path = self.tables[table]
         return self._frames_client.read(
             backend=_TSDB_BE,
@@ -407,6 +425,10 @@ class V3IOTSDBConnector(TSDBConnector):
             end=end,
             columns=columns,
             filter=filter_query,
+            aggregation_window=interval,
+            aggregators=agg_func,
+            limit=limit,
+            step=sliding_window_step,
             **kwargs,
         )
 
@@ -494,7 +516,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
         logger.debug(
-            "Convert dataframe to a list of metrics or results values.",
+            "Converting a data-frame to a list of metrics or results values",
             table=table_path,
             project=self.project,
             endpoint_id=endpoint_id,
@@ -545,19 +567,16 @@ class V3IOTSDBConnector(TSDBConnector):
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
     ]:
-        frames_read_kwargs: dict[str, Union[str, int, None]] = {"aggregators": "count"}
-        if aggregation_window:
-            frames_read_kwargs["step"] = aggregation_window
-            frames_read_kwargs["aggregation_window"] = aggregation_window
-        if limit:
-            frames_read_kwargs["limit"] = limit
         df = self.get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
             columns=["latency"],
             filter_query=f"endpoint_id=='{endpoint_id}'",
-            **frames_read_kwargs,
+            interval=aggregation_window,
+            agg_func=["count"],
+            limit=limit,
+            sliding_window_step=aggregation_window,
         )
 
         full_name = get_invocations_fqn(self.project)

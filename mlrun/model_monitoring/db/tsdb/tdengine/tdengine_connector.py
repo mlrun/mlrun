@@ -192,8 +192,8 @@ class TDEngineConnector(TSDBConnector):
         columns: typing.Optional[list[str]] = None,
         filter_query: typing.Optional[str] = None,
         interval: typing.Optional[str] = None,
-        agg: typing.Optional[list] = None,
-        limit: int = 0,
+        agg_func: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
@@ -205,11 +205,11 @@ class TDEngineConnector(TSDBConnector):
         :param columns:               Columns to include in the result.
         :param filter_query:          Optional filter expression as a string. TDengine supports SQL-like syntax.
         :param interval:              The interval to aggregate the data by. Note that if interval is provided,
-                                      agg must bg provided as well. Provided as a string in the format of '1m',
+                                      agg_func must bg provided as well. Provided as a string in the format of '1m',
                                       '1h', etc.
-        :param agg:                   The aggregation functions to apply on the columns. Note that if agg is provided,
-                                      interval must bg provided as well. Provided as a list of strings in the format of
-                                      ['sum', 'avg', 'count', ...].
+        :param agg_func:              The aggregation functions to apply on the columns. Note that if agg_func is
+                                      provided, interval must bg provided as well. Provided as a list of strings in
+                                      the format of ['sum', 'avg', 'count', ...].
         :param limit:                 The maximum number of records to return.
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
                                       sliding_window_step is provided, interval must be provided as well. Provided
@@ -235,7 +235,7 @@ class TDEngineConnector(TSDBConnector):
             filter_query=filter_query,
             interval=interval,
             limit=limit,
-            agg=agg,
+            agg_func=agg_func,
             sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
@@ -309,7 +309,7 @@ class TDEngineConnector(TSDBConnector):
         df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
 
         logger.debug(
-            "Convert dataframe to a list of metrics or results values.",
+            "Converting a data-frame to a list of metrics or results values",
             table=table,
             project=self.project,
             endpoint_id=endpoint_id,
@@ -330,19 +330,13 @@ class TDEngineConnector(TSDBConnector):
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
-        if not aggregation_window:
-            logger.warning(
-                "Aggregation window is not provided, defaulting to 10 minute."
-            )
-            aggregation_window = "10m"
-
         df = self.get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
             start=start,
             end=end,
             columns=["latency"],
             filter_query=f"endpoint_id='{endpoint_id}'",
-            agg=["count"],
+            agg_func=["count"],
             interval=aggregation_window,
             limit=limit,
         )

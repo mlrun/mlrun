@@ -192,7 +192,7 @@ class TDEngineConnector(TSDBConnector):
         columns: typing.Optional[list[str]] = None,
         filter_query: typing.Optional[str] = None,
         interval: typing.Optional[str] = None,
-        agg_func: typing.Optional[list] = None,
+        agg_funcs: typing.Optional[list] = None,
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
@@ -205,14 +205,14 @@ class TDEngineConnector(TSDBConnector):
         :param columns:               Columns to include in the result.
         :param filter_query:          Optional filter expression as a string. TDengine supports SQL-like syntax.
         :param interval:              The interval to aggregate the data by. Note that if interval is provided,
-                                      agg_func must bg provided as well. Provided as a string in the format of '1m',
+                                      `agg_funcs` must bg provided as well. Provided as a string in the format of '1m',
                                       '1h', etc.
-        :param agg_func:              The aggregation functions to apply on the columns. Note that if agg_func is
-                                      provided, interval must bg provided as well. Provided as a list of strings in
+        :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
+                                      provided, `interval` must bg provided as well. Provided as a list of strings in
                                       the format of ['sum', 'avg', 'count', ...].
         :param limit:                 The maximum number of records to return.
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
-                                      sliding_window_step is provided, interval must be provided as well. Provided
+                                      `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
         :param timestamp_column:      The column name that holds the timestamp.
 
@@ -235,7 +235,7 @@ class TDEngineConnector(TSDBConnector):
             filter_query=filter_query,
             interval=interval,
             limit=limit,
-            agg_func=agg_func,
+            agg_funcs=agg_funcs,
             sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
@@ -336,7 +336,7 @@ class TDEngineConnector(TSDBConnector):
             end=end,
             columns=["latency"],
             filter_query=f"endpoint_id='{endpoint_id}'",
-            agg_func=["count"],
+            agg_funcs=["count"],
             interval=aggregation_window,
             limit=limit,
         )
@@ -349,14 +349,20 @@ class TDEngineConnector(TSDBConnector):
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
 
+        if not aggregation_window:
+            # Generate _wend column with the current time that will be used as a time index for the result
+            # Note that if aggregation_window is provided, then this column represents the end time of each window
+            df["_wend"] = pd.to_datetime(mlrun.utils.now_date())
+
         df["_wend"] = pd.to_datetime(df["_wend"])
         df.set_index("_wend", inplace=True)
+
         return mm_schemas.ModelEndpointMonitoringMetricValues(
             full_name=full_name,
             values=list(
                 zip(
                     df.index,
-                    df["count(latency)"],
+                    df[f"count({mm_schemas.EventFieldType.LATENCY})"],
                 )
             ),  # pyright: ignore[reportArgumentType]
         )

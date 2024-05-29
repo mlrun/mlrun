@@ -111,7 +111,7 @@ class TSDBConnector(ABC):
         columns: typing.Optional[list[str]] = None,
         filter_query: typing.Optional[str] = None,
         interval: typing.Optional[str] = None,
-        agg_func: typing.Optional[list] = None,
+        agg_funcs: typing.Optional[list] = None,
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
     ) -> pd.DataFrame:
@@ -134,14 +134,14 @@ class TSDBConnector(ABC):
         :param filter_query:          Optional filter expression as a string. The filter structure depends on the TSDB
                                       connector type.
         :param interval:              The interval to aggregate the data by. Note that if interval is provided,
-                                      agg_func must bg provided as well. Provided as a string in the format of '1m',
+                                      agg_funcs must bg provided as well. Provided as a string in the format of '1m',
                                       '1h', etc.
-        :param agg_func:              The aggregation functions to apply on the columns. Note that if agg_func is
-                                      provided, interval must bg provided as well. Provided as a list of strings in
+        :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
+                                      provided, `interval` must bg provided as well. Provided as a list of strings in
                                       the format of ['sum', 'avg', 'count', ...].
         :param limit:                 The maximum number of records to return.
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
-                                      sliding_window_step is provided, interval must be provided as well. Provided
+                                      `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
 
 

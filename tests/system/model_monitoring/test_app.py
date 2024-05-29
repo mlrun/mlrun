@@ -99,6 +99,10 @@ class _V3IORecordsChecker:
 
     @classmethod
     def custom_setup(cls, project_name: str) -> None:
+        # By default, the TSDB connection is based on V3IO TSDB
+        # To use TDEngine, set the `TSDB_CONNECTION` environment variable to the TDEngine connection string,
+        # e.g. "taosws://user:password@host:port"
+
         if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
             project = mlrun.get_or_create_project(
                 project_name, "./", allow_cross_project=True

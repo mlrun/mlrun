@@ -277,7 +277,11 @@ class _V3IORecordsChecker:
                 get_app_results.add(result["name"])
                 app_results_full_names.append(result["full_name"])
 
-        assert get_app_results == getattr(app_data, type)
+        expected_results = getattr(app_data, type)
+        if type == "metrics":
+            expected_results.add("invocations")
+
+        assert get_app_results == expected_results
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 

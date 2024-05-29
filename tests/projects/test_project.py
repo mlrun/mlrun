@@ -1263,7 +1263,7 @@ def test_function_receives_project_default_function_node_selector():
     )
     assert non_enriched_function.spec.node_selector == {}
 
-    proj1.spec.default_function_node_selector = default_function_node_selector
+    proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
     assert enriched_function.spec.node_selector == default_function_node_selector
 

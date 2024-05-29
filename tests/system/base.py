@@ -24,9 +24,9 @@ from deepdiff import DeepDiff
 
 import mlrun.common.schemas
 from mlrun import get_run_db, mlconf
-from mlrun.utils import create_logger
+from mlrun.utils import create_test_logger
 
-logger = create_logger(level="debug", name="test-system")
+logger = create_test_logger(name="test-system")
 
 
 class TestMLRunSystem:

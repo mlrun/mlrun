@@ -295,7 +295,7 @@ def compare_db_runs(
     iter=False,
     start_time_from: datetime = None,
     hide_identical: bool = True,
-    exclude: list = [],
+    exclude: list = None,
     show=None,
     colorscale: str = "Blues",
     filename=None,
@@ -332,6 +332,7 @@ def compare_db_runs(
         **query_args,
     )
 
+    exclude = exclude or []
     runs_df = _runs_list_to_df(runs_list)
     plot_as_html = gen_pcp_plot(
         runs_df,

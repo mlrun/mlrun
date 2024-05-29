@@ -836,32 +836,28 @@ class SQLDB(DBInterface):
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
-    ) -> list[tuple[str, str, str]]:
+    ) -> list[str]:
         """
-        :return: a list of Tuple of (project, artifact.key, tag)
-        """
+        List all tags for artifacts in the DB
 
-        # query artifact key and tag from the db
+        :param session: DB session
+        :param project: Project name
+        :param category: Artifact category to filter by
+
+        :return: a list of distinct tags
+        """
         query = (
-            self._query(session, ArtifactV2, project=project)
+            self._query(session, ArtifactV2.Tag.name)
+            .select_from(ArtifactV2)
             .join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            .with_entities(ArtifactV2.key, ArtifactV2.Tag.name)
+            .filter(ArtifactV2.project == project)
+            .group_by(ArtifactV2.Tag.name)
         )
         if category:
             query = self._add_artifact_category_query(category, query)
 
-        results = []
-        for artifact_key, tag in query:
-            # we want to return only artifacts that have tags when listing tags
-            results.append(
-                (
-                    project,
-                    artifact_key,
-                    tag,
-                )
-            )
-
-        return results
+        # the query returns a list of tuples, we need to extract the tag from each tuple
+        return [tag for (tag,) in query]
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(

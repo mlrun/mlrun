@@ -27,7 +27,8 @@ build:
     done
 
 release:
-	@for pkg in $(PACKAGES); do \
+	@set -e;\
+	for pkg in $(PACKAGES); do \
         echo "Releasing $$pkg to PyPI"; \
         cd $$pkg && TWINE_USERNAME=$(TWINE_USERNAME) TWINE_PASSWORD=$(TWINE_PASSWORD) twine upload dist/*; \
         cd ..; \
@@ -35,7 +36,6 @@ release:
 
 clean:
 	@for pkg in $(PACKAGES); do \
-        echo "Cleaning $$pkg" \
-        cd $$pkg && rm -rf dist build *.egg-info; \
-        cd ..; \
+        echo "Cleaning $$pkg"; \
+        pushd $$pkg && rm -rf dist build *.egg-info && popd; \
 	done

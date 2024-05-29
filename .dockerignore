@@ -27,7 +27,7 @@ mlrun.egg-info
 **/test-aws-s3.yml
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
-**/*.pyc
+
 **/project.yaml
 !tests/run/assets/project.yaml
 !tests/projects/assets/load_setup_test/project.yaml

@@ -114,8 +114,8 @@ def test_write_with_too_many_partitions():
         parquet_target.write_dataframe(df)
 
 
-def test_revert_list_filters_to_tuple():
-    #  Target-specific to test_revert_list_filters_to_tuple test, which checks all the cases.
+def test_transform_list_filters_to_tuple():
+    #  Target-specific to test_transform_list_filters_to_tuple test, which checks all the cases.
     def json_change(filters):
         json_data = json.dumps(filters)
         return json.loads(json_data)

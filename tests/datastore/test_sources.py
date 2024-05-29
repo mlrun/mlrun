@@ -117,8 +117,8 @@ def test_timestamp_format_inference(rundb_mock):
         ),
     ],
 )
-def test_revert_list_filters_to_tuple(additional_filters, message):
-    #  Source-specific to test_revert_list_filters_to_tuple test, which checks all the cases.
+def test_transform_list_filters_to_tuple(additional_filters, message):
+    #  Source-specific to test_transform_list_filters_to_tuple test, which checks all the cases.
     def json_change(filters):
         json_data = json.dumps(filters)
         return json.loads(json_data)

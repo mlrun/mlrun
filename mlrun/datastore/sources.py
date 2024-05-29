@@ -31,7 +31,7 @@ import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.datastore.utils import (
-    revert_list_filters_to_tuple,
+    transform_list_filters_to_tuple,
 )
 from mlrun.secrets import SecretsStore
 
@@ -319,7 +319,7 @@ class ParquetSource(BaseSourceDriver):
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
-            additional_filters = revert_list_filters_to_tuple(additional_filters)
+            additional_filters = transform_list_filters_to_tuple(additional_filters)
             attributes["additional_filters"] = additional_filters
 
         super().__init__(
@@ -377,7 +377,7 @@ class ParquetSource(BaseSourceDriver):
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-        additional_filters = revert_list_filters_to_tuple(additional_filters)
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         return storey.ParquetSource(
@@ -396,7 +396,7 @@ class ParquetSource(BaseSourceDriver):
         new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
-        new_obj.attributes["additional_filters"] = revert_list_filters_to_tuple(
+        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(
             new_obj.additional_filters
         )
         return new_obj
@@ -423,7 +423,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
-        additional_filters = revert_list_filters_to_tuple(additional_filters)
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

@@ -34,7 +34,7 @@ from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
-from mlrun.datastore.utils import revert_list_filters_to_tuple
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.datastore.v3io import V3ioStore
 
 
@@ -244,7 +244,7 @@ def test_schema_to_store(schemas, expected_class, expected):
         ([()], ""),
     ],
 )
-def test_revert_list_filters_to_tuple(additional_filters, message):
+def test_transform_list_filters_to_tuple(additional_filters, message):
     def json_change(filters):
         json_data = json.dumps(filters)
         return json.loads(json_data)
@@ -253,10 +253,12 @@ def test_revert_list_filters_to_tuple(additional_filters, message):
 
     if message:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
-            revert_list_filters_to_tuple(additional_filters)
+            transform_list_filters_to_tuple(additional_filters)
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
-            revert_list_filters_to_tuple(additional_filters=after_json_change_filters)
+            transform_list_filters_to_tuple(
+                additional_filters=after_json_change_filters
+            )
     else:
-        revert_list_filters_to_tuple(additional_filters)
-        result = revert_list_filters_to_tuple(after_json_change_filters)
+        transform_list_filters_to_tuple(additional_filters)
+        result = transform_list_filters_to_tuple(after_json_change_filters)
         assert result == additional_filters

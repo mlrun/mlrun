@@ -183,7 +183,7 @@ def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str
     return kafka_bootstrap_servers
 
 
-def revert_list_filters_to_tuple(additional_filters):
+def transform_list_filters_to_tuple(additional_filters):
     tuple_filters = []
     if not additional_filters:
         return tuple_filters

@@ -216,6 +216,7 @@ def _compile_function_config(
     if serving_spec is not None:
         # To keep backward comatability, allow passing service spec
         # via Config Map only for client version higher then 1.7.0
+        # TODO: remove in 1.9.0.
         can_pass_via_cm = not client_version or (
             semver.Version.parse(client_version) >= semver.Version.parse("1.7.0")
         )

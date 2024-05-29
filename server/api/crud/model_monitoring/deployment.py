@@ -333,9 +333,9 @@ class MonitoringDeployment:
             )
 
             try:
-                v3io_client.stream.delete(container, stream_path)
+                v3io_client.stream.delete(container, stream_path, access_key=self.model_monitoring_access_key)
             except v3io.dataplane.response.HttpResponseError as e:
-                logger.warning("No such stream path", stream_path=stream_path, error=e)
+                logger.warning(f"Can't delete this {function_name} stream", stream_path=stream_path, error=e)
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -698,6 +698,12 @@ class MonitoringDeployment:
         tasks: list[mlrun.common.schemas.BackgroundTask] = []
         for function_name in function_to_delete:
             if self._check_if_already_deployed(function_name):
+                if (
+                        not mlrun.mlconf.is_ce_mode()
+                        and function_name is not mm_constants.MonitoringFunctionNames.STREAM
+                ):
+                    self.delete_model_monitoring_v3io_stream(function_name)
+
                 task = await run_in_threadpool(
                     server.api.api.utils.create_function_deletion_background_task,
                     background_tasks,
@@ -707,11 +713,6 @@ class MonitoringDeployment:
                     self.auth_info,
                 )
                 tasks.append(task)
-            if (
-                not mlrun.mlconf.is_ce_mode()
-                and function_name is not mm_constants.MonitoringFunctionNames.STREAM
-            ):
-                self.delete_model_monitoring_v3io_stream(function_name)
 
         return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
 

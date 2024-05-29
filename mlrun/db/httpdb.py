@@ -3403,7 +3403,7 @@ class HTTPRunDB(RunDBInterface):
                     task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
                 ):
                     deletion_failed = True
-        return deletion_failed
+        return not deletion_failed
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"

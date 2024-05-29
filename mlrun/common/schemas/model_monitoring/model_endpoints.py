@@ -104,6 +104,7 @@ class ModelEndpointSpec(ObjectSpec):
         )
 
     @validator("monitor_configuration")
+    @classmethod
     def set_name(cls, monitor_configuration):
         return monitor_configuration or {
             EventFieldType.DRIFT_DETECTED_THRESHOLD: (
@@ -115,6 +116,7 @@ class ModelEndpointSpec(ObjectSpec):
         }
 
     @validator("model_uri")
+    @classmethod
     def validate_model_uri(cls, model_uri):
         """Validate that the model uri includes the required prefix"""
         prefix, uri = mlrun.datastore.parse_store_uri(model_uri)

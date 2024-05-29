@@ -49,6 +49,7 @@ class TestSQLStore:
     def store_connection(tmp_path: Path) -> str:
         return f"sqlite:///{tmp_path / 'test.db'}"
 
+    @classmethod
     @pytest.fixture()
     def _mock_random_endpoint(
         cls,

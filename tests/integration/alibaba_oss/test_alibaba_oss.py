@@ -53,7 +53,7 @@ def alibaba_oss_configured(extra_params=None):
     if not os.path.exists(config_file_path):
         return False
     extra_params = extra_params or []
-    env_params = config.get("env")
+    env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params, *extra_params]
     for param in needed_params:
         if not env_params.get(param):

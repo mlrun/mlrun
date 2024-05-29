@@ -194,6 +194,8 @@ def transform_list_filters_to_tuple(additional_filters):
 
 
 def validate_additional_filters(additional_filters):
+    nan_error_message = "using NaN in additional_filters is not supported"
+
     if not additional_filters:
         return
     for filter_tuple in additional_filters:
@@ -224,12 +226,8 @@ def validate_additional_filters(additional_filters):
             )
         col_name, op, value = filter_tuple
         if isinstance(value, float) and math.isnan(value):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "using NaN in additional_filters is not supported"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)
         elif isinstance(value, (list, tuple)):
             for sub_value in value:
                 if isinstance(sub_value, float) and math.isnan(sub_value):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "using NaN in additional_filters is not supported"
-                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)

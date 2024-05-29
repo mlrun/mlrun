@@ -115,8 +115,6 @@ def test_write_with_too_many_partitions():
 
 
 def test_transform_list_filters_to_tuple():
-    #  Target-specific to test_transform_list_filters_to_tuple test, which checks all the cases.
-
     additional_filters = [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]]
     parquet_target = ParquetTarget("parquet_target", path="path/to/file")
     after_json_change_filters = json.loads(json.dumps(additional_filters))

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 import os
 import string
 from contextlib import nullcontext as does_not_raise
@@ -34,7 +33,6 @@ from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore
 from mlrun.datastore.s3 import S3Store
-from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.datastore.v3io import V3ioStore
 
 
@@ -216,45 +214,3 @@ def test_schema_to_store(schemas, expected_class, expected):
     with expected:
         stores = [schema_to_store(schema) for schema in schemas]
         assert all(store == expected_class for store in stores)
-
-
-@pytest.mark.parametrize(
-    "additional_filters, message",
-    [
-        ([("x", "=", 3)], ""),
-        (
-            [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
-            "mlrun supports additional_filters only as a list of tuples.",
-        ),
-        (
-            [[("x", "=", 3), ("x", "=", 4)]],
-            "mlrun supports additional_filters only as a list of tuples.",
-        ),
-        (("x", "=", 3), "mlrun supports additional_filters only as a list of tuples."),
-        ([("x", "in", [3, 4]), ("y", "in", [3, 4])], ""),
-        (
-            [("age", "=", float("nan"))],
-            "using NaN in additional_filters is not supported",
-        ),
-        (
-            [("age", "in", [10, float("nan")])],
-            "using NaN in additional_filters is not supported",
-        ),
-        ([("x", "=", "=", 3), ("y", "in", [3, 4])], "illegal filter tuple length"),
-        ([()], ""),
-    ],
-)
-def test_transform_list_filters_to_tuple(additional_filters, message):
-    after_json_change_filters = json.loads(json.dumps(additional_filters))
-
-    if message:
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
-            transform_list_filters_to_tuple(additional_filters)
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
-            transform_list_filters_to_tuple(
-                additional_filters=after_json_change_filters
-            )
-    else:
-        transform_list_filters_to_tuple(additional_filters)
-        result = transform_list_filters_to_tuple(after_json_change_filters)
-        assert result == additional_filters

@@ -315,7 +315,7 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        additional_filters: Optional[list[tuple, list]] = None,
+        additional_filters: Optional[list[Union[tuple, list]]] = None,
     ):
         if additional_filters:
             attributes = copy(attributes) or {}

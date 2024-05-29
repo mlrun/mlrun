@@ -4867,7 +4867,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vec.save()
         get_offline_target = ParquetTarget(
-            "get_offline_target",
             path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
         )
         result = (

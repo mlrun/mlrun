@@ -17,9 +17,12 @@ import os
 import typing
 from pathlib import Path
 
+import fastapi
 import nuclio
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
@@ -28,6 +31,7 @@ import mlrun.model_monitoring.controller_handler
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -308,6 +312,30 @@ class MonitoringDeployment:
         function = http_source.add_nuclio_trigger(function)
 
         return function
+
+    def delete_model_monitoring_v3io_stream(self, function_name: str):
+        """
+
+        :param function_name:
+        :return:
+        """
+        import v3io.dataplane
+
+        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=self.project, function_name=function_name
+        )
+        for stream_path in stream_paths:
+            _, container, stream_path = (
+                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                    stream_path
+                )
+            )
+
+            try:
+                v3io_client.stream.delete(container, stream_path)
+            except v3io.dataplane.response.HttpResponseError as e:
+                logger.warning("No such stream path", stream_path=stream_path, error=e)
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -615,6 +643,132 @@ class MonitoringDeployment:
         )
 
         tsdb_connector.create_tables()
+
+    def list_model_monitoring_functions(self) -> list:
+        model_monitoring_labels_list = [
+            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+        ]
+        return server.api.crud.Functions().list_functions(
+            db_session=self.db_session,
+            project=self.project,
+            labels=model_monitoring_labels_list,
+        )
+
+    async def disable_model_monitoring(
+        self,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+        background_tasks: fastapi.BackgroundTasks = None,
+    ) -> mlrun.common.schemas.BackgroundTaskList:
+        """
+        Disabled model monitoring application controller, writer, stream, histogram data drift application
+        and the user's applications functions, according to the given params.
+
+        :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                    functions. Default True
+        :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                    need to use wisely because if you're deleting this function
+                                                    this can cause data loss in case you will want to
+                                                    enable the model monitoring capability to the project.
+                                                    Default False.
+        :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                    application. Default False.
+        :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                    application according to user_application_list, Default False.
+        :param user_application_list:               List of the user's model monitoring application to disable.
+                                                    Default all the applications.
+        :param background_tasks:                    Background tasks.
+        """
+        function_to_delete = []
+        if delete_resources:
+            function_to_delete = mm_constants.MonitoringFunctionNames.list()
+        if not delete_stream_function:
+            function_to_delete.remove(mm_constants.MonitoringFunctionNames.STREAM)
+
+        function_to_delete.extend(
+            self._get_monitoring_application_to_delete(
+                delete_histogram_data_drift_app,
+                delete_user_applications,
+                user_application_list,
+            )
+        )
+        tasks: list[mlrun.common.schemas.BackgroundTask] = []
+        for function_name in function_to_delete:
+            if self._check_if_already_deployed(function_name):
+                task = await run_in_threadpool(
+                    server.api.api.utils.create_function_deletion_background_task,
+                    background_tasks,
+                    self.db_session,
+                    self.project,
+                    function_name,
+                    self.auth_info,
+                )
+                tasks.append(task)
+            if (
+                not mlrun.mlconf.is_ce_mode()
+                and function_name is not mm_constants.MonitoringFunctionNames.STREAM
+            ):
+                self.delete_model_monitoring_v3io_stream(function_name)
+
+        return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
+
+    def _get_monitoring_application_to_delete(
+        self,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ):
+        application_to_delete = []
+
+        if delete_user_applications:
+            if not user_application_list:
+                application_to_delete.extend(
+                    list(
+                        {
+                            app.metadata.name
+                            for app in self.list_model_monitoring_functions()
+                        }
+                    )
+                )
+            else:
+                for name in user_application_list:
+                    try:
+                        fn = server.api.crud.Functions().get_function(
+                            db_session=self.db_session,
+                            name=name,
+                            project=self.project,
+                        )
+                        if (
+                            fn["metadata"]["labels"].get(
+                                mm_constants.ModelMonitoringAppLabel.KEY
+                            )
+                            == mm_constants.ModelMonitoringAppLabel.VAL
+                        ):
+                            # checks if the given function is a model monitoring application
+                            application_to_delete.append(name)
+                        else:
+                            logger.warning(
+                                f"{name} is not a model monitoring application, skipping",
+                                project=self.project,
+                            )
+
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.warning(
+                            f"{name} is not found, skipping",
+                        )
+
+        if (
+            delete_histogram_data_drift_app
+            and mm_constants.HistogramDataDriftApplicationConstants.NAME
+            not in application_to_delete
+        ):
+            application_to_delete.append(
+                mm_constants.HistogramDataDriftApplicationConstants.NAME
+            )
+        return application_to_delete
 
 
 def get_endpoint_features(

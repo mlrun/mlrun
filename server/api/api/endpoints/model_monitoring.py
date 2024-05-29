@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
+import fastapi
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -179,3 +181,59 @@ def deploy_histogram_data_drift_app(
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_histogram_data_drift_app(image=image)
+
+
+@router.delete(
+    "/disable-model-monitoring",
+    responses={
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
+    },
+)
+async def disable_model_monitoring(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+    delete_resources: bool = True,
+    delete_stream_function: bool = False,
+    delete_histogram_data_drift_app: bool = True,
+    delete_user_applications: bool = False,
+    user_application_list: list[str] = None,
+):
+    """
+    Disabled model monitoring application controller, writer, stream, histogram data drift application
+    and the user's applications functions, according to the given params.
+
+    :param response:
+    :param commons:                             The common parameters of the request.
+    :param background_tasks:                    Background tasks.
+    :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                functions. Default True
+    :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                need to use wisely because if you're deleting this function
+                                                this can cause data loss in case you will want to
+                                                enable the model monitoring capability to the project.
+                                                Default False.
+    :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                application. Default False.
+    :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                application according to user_application_list, Default False.
+    :param user_application_list:               List of the user's model monitoring application to disable.
+                                                Default all the applications.
+    """
+    tasks = await MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
+    ).disable_model_monitoring(
+        delete_resources=delete_resources,
+        delete_stream_function=delete_stream_function,
+        delete_histogram_data_drift_app=delete_histogram_data_drift_app,
+        delete_user_applications=delete_user_applications,
+        user_application_list=user_application_list,
+        background_tasks=background_tasks,
+    )
+    response.status_code = http.HTTPStatus.ACCEPTED.value
+    return tasks

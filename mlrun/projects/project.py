@@ -2201,21 +2201,53 @@ class MlrunProject(ModelObj):
             )
 
     def disable_model_monitoring(
-        self, *, delete_histogram_data_drift_app: bool = True
+        self,
+        *,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
     ) -> None:
         """
-        Note: This method is currently not advised for use. See ML-3432.
-        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+        Disabled model monitoring application controller, writer, stream, histogram data drift application
+        and the user's applications functions, according to the given params.
 
-        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                    functions. Default True
+        :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                    need to use wisely because if you're deleting this function
+                                                    this can cause data loss in case you will want to
+                                                    enable the model monitoring capability to the project.
+                                                    Default False.
+        :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                    application. Default False.
+        :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                    application according to user_application_list, Default False.
+        :param user_application_list:               List of the user's model monitoring application to disable.
+                                                    Default all the applications.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        for fn_name in mm_constants.MonitoringFunctionNames.list():
-            db.delete_function(project=self.name, name=fn_name)
-        if delete_histogram_data_drift_app:
-            db.delete_function(
+        succeed = db.disable_model_monitoring(
+            project=self.name,
+            delete_resources=delete_resources,
+            delete_stream_function=delete_stream_function,
+            delete_histogram_data_drift_app=delete_histogram_data_drift_app,
+            delete_user_applications=delete_user_applications,
+            user_application_list=user_application_list,
+        )
+        if succeed and delete_resources:
+            logger.info("Model Monitoring disabled", project=self.name)
+        elif not succeed and delete_resources:
+            logger.info("Model Monitoring was not disabled properly", project=self.name)
+        if succeed and delete_user_applications:
+            logger.info(
+                "All the desired monitoring application were deleted", project=self.name
+            )
+        elif not succeed and delete_user_applications:
+            logger.info(
+                "Some of the desired monitoring application were not deleted",
                 project=self.name,
-                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
             )
 
     def set_function(
@@ -2412,23 +2444,38 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def remove_model_monitoring_function(self, name):
-        """remove the specified model-monitoring-app function from the project and from the db
+    def remove_model_monitoring_function(self, name: Union[str, list[str]]):
+        """remove the specified model-monitoring-app function from the project spec
 
-        :param name: name of the model-monitoring-app function (under the project)
+        :param name: name of the model-monitoring-function/s (under the project)
         """
-        function = self.get_function(key=name)
-        if (
-            function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-            == mm_constants.ModelMonitoringAppLabel.VAL
-        ):
-            self.remove_function(name=name)
-            mlrun.db.get_run_db().delete_function(name=name.lower())
-            logger.info(f"{name} function has been removed from {self.name} project")
-        else:
-            raise logger.error(
-                f"There is no model monitoring function with {name} name"
-            )
+        names = name if isinstance(name, list) else [name]
+        for func_name in names:
+            function = self.get_function(key=func_name)
+            if (
+                function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+                == mm_constants.ModelMonitoringAppLabel.VAL
+            ):
+                self.remove_function(name=func_name)
+                logger.info(
+                    f"{func_name} function has been removed from {self.name} project"
+                )
+            else:
+                raise logger.warn(
+                    f"There is no model monitoring function with {func_name} name"
+                )
+
+    def delete_model_monitoring_function(self, name: Union[str, list[str]]):
+        """delete the specified model-monitoring-app function/s
+
+        :param name: name of the model-monitoring-function/s (under the project)
+        """
+        names = name if isinstance(name, list) else [name]
+        self.disable_model_monitoring(
+            delete_resources=False,
+            delete_user_applications=True,
+            user_application_list=names,
+        )
 
     def get_function(
         self,

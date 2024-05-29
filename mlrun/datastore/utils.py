@@ -227,7 +227,7 @@ def validate_additional_filters(additional_filters):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "using NaN in additional_filters is not supported"
             )
-        elif isinstance(value, (list, tuple, set)):
+        elif isinstance(value, (list, tuple)):
             for sub_value in value:
                 if isinstance(sub_value, float) and math.isnan(sub_value):
                     raise mlrun.errors.MLRunInvalidArgumentError(

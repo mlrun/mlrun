@@ -120,7 +120,7 @@ class TestTDEngineSchema:
         assert (
             super_table._delete_subtable_query(subtable=subtable, values=values)
             == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
-            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -128,7 +128,7 @@ class TestTDEngineSchema:
             values.pop("tag1")
             assert (
                 super_table._delete_subtable_query(subtable=subtable, values=values)
-                == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} WHERE tag2 like '{values['tag2']}';"
+                == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} WHERE tag2 LIKE '{values['tag2']}';"
             )
 
             # test without tags
@@ -155,7 +155,7 @@ class TestTDEngineSchema:
         assert (
             super_table._get_subtables_query(values=values)
             == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -164,7 +164,7 @@ class TestTDEngineSchema:
             assert (
                 super_table._get_subtables_query(values=values)
                 == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-                f"WHERE tag2 like '{values['tag2']}';"
+                f"WHERE tag2 LIKE '{values['tag2']}';"
             )
 
             # test without tags
@@ -217,14 +217,14 @@ class TestTDEngineSchema:
 
         if filter_query:
             expected_query = (
-                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
-                f"where {filter_query} and {timestamp_column} >= '{start}' "
-                f"and {timestamp_column} <= '{end}';"
+                f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"WHERE {filter_query} AND {timestamp_column} >= '{start}' "
+                f"AND {timestamp_column} <= '{end}';"
             )
         else:
             expected_query = (
-                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
-                f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
+                f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"WHERE {timestamp_column} >= '{start}' AND {timestamp_column} <= '{end}';"
             )
 
         assert (
@@ -249,7 +249,7 @@ class TestTDEngineSchema:
             "interval",
             "limit",
             "agg",
-            "sliding_window",
+            "sliding_window_step",
         ),
         [
             (
@@ -287,7 +287,7 @@ class TestTDEngineSchema:
         interval: str,
         limit: int,
         agg: list,
-        sliding_window: str,
+        sliding_window_step: str,
     ):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
             # Provide aggregation functions without columns to filter
@@ -299,7 +299,7 @@ class TestTDEngineSchema:
                 interval=interval,
                 limit=limit,
                 agg=agg,
-                sliding_window=sliding_window,
+                sliding_window_step=sliding_window_step,
             )
             assert (
                 "columns_to_filter must be provided when using aggregate functions"
@@ -316,7 +316,7 @@ class TestTDEngineSchema:
                 timestamp_column=timestamp_column,
                 limit=limit,
                 agg=agg,
-                sliding_window=sliding_window,
+                sliding_window_step=sliding_window_step,
             )
             assert (
                 "both interval and aggregate function must be provided or neither"
@@ -333,7 +333,7 @@ class TestTDEngineSchema:
                 timestamp_column=timestamp_column,
                 limit=limit,
                 agg=agg,
-                sliding_window=sliding_window,
+                sliding_window_step=sliding_window_step,
             )
             assert "interval must be provided when using sliding window" in str(
                 err.value
@@ -343,9 +343,9 @@ class TestTDEngineSchema:
         )
         expected_query = (
             f""
-            f"SELECT _wstart, _wend, {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
-            f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}' "
-            f"INTERVAL({interval}) SLIDING({sliding_window}) LIMIT {limit};"
+            f"SELECT _wstart, _wend, {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+            f"WHERE {timestamp_column} >= '{start}' AND {timestamp_column} <= '{end}' "
+            f"INTERVAL({interval}) SLIDING({sliding_window_step}) LIMIT {limit};"
         )
 
         assert (
@@ -358,7 +358,7 @@ class TestTDEngineSchema:
                 interval=interval,
                 limit=limit,
                 agg=agg,
-                sliding_window=sliding_window,
+                sliding_window_step=sliding_window_step,
             )
             == expected_query
         )

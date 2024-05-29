@@ -95,7 +95,7 @@ class TDEngineSchema:
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> str:
         values = " AND ".join(
-            f"{val} like '{values[val]}'" for val in self.tags if val in values
+            f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
         )
         if not values:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -114,7 +114,7 @@ class TDEngineSchema:
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> str:
         values = " AND ".join(
-            f"{val} like '{values[val]}'" for val in self.tags if val in values
+            f"{val} LIKE '{values[val]}'" for val in self.tags if val in values
         )
         if not values:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -132,7 +132,7 @@ class TDEngineSchema:
         interval: str = "",
         limit: int = 0,
         agg: Optional[list] = None,
-        sliding_window: str = "",
+        sliding_window_step: str = "",
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
     ) -> str:
@@ -147,7 +147,7 @@ class TDEngineSchema:
                 "both interval and aggregate function must be provided or neither"
             )
 
-        if sliding_window and not interval:
+        if sliding_window_step and not interval:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "interval must be provided when using sliding window"
             )
@@ -163,29 +163,26 @@ class TDEngineSchema:
                 query.write(", ".join(columns_to_filter))
             else:
                 query.write("*")
-            query.write(f" from {database}.{table}")
+            query.write(f" FROM {database}.{table}")
 
             if any([filter_query, start, end]):
-                query.write(" where ")
+                query.write(" WHERE ")
                 if filter_query:
-                    query.write(f"{filter_query} and ")
+                    query.write(f"{filter_query} AND ")
                 if start:
-                    query.write(f"{timestamp_column} >= '{start}'" + " and ")
+                    query.write(f"{timestamp_column} >= '{start}'" + " AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             full_query = query.getvalue()
-            if full_query.endswith(" and "):
+            if full_query.endswith(" AND "):
                 full_query = full_query[:-5]
-        if any([limit, interval]):
-            with StringIO() as query:
-                query.write(full_query)
-                if interval:
-                    query.write(f" INTERVAL({interval})")
-                if sliding_window:
-                    query.write(f" SLIDING({sliding_window})")
-                if limit:
-                    query.write(f" LIMIT {limit}")
-                full_query = query.getvalue()
+        if limit or interval:
+            if interval:
+                full_query += f" INTERVAL({interval})"
+            if sliding_window_step:
+                full_query += f" SLIDING({sliding_window_step})"
+            if limit:
+                full_query += f" LIMIT {limit}"
 
         return full_query + ";"
 

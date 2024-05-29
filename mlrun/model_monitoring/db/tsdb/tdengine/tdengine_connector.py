@@ -14,7 +14,6 @@
 
 import typing
 from datetime import datetime
-from io import StringIO
 
 import pandas as pd
 import taosws
@@ -191,41 +190,42 @@ class TDEngineConnector(TSDBConnector):
         start: datetime,
         end: datetime,
         columns: typing.Optional[list[str]] = None,
-        filter_query: str = "",
-        interval: str = "",
+        filter_query: typing.Optional[str] = None,
+        interval: typing.Optional[str] = None,
         agg: typing.Optional[list] = None,
         limit: int = 0,
-        sliding_window: str = "",
+        sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
-        :param table:            Either a supertable or a subtable name.
-        :param start:            The start time of the metrics.
-        :param end:              The end time of the metrics.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     Optional filter expression as a string. TDengine supports SQL-like syntax.
-        :param interval:         The interval to aggregate the data by. Note that if interval is provided,
-                                 agg must bg provided as well. Provided as a string in the format of
-                                 '1m', '1h', etc.
-        :param agg:              The aggregation functions to apply on the columns. Note that if agg is provided,
-                                 interval must bg provided as well. Provided as a list of strings in the format of
-                                 ['sum', 'avg', 'count', ...].
-        :param limit:            The maximum number of records to return.
-        :param sliding_window:   The time step for which the time window moves forward. Note that if sliding_window is
-                                 provided, interval must be provided as well. Provided as a string in the format of
-                                 '1m', '1h', etc.
-        :param timestamp_column: The column name that holds the timestamp.
+        :param table:                 Either a supertable or a subtable name.
+        :param start:                 The start time of the metrics.
+        :param end:                   The end time of the metrics.
+        :param columns:               Columns to include in the result.
+        :param filter_query:          Optional filter expression as a string. TDengine supports SQL-like syntax.
+        :param interval:              The interval to aggregate the data by. Note that if interval is provided,
+                                      agg must bg provided as well. Provided as a string in the format of '1m',
+                                      '1h', etc.
+        :param agg:                   The aggregation functions to apply on the columns. Note that if agg is provided,
+                                      interval must bg provided as well. Provided as a list of strings in the format of
+                                      ['sum', 'avg', 'count', ...].
+        :param limit:                 The maximum number of records to return.
+        :param sliding_window_step:   The time step for which the time window moves forward. Note that if
+                                      sliding_window_step is provided, interval must be provided as well. Provided
+                                      as a string in the format of '1m', '1h', etc.
+        :param timestamp_column:      The column name that holds the timestamp.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
         """
-        with StringIO() as query:
-            if filter_query:
-                query.write(filter_query)
-                query.write(" and ")
-            query.write(f"project = '{self.project}'")
-            filter_query = query.getvalue()
+
+        project_condition = f"project = '{self.project}'"
+        filter_query = (
+            f"{filter_query} AND {project_condition}"
+            if filter_query
+            else project_condition
+        )
 
         full_query = tdengine_schemas.TDEngineSchema._get_records_query(
             table=table,
@@ -236,7 +236,7 @@ class TDEngineConnector(TSDBConnector):
             interval=interval,
             limit=limit,
             agg=agg,
-            sliding_window=sliding_window,
+            sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
         )
@@ -287,15 +287,13 @@ class TDEngineConnector(TSDBConnector):
                 f"Invalid type {type}, must be either 'metrics' or 'results'."
             )
 
-        list_of_metrics = [
-            f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
-            for metric in metrics
-        ]
-        with StringIO() as query:
-            query.write(f"endpoint_id='{endpoint_id}' ")
-            query.write("AND ")
-            query.write(" OR ".join(list_of_metrics))
-            filter_query = query.getvalue()
+        metrics_condition = " OR ".join(
+            [
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+                for metric in metrics
+            ]
+        )
+        filter_query = f"endpoint_id='{endpoint_id}' AND ({metrics_condition})"
 
         df = self.get_records(
             table=table,
@@ -311,7 +309,8 @@ class TDEngineConnector(TSDBConnector):
         df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
 
         logger.debug(
-            "Read a data-frame",
+            "Convert dataframe to a list of metrics or results values.",
+            table=table,
             project=self.project,
             endpoint_id=endpoint_id,
             is_empty=df.empty,

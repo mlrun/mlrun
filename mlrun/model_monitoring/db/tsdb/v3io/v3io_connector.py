@@ -494,7 +494,8 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
         logger.debug(
-            "Read a data-frame",
+            "Convert dataframe to a list of metrics or results values.",
+            table=table_path,
             project=self.project,
             endpoint_id=endpoint_id,
             is_empty=df.empty,

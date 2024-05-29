@@ -309,7 +309,7 @@ class TestSQLStore:
         assert (
             metrics[0].full_name == f"{cls._TEST_PROJECT}.smart-app.metric.met-metric"
         ), "The metric FQN is different than expected"
-        new_sql_store._delete_application_result(
+        new_sql_store._delete_application_metrics(
             endpoint_id=cls._MODEL_ENDPOINT_ID, application_name="smart-app"
         )
         assert get_metrics() == [], "Metric remained after deletion"

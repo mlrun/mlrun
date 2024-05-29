@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       packages:
-        description: 'Comma-separated list of packages to release'
+        description: 'Pipeline adapters package to release. Use "*" to release all packages.'
         default: '*'
         options:
           - '*'

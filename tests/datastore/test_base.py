@@ -245,11 +245,7 @@ def test_schema_to_store(schemas, expected_class, expected):
     ],
 )
 def test_transform_list_filters_to_tuple(additional_filters, message):
-    def json_change(filters):
-        json_data = json.dumps(filters)
-        return json.loads(json_data)
-
-    after_json_change_filters = json_change(additional_filters)
+    after_json_change_filters = json.loads(json.dumps(additional_filters))
 
     if message:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):

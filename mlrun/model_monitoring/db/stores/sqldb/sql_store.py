@@ -518,7 +518,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             endpoint_id=endpoint_id,
             application_name=application_name,
         )
-        # Delete the table
+        # Delete the relevant records from the results table
         self._delete(table=self.application_results_table, criteria=criteria)
 
     def _delete_application_metrics(
@@ -530,7 +530,7 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
             endpoint_id=endpoint_id,
             application_name=application_name,
         )
-        # Delete the table
+        # Delete the relevant records from the metrics table
         self._delete(table=self.application_metrics_table, criteria=criteria)
 
     def _create_tables_if_not_exist(self):

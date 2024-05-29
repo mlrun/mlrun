@@ -29,5 +29,8 @@ mlrun.egg-info
 **/test-dbfs-store.yml
 **/*.pyc
 **/project.yaml
+!tests/run/assets/project.yaml
+!tests/projects/assets/load_setup_test/project.yaml
+!tests/projects/assets/project.yaml
 **/patch-env.yml
 **/google-big-query-credentials.json

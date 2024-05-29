@@ -157,9 +157,18 @@ class Runs(
         else:
             # Producer URI is the URI of the MLClientCtx object that produced the artifact
             producer_uri = f"{project}/{run['metadata']['uid']}"
+            if iter:
+                producer_uri += f"-{iter}"
+
+        best_iteration = False
+        if not iter:
+            iter = None
+            best_iteration = True
 
         artifacts = server.api.crud.Artifacts().list_artifacts(
             db_session,
+            iter=iter,
+            best_iteration=best_iteration,
             producer_id=producer_id,
             producer_uri=producer_uri,
             project=project,

@@ -113,7 +113,7 @@ def test_timestamp_format_inference(rundb_mock):
         ([("x", "=", 3)], ""),
         (
             [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
-            "mlrun supports additional_filters only as a list of tuples.",
+            "additional filters does not support nested list inside.",
         ),
     ],
 )

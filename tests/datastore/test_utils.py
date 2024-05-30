@@ -28,11 +28,11 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
         ([("x", "=", 3)], ""),
         (
             [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
-            "mlrun supports additional_filters only as a list of tuples.",
+            "additional filters does not support nested list inside.",
         ),
         (
             [[("x", "=", 3), ("x", "=", 4)]],
-            "mlrun supports additional_filters only as a list of tuples.",
+            "additional filters does not support nested list inside.",
         ),
         (("x", "=", 3), "mlrun supports additional_filters only as a list of tuples."),
         ([("x", "in", [3, 4]), ("y", "in", [3, 4])], ""),

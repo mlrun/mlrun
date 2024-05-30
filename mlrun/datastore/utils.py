@@ -195,10 +195,6 @@ def transform_list_filters_to_tuple(additional_filters):
 
 def validate_additional_filters(additional_filters):
     nan_error_message = "using NaN in additional_filters is not supported"
-    type_error = (
-        f"mlrun supports additional_filters only as a list of tuples."
-        f" Current additional_filters: {additional_filters}"
-    )
     if (
         additional_filters is None
         or additional_filters == ()
@@ -209,19 +205,20 @@ def validate_additional_filters(additional_filters):
         if filter_tuple == () or filter_tuple == []:
             continue
         if not isinstance(filter_tuple, (list, tuple)):
-            raise mlrun.errors.MLRunInvalidArgumentError(type_error)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"mlrun supports additional_filters only as a list of tuples."
+                f" Current additional_filters: {additional_filters}"
+            )
+        if isinstance(filter_tuple[0], (list, tuple)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"additional filters does not support nested list inside"
+                f" filter tuples. Current filter_tuple: {filter_tuple}."
+            )
         if len(filter_tuple) != 3:
-            if all(isinstance(element, (list, tuple)) for element in filter_tuple):
-                raise mlrun.errors.MLRunInvalidArgumentError(type_error)
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"illegal filter tuple length, {filter_tuple} in additional filters:"
-                    f" {additional_filters}"
-                )
-        if isinstance(filter_tuple[0], (list, tuple)) or isinstance(
-            filter_tuple[1], (list, tuple)
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(type_error)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal filter tuple length, {filter_tuple} in additional filters:"
+                f" {additional_filters}"
+            )
         col_name, op, value = filter_tuple
         if isinstance(value, float) and math.isnan(value):
             raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)

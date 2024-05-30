@@ -134,8 +134,8 @@ class TSDBConnector(ABC):
         :param columns:               Columns to include in the result.
         :param filter_query:          Optional filter expression as a string. The filter structure depends on the TSDB
                                       connector type.
-        :param interval:              The interval to aggregate the data by. Note that if interval is provided,
-                                      agg_funcs must bg provided as well. Provided as a string in the format of '1m',
+        :param interval:              The interval to aggregate the data by. Note that if `interval` is provided,
+                                      `agg_funcs` must bg provided as well. Provided as a string in the format of '1m',
                                       '1h', etc.
         :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
                                       provided, `interval` must bg provided as well. Provided as a list of strings in
@@ -201,6 +201,7 @@ class TSDBConnector(ABC):
         start: datetime,
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
+        agg_funcs: typing.Optional[list[str]] = None,
     ) -> typing.Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
@@ -212,7 +213,14 @@ class TSDBConnector(ABC):
         :param endpoint_id:        The model endpoint identifier.
         :param start:              The start time of the query.
         :param end:                The end time of the query.
-        :param aggregation_window: On what time window length should the invocations be aggregated.
+        :param aggregation_window: On what time window length should the invocations be aggregated. If provided,
+                                   the `agg_funcs` must be provided as well. Provided as a string in the format of '1m',
+                                   '1h', etc.
+        :param agg_funcs:          List of aggregation functions to apply on the invocations. If provided, the
+                                   `aggregation_window` must be provided as well. Provided as a list of strings in
+                                   the format of ['sum', 'avg', 'count', ...]
+
+        :raise mlrun.errors.MLRunInvalidArgumentError: If only one of `aggregation_window` and `agg_funcs` is provided.
         :return:                   Metric values object or no data object.
         """
 

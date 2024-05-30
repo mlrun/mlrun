@@ -418,7 +418,7 @@ class V3IOTSDBConnector(TSDBConnector):
             # Frames client expects the aggregators to be a comma-separated string
             agg_funcs = ",".join(agg_funcs)
         table_path = self.tables[table]
-        return self._frames_client.read(
+        df = self._frames_client.read(
             backend=_TSDB_BE,
             table=table_path,
             start=start,
@@ -431,6 +431,11 @@ class V3IOTSDBConnector(TSDBConnector):
             step=sliding_window_step,
             **kwargs,
         )
+
+        if limit:
+            # Todo: remove this when the issue is fixed in the frames client
+            df = df.head(limit)
+        return df
 
     def _get_v3io_source_directory(self) -> str:
         """
@@ -562,19 +567,26 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str],
         end: Union[datetime, str],
         aggregation_window: Optional[str] = None,
+        agg_funcs: Optional[list[str]] = None,
         limit: Optional[int] = None,
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
     ]:
+        if (agg_funcs and not aggregation_window) or (
+            aggregation_window and not agg_funcs
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
+            )
         df = self.get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,
-            columns=["latency"],
+            columns=[mm_schemas.EventFieldType.LATENCY],
             filter_query=f"endpoint_id=='{endpoint_id}'",
             interval=aggregation_window,
-            agg_funcs=["count"],
+            agg_funcs=agg_funcs,
             limit=limit,
             sliding_window_step=aggregation_window,
         )
@@ -587,12 +599,18 @@ class V3IOTSDBConnector(TSDBConnector):
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
 
+        latency_column = (
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
+            if agg_funcs
+            else mm_schemas.EventFieldType.LATENCY
+        )
+
         return mm_schemas.ModelEndpointMonitoringMetricValues(
             full_name=full_name,
             values=list(
                 zip(
                     df.index,
-                    df["count(latency)"],
+                    df[latency_column],
                 )
             ),  # pyright: ignore[reportArgumentType]
         )

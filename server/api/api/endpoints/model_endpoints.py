@@ -526,6 +526,7 @@ async def get_model_endpoint_monitoring_metrics_values(
                             start=params.start,
                             end=params.end,
                             aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
+                            agg_funcs=["count"],
                         )
                     )
                 )

@@ -326,17 +326,24 @@ class TDEngineConnector(TSDBConnector):
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
         limit: typing.Optional[int] = None,
+        agg_funcs: typing.Optional[list] = None,
     ) -> typing.Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
     ]:
+        if (agg_funcs and not aggregation_window) or (
+            aggregation_window and not agg_funcs
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
+            )
         df = self.get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
             start=start,
             end=end,
-            columns=["latency"],
+            columns=[mm_schemas.EventFieldType.LATENCY],
             filter_query=f"endpoint_id='{endpoint_id}'",
-            agg_funcs=["count"],
+            agg_funcs=agg_funcs,
             interval=aggregation_window,
             limit=limit,
         )
@@ -349,13 +356,10 @@ class TDEngineConnector(TSDBConnector):
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
             )
 
-        if not aggregation_window:
-            # Generate _wend column with the current time that will be used as a time index for the result
-            # Note that if aggregation_window is provided, then this column represents the end time of each window
-            df["_wend"] = pd.to_datetime(mlrun.utils.now_date())
-
-        df["_wend"] = pd.to_datetime(df["_wend"])
-        df.set_index("_wend", inplace=True)
+        if aggregation_window:
+            # _wend column, which represents the end time of each window, will be used as the time index
+            df["_wend"] = pd.to_datetime(df["_wend"])
+            df.set_index("_wend", inplace=True)
 
         return mm_schemas.ModelEndpointMonitoringMetricValues(
             full_name=full_name,

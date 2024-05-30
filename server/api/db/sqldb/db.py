@@ -685,11 +685,10 @@ class SQLDB(DBInterface):
             producer_id=producer_id,
             best_iteration=best_iteration,
             most_recent=most_recent,
-            attach_tags=True,
+            attach_tags=not as_records,
         )
         if as_records:
-            # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
-            return list({artifact for artifact, _ in artifact_records})
+            return artifact_records
 
         artifacts = ArtifactList()
         for artifact, artifact_tag in artifact_records:
@@ -1263,7 +1262,7 @@ class SQLDB(DBInterface):
         :param most_recent: Filter by most recent artifacts
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
 
-        :return: a list of tuples of (ArtifactV2, tag_name)
+        :return: a list of tuples of (ArtifactV2, tag_name) or a list of ArtifactV2 (if attach_tags is False)
         """
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1315,6 +1314,7 @@ class SQLDB(DBInterface):
         artifacts_and_tags = query.all()
 
         if not attach_tags:
+            # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
             return list({artifact for artifact, _ in artifacts_and_tags})
 
         return artifacts_and_tags

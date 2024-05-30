@@ -121,11 +121,11 @@ def test_transform_list_filters_to_tuple():
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="additional filters does not support nested list inside.",
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
     ):
         parquet_target.as_df(additional_filters=additional_filters)
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="additional filters does not support nested list inside.",
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
     ):
         parquet_target.as_df(additional_filters=back_from_json_serialization)

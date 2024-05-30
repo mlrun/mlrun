@@ -113,7 +113,7 @@ def test_timestamp_format_inference(rundb_mock):
         ([("x", "=", 3)], ""),
         (
             [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
-            "additional filters does not support nested list inside.",
+            "additional_filters does not support nested list inside filter tuples except in -in- logic.",
         ),
     ],
 )

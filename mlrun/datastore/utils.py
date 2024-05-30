@@ -211,8 +211,8 @@ def validate_additional_filters(additional_filters):
             )
         if isinstance(filter_tuple[0], (list, tuple)):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"additional filters does not support nested list inside"
-                f" filter tuples. Current filter_tuple: {filter_tuple}."
+                f"additional_filters does not support nested list inside filter tuples except in -in- logic."
+                f" Current filter_tuple: {filter_tuple}."
             )
         if len(filter_tuple) != 3:
             raise mlrun.errors.MLRunInvalidArgumentError(

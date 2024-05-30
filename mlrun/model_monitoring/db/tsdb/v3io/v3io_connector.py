@@ -577,7 +577,7 @@ class V3IOTSDBConnector(TSDBConnector):
             aggregation_window and not agg_funcs
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
+                "both or neither of `aggregation_window` and `agg_funcs` must be provided"
             )
         df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,

@@ -507,7 +507,7 @@ def test_read_predictions() -> None:
         V3IOTSDBConnector(project="fictitious-one").read_predictions(**predictions_args)
         assert (
             str(err.value)
-            == "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
+            == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
         )
     predictions_args["agg_funcs"] = ["count"]
     result = V3IOTSDBConnector(project="fictitious-one").read_predictions(

@@ -1431,7 +1431,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         print_log(text)
         if (
             deploy_status_text_kind
-            == mlrun.common.constants.MLRunBuilderStatusKind.events
+            == mlrun.common.constants.DeployStatusTextKind.events
         ):
             events_offset += len(text)
         else:
@@ -1457,7 +1457,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 print_log(text)
                 if (
                     deploy_status_text_kind
-                    == mlrun.common.constants.MLRunBuilderStatusKind.events
+                    == mlrun.common.constants.DeployStatusTextKind.events
                 ):
                     events_offset += len(text)
                 else:

@@ -91,5 +91,5 @@ class MLRunInternalLabels:
 
 
 class DeployStatusTextKind(mlrun.common.types.StrEnum):
-    logs = "Logs"
-    events = "Events"
+    logs = "logs"
+    events = "events"

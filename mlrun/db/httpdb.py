@@ -31,6 +31,7 @@ from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
 import mlrun.common.formatters
+import mlrun.common.constants
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types
@@ -1674,7 +1675,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(f"failed resp, {resp.text}")
             raise RunDBError("bad function build response")
 
-        deploy_status_text_kind = None
+        deploy_status_text_kind = mlrun.common.constants.DeployStatusTextKind.logs
         if resp.headers:
             func.status.state = resp.headers.get("x-mlrun-function-status", "")
             last_log_timestamp = float(
@@ -1693,7 +1694,10 @@ class HTTPRunDB(RunDBInterface):
             if function_image:
                 func.spec.image = function_image
 
-            deploy_status_text_kind = resp.headers.get("deploy_status_text_kind", "")
+            deploy_status_text_kind = resp.headers.get(
+                "deploy_status_text_kind",
+                mlrun.common.constants.DeployStatusTextKind.logs,
+            )
 
         text = ""
         if resp.content:

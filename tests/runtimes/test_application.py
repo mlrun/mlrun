@@ -190,6 +190,28 @@ def test_application_api_gateway(rundb_mock):
     assert function_name in api_gateway.spec.functions[0]
 
 
+def test_application_runtime_resources(rundb_mock):
+    mlrun.mlconf.igz_version = "3.6.0"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    cpu_requests = "0.7"
+    memory_requests = "1.2Gi"
+    cpu_limits = "2"
+    memory_limits = "4Gi"
+    fn.with_requests(cpu=cpu_requests, mem=memory_requests)
+    fn.with_limits(cpu=cpu_limits, mem=memory_limits)
+
+    fn.deploy()
+
+    assert fn.spec.resources == mlrun.k8s.ResourceRequirements(
+        limits={"cpu": "1", "memory": "2Gi"},
+        requests={"cpu": "0.5", "memory": "1Gi"},
+    )
+
+
 def _assert_function_code(fn, file_path=None):
     file_path = (
         file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]

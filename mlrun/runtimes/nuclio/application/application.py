@@ -436,6 +436,42 @@ class ApplicationRuntime(RemoteRuntime):
             **http_client_kwargs,
         )
 
+    def with_limits(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        # set the nuclio function limits
+        super().with_limits(mem, cpu, gpus, gpu_type, patch)
+
+        # set the sidecar limits
+        sidecars = self.spec.config.get("spec.sidecars", [])
+        for sidecar in sidecars:
+            sidecar["resources"] = sidecar.get("resources", {})
+            sidecar["resources"]["limits"] = sidecar["resources"].get("limits", {})
+            sidecar["resources"]["limits"]["cpu"] = cpu
+            sidecar["resources"]["limits"]["memory"] = mem
+
+    def with_requests(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
+    ):
+        # set the nuclio function requests
+        super().with_requests(mem, cpu, patch)
+
+        # set the sidecar requests
+        sidecars = self.spec.config.get("spec.sidecars", [])
+        for sidecar in sidecars:
+            sidecar["resources"] = sidecar.get("resources", {})
+            sidecar["resources"]["requests"] = sidecar["resources"].get("requests", {})
+            sidecar["resources"]["requests"]["cpu"] = cpu
+            sidecar["resources"]["requests"]["memory"] = mem
+
     def _build_application_image(
         self,
         builder_env: dict = None,

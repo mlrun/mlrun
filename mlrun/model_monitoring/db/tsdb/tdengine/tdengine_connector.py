@@ -214,7 +214,7 @@ class TDEngineConnector(TSDBConnector):
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
-        :param timestamp_column:      The column name that holds the timestamp.
+        :param timestamp_column:      The column name that holds the timestamp index.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
@@ -309,7 +309,7 @@ class TDEngineConnector(TSDBConnector):
         df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
 
         logger.debug(
-            "Converting a data-frame to a list of metrics or results values",
+            "Converting a DataFrame to a list of metrics or results values",
             table=table,
             project=self.project,
             endpoint_id=endpoint_id,

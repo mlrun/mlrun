@@ -415,7 +415,7 @@ class V3IOTSDBConnector(TSDBConnector):
             )
 
         if agg_funcs:
-            # Frame client expects the aggregators to be a string, separated by commas
+            # Frames client expects the aggregators to be a comma-separated string
             agg_funcs = ",".join(agg_funcs)
         table_path = self.tables[table]
         return self._frames_client.read(
@@ -516,7 +516,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
 
         logger.debug(
-            "Converting a data-frame to a list of metrics or results values",
+            "Converting a DataFrame to a list of metrics or results values",
             table=table_path,
             project=self.project,
             endpoint_id=endpoint_id,

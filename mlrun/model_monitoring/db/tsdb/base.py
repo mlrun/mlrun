@@ -114,6 +114,7 @@ class TSDBConnector(ABC):
         agg_funcs: typing.Optional[list] = None,
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
+        timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -143,6 +144,7 @@ class TSDBConnector(ABC):
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
+        :param timestamp_column:      The column name that holds the timestamp index.
 
 
         :return: DataFrame with the provided attributes from the data collection.
@@ -240,7 +242,7 @@ class TSDBConnector(ABC):
         ]
     ]:
         """
-        Parse a time-indexed data-frame of metrics from the TSDB into a list of
+        Parse a time-indexed DataFrame of metrics from the TSDB into a list of
         metrics values per distinct results.
         When a metric is not found in the data-frame, it is represented in a no-data object.
         """
@@ -306,9 +308,9 @@ class TSDBConnector(ABC):
         ]
     ]:
         """
-        Parse a time-indexed data-frame of results from the TSDB into a list of
+        Parse a time-indexed DataFrame of results from the TSDB into a list of
         results values per distinct results.
-        When a result is not found in the data-frame, it is represented in no-data object.
+        When a result is not found in the DataFrame, it is represented in no-data object.
         """
         metrics_without_data = {metric.full_name: metric for metric in metrics}
 

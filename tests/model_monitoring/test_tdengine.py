@@ -255,8 +255,8 @@ class TestTDEngineSchema:
             (
                 "subtable_1",
                 ["column2"],
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                datetime.datetime.now() - datetime.timedelta(hours=2),
+                datetime.datetime.now() - datetime.timedelta(hours=1),
                 "time_column",
                 "3m",
                 2,
@@ -266,8 +266,8 @@ class TestTDEngineSchema:
             (
                 "subtable_2",
                 ["column2", "column3", "column4", "column5"],
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                datetime.datetime.now() - datetime.timedelta(hours=2),
+                datetime.datetime.now() - datetime.timedelta(hours=1),
                 "time_column_v2",
                 "3h",
                 50,

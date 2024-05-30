@@ -176,13 +176,12 @@ class TDEngineSchema:
                     query.write(f"{timestamp_column} >= '{start}'" + " AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
-            if limit or interval:
-                if interval:
-                    query.write(f" INTERVAL({interval})")
-                if sliding_window_step:
-                    query.write(f" SLIDING({sliding_window_step})")
-                if limit:
-                    query.write(f" LIMIT {limit}")
+            if interval:
+                query.write(f" INTERVAL({interval})")
+            if sliding_window_step:
+                query.write(f" SLIDING({sliding_window_step})")
+            if limit:
+                query.write(f" LIMIT {limit}")
             query.write(";")
             return query.getvalue()
 

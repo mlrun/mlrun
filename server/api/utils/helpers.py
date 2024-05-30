@@ -265,7 +265,10 @@ def validate_client_version(client_version: str, *min_versions: str):
     :param client_version: Client version to validate
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
-    if client_version.startswith("0.0.0-") or "unstable" in client_version:
+    # dev version, assume compatible
+    if client_version and (
+        client_version.startswith("0.0.0+") or "unstable" in client_version
+    ):
         return True
 
     parsed_min_versions = [

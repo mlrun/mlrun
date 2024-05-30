@@ -205,7 +205,7 @@ class TSDBConnector(ABC):
         """
         Parse a time-indexed DataFrame of metrics from the TSDB into a list of
         metrics values per distinct results.
-        When a metric is not found in the data-frame, it is represented in a no-data object.
+        When a metric is not found in the DataFrame, it is represented in a no-data object.
         """
         metrics_without_data = {metric.full_name: metric for metric in metrics}
 

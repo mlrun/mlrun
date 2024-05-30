@@ -25,18 +25,20 @@ class FunctionFormat(ObjectFormat):
     minimal = "minimal"
 
     @staticmethod
-    def filter(_format: str) -> typing.Optional[list[list[str]]]:
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
         return {
             FunctionFormat.full: None,
-            FunctionFormat.minimal: [
-                ["kind"],
-                ["metadata"],
-                ["status"],
-                ["spec", "description"],
-                ["spec", "image"],
-                ["spec", "default_handler"],
-                ["spec", "entry_points"],
-            ],
+            FunctionFormat.minimal: FunctionFormat.filter_obj_method(
+                [
+                    ["kind"],
+                    ["metadata"],
+                    ["status"],
+                    ["spec", "description"],
+                    ["spec", "image"],
+                    ["spec", "default_handler"],
+                    ["spec", "entry_points"],
+                ]
+            ),
         }[_format]
 
 

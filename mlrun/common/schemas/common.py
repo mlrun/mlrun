@@ -44,28 +44,39 @@ class ObjectFormat:
     full = "full"
 
     @staticmethod
-    def filter(_format: str) -> typing.Optional[list[list[str]]]:
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
         return {
             ObjectFormat.full: None,
         }[_format]
 
     @classmethod
     def format_obj(cls, obj: dict, _format: str) -> dict:
-        _filter = cls.filter(_format)
-        if not _filter:
+        format_method = cls.format_method(_format)
+        if not format_method:
             return obj
 
-        formatted_obj = {}
-        for key_list in _filter:
-            obj_recursive_iterator = obj
-            formatted_obj_recursive_iterator = formatted_obj
-            for idx, key in enumerate(key_list):
-                if key not in obj_recursive_iterator:
-                    break
-                value = {} if idx < len(key_list) - 1 else obj_recursive_iterator[key]
-                formatted_obj_recursive_iterator.setdefault(key, value)
+        return format_method(obj)
 
-                obj_recursive_iterator = obj_recursive_iterator[key]
-                formatted_obj_recursive_iterator = formatted_obj_recursive_iterator[key]
+    @classmethod
+    def filter_obj_method(cls, _filter: list[list[str]]) -> typing.Callable:
+        def _filter_method(obj: dict) -> dict:
+            formatted_obj = {}
+            for key_list in _filter:
+                obj_recursive_iterator = obj
+                formatted_obj_recursive_iterator = formatted_obj
+                for idx, key in enumerate(key_list):
+                    if key not in obj_recursive_iterator:
+                        break
+                    value = (
+                        {} if idx < len(key_list) - 1 else obj_recursive_iterator[key]
+                    )
+                    formatted_obj_recursive_iterator.setdefault(key, value)
 
-        return formatted_obj
+                    obj_recursive_iterator = obj_recursive_iterator[key]
+                    formatted_obj_recursive_iterator = formatted_obj_recursive_iterator[
+                        key
+                    ]
+
+            return formatted_obj
+
+        return _filter_method

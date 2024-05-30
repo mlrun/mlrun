@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mlrun-kfp-setup")
 
 setup(
-    name="mlrun-pipelines-kfp-common-experiment",
-    version="0.2.2",
+    name="mlrun-pipelines-kfp-common",
+    version="0.1.0",
     description="MLRun Pipelines package for providing KFP common functionality",
     author="Yaron Haviv",
     author_email="yaronh@iguazio.com",

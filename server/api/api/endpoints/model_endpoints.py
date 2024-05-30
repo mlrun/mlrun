@@ -521,16 +521,17 @@ async def get_model_endpoint_monitoring_metrics_values(
                         )
                     )
                 )
-            coroutines.append(
-                run_in_threadpool(
-                    tsdb_connector.read_metrics_data,
-                    endpoint_id=params.endpoint_id,
-                    start=params.start,
-                    end=params.end,
-                    metrics=metrics_without_invocations,
-                    type=type,
+            if metrics_without_invocations:
+                coroutines.append(
+                    run_in_threadpool(
+                        tsdb_connector.read_metrics_data,
+                        endpoint_id=params.endpoint_id,
+                        start=params.start,
+                        end=params.end,
+                        metrics=metrics_without_invocations,
+                        type=type,
+                    )
                 )
-            )
 
     metrics_values = []
     for result in await asyncio.gather(*coroutines):

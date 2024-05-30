@@ -24,9 +24,9 @@ import mlrun
 import mlrun.common.schemas
 import tests.conftest
 from mlrun.db.httpdb import HTTPRunDB
-from mlrun.utils import create_logger, retry_until_successful
+from mlrun.utils import FormatterKinds, create_test_logger, retry_until_successful
 
-logger = create_logger(level="debug", name="test-integration")
+logger = create_test_logger(name="test-integration")
 
 
 class TestMLRunIntegration:
@@ -142,6 +142,7 @@ class TestMLRunIntegration:
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
+                    "MLRUN_LOG_FORMATTER": FormatterKinds.HUMAN_EXTENDED.value,
                     "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
                 },
                 extra_env,

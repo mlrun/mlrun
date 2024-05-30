@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import math
 import operator
 import os
 import warnings
@@ -31,6 +30,7 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -313,12 +313,13 @@ class ParquetSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        additional_filters: Optional[list[tuple]] = None,
+        additional_filters: Optional[list[Union[tuple, list]]] = None,
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
+            additional_filters = transform_list_filters_to_tuple(additional_filters)
             attributes["additional_filters"] = additional_filters
-            self.validate_additional_filters(additional_filters)
+
         super().__init__(
             name,
             path,
@@ -359,25 +360,6 @@ class ParquetSource(BaseSourceDriver):
         else:
             return time
 
-    @staticmethod
-    def validate_additional_filters(additional_filters):
-        if not additional_filters:
-            return
-        for filter_tuple in additional_filters:
-            if not filter_tuple:
-                continue
-            col_name, op, value = filter_tuple
-            if isinstance(value, float) and math.isnan(value):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "using NaN in additional_filters is not supported"
-                )
-            elif isinstance(value, (list, tuple, set)):
-                for sub_value in value:
-                    if isinstance(sub_value, float) and math.isnan(sub_value):
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "using NaN in additional_filters is not supported"
-                        )
-
     def to_step(
         self,
         key_field=None,
@@ -393,6 +375,7 @@ class ParquetSource(BaseSourceDriver):
         attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
         return storey.ParquetSource(
@@ -405,6 +388,16 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(
+            new_obj.additional_filters
+        )
+        return new_obj
 
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
@@ -428,6 +421,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,

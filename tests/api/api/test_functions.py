@@ -481,6 +481,18 @@ def test_tracking_on_serving(
     Validate that `.set_tracking()` configurations are applied to
     a serving function for model monitoring.
     """
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+
+    config_map = unittest.mock.Mock()
+    config_map.items = []
+
+    mock_list_namespaced_config_map = unittest.mock.Mock(return_value=config_map)
+
+    monkeypatch.setattr(
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        "list_namespaced_config_map",
+        mock_list_namespaced_config_map,
+    )
 
     # Generate a test project
     tests.api.api.utils.create_project(client, PROJECT)

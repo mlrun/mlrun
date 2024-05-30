@@ -597,6 +597,10 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 	// if no run uids were provided, delete the entire project's logs
 	if len(request.RunUIDs) == 0 {
 
+		s.Logger.DebugWithCtx(ctx,
+			"Deleting all project logs",
+			"project", request.Project)
+
 		// remove entire project from persistent state
 		if err := s.deleteProjectLogs(request.Project); err != nil {
 			message := fmt.Sprintf("Failed to delete project logs for project %s", request.Project)

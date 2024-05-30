@@ -818,7 +818,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_object_events(
         self, object_name: str, namespace: str = None
-    ) -> typing.List[client.CoreV1Event]:
+    ) -> list[client.CoreV1Event]:
         return self._list_events(
             namespace=namespace, field_selector=f"involvedObject.name={object_name}"
         )

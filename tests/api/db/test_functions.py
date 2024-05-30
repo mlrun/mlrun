@@ -255,6 +255,34 @@ def test_list_functions_filtering_unversioned_untagged(
     assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
 
+def test_list_functions_with_format(db: DBInterface, db_session: Session):
+    name = "function_name_1"
+    tag = "some_tag"
+    function_body = {
+        "metadata": {"name": name},
+        "kind": "remote",
+        "status": {"state": "online"},
+        "spec": {
+            "description": "some_description",
+            "image": "some_image",
+            "default_handler": "some_handler",
+            "entry_points": "some_entry_points",
+            "extra_field": "extra_field",
+        },
+    }
+    db.store_function(db_session, function_body, name, tag=tag, versioned=True)
+    functions = db.list_functions(db_session, tag=tag, _format="full")
+    assert len(functions) == 1
+    function = functions[0]
+    assert function["spec"] == function_body["spec"]
+
+    functions = db.list_functions(db_session, tag=tag, _format="minimal")
+    assert len(functions) == 1
+    function = functions[0]
+    del function_body["spec"]["extra_field"]
+    assert function["spec"] == function_body["spec"]
+
+
 def test_delete_function(db: DBInterface, db_session: Session):
     labels = {
         "name": "value",

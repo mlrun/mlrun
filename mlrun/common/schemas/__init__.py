@@ -37,7 +37,6 @@ from .artifact import (
     ArtifactCategories,
     ArtifactIdentifier,
     ArtifactMetadata,
-    ArtifactsFormat,
     ArtifactSpec,
 )
 from .auth import (
@@ -161,7 +160,7 @@ from .notification import (
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pagination import PaginationInfo
-from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
+from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
@@ -169,7 +168,6 @@ from .project import (
     ProjectMetadata,
     ProjectOutput,
     ProjectOwner,
-    ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
     ProjectState,

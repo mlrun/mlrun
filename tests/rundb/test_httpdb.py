@@ -31,6 +31,7 @@ import pytest
 import requests_mock as requests_mock_package
 
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -867,7 +868,7 @@ def test_project_sql_db_roundtrip(create_server):
     _assert_projects(project, patched_project)
     get_project = db.get_project(project_name)
     _assert_projects(project, get_project)
-    list_projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+    list_projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
     _assert_projects(project, list_projects[0])
 
 

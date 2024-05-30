@@ -17,6 +17,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 
 
@@ -67,7 +68,7 @@ class Member(abc.ABC):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,

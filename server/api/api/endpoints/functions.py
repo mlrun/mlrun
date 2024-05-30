@@ -17,6 +17,7 @@ from distutils.util import strtobool
 from http import HTTPStatus
 from typing import Optional
 
+import kubernetes.client
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -43,6 +44,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
 import server.api.utils.functions
+import server.api.utils.helpers
 import server.api.utils.pagination
 import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
@@ -435,11 +437,15 @@ async def build_status(
     project: str = "",
     tag: str = "",
     offset: int = 0,
+    events_offset: int = 0,
     logs: bool = True,
     last_log_timestamp: float = 0.0,
     verbose: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -484,7 +490,9 @@ async def build_status(
         project,
         tag,
         offset,
+        events_offset,
         logs,
+        client_version,
     )
 
 
@@ -495,9 +503,12 @@ def _handle_job_deploy_status(
     project: str,
     tag: str,
     offset: int,
+    events_offset: int,
     logs: bool,
+    client_version: Optional[str],
 ):
     # job deploy status
+    response_headers = {}
     function_state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
@@ -582,19 +593,30 @@ def _handle_job_deploy_status(
     if (
         logs
         and normalized_pod_function_state == mlrun.common.schemas.FunctionState.pending
+        and server.api.utils.helpers.validate_client_version(
+            client_version, "1.7.0-rc18"
+        )
     ):
-        build_pod_status = server.api.utils.singletons.k8s.get_k8s_helper(
+        response_headers["deploy_status_text_kind"] = "events"
+        build_pod_events = server.api.utils.singletons.k8s.get_k8s_helper(
             silent=False
-        ).get_pod_status(pod)
-        for container_status in build_pod_status.container_statuses:
-            # container_status: kubernetes.client.V1ContainerStatus
-            if container_status.name == "build":
-                container_state = container_status.state
-                out = f"""
-                Build pod state: {build_pod_state}.
-                Reason: {container_state.reason}.
-                Message: {container_state.message}.
-                """.encode()
+        ).list_object_events(object_name=pod)
+        logger.debug(
+            "Resolved build pod events",
+            function_name=name,
+            pod=pod,
+            events_len=len(build_pod_events),
+        )
+        resp = ""
+        for event in build_pod_events:
+            event: kubernetes.client.CoreV1Event
+            resp += f"""
+Event: {event.metadata.name}
+Type: {event.type}
+Reason: {event.reason}
+Message: {event.message}
+"""
+        out = resp[events_offset:].encode()
 
     elif (
         (
@@ -629,6 +651,7 @@ def _handle_job_deploy_status(
                 fp.write(resp.encode())
 
         if resp and logs:
+            response_headers["deploy_status_text_kind"] = "logs"
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
@@ -651,15 +674,14 @@ def _handle_job_deploy_status(
             versioned=versioned,
         )
 
+    response_headers["x-mlrun-function-status"] = normalized_pod_function_state
+    response_headers["function_status"] = normalized_pod_function_state
+    response_headers["function_image"] = image
+    response_headers["builder_pod"] = pod
     return Response(
         content=out,
         media_type="text/plain",
-        headers={
-            "x-mlrun-function-status": normalized_pod_function_state,
-            "function_status": normalized_pod_function_state,
-            "function_image": image,
-            "builder_pod": pod,
-        },
+        headers=response_headers,
     )
 
 

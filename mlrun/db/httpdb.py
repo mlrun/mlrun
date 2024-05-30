@@ -1631,6 +1631,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         func: BaseRuntime,
         offset: int = 0,
+        events_offset: int = 0,
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
@@ -1639,6 +1640,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param func:                Function object that is being built.
         :param offset:              Offset into the build logs to retrieve logs from.
+        :param events_offset:       Offset into the build events to retrieve events from.
         :param logs:                Should build logs be retrieved.
         :param last_log_timestamp:  Last timestamp of logs that were already retrieved. Function will return only logs
                                     later than this parameter.
@@ -1659,6 +1661,7 @@ class HTTPRunDB(RunDBInterface):
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),
                 "offset": str(offset),
+                "events_offset": str(events_offset),
                 "last_log_timestamp": str(last_log_timestamp),
                 "verbose": bool2str(verbose),
             }
@@ -1671,6 +1674,7 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(f"failed resp, {resp.text}")
             raise RunDBError("bad function build response")
 
+        deploy_status_text_kind = None
         if resp.headers:
             func.status.state = resp.headers.get("x-mlrun-function-status", "")
             last_log_timestamp = float(
@@ -1689,10 +1693,12 @@ class HTTPRunDB(RunDBInterface):
             if function_image:
                 func.spec.image = function_image
 
+            deploy_status_text_kind = resp.headers.get("deploy_status_text_kind", "")
+
         text = ""
         if resp.content:
             text = resp.content.decode()
-        return text, last_log_timestamp
+        return text, last_log_timestamp, deploy_status_text_kind
 
     def start_function(
         self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None

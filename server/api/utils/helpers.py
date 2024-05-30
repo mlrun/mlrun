@@ -258,3 +258,33 @@ def merge_schedule_and_schedule_object_labels(
     set_scheduled_object_labels(scheduled_object, updated_labels)
 
     return updated_labels
+
+
+def validate_client_version(client_version: str, *min_versions: str):
+    """
+    :param client_version: Client version to validate
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    if client_version.startswith("0.0.0-") or "unstable" in client_version:
+        return True
+
+    parsed_min_versions = [
+        semver.Version.parse(min_version) for min_version in min_versions
+    ]
+    try:
+        parsed_current_version = semver.Version.parse(client_version)
+        if not parsed_current_version:
+            return False
+    except ValueError:
+        logger.warning(
+            "Unable to parse client version, assuming incompatibility",
+            client_version=client_version,
+            min_versions=min_versions,
+        )
+        return False
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if parsed_current_version < parsed_min_version:
+            return False
+    return True

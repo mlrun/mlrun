@@ -184,7 +184,7 @@ class TDEngineConnector(TSDBConnector):
         # Not implemented, use get_records() instead
         pass
 
-    def get_records(
+    def _get_records(
         self,
         table: str,
         start: datetime,
@@ -295,7 +295,7 @@ class TDEngineConnector(TSDBConnector):
         )
         filter_query = f"endpoint_id='{endpoint_id}' AND ({metrics_condition})"
 
-        df = self.get_records(
+        df = self._get_records(
             table=table,
             start=start,
             end=end,
@@ -337,7 +337,7 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
             )
-        df = self.get_records(
+        df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
             start=start,
             end=end,

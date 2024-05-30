@@ -342,7 +342,7 @@ class V3IOTSDBConnector(TSDBConnector):
         metrics_mapping = {}
 
         try:
-            data = self.get_records(
+            data = self._get_records(
                 table=mm_schemas.V3IOTSDBTables.EVENTS,
                 columns=["endpoint_id", *metrics],
                 filter_query=f"endpoint_id=='{endpoint_id}'",
@@ -367,7 +367,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         return metrics_mapping
 
-    def get_records(
+    def _get_records(
         self,
         table: str,
         start: Union[datetime, str],
@@ -579,7 +579,7 @@ class V3IOTSDBConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both `aggregation_window` and `agg_funcs` must be provided or neither of them."
             )
-        df = self.get_records(
+        df = self._get_records(
             table=mm_schemas.FileTargetKind.PREDICTIONS,
             start=start,
             end=end,

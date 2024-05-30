@@ -173,14 +173,14 @@ class _V3IORecordsChecker:
     def _test_tsdb_record(cls, ep_id: str) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             # V3IO TSDB
-            df: pd.DataFrame = cls._tsdb_storage.get_records(
+            df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.APP_RESULTS,
                 start=f"now-{10 * cls.app_interval}m",
                 end="now",
             )
         else:
             # TDEngine
-            df: pd.DataFrame = cls._tsdb_storage.get_records(
+            df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.TDEngineSuperTables.APP_RESULTS,
                 start=datetime.now().astimezone()
                 - timedelta(minutes=10 * cls.app_interval),
@@ -209,12 +209,12 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_predictions_table(cls, ep_id: str) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
             )
         else:
             # TDEngine
-            predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
+            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.TDEngineSuperTables.PREDICTIONS,
                 start=datetime.min,
                 end=datetime.now().astimezone(),

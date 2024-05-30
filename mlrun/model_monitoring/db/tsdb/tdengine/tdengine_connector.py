@@ -325,8 +325,8 @@ class TDEngineConnector(TSDBConnector):
         start: datetime,
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
-        limit: typing.Optional[int] = None,
         agg_funcs: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
     ) -> typing.Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,

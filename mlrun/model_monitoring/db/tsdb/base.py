@@ -202,6 +202,7 @@ class TSDBConnector(ABC):
         end: datetime,
         aggregation_window: typing.Optional[str] = None,
         agg_funcs: typing.Optional[list[str]] = None,
+        limit: typing.Optional[int] = None,
     ) -> typing.Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
@@ -219,6 +220,7 @@ class TSDBConnector(ABC):
         :param agg_funcs:          List of aggregation functions to apply on the invocations. If provided, the
                                    `aggregation_window` must be provided as well. Provided as a list of strings in
                                    the format of ['sum', 'avg', 'count', ...]
+        :param limit:              The maximum number of records to return.
 
         :raise mlrun.errors.MLRunInvalidArgumentError: If only one of `aggregation_window` and `agg_funcs` is provided.
         :return:                   Metric values object or no data object.

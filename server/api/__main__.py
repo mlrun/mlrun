@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import distutils.util
 import pathlib
 from os import environ, path
 from subprocess import Popen
@@ -96,6 +97,15 @@ def db(
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "server.api.main"]
+    run_with_memray = distutils.util.strtobool(env.get("MLRUN_MEMRAY", "false"))
+    if run_with_memray:
+        cmd = [executable, "-m", "memray", "run"]
+        output_file = env.get("MLRUN_MEMRAY_OUTPUT_FILE", None)
+        if output_file:
+            cmd += ["--output", output_file, "--force"]
+
+        cmd += ["-m", "server.api.main"]
+
     pid = None
     if background:
         print("Starting MLRun API service in the background...")

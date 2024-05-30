@@ -57,11 +57,10 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
 
     tags = db.list_artifact_tags(db_session, "p1")
     expected_tags = [
-        ("p1", "k1", "t1"),
-        ("p1", "k1", "latest"),
-        ("p1", "k1", "t2"),
-        ("p1", "k2", "t3"),
-        ("p1", "k2", "latest"),
+        "t1",
+        "latest",
+        "t2",
+        "t3",
     ]
     assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
 
@@ -69,13 +68,13 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     model_tags = db.list_artifact_tags(
         db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
     )
-    expected_tags = [("p1", "k2", "t3"), ("p1", "k2", "latest")]
+    expected_tags = ["t3", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
     model_tags = db.list_artifact_tags(
         db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
     )
-    expected_tags = [("p2", "k3", "t4"), ("p2", "k3", "latest")]
+    expected_tags = ["t4", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
 

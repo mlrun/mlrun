@@ -134,7 +134,7 @@ def artifacts_html(
 
         if not attribute_value:
             mlrun.utils.logger.warning(
-                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging)",
+                f"Artifact required attribute {attribute_name} is missing, omitting from output",
                 artifact_key=key,
             )
             continue
@@ -408,13 +408,16 @@ def runs_to_html(
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        if df["artifact_uris"][0]:
-            df["artifact_uris"] = df["artifact_uris"].apply(dict_html)
-            df.drop("artifacts", axis=1, inplace=True)
-        else:
+        if df["artifacts"][0]:
             df["artifacts"] = df["artifacts"].apply(
                 lambda artifacts: artifacts_html(artifacts, "target_path"),
             )
+            df.drop("artifact_uris", axis=1, inplace=True)
+        elif df["artifact_uris"][0]:
+            df["artifact_uris"] = df["artifact_uris"].apply(dict_html)
+            df.drop("artifacts", axis=1, inplace=True)
+        else:
+            df.drop("artifacts", axis=1, inplace=True)
             df.drop("artifact_uris", axis=1, inplace=True)
 
     def expand_error(x):

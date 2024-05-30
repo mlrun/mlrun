@@ -131,6 +131,7 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "jinja2": {"~=3.1, >=3.1.3"},
+        "kfp": {"~=1.8, >=1.8.14"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
@@ -143,6 +144,7 @@ def test_requirement_specifiers_convention():
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "scikit-learn": {"~=1.4.0"},
     }
 
     for (

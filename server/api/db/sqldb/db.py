@@ -819,24 +819,28 @@ class SQLDB(DBInterface):
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
-    ) -> typing.List[typing.Tuple[str, str, str]]:
+    ) -> list[str]:
         """
-        :return: a list of Tuple of (project, artifact.key, tag)
-        """
-        artifacts = self.list_artifacts(session, project=project, category=category)
-        results = []
-        for artifact in artifacts:
-            # we want to return only artifacts that have tags when listing tags
-            if artifact["metadata"].get("tag"):
-                results.append(
-                    (
-                        project,
-                        artifact["spec"].get("db_key"),
-                        artifact["metadata"].get("tag"),
-                    )
-                )
+        List all tags for artifacts in the DB
 
-        return results
+        :param session: DB session
+        :param project: Project name
+        :param category: Artifact category to filter by
+
+        :return: a list of distinct tags
+        """
+        query = (
+            self._query(session, ArtifactV2.Tag.name)
+            .select_from(ArtifactV2)
+            .join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            .filter(ArtifactV2.project == project)
+            .group_by(ArtifactV2.Tag.name)
+        )
+        if category:
+            query = self._add_artifact_category_query(category, query)
+
+        # the query returns a list of tuples, we need to extract the tag from each tuple
+        return [tag for (tag,) in query]
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
@@ -920,7 +924,7 @@ class SQLDB(DBInterface):
             session,
             ArtifactV2,
             project=project,
-        ).filter(
+        ).with_entities(ArtifactV2.id).filter(
             ArtifactV2.key.in_(artifacts_keys),
         ).order_by(ArtifactV2.id.asc()).populate_existing().with_for_update().all()
 
@@ -1205,20 +1209,6 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _add_artifact_name_query(self, query, name=None):
-        if not name:
-            return query
-
-        if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
-            )
-
-        return query.filter(ArtifactV2.key == name)
-
     def _find_artifacts(
         self,
         session,
@@ -1277,11 +1267,7 @@ class SQLDB(DBInterface):
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
         elif category:
-            kinds, exclude = category.to_kinds_filter()
-            if exclude:
-                query = query.filter(ArtifactV2.kind.notin_(kinds))
-            else:
-                query = query.filter(ArtifactV2.kind.in_(kinds))
+            query = self._add_artifact_category_query(category, query)
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
@@ -1292,12 +1278,43 @@ class SQLDB(DBInterface):
             for artifact in query:
                 artifact_struct = artifact.full_object
                 artifact_struct.setdefault("spec", {}).setdefault("producer", {})
-                if artifact_struct["spec"]["producer"].get("uri") == producer_uri:
+                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
+                    "uri", None
+                )
+                # We check if the producer uri is a substring of the artifact producer uri because the producer uri
+                # may contain additional information (like the run iteration) that we don't want to filter by.
+                if (
+                    artifact_producer_uri is not None
+                    and producer_uri in artifact_producer_uri
+                ):
                     artifacts.append(artifact)
 
             return artifacts
 
         return query.all()
+
+    def _add_artifact_name_query(self, query, name=None):
+        if not name:
+            return query
+
+        if name.startswith("~"):
+            # Escape special chars (_,%) since we still need to do a like query.
+            exact_name = self._escape_characters_for_like_query(name)
+            # Use Like query to find substring matches
+            return query.filter(
+                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            )
+
+        return query.filter(ArtifactV2.key == name)
+
+    @staticmethod
+    def _add_artifact_category_query(category, query):
+        kinds, exclude = category.to_kinds_filter()
+        if exclude:
+            query = query.filter(ArtifactV2.kind.notin_(kinds))
+        else:
+            query = query.filter(ArtifactV2.kind.in_(kinds))
+        return query
 
     def _get_existing_artifact(
         self,
@@ -1584,47 +1601,31 @@ class SQLDB(DBInterface):
     def list_functions(
         self,
         session: Session,
-        name: str = None,
-        project: str = None,
-        tag: str = None,
-        labels: List[str] = None,
-        hash_key: str = None,
-    ) -> List[dict]:
+        name: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
+        labels: list[str] = None,
+        hash_key: typing.Optional[str] = None,
+    ) -> list[dict]:
         project = project or config.default_project
-        uids = None
-        if tag:
-            uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
-            if hash_key:
-                uids = [uid for uid in uids if uid == hash_key] or None
-        if not tag and hash_key:
-            uids = [hash_key]
         functions = []
-        for function in self._find_functions(session, name, project, uids, labels):
+        for function, function_tag in self._find_functions(
+            session, name, project, labels, tag, hash_key
+        ):
             function_dict = function.struct
-            if not tag:
-                function_tags = self._list_function_tags(session, project, function.id)
-                if len(function_tags) == 0:
-                    # function status should be added only to tagged functions
-                    function_dict["status"] = None
+            if not function_tag:
+                # function status should be added only to tagged functions
+                function_dict["status"] = None
 
-                    # the unversioned uid is only a place holder for tagged instance that are is versioned
-                    # if another instance "took" the tag, we're left with an unversioned untagged instance
-                    # don't list it
-                    if function.uid.startswith(unversioned_tagged_object_uid_prefix):
-                        continue
-
-                    functions.append(function_dict)
-                elif len(function_tags) == 1:
-                    function_dict["metadata"]["tag"] = function_tags[0]
-                    functions.append(function_dict)
-                else:
-                    for function_tag in function_tags:
-                        function_dict_copy = deepcopy(function_dict)
-                        function_dict_copy["metadata"]["tag"] = function_tag
-                        functions.append(function_dict_copy)
+                # the unversioned uid is only a placeholder for tagged instances that are versioned.
+                # if another instance "took" the tag, we're left with an unversioned untagged instance
+                # don't list it
+                if function.uid.startswith(unversioned_tagged_object_uid_prefix):
+                    continue
             else:
-                function_dict["metadata"]["tag"] = tag
-                functions.append(function_dict)
+                function_dict["metadata"]["tag"] = function_tag
+
+            functions.append(function_dict)
         return functions
 
     def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
@@ -3756,12 +3757,30 @@ class SQLDB(DBInterface):
             value.translate(value.maketrans({"_": r"\_", "%": r"\%"})) if value else ""
         )
 
-    def _find_functions(self, session, name, project, uids=None, labels=None):
-        query = self._query(session, Function, project=project)
+    def _find_functions(
+        self,
+        session: Session,
+        name: str,
+        project: str,
+        labels: typing.Union[str, list[str], None] = None,
+        tag: typing.Optional[str] = None,
+        hash_key: typing.Optional[str] = None,
+    ) -> list[tuple[Function, str]]:
+        query = session.query(Function, Function.Tag.name)
+        query = query.filter(Function.project == project)
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids is not None:
-            query = query.filter(Function.uid.in_(uids))
+
+        if hash_key is not None:
+            query = query.filter(Function.uid == hash_key)
+
+        if not tag:
+            # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
+            query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
+        else:
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
+            query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         return self._add_labels_filter(session, query, Function, labels)

@@ -613,6 +613,10 @@ def _handle_job_deploy_status(
         resp = ""
         for event in build_pod_events:
             event: kubernetes.client.CoreV1Event
+            if event.type == "Normal":
+                # Do not spam with normal events
+                continue
+
             resp += f"""
 Event: {event.metadata.name}
 Type: {event.type}

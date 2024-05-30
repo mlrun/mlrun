@@ -38,3 +38,34 @@ class ImageBuilder(pydantic.BaseModel):
     build_pod: typing.Optional[str] = None
     requirements: typing.Optional[list] = None
     source_code_target_dir: typing.Optional[str] = None
+
+
+class ObjectFormat:
+    full = "full"
+
+    @staticmethod
+    def filter(_format: str) -> typing.Optional[list[list[str]]]:
+        return {
+            ObjectFormat.full: None,
+        }[_format]
+
+    @classmethod
+    def format_obj(cls, obj: dict, _format: str) -> dict:
+        _filter = cls.filter(_format)
+        if not _filter:
+            return obj
+
+        formatted_obj = {}
+        for key_list in _filter:
+            obj_recursive_iterator = obj
+            formatted_obj_recursive_iterator = formatted_obj
+            for idx, key in enumerate(key_list):
+                if key not in obj_recursive_iterator:
+                    break
+                value = {} if idx < len(key_list) - 1 else obj_recursive_iterator[key]
+                formatted_obj_recursive_iterator.setdefault(key, value)
+
+                obj_recursive_iterator = obj_recursive_iterator[key]
+                formatted_obj_recursive_iterator = formatted_obj_recursive_iterator[key]
+
+        return formatted_obj

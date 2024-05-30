@@ -113,6 +113,7 @@ async def get_function(
     name: str,
     tag: str = "",
     hash_key="",
+    _format: str = Query(None, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -123,6 +124,7 @@ async def get_function(
         project,
         tag,
         hash_key,
+        _format,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -206,6 +208,7 @@ async def list_functions(
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
+    _format: str = Query(None, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -245,6 +248,7 @@ async def list_functions(
         tag=tag,
         labels=labels,
         hash_key=hash_key,
+        _fotmat=_format,
     )
 
     return {

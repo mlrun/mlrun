@@ -1632,6 +1632,7 @@ class SQLDB(DBInterface):
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
         hash_key: typing.Optional[str] = None,
+        _format: str = mlrun.common.schemas.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[dict]:
@@ -1660,10 +1661,20 @@ class SQLDB(DBInterface):
             else:
                 function_dict["metadata"]["tag"] = function_tag
 
-            functions.append(function_dict)
+            functions.append(
+                mlrun.common.schemas.FunctionFormat.format_obj(function_dict, _format)
+            )
         return functions
 
-    def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = None,
+    ) -> dict:
         """
         In version 1.4.0 we added a normalization to the function name before storing.
         To be backwards compatible and allow users to query old non-normalized functions,
@@ -1675,7 +1686,7 @@ class SQLDB(DBInterface):
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
-                session, normalized_function_name, project, tag, hash_key
+                session, normalized_function_name, project, tag, hash_key, _format
             )
         except mlrun.errors.MLRunNotFoundError as exc:
             if "_" in name:
@@ -1683,7 +1694,9 @@ class SQLDB(DBInterface):
                     "Failed to get underscore-named function, trying without normalization",
                     function_name=name,
                 )
-                return self._get_function(session, name, project, tag, hash_key)
+                return self._get_function(
+                    session, name, project, tag, hash_key, _format
+                )
             else:
                 raise exc
 
@@ -1722,7 +1735,15 @@ class SQLDB(DBInterface):
             self._upsert(session, [function])
             return function.struct
 
-    def _get_function(self, session, name, project="", tag="", hash_key=""):
+    def _get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = mlrun.common.schemas.FunctionFormat.full,
+    ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1747,7 +1768,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
-            return function
+            return mlrun.common.schemas.FunctionFormat.format_obj(function, _format)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")

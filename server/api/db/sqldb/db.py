@@ -2243,10 +2243,16 @@ class SQLDB(DBInterface):
         # format the projects according to the requested format
         projects = []
         for project_record in project_records:
-            project = self._transform_project_record_to_schema(session, project_record)
-            projects.append(
-                mlrun.common.formatters.ProjectFormat.format_obj(project, format_)
-            )
+            if format_ == mlrun.common.formatters.ProjectFormat.name_only:
+                # can't use formatter as we haven't queried the entire object anyway
+                projects.append(project_record.name)
+            else:
+                project = self._transform_project_record_to_schema(
+                    session, project_record
+                )
+                projects.append(
+                    mlrun.common.formatters.ProjectFormat.format_obj(project, format_)
+                )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     async def get_project_resources_counters(

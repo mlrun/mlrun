@@ -117,7 +117,7 @@ def test_write_with_too_many_partitions():
 def test_transform_list_filters_to_tuple():
     additional_filters = [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]]
     parquet_target = ParquetTarget("parquet_target", path="path/to/file")
-    after_json_change_filters = json.loads(json.dumps(additional_filters))
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
@@ -128,4 +128,4 @@ def test_transform_list_filters_to_tuple():
         mlrun.errors.MLRunInvalidArgumentError,
         match="mlrun supports additional_filters only as a list of tuples.",
     ):
-        parquet_target.as_df(additional_filters=after_json_change_filters)
+        parquet_target.as_df(additional_filters=back_from_json_serialization)

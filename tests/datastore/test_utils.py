@@ -49,16 +49,16 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
     ],
 )
 def test_transform_list_filters_to_tuple(additional_filters, message):
-    after_json_change_filters = json.loads(json.dumps(additional_filters))
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
 
     if message:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
             transform_list_filters_to_tuple(additional_filters)
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
             transform_list_filters_to_tuple(
-                additional_filters=after_json_change_filters
+                additional_filters=back_from_json_serialization
             )
     else:
         transform_list_filters_to_tuple(additional_filters)
-        result = transform_list_filters_to_tuple(after_json_change_filters)
+        result = transform_list_filters_to_tuple(back_from_json_serialization)
         assert result == additional_filters

@@ -118,7 +118,7 @@ def test_timestamp_format_inference(rundb_mock):
     ],
 )
 def test_transform_list_filters_to_tuple(additional_filters, message):
-    after_json_change_filters = json.loads(json.dumps(additional_filters))
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
 
     if message:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
@@ -131,7 +131,7 @@ def test_transform_list_filters_to_tuple(additional_filters, message):
             ParquetSource(
                 "parquet_source",
                 path="path/to/file",
-                additional_filters=after_json_change_filters,
+                additional_filters=back_from_json_serialization,
             )
     else:
         ParquetSource(
@@ -140,6 +140,6 @@ def test_transform_list_filters_to_tuple(additional_filters, message):
         parquet_source = ParquetSource(
             "parquet_source",
             path="path/to/file",
-            additional_filters=after_json_change_filters,
+            additional_filters=back_from_json_serialization,
         )
         assert parquet_source.additional_filters == additional_filters

@@ -42,4 +42,6 @@ setup(
     install_requires=[
         "kfp[kubernetes]~=2.5.0",
     ],
+    long_description="MLRun Pipelines package for providing KFP 2.* compatibility",
+    long_description_content_type="text/markdown",
 )

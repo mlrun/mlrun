@@ -195,11 +195,7 @@ def transform_list_filters_to_tuple(additional_filters):
 
 def validate_additional_filters(additional_filters):
     nan_error_message = "using NaN in additional_filters is not supported"
-    if (
-        additional_filters is None
-        or additional_filters == ()
-        or additional_filters == []
-    ):
+    if additional_filters in [None, [], ()]:
         return
     for filter_tuple in additional_filters:
         if filter_tuple == () or filter_tuple == []:

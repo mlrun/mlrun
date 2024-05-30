@@ -36,6 +36,7 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
         ),
         (("x", "=", 3), "mlrun supports additional_filters only as a list of tuples."),
         ([("x", "in", [3, 4]), ("y", "in", [3, 4])], ""),
+        ([0], "mlrun supports additional_filters only as a list of tuples."),
         (
             [("age", "=", float("nan"))],
             "using NaN in additional_filters is not supported",

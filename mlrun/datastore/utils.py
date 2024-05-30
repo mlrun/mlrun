@@ -202,7 +202,7 @@ def validate_additional_filters(additional_filters):
     if not additional_filters:
         return
     for filter_tuple in additional_filters:
-        if not filter_tuple:
+        if filter_tuple == () or filter_tuple == []:
             continue
         if not isinstance(filter_tuple, (list, tuple)):
             raise mlrun.errors.MLRunInvalidArgumentError(type_error)

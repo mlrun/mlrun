@@ -1134,7 +1134,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             project=cls.project_name
         )
 
-        df: pd.DataFrame = tsdb_client.get_records(
+        df: pd.DataFrame = tsdb_client._get_records(
             table=mm_constants.V3IOTSDBTables.APP_RESULTS,
             start="now-5m",
             end="now",

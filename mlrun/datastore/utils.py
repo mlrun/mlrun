@@ -199,7 +199,11 @@ def validate_additional_filters(additional_filters):
         f"mlrun supports additional_filters only as a list of tuples."
         f" Current additional_filters: {additional_filters}"
     )
-    if additional_filters is None or additional_filters == () or additional_filters == []:
+    if (
+        additional_filters is None
+        or additional_filters == ()
+        or additional_filters == []
+    ):
         return
     for filter_tuple in additional_filters:
         if filter_tuple == () or filter_tuple == []:

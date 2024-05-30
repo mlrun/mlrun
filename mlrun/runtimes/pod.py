@@ -1455,7 +1455,6 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                         self, offset, events_offset, logs=logs
                     )
                 print_log(text)
-                print(deploy_status_text_kind)
                 if (
                     deploy_status_text_kind
                     == mlrun.common.constants.DeployStatusTextKind.events

@@ -21,8 +21,8 @@ import taosws
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
-import mlrun.model_monitoring.helpers
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 
@@ -348,7 +348,7 @@ class TDEngineConnector(TSDBConnector):
             limit=limit,
         )
 
-        full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(self.project)
+        full_name = get_invocations_fqn(self.project)
 
         if df.empty:
             return mm_schemas.ModelEndpointMonitoringMetricNoData(
@@ -387,7 +387,5 @@ class TDEngineConnector(TSDBConnector):
                 app=mm_schemas.SpecialApps.MLRUN_INFRA,
                 type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
                 name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
-                full_name=mlrun.model_monitoring.helpers.get_invocations_fqn(
-                    self.project
-                ),
+                full_name=get_invocations_fqn(self.project),
             )

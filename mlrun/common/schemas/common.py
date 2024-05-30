@@ -57,8 +57,8 @@ class ObjectFormat:
 
         return format_method(obj)
 
-    @classmethod
-    def filter_obj_method(cls, _filter: list[list[str]]) -> typing.Callable:
+    @staticmethod
+    def filter_obj_method(_filter: list[list[str]]) -> typing.Callable:
         def _filter_method(obj: dict) -> dict:
             formatted_obj = {}
             for key_list in _filter:

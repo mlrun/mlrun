@@ -51,6 +51,7 @@ class ObjectFormat:
 
     @classmethod
     def format_obj(cls, obj: dict, _format: str) -> dict:
+        _format = _format or cls.full
         format_method = cls.format_method(_format)
         if not format_method:
             return obj

@@ -4866,7 +4866,7 @@ class TestFeatureStore(TestMLRunSystem):
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
         vec.save()
-        get_offline_target = ParquetTarget(
+        target = ParquetTarget(
             path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
         )
         result = (
@@ -4876,7 +4876,7 @@ class TestFeatureStore(TestMLRunSystem):
                 with_indexes=True,
                 engine=engine,
                 run_config=run_config,
-                target=get_offline_target,
+                target=target,
             )
             .to_dataframe()
             .reset_index()

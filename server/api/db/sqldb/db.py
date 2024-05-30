@@ -685,13 +685,14 @@ class SQLDB(DBInterface):
             producer_id=producer_id,
             best_iteration=best_iteration,
             most_recent=most_recent,
+            attach_tags=True,
         )
         if as_records:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
             return list({artifact for artifact, _ in artifact_records})
 
         artifacts = ArtifactList()
-        for artifact, tag in artifact_records:
+        for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
 
             # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
@@ -709,7 +710,7 @@ class SQLDB(DBInterface):
                 ):
                     continue
 
-            self._set_tag_in_artifact_struct(artifact_struct, tag)
+            self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(artifact_struct)
 
         return artifacts
@@ -807,7 +808,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         distinct_keys = {
             artifact.key
-            for artifact, _ in self._find_artifacts(
+            for artifact in self._find_artifacts(
                 session, project, ids, tag, labels, name=name
             )
         }
@@ -1237,9 +1238,30 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         best_iteration: bool = False,
         most_recent: bool = False,
-    ):
+        attach_tags: bool = False,
+    ) -> typing.Union[
+        list[tuple[ArtifactV2, str]],
+        list[ArtifactV2],
+    ]:
         """
         Find artifacts by the given filters.
+
+        :param session: DB session
+        :param project: Project name
+        :param ids: Artifact IDs to filter by
+        :param tag: Tag to filter by
+        :param labels: Labels to filter by
+        :param since: Filter artifacts that were updated after this time
+        :param until: Filter artifacts that were updated before this time
+        :param name: Artifact name to filter by
+        :param kind: Artifact kind to filter by
+        :param category: Artifact category to filter by (if kind is not given)
+        :param iter: Artifact iteration to filter by
+        :param uid: Artifact UID to filter by
+        :param producer_id: Artifact producer ID to filter by
+        :param best_iteration: Filter by best iteration artifacts
+        :param most_recent: Filter by most recent artifacts
+        :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
 
         :return: a list of tuples of (ArtifactV2, tag_name)
         """
@@ -1290,7 +1312,12 @@ class SQLDB(DBInterface):
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
-        return query.all()
+        artifacts_and_tags = query.all()
+
+        if not attach_tags:
+            return list({artifact for artifact, _ in artifacts_and_tags})
+
+        return artifacts_and_tags
 
     def _add_artifact_name_query(self, query, name=None):
         if not name:
@@ -2361,12 +2388,11 @@ class SQLDB(DBInterface):
     def _calculate_models_counters(self, session) -> dict[str, int]:
         # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
-        model_artifacts = self.list_artifacts(
+        model_artifacts = self._find_artifacts(
             session,
             None,
             kind=mlrun.common.schemas.ArtifactCategories.model,
             most_recent=True,
-            as_records=True,
         )
         project_to_models_count = collections.defaultdict(int)
         for model_artifact in model_artifacts:
@@ -2376,15 +2402,12 @@ class SQLDB(DBInterface):
     def _calculate_files_counters(self, session) -> dict[str, int]:
         # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
         # want to count (artifact count, not artifact versions count)
-        artifact_records = self._find_artifacts(
+        file_artifacts = self._find_artifacts(
             session,
             None,
             category=mlrun.common.schemas.ArtifactCategories.other,
             most_recent=True,
         )
-        # artifact_records is a list of tuples, each tuple contains the artifact object and its tag
-        # we're interested in the artifact object only, and we want to count the number of unique projects
-        file_artifacts = list({artifact for artifact, _ in artifact_records})
         project_to_files_count = collections.defaultdict(int)
         for file_artifact in file_artifacts:
             project_to_files_count[file_artifact.project] += 1
@@ -2560,8 +2583,7 @@ class SQLDB(DBInterface):
         return project_record
 
     def verify_project_has_no_related_resources(self, session: Session, name: str):
-        artifact_records = self._find_artifacts(session, name, "*")
-        artifacts = [artifact for artifact, _ in artifact_records]
+        artifacts = self._find_artifacts(session, name, "*")
         self._verify_empty_list_of_project_related_resources(
             name, artifacts, "artifacts"
         )

@@ -30,9 +30,7 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
-from mlrun.datastore.utils import (
-    transform_list_filters_to_tuple,
-)
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource

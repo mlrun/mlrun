@@ -187,7 +187,7 @@ def transform_list_filters_to_tuple(additional_filters):
     tuple_filters = []
     if not additional_filters:
         return tuple_filters
-    validate_additional_filters(additional_filters=additional_filters)
+    validate_additional_filters(additional_filters)
     for additional_filter in additional_filters:
         tuple_filters.append(tuple(additional_filter))
     return tuple_filters

@@ -1627,51 +1627,40 @@ class SQLDB(DBInterface):
     def list_functions(
         self,
         session: Session,
-        name: str = None,
-        project: str = None,
-        tag: str = None,
+        name: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
         labels: list[str] = None,
-        hash_key: str = None,
-        page: int = None,
-        page_size: int = None,
+        hash_key: typing.Optional[str] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
     ) -> list[dict]:
         project = project or config.default_project
-        uids = None
-        if tag:
-            uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
-            if hash_key:
-                uids = [uid for uid in uids if uid == hash_key] or None
-        if not tag and hash_key:
-            uids = [hash_key]
         functions = []
-        for function in self._find_functions(
-            session, name, project, uids, labels, page=page, page_size=page_size
+        for function, function_tag in self._find_functions(
+            session,
+            name,
+            project,
+            labels,
+            tag,
+            hash_key,
+            page=page,
+            page_size=page_size,
         ):
             function_dict = function.struct
-            if not tag:
-                function_tags = self._list_function_tags(session, project, function.id)
-                if len(function_tags) == 0:
-                    # function status should be added only to tagged functions
-                    function_dict["status"] = None
+            if not function_tag:
+                # function status should be added only to tagged functions
+                function_dict["status"] = None
 
-                    # the unversioned uid is only a place holder for tagged instance that are is versioned
-                    # if another instance "took" the tag, we're left with an unversioned untagged instance
-                    # don't list it
-                    if function.uid.startswith(unversioned_tagged_object_uid_prefix):
-                        continue
-
-                    functions.append(function_dict)
-                elif len(function_tags) == 1:
-                    function_dict["metadata"]["tag"] = function_tags[0]
-                    functions.append(function_dict)
-                else:
-                    for function_tag in function_tags:
-                        function_dict_copy = deepcopy(function_dict)
-                        function_dict_copy["metadata"]["tag"] = function_tag
-                        functions.append(function_dict_copy)
+                # the unversioned uid is only a placeholder for tagged instances that are versioned.
+                # if another instance "took" the tag, we're left with an unversioned untagged instance
+                # don't list it
+                if function.uid.startswith(unversioned_tagged_object_uid_prefix):
+                    continue
             else:
-                function_dict["metadata"]["tag"] = tag
-                functions.append(function_dict)
+                function_dict["metadata"]["tag"] = function_tag
+
+            functions.append(function_dict)
         return functions
 
     def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
@@ -3907,13 +3896,32 @@ class SQLDB(DBInterface):
         )
 
     def _find_functions(
-        self, session, name, project, uids=None, labels=None, page=None, page_size=None
-    ):
-        query = self._query(session, Function, project=project)
+        self,
+        session: Session,
+        name: str,
+        project: str,
+        labels: typing.Union[str, list[str], None] = None,
+        tag: typing.Optional[str] = None,
+        hash_key: typing.Optional[str] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> list[tuple[Function, str]]:
+        query = session.query(Function, Function.Tag.name)
+        query = query.filter(Function.project == project)
+
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids is not None:
-            query = query.filter(Function.uid.in_(uids))
+
+        if hash_key is not None:
+            query = query.filter(Function.uid == hash_key)
+
+        if not tag:
+            # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
+            query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
+        else:
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
+            query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)

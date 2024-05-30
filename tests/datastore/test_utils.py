@@ -47,6 +47,7 @@ from mlrun.datastore.utils import transform_list_filters_to_tuple
         ),
         ([("x", "=", "=", 3), ("y", "in", [3, 4])], "illegal filter tuple length"),
         ([()], ""),
+        ([], ""),
     ],
 )
 def test_transform_list_filters_to_tuple(additional_filters, message):

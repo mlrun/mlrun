@@ -42,4 +42,6 @@ setup(
     install_requires=[
         "kfp~=1.8",
     ],
+    long_description="MLRun Pipelines package for providing KFP 1.8 compatibility",
+    long_description_content_type="text/markdown",
 )

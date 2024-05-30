@@ -380,7 +380,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
         vec.save()
-        get_offline_target = ParquetTarget(
+        target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
         kind = None if self.run_local else "remote-spark"
@@ -391,7 +391,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 ("movements", "<", 6),
             ],
             with_indexes=True,
-            target=get_offline_target,
+            target=target,
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local, kind=kind),
             spark_service=self.spark_service,

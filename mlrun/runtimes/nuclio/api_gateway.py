@@ -31,7 +31,7 @@ from mlrun.utils import logger
 from .function import get_fullname, min_nuclio_versions
 
 
-class APIGatewayAuthenticator(typing.Protocol):
+class Authenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
         return schemas.APIGatewayAuthenticationMode.none.value
@@ -63,23 +63,25 @@ class APIGatewayAuthenticator(typing.Protocol):
         return None
 
 
-class NoneAuth(APIGatewayAuthenticator, ModelObj):
+class APIGatewayAuthenticator(Authenticator, ModelObj):
+    _dict_fields = ["authentication_mode"]
+
+
+class NoneAuth(APIGatewayAuthenticator):
     """
     An API gateway authenticator with no authentication.
     """
 
-    _dict_fields = ["authentication_mode"]
+    pass
 
 
-class BasicAuth(APIGatewayAuthenticator, ModelObj):
+class BasicAuth(APIGatewayAuthenticator):
     """
     An API gateway authenticator with basic authentication.
 
     :param username: (str) The username for basic authentication.
     :param password: (str) The password for basic authentication.
     """
-
-    _dict_fields = ["authentication_mode"]
 
     def __init__(self, username=None, password=None):
         self._username = username
@@ -99,12 +101,10 @@ class BasicAuth(APIGatewayAuthenticator, ModelObj):
         }
 
 
-class AccessKeyAuth(APIGatewayAuthenticator, ModelObj):
+class AccessKeyAuth(APIGatewayAuthenticator):
     """
     An API gateway authenticator with access key authentication.
     """
-
-    _dict_fields = ["authentication_mode"]
 
     @property
     def authentication_mode(self) -> str:

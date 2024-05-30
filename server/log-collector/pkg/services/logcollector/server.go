@@ -611,6 +611,10 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 			}, errors.Wrap(err, message)
 		}
 
+		s.Logger.DebugWithCtx(ctx,
+			"Successfully deleted all project logs",
+			"project", request.Project)
+
 		return s.successfulBaseResponse(), nil
 	}
 

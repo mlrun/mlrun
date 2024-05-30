@@ -84,10 +84,10 @@ ensemble_object_classification.routes = generate_test_routes_classification(
 )
 
 
-def generate_spec(graph, mode="sync", params={}):
+def generate_spec(graph, mode="sync", params=None):
     return {
         "version": "v2",
-        "parameters": params,
+        "parameters": params or {},
         "graph": graph,
         "load_mode": mode,
         "verbose": True,

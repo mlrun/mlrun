@@ -168,14 +168,14 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"model-conf-{self.project}-{self.name}"
+                                "name": f"serving-conf-{self.project}-{self.name}"
                                 + (f"-{func_name}" if func_name else "")
                             },
-                            "name": "model-conf",
+                            "name": "serving-conf",
                         },
                         "volumeMount": {
-                            "mountPath": "/tmp/mlrun/model-conf",
-                            "name": "model-conf",
+                            "mountPath": "/tmp/mlrun/serving-conf",
+                            "name": "serving-conf",
                             "readOnly": True,
                         },
                     }
@@ -248,6 +248,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_remote_deploy_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
 
@@ -325,6 +327,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_child_functions_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
         graph = function.spec.graph

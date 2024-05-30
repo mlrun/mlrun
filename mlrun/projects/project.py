@@ -78,7 +78,10 @@ from ..utils.clones import (
     clone_zip,
     get_repo_url,
 )
-from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
+from ..utils.helpers import (
+    ensure_git_branch,
+    resolve_git_reference_from_source,
+)
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
     BuildStatus,
@@ -1271,6 +1274,14 @@ class MlrunProject(ModelObj):
     @description.setter
     def description(self, description):
         self.spec.description = description
+
+    @property
+    def default_function_node_selector(self) -> dict:
+        return self.spec.default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, default_function_node_selector):
+        self.spec.default_function_node_selector = default_function_node_selector
 
     @property
     def default_image(self) -> str:
@@ -2992,14 +3003,17 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
+            run_status_kwargs = {}
             status_engine = run._engine
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
-            # TODO: support watch for remote:local
-            if workflow_engine.engine == "remote" and status_engine.engine != "local":
+            if workflow_engine.engine == "remote":
                 status_engine = _RemoteRunner
+                run_status_kwargs["inner_engine"] = run._engine
 
-            status_engine.get_run_status(project=self, run=run, timeout=timeout)
+            status_engine.get_run_status(
+                project=self, run=run, timeout=timeout, **run_status_kwargs
+            )
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -4017,8 +4031,8 @@ class MlrunProject(ModelObj):
         self,
         action: Callable,
         remote: str,
-        args: list = [],
-        kwargs: dict = {},
+        args: list = None,
+        kwargs: dict = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """Run an arbitrary Git routine while the remote is enriched with secrets
@@ -4038,6 +4052,8 @@ class MlrunProject(ModelObj):
         try:
             if is_remote_enriched:
                 self.spec.repo.remotes[remote].set_url(enriched_remote, clean_remote)
+            args = args or []
+            kwargs = kwargs or {}
             action(*args, **kwargs)
         except RuntimeError as e:
             raise mlrun.errors.MLRunRuntimeError(

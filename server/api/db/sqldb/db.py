@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -1632,7 +1633,7 @@ class SQLDB(DBInterface):
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
         hash_key: typing.Optional[str] = None,
-        _format: str = mlrun.common.schemas.FunctionFormat.full,
+        _format: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[dict]:
@@ -1662,7 +1663,9 @@ class SQLDB(DBInterface):
                 function_dict["metadata"]["tag"] = function_tag
 
             functions.append(
-                mlrun.common.schemas.FunctionFormat.format_obj(function_dict, _format)
+                mlrun.common.formatters.FunctionFormat.format_obj(
+                    function_dict, _format
+                )
             )
         return functions
 
@@ -1742,7 +1745,7 @@ class SQLDB(DBInterface):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
-        _format: str = mlrun.common.schemas.FunctionFormat.full,
+        _format: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
@@ -1768,7 +1771,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
-            return mlrun.common.schemas.FunctionFormat.format_obj(function, _format)
+            return mlrun.common.formatters.FunctionFormat.format_obj(function, _format)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")

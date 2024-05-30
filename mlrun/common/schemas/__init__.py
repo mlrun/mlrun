@@ -113,7 +113,6 @@ from .frontend_spec import (
     ProjectMembershipFeatureFlag,
 )
 from .function import (
-    FunctionFormat,
     FunctionState,
     PreemptionModes,
     SecurityContextEnrichmentModes,

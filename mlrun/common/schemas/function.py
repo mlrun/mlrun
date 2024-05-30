@@ -18,29 +18,6 @@ import pydantic
 
 import mlrun.common.types
 
-from .common import ObjectFormat
-
-
-class FunctionFormat(ObjectFormat):
-    minimal = "minimal"
-
-    @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
-        return {
-            FunctionFormat.full: None,
-            FunctionFormat.minimal: FunctionFormat.filter_obj_method(
-                [
-                    ["kind"],
-                    ["metadata"],
-                    ["status"],
-                    ["spec", "description"],
-                    ["spec", "image"],
-                    ["spec", "default_handler"],
-                    ["spec", "entry_points"],
-                ]
-            ),
-        }[_format]
-
 
 # Ideally we would want this to be class FunctionState(mlrun.common.types.StrEnum) which is the
 # "FastAPI-compatible" way of creating schemas

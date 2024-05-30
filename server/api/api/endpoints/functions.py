@@ -249,7 +249,7 @@ async def list_functions(
         tag=tag,
         labels=labels,
         hash_key=hash_key,
-        _fotmat=_format,
+        _format=_format,
     )
 
     return {

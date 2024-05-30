@@ -68,10 +68,11 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         hash_key: str = "",
+        _format: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().get_function(
-            db_session, name, project, tag, hash_key
+            db_session, name, project, tag, hash_key, _format
         )
 
     def delete_function(
@@ -88,11 +89,12 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str = mlrun.mlconf.default_project,
-        name: str = "",
-        tag: str = "",
-        labels: typing.List[str] = None,
-        hash_key: str = "",
-    ) -> typing.List:
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+        hash_key: str = None,
+        _format: str = None,
+    ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []
@@ -103,6 +105,7 @@ class Functions(
             tag=tag,
             labels=labels,
             hash_key=hash_key,
+            _format=_format,
         )
 
     def get_function_status(

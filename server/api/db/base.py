@@ -288,7 +288,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = None,
+    ):
         pass
 
     @abstractmethod
@@ -302,7 +310,22 @@ class DBInterface(ABC):
         name: str = None,
         project: str = None,
         tag: str = None,
-        labels: List[str] = None,
+        labels: list[str] = None,
+        hash_key: str = None,
+        _format: str = None,
+        page: int = None,
+        page_size: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
         hash_key: str = None,
     ):
         pass

@@ -33,6 +33,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
@@ -117,6 +118,7 @@ async def get_function(
     name: str,
     tag: str = "",
     hash_key="",
+    _format: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -127,6 +129,7 @@ async def get_function(
         project,
         tag,
         hash_key,
+        _format,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -202,6 +205,7 @@ async def list_functions(
     tag: str = None,
     labels: List[str] = Query([], alias="label"),
     hash_key: str = None,
+    _format: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -220,6 +224,7 @@ async def list_functions(
         tag=tag,
         labels=labels,
         hash_key=hash_key,
+        _format=_format,
     )
     functions = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,

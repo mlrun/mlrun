@@ -63,7 +63,9 @@ class Client:
         )
         parsed_api_gateways = {}
         for name, gw in api_gateways.items():
-            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(gw)
+            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(
+                gw
+            ).replace_nuclio_names_with_mlrun_uri()
         return parsed_api_gateways
 
     async def api_gateway_exists(self, name: str, project_name: str = None):
@@ -80,7 +82,9 @@ class Client:
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
-        return mlrun.common.schemas.APIGateway.parse_obj(api_gateway)
+        return mlrun.common.schemas.APIGateway.parse_obj(
+            api_gateway
+        ).replace_nuclio_names_with_mlrun_uri()
 
     async def store_api_gateway(
         self,
@@ -224,4 +228,5 @@ class Client:
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
+        api_gateway.enrich_mlrun_function_names()
         return api_gateway

@@ -427,13 +427,11 @@ class V3IOTSDBConnector(TSDBConnector):
             filter=filter_query,
             aggregation_window=interval,
             aggregators=agg_funcs,
-            limit=limit,
             step=sliding_window_step,
             **kwargs,
         )
 
         if limit:
-            # Todo: remove this when the issue is fixed in the frames client
             df = df.head(limit)
         return df
 

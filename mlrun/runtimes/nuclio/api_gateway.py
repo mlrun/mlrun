@@ -31,7 +31,7 @@ from mlrun.utils import logger
 from .function import min_nuclio_versions
 
 
-class APIGatewayAuthenticator(typing.Protocol):
+class Authenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
         return schemas.APIGatewayAuthenticationMode.none.value
@@ -61,6 +61,10 @@ class APIGatewayAuthenticator(typing.Protocol):
         self,
     ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return None
+
+
+class APIGatewayAuthenticator(Authenticator, ModelObj):
+    _dict_fields = ["authentication_mode"]
 
 
 class NoneAuth(APIGatewayAuthenticator):

@@ -15,5 +15,4 @@ __pycache__
 kubeconfig
 **/env.yml
 **/patch_env.yml
-**/mlrun.env
 mlrun.egg-info

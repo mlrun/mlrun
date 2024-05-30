@@ -2247,11 +2247,13 @@ class SQLDB(DBInterface):
                 # can't use formatter as we haven't queried the entire object anyway
                 projects.append(project_record.name)
             else:
-                project = self._transform_project_record_to_schema(
-                    session, project_record
-                )
                 projects.append(
-                    mlrun.common.formatters.ProjectFormat.format_obj(project, format_)
+                    mlrun.common.formatters.ProjectFormat.format_obj(
+                        self._transform_project_record_to_schema(
+                            session, project_record
+                        ),
+                        format_,
+                    )
                 )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 

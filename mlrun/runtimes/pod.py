@@ -24,6 +24,7 @@ import kubernetes.client as k8s_client
 import mlrun_pipelines.mounts
 from mlrun_pipelines.mixins import KfpAdapterMixin
 
+import mlrun.common.constants
 import mlrun.errors
 import mlrun.utils.regex
 from mlrun.common.schemas import (
@@ -1414,7 +1415,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         offset = 0
         events_offset = 0
         try:
-            text, _, _ = db.get_builder_status(self, 0, 0, logs=logs)
+            text, _, deploy_status_text_kind = db.get_builder_status(
+                self, 0, 0, logs=logs
+            )
         except mlrun.db.RunDBError:
             raise ValueError("Function or build process not found")
 
@@ -1426,7 +1429,13 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 print(_text, end="")
 
         print_log(text)
-        offset += len(text)
+        if (
+            deploy_status_text_kind
+            == mlrun.common.constants.MLRunBuilderStatusKind.events
+        ):
+            events_offset += len(text)
+        else:
+            offset += len(text)
         if watch:
             while self.status.state in [
                 mlrun.common.schemas.FunctionState.pending,
@@ -1446,7 +1455,13 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                         self, offset, events_offset, logs=logs
                     )
                 print_log(text)
-                offset += len(text)
+                if (
+                    deploy_status_text_kind
+                    == mlrun.common.constants.MLRunBuilderStatusKind.events
+                ):
+                    events_offset += len(text)
+                else:
+                    offset += len(text)
 
         return self.status.state
 

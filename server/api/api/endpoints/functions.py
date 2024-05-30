@@ -32,6 +32,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.common.formatters
+import mlrun.common.constants
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
@@ -597,7 +598,9 @@ def _handle_job_deploy_status(
             client_version, "1.7.0-rc18"
         )
     ):
-        response_headers["deploy_status_text_kind"] = "events"
+        response_headers["deploy_status_text_kind"] = (
+            mlrun.common.constants.DeployStatusTextKind.events
+        )
         build_pod_events = server.api.utils.singletons.k8s.get_k8s_helper(
             silent=False
         ).list_object_events(object_name=pod)
@@ -651,7 +654,9 @@ Message: {event.message}
                 fp.write(resp.encode())
 
         if resp and logs:
-            response_headers["deploy_status_text_kind"] = "logs"
+            response_headers["deploy_status_text_kind"] = (
+                mlrun.common.constants.DeployStatusTextKind.logs
+            )
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 

@@ -141,17 +141,6 @@ def verify_label_key(key: str):
     if not key:
         raise mlrun.errors.MLRunInvalidArgumentError("label key cannot be empty")
 
-    mlrun.utils.helpers.verify_field_regex(
-        f"project.metadata.labels.'{key}'",
-        key,
-        mlrun.utils.regex.k8s_character_limit,
-    )
-
-    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/"):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
-        )
-
     parts = key.split("/")
     if len(parts) == 1:
         name = parts[0]
@@ -176,8 +165,18 @@ def verify_label_key(key: str):
     mlrun.utils.helpers.verify_field_regex(
         f"project.metadata.labels.'{key}'",
         name,
+        mlrun.utils.regex.k8s_character_limit,
+    )
+    mlrun.utils.helpers.verify_field_regex(
+        f"project.metadata.labels.'{key}'",
+        name,
         mlrun.utils.regex.qualified_name,
     )
+
+    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/"):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
+        )
 
 
 def verify_label_value(value, label_key):

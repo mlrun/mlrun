@@ -34,3 +34,6 @@ mlrun.egg-info
 !tests/projects/assets/project.yaml
 **/patch-env.yml
 **/google-big-query-credentials.json
+
+# this is just a template
+!dockerfiles/jupyter/mlrun.env

@@ -27,6 +27,9 @@ from mlrun.utils import logger
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
+NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER = (
+    "X-Nuclio-Delete-Function-With-API-Gateways"
+)
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
@@ -60,7 +63,9 @@ class Client:
         )
         parsed_api_gateways = {}
         for name, gw in api_gateways.items():
-            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(gw)
+            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(
+                gw
+            ).replace_nuclio_names_with_mlrun_uri()
         return parsed_api_gateways
 
     async def api_gateway_exists(self, name: str, project_name: str = None):
@@ -77,7 +82,9 @@ class Client:
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
-        return mlrun.common.schemas.APIGateway.parse_obj(api_gateway)
+        return mlrun.common.schemas.APIGateway.parse_obj(
+            api_gateway
+        ).replace_nuclio_names_with_mlrun_uri()
 
     async def store_api_gateway(
         self,
@@ -124,7 +131,8 @@ class Client:
         )
 
     async def delete_function(self, name: str, project_name: str = None):
-        headers = {}
+        # this header allows nuclio to delete function along with its api gateways
+        headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -212,7 +220,9 @@ class Client:
 
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
-        mlrun.errors.raise_for_status(response, error_message)
+        raise mlrun.errors.STATUS_ERRORS[response.status](
+            error_message, response=response
+        )
 
     def _enrich_nuclio_api_gateway(
         self,
@@ -220,4 +230,5 @@ class Client:
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
+        api_gateway.enrich_mlrun_function_names()
         return api_gateway

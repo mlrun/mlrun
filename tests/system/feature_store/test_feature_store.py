@@ -4820,7 +4820,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_parquet_filters(self, engine, local):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_parquet_filters(self, engine, local, passthrough):
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
@@ -4843,7 +4844,9 @@ class TestFeatureStore(TestMLRunSystem):
             filtered_df.sort_values(by="patient_id").reset_index(drop=True),
         )
         feature_set = fstore.FeatureSet(
-            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+            passthrough=passthrough,
         )
 
         target = ParquetTarget(
@@ -4855,13 +4858,16 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set.ingest(
             source=parquet_source, targets=[target], run_config=run_config
         )
-        result = target.as_df(additional_filters=[("room", "=", 1)]).reset_index()
-        # We want to include patient_id in the comparison,
-        # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = sort_df(result, "patient_id")
-        expected = sort_df(filtered_df.query("room == 1"), "patient_id")
-        # the content of category column is still checked:
-        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        if not passthrough:
+            result = target.as_df(additional_filters=[("room", "=", 1)]).reset_index()
+            # We want to include patient_id in the comparison,
+            # sort the columns alphabetically, and sort the rows by patient_id values.
+            result = sort_df(result, "patient_id")
+            expected = sort_df(filtered_df.query("room == 1"), "patient_id")
+            # the content of category column is still checked:
+            assert_frame_equal(
+                result, expected, check_dtype=False, check_categorical=False
+            )
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
@@ -4881,7 +4887,8 @@ class TestFeatureStore(TestMLRunSystem):
             .to_dataframe()
             .reset_index()
         )
-        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
+        expected = df if passthrough else filtered_df
+        expected = sort_df(expected.query("bad == 95"), "patient_id")
         result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 

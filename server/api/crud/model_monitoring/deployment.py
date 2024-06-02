@@ -825,6 +825,7 @@ class MonitoringDeployment:
         )
         if delete_v3io_stream:
             for i in range(10):
+                # waiting for the function to be deleted
                 # max 10 retries (5 sec sleep between each retry)
 
                 function_pod = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(

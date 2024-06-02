@@ -192,10 +192,12 @@ def test_application_api_gateway(rundb_mock):
 
 def test_application_runtime_resources(rundb_mock):
     mlrun.mlconf.igz_version = "3.6.0"
+    image = "my/web-app:latest"
+    app_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
-        "application-test",
+        app_name,
         kind="application",
-        image="mlrun/mlrun",
+        image=image,
     )
     cpu_requests = "0.7"
     memory_requests = "1.2Gi"
@@ -206,10 +208,23 @@ def test_application_runtime_resources(rundb_mock):
 
     fn.deploy()
 
-    assert fn.spec.resources == mlrun.k8s.ResourceRequirements(
-        limits={"cpu": "1", "memory": "2Gi"},
-        requests={"cpu": "0.5", "memory": "1Gi"},
-    )
+    assert fn.spec.config["spec.sidecars"] == [
+        {
+            "image": image,
+            "name": f"{app_name}-sidecar",
+            "ports": [
+                {
+                    "containerPort": 8050,
+                    "name": "application-t-0",
+                    "protocol": "TCP",
+                }
+            ],
+            "resources": {
+                "requests": {"cpu": cpu_requests, "memory": memory_requests},
+                "limits": {"cpu": cpu_limits, "memory": memory_limits},
+            },
+        }
+    ]
 
 
 def _assert_function_code(fn, file_path=None):

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import abc
 import collections
 import dataclasses
@@ -20,13 +20,17 @@ import json
 import os
 import re
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
+from urllib.parse import urlparse
 
+import fsspec
 import numpy as np
 import pandas as pd
+import pyarrow
 import requests
 import v3io
 import v3io.dataplane
 import v3io_frames
+import v3iofs  # noqa: F401, required for V3IO file system with fsspec
 from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.helpers
@@ -719,6 +723,21 @@ class BatchProcessor:
                     min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                 )
                 return
+
+            except pyarrow.ArrowInvalid:
+                target_path = m_fs.status.targets[0].path
+                fs = fsspec.filesystem(urlparse(target_path).scheme)
+                paths = fs.glob(target_path + "/**")
+                logger.warn(
+                    "Parquet found, but could not be read. Listing the files "
+                    "and folders in the model endpoint's parquet folder",
+                    target_path=target_path,
+                    paths=paths,
+                )
+                for path in paths:
+                    details = fs.listdir(path)
+                    logger.info("Path details", path=path, details=details)
+                raise
 
             # Get feature names from monitoring feature set
             feature_names = [

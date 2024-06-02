@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import mlrun.alerts
+import mlrun.common
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas

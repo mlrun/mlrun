@@ -97,6 +97,15 @@ async def list_artifact_tags(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
+    # verify that the user has permissions to read the project's artifacts
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        "",
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
     tags = await run_in_threadpool(
         server.api.crud.Artifacts().list_artifact_tags, db_session, project, category
     )

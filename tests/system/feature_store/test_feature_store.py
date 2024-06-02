@@ -4822,6 +4822,10 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("passthrough", [True, False])
     def test_parquet_filters(self, engine, local, passthrough):
+        if passthrough and engine == "dask":
+            pytest.skip(
+                "Dask engine with passthrough=True is not supported. Open issue ML-6684"
+            )
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))

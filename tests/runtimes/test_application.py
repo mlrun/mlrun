@@ -22,6 +22,16 @@ import mlrun.common.schemas
 import mlrun.utils
 
 
+@pytest.fixture
+def igz_version_mock():
+    """Application runtime uses access key api gateway which requires igz version >= 3.5.5,
+    so we need to mock the igz version to be 3.6.0 to pass the validation in the tests."""
+    original_igz_version = mlrun.mlconf.igz_version
+    mlrun.mlconf.igz_version = "3.6.0"
+    yield
+    mlrun.mlconf.igz_version = original_igz_version
+
+
 def test_create_application_runtime():
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image="mlrun/mlrun"
@@ -33,8 +43,7 @@ def test_create_application_runtime():
     # _assert_function_handler(fn)
 
 
-def test_create_application_runtime_with_command(rundb_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun", command="echo"
     )
@@ -47,8 +56,7 @@ def test_create_application_runtime_with_command(rundb_mock):
     # _assert_function_handler(fn)
 
 
-def test_deploy_application_runtime(rundb_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image=image
@@ -57,8 +65,7 @@ def test_deploy_application_runtime(rundb_mock):
     _assert_application_post_deploy_spec(fn, image)
 
 
-def test_consecutive_deploy_application_runtime(rundb_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_consecutive_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test", kind="application", image=image
@@ -160,8 +167,7 @@ def test_image_enriched_on_build_application_image(remote_builder_mock):
     assert fn.status.state == mlrun.common.schemas.FunctionState.ready
 
 
-def test_application_image_build(remote_builder_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_application_image_build(remote_builder_mock, igz_version_mock):
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test",
         kind="application",
@@ -174,8 +180,7 @@ def test_application_image_build(remote_builder_mock):
     )
 
 
-def test_application_api_gateway(rundb_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_application_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
         "application-test",
@@ -190,8 +195,7 @@ def test_application_api_gateway(rundb_mock):
     assert function_name in api_gateway.spec.functions[0]
 
 
-def test_application_runtime_resources(rundb_mock):
-    mlrun.mlconf.igz_version = "3.6.0"
+def test_application_runtime_resources(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     app_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(

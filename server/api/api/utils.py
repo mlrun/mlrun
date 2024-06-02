@@ -1315,7 +1315,7 @@ async def _delete_function(
             auth_info, project, nuclio_function_names
         )
         if failed_requests:
-            error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+            error_message = f"Failed to delete function {function_name}. Errors: {';'.join(failed_requests)}"
             await _update_functions_with_deletion_info(
                 functions, project, {"status.deletion_error": error_message}
             )
@@ -1396,8 +1396,6 @@ async def _delete_nuclio_functions_in_batches(
             if isinstance(result, tuple):
                 nuclio_name, error_message = result
                 if error_message:
-                    failed_requests.append(
-                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
-                    )
+                    failed_requests.append(error_message)
 
     return failed_requests

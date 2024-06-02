@@ -487,6 +487,10 @@ def _init_endpoint_record(
     # Generating version model value based on the model name and model version
     if model.version:
         versioned_model_name = f"{model.name}:{model.version}"
+    elif model.model_path and model.model_path.startswith("store://"):
+        # Enrich the model server with the model artifact metadata
+        model.get_model()
+        versioned_model_name = f"{model.name}:{model.model_spec.tag}"
     else:
         versioned_model_name = f"{model.name}:latest"
 

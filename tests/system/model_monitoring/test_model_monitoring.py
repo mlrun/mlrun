@@ -248,7 +248,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     def test_basic_model_monitoring(self):
         # Main validations:
         # 1 - a single model endpoint is created
-        # 2 - stream metrics are recorded as expected under the model endpoint
+        # 2 - model name and tag are recorded as expected under the model endpoint
+        # 3 - stream metrics are recorded as expected under the model endpoint
 
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
@@ -272,6 +273,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         serving_fn.set_tracking()
 
         model_name = "sklearn_RandomForestClassifier"
+        tag = "some-tag"
 
         # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
@@ -280,12 +282,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             model_file="model.pkl",
             training_set=train_set,
             artifact_path=f"v3io:///projects/{project.metadata.name}",
+            tag=tag,
         )
         # Add the model to the serving function's routing spec
         serving_fn.add_model(
             model_name,
             model_path=project.get_artifact_uri(
-                key=model_name, category="model", tag="latest"
+                key=model_name, category="model", tag=tag
             ),
         )
 
@@ -302,23 +305,27 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(choice([0.01, 0.04]))
 
-        # Test metrics
-        mlrun.utils.helpers.retry_until_successful(
-            3,
-            10,
-            self._logger,
-            False,
-            self._assert_model_endpoint_metrics,
-        )
-
-    def _assert_model_endpoint_metrics(self):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
         assert len(endpoints_list) == 1
 
         endpoint = endpoints_list[0]
+        # Validate model name and tag
+        assert endpoint.spec.model == f"{model_name}:{tag}"
 
+        mlrun.utils.helpers.retry_until_successful(
+            3,
+            10,
+            self._logger,
+            False,
+            self._assert_model_endpoint_metrics,
+            endpoint=endpoint,
+        )
+
+    def _assert_model_endpoint_metrics(
+        self, endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint
+    ):
         assert len(endpoint.status.metrics) > 0
         self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 

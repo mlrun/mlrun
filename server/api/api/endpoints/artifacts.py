@@ -97,28 +97,13 @@ async def list_artifact_tags(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    tag_tuples = await run_in_threadpool(
+    tags = await run_in_threadpool(
         server.api.crud.Artifacts().list_artifact_tags, db_session, project, category
     )
-    artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_artifact_keys = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        list(artifact_key_to_tag.keys()),
-        lambda artifact_key: (
-            project,
-            artifact_key,
-        ),
-        auth_info,
-    )
-    tags = [
-        tag_tuple[2]
-        for tag_tuple in tag_tuples
-        if tag_tuple[1] in allowed_artifact_keys
-    ]
+
     return {
         "project": project,
-        # Remove duplicities
-        "tags": list(set(tags)),
+        "tags": tags,
     }
 
 

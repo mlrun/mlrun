@@ -984,6 +984,10 @@ class RemoteRuntime(KubeResource):
         if args and sidecar["command"]:
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
+        # populate the sidecar resources from the function spec
+        if self.spec.resources:
+            sidecar["resources"] = self.spec.resources
+
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
         sidecars = self.spec.config["spec.sidecars"]

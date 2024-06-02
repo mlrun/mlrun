@@ -27,6 +27,7 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
+from mlrun.utils import logger
 
 
 class ApplicationSpec(NuclioSpec):
@@ -447,6 +448,14 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
+        if not self.spec.command:
+            logger.warning(
+                "Building the application image without a command. "
+                "Use spec.command and spec.args to specify the application entrypoint",
+                command=self.spec.command,
+                args=self.spec.args,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
         return self._build_image(
             builder_env=builder_env,

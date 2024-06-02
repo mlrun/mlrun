@@ -20,14 +20,12 @@ import typing
 
 import kfp
 import kfp_server_api
-import mlrun_pipelines
-import mlrun_pipelines.common.helpers
-import mlrun_pipelines.common.ops
 import sqlalchemy.orm
 from mlrun_pipelines.mixins import PipelineProviderMixin
 from mlrun_pipelines.models import PipelineExperiment, PipelineRun
 
 import mlrun
+import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
@@ -51,14 +49,14 @@ class Pipelines(
         page_token: str = "",
         filter_: str = "",
         name_contains: str = "",
-        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> tuple[int, typing.Optional[int], list[dict]]:
         if project != "*" and (page_token or page_size):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Filtering by project can not be used together with pagination"
             )
-        if format_ == mlrun.common.schemas.PipelinesFormat.summary:
+        if format_ == mlrun.common.formatters.PipelineFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
             # manifest status that includes the nodes section we use to generate the DAG.
             # (There is a workflow manifest under the run's pipeline_spec field, but it doesn't include the status)
@@ -115,7 +113,7 @@ class Pipelines(
                 total_size = -1
             else:
                 total_size = len(runs)
-        runs = self._format_runs(db_session, runs, format_)
+        runs = self._format_runs(runs, format_)
 
         return total_size, next_page_token, runs
 
@@ -125,7 +123,7 @@ class Pipelines(
         _, _, project_pipeline_runs = self.list_pipelines(
             db_session=db_session,
             project=project_name,
-            format_=mlrun.common.schemas.PipelinesFormat.full,
+            format_=mlrun.common.formatters.PipelineFormat.full,
         )
         kfp_client = self.initialize_kfp_client()
 
@@ -196,7 +194,7 @@ class Pipelines(
         run_id: str,
         project: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
-        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.summary,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
     ):
         kfp_client = self.initialize_kfp_client(namespace)
         run = None
@@ -218,7 +216,7 @@ class Pipelines(
                     project=project,
                     format_=format_,
                 )
-                run = self._format_run(db_session, run, format_)
+                run = self._format_run(run, format_)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
@@ -299,39 +297,22 @@ class Pipelines(
 
     def _format_runs(
         self,
-        db_session: sqlalchemy.orm.Session,
         runs: list[dict],
-        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
     ) -> list[dict]:
         formatted_runs = []
         logger.debug("Formatting pipeline runs", runs_len=len(runs), format=format_)
         for run in runs:
-            formatted_runs.append(self._format_run(db_session, run, format_))
+            formatted_runs.append(self._format_run(run, format_))
         return formatted_runs
 
     def _format_run(
         self,
-        db_session: sqlalchemy.orm.Session,
         run: PipelineRun,
-        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
-        if format_ == mlrun.common.schemas.PipelinesFormat.full:
-            return run.to_dict()
-        elif format_ == mlrun.common.schemas.PipelinesFormat.metadata_only:
-            return mlrun.utils.helpers.format_run(run, with_project=True)
-
-        elif format_ == mlrun.common.schemas.PipelinesFormat.name_only:
-            return run.get("name")
-        elif format_ == mlrun.common.schemas.PipelinesFormat.summary:
-            run_db = server.api.api.utils.get_run_db_instance(db_session)
-            return mlrun_pipelines.common.ops.format_summary_from_kfp_run(
-                run, run["project"], run_db=run_db
-            )
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+        return mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
 
     def _resolve_project_from_command(
         self,

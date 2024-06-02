@@ -19,6 +19,7 @@ import typing
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -126,7 +127,7 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -134,7 +135,7 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,

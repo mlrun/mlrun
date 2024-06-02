@@ -40,10 +40,9 @@ def test_sanitize_label_value(value: str, expected: str):
     "label_key, exception",
     [
         # valid
-        (
-            "a" * 253 + "/key",
-            does_not_raise(),
-        ),
+        ("a/" + "b" * 63, does_not_raise()),
+        ("a" * 253 + "/b", does_not_raise()),
+        ("a" * 253 + "/" + "b" * 63, does_not_raise()),
         ("my-key", does_not_raise()),
         ("a/b", does_not_raise()),
         ("prefix/valid-key", does_not_raise()),
@@ -52,32 +51,37 @@ def test_sanitize_label_value(value: str, expected: str):
         # preserved
         ("k8s.io/a", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         ("kubernetes.io/a", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Prefix too long
+        # prefix too long
         (
             "toolong" + "a" * 248 + "/key",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        # Prefix has invalid character - '_'
+        # name too long
+        (
+            "a/" + "b" * 64,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # prefix has invalid character - '_'
         (
             "prefix_with_underscores/valid-key",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        # Invalid prefix
+        # invalid prefix
         (
             "invalid-prefix-.com/key",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        # Trailing slash in key
+        # trailing slash in key
         ("invalid-prefix/key/", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Leading slash in key
+        # leading slash in key
         ("/invalid-key", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Empty key
+        # empty key
         ("", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Trailing dash
+        # trailing dash
         ("invalid-key-", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Trailing underscore
+        # trailing underscore
         ("invalid-key_", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        # Trailing dot
+        # trailing dot
         ("invalid-key.", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
     ],
 )

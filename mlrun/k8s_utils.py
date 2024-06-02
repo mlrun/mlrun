@@ -165,6 +165,11 @@ def verify_label_key(key: str):
     mlrun.utils.helpers.verify_field_regex(
         f"project.metadata.labels.'{key}'",
         name,
+        mlrun.utils.regex.k8s_character_limit,
+    )
+    mlrun.utils.helpers.verify_field_regex(
+        f"project.metadata.labels.'{key}'",
+        name,
         mlrun.utils.regex.qualified_name,
     )
 

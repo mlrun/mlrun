@@ -2473,6 +2473,7 @@ class MlrunProject(ModelObj):
         names = name if isinstance(name, list) else [name]
         self.disable_model_monitoring(
             delete_resources=False,
+            delete_histogram_data_drift_app=False,
             delete_user_applications=True,
             user_application_list=names,
         )

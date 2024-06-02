@@ -3383,10 +3383,13 @@ class HTTPRunDB(RunDBInterface):
         )
         deletion_failed = False
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            logger.info(
-                "Model Monitoring is being disable",
-                project_name=project,
-            )
+            if delete_resources:
+                logger.info(
+                    "Model Monitoring is being disable",
+                    project_name=project,
+                )
+            if delete_user_applications:
+                logger.info("User applications are being deleted", project_name=project)
             background_tasks = mlrun.common.schemas.BackgroundTaskList(
                 **response.json()
             ).background_tasks

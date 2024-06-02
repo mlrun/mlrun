@@ -14,14 +14,19 @@
 
 import json
 import os
+import time
 import typing
+import uuid
 from pathlib import Path
 
 import fastapi
 import nuclio
+import nuclio.utils
 import sqlalchemy.orm
+from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -130,6 +135,10 @@ class MonitoringDeployment:
             function_name=mm_constants.MonitoringFunctionNames.STREAM,
             overwrite=overwrite,
         ):
+            logger.info(
+                f"Deploying {mm_constants.MonitoringFunctionNames.STREAM} function",
+                project=self.project,
+            )
             # Get parquet target value for model monitoring stream function
             parquet_target = (
                 server.api.crud.model_monitoring.helpers.get_monitoring_parquet_path(
@@ -185,6 +194,10 @@ class MonitoringDeployment:
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             overwrite=overwrite,
         ):
+            logger.info(
+                f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
+                project=self.project,
+            )
             fn = self._get_model_monitoring_controller_function(image=controller_image)
             minutes = base_period
             hours = days = 0
@@ -229,6 +242,10 @@ class MonitoringDeployment:
             function_name=mm_constants.MonitoringFunctionNames.WRITER,
             overwrite=overwrite,
         ):
+            logger.info(
+                f"Deploying {mm_constants.MonitoringFunctionNames.WRITER} function",
+                project=self.project,
+            )
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
@@ -312,30 +329,6 @@ class MonitoringDeployment:
         function = http_source.add_nuclio_trigger(function)
 
         return function
-
-    def delete_model_monitoring_v3io_stream(self, function_name: str):
-        """
-
-        :param function_name:
-        :return:
-        """
-        import v3io.dataplane
-
-        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
-        stream_paths = server.api.crud.model_monitoring.get_stream_path(
-            project=self.project, function_name=function_name
-        )
-        for stream_path in stream_paths:
-            _, container, stream_path = (
-                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                    stream_path
-                )
-            )
-
-            try:
-                v3io_client.stream.delete(container, stream_path, access_key=self.model_monitoring_access_key)
-            except v3io.dataplane.response.HttpResponseError as e:
-                logger.warning(f"Can't delete this {function_name} stream", stream_path=stream_path, error=e)
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -554,7 +547,7 @@ class MonitoringDeployment:
                 return True
             except mlrun.errors.MLRunNotFoundError:
                 pass
-        logger.info(f"Deploying {function_name} function", project=self.project)
+        # logger.info(f"Deploying {function_name} function", project=self.project)
         return False
 
     def deploy_histogram_data_drift_app(self, image: str) -> None:
@@ -685,7 +678,7 @@ class MonitoringDeployment:
         function_to_delete = []
         if delete_resources:
             function_to_delete = mm_constants.MonitoringFunctionNames.list()
-        if not delete_stream_function:
+        if not delete_stream_function and delete_resources:
             function_to_delete.remove(mm_constants.MonitoringFunctionNames.STREAM)
 
         function_to_delete.extend(
@@ -698,19 +691,17 @@ class MonitoringDeployment:
         tasks: list[mlrun.common.schemas.BackgroundTask] = []
         for function_name in function_to_delete:
             if self._check_if_already_deployed(function_name):
-                if (
-                        not mlrun.mlconf.is_ce_mode()
-                        and function_name is not mm_constants.MonitoringFunctionNames.STREAM
-                ):
-                    self.delete_model_monitoring_v3io_stream(function_name)
-
                 task = await run_in_threadpool(
-                    server.api.api.utils.create_function_deletion_background_task,
+                    MonitoringDeployment._create_monitoring_function_deletion_background_task,
                     background_tasks,
                     self.db_session,
                     self.project,
                     function_name,
                     self.auth_info,
+                    not mlrun.mlconf.is_ce_mode()
+                    and function_name
+                    is not mm_constants.MonitoringFunctionNames.STREAM,
+                    self.model_monitoring_access_key,
                 )
                 tasks.append(task)
 
@@ -729,7 +720,7 @@ class MonitoringDeployment:
                 application_to_delete.extend(
                     list(
                         {
-                            app.metadata.name
+                            app["metadata"]["name"]
                             for app in self.list_model_monitoring_functions()
                         }
                     )
@@ -770,6 +761,93 @@ class MonitoringDeployment:
                 mm_constants.HistogramDataDriftApplicationConstants.NAME
             )
         return application_to_delete
+
+    @staticmethod
+    def _create_monitoring_function_deletion_background_task(
+        background_tasks: BackgroundTasks,
+        db_session: sqlalchemy.orm.Session,
+        project_name: str,
+        function_name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        delete_v3io_stream: bool,
+        access_key: str,
+    ):
+        background_task_name = str(uuid.uuid4())
+
+        # create the background task for function deletion
+        return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+            db_session,
+            project_name,
+            background_tasks,
+            MonitoringDeployment._delete_monitoring_function,
+            mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
+            background_task_name,
+            db_session,
+            project_name,
+            function_name,
+            auth_info,
+            background_task_name,
+            delete_v3io_stream,
+            access_key,
+        )
+
+    @staticmethod
+    async def _delete_monitoring_function(
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        function_name: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        background_task_name: str,
+        delete_v3io_stream: bool,
+        access_key: str,
+    ):
+        await server.api.api.utils._delete_function(
+            db_session=db_session,
+            project=project,
+            function_name=function_name,
+            auth_info=auth_info,
+            background_task_name=background_task_name,
+        )
+        if delete_v3io_stream:
+            for i in range(10):
+                # max 10 retries (5 sec sleep between each retry)
+
+                function_pod = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                    selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
+                )
+                if not function_pod:
+                    logger.debug(
+                        "No function pod found for project, deleting stream",
+                        project_name=project,
+                        function=function_name,
+                    )
+                    break
+                else:
+                    logger.debug(f"{function_name} pod found, retrying")
+                    time.sleep(5)
+            import v3io.dataplane
+
+            v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+            stream_paths = server.api.crud.model_monitoring.get_stream_path(
+                project=project, function_name=function_name
+            )
+            for stream_path in stream_paths:
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
+                    )
+                )
+
+                try:
+                    v3io_client.stream.delete(
+                        container, stream_path, access_key=access_key
+                    )
+                except v3io.dataplane.response.HttpResponseError as e:
+                    logger.warning(
+                        f"Can't delete {function_name}'s stream",
+                        stream_path=stream_path,
+                        error=e,
+                    )
 
 
 def get_endpoint_features(

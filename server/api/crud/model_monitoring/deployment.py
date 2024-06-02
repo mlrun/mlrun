@@ -638,6 +638,7 @@ class MonitoringDeployment:
         tsdb_connector.create_tables()
 
     def list_model_monitoring_functions(self) -> list:
+        """Retrieve a list of all the model monitoring functions."""
         model_monitoring_labels_list = [
             f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
         ]
@@ -782,7 +783,7 @@ class MonitoringDeployment:
             db_session,
             project_name,
             background_tasks,
-            MonitoringDeployment._delete_monitoring_function,
+            MonitoringDeployment.delete_monitoring_function,
             mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
             background_task_name,
             db_session,
@@ -795,7 +796,7 @@ class MonitoringDeployment:
         )
 
     @staticmethod
-    async def _delete_monitoring_function(
+    async def delete_monitoring_function(
         db_session: sqlalchemy.orm.Session,
         project: str,
         function_name: str,
@@ -804,6 +805,17 @@ class MonitoringDeployment:
         delete_v3io_stream: bool,
         access_key: str,
     ):
+        """
+        Delete the model monitoring function and its resources.
+
+        :param db_session:              A session that manages the current dialog with the database.
+        :param project:                 The name of the project.
+        :param function_name:           The name of the function to delete.
+        :param auth_info:               The auth info of the request.
+        :param background_task_name:    The name of the background task.
+        :param delete_v3io_stream:      If True, delete the V3IO stream.
+        :param access_key:              Model monitoring access key.
+        """
         await server.api.api.utils._delete_function(
             db_session=db_session,
             project=project,

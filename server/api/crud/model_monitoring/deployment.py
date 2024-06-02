@@ -698,10 +698,10 @@ class MonitoringDeployment:
                     self.project,
                     function_name,
                     self.auth_info,
-                    not mlrun.mlconf.is_ce_mode()
+                    delete_v3io_stream=not mlrun.mlconf.is_ce_mode()
                     and function_name
                     is not mm_constants.MonitoringFunctionNames.STREAM,
-                    self.model_monitoring_access_key,
+                    access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
 

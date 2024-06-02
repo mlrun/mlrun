@@ -93,7 +93,25 @@ class HumanReadableFormatter(_BaseFormatter):
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
     def format(self, record) -> str:
-        more = self._resolve_more(record)
+        more = ""
+        record_with = self._record_with(record)
+        if record_with:
+
+            def _format_value(val):
+                formatted_val = (
+                    val
+                    if isinstance(val, str)
+                    else str(orjson.loads(self._json_dump(val)))
+                )
+                return (
+                    formatted_val.replace("\n", "\n\t\t")
+                    if len(formatted_val) < 4096
+                    else repr(formatted_val)
+                )
+
+            more = "\n\t" + "\n\t".join(
+                [f"{key}: {_format_value(val)}" for key, val in record_with.items()]
+            )
         return (
             "> "
             f"{self.formatTime(record, self.datefmt)} "
@@ -232,6 +250,15 @@ def resolve_formatter_by_kind(
         FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter,
         FormatterKinds.JSON: JSONFormatter,
     }[formatter_kind]
+
+
+def create_test_logger(name: str = "mlrun", stream: IO[str] = stdout) -> Logger:
+    return create_logger(
+        level="debug",
+        formatter_kind=FormatterKinds.HUMAN_EXTENDED.name,
+        name=name,
+        stream=stream,
+    )
 
 
 def create_logger(

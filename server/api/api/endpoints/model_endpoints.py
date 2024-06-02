@@ -377,7 +377,10 @@ async def get_model_endpoint_monitoring_metrics(
                 _wrap_coroutine_in_list(
                     run_in_threadpool(
                         mlrun.model_monitoring.get_tsdb_connector(
-                            project=project
+                            project=project,
+                            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                                project=project
+                            ),
                         ).read_prediction_metric_for_endpoint_if_exists,
                         endpoint_id=endpoint_id,
                     )
@@ -500,7 +503,12 @@ async def get_model_endpoint_monitoring_metrics_values(
         params.project
     )
 
-    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(project=params.project)
+    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+        project=params.project,
+        secret_provider=server.api.crud.secrets.get_project_secret_provider(
+            project=params.project
+        ),
+    )
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:
@@ -518,19 +526,21 @@ async def get_model_endpoint_monitoring_metrics_values(
                             start=params.start,
                             end=params.end,
                             aggregation_window=mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY,
+                            agg_funcs=["count"],
                         )
                     )
                 )
-            coroutines.append(
-                run_in_threadpool(
-                    tsdb_connector.read_metrics_data,
-                    endpoint_id=params.endpoint_id,
-                    start=params.start,
-                    end=params.end,
-                    metrics=metrics_without_invocations,
-                    type=type,
+            if metrics_without_invocations:
+                coroutines.append(
+                    run_in_threadpool(
+                        tsdb_connector.read_metrics_data,
+                        endpoint_id=params.endpoint_id,
+                        start=params.start,
+                        end=params.end,
+                        metrics=metrics_without_invocations,
+                        type=type,
+                    )
                 )
-            )
 
     metrics_values = []
     for result in await asyncio.gather(*coroutines):

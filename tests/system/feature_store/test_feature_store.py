@@ -4818,8 +4818,11 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
+    @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_parquet_filters(self, engine):
+    def test_parquet_filters(self, engine, local):
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
         filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
@@ -4849,8 +4852,10 @@ class TestFeatureStore(TestMLRunSystem):
             partitioned=True,
             partition_cols=["department"],
         )
-        feature_set.ingest(source=parquet_source, targets=[target])
-        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
+        feature_set.ingest(
+            source=parquet_source, targets=[target], run_config=run_config
+        )
+        result = target.as_df(additional_filters=[("room", "=", 1)]).reset_index()
         # We want to include patient_id in the comparison,
         # sort the columns alphabetically, and sort the rows by patient_id values.
         result = sort_df(result, "patient_id")
@@ -4860,12 +4865,18 @@ class TestFeatureStore(TestMLRunSystem):
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
+        vec.save()
+        target = ParquetTarget(
+            path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
+        )
         result = (
             fstore.get_offline_features(
                 feature_vector=vec,
                 additional_filters=[("bad", "=", 95)],
                 with_indexes=True,
                 engine=engine,
+                run_config=run_config,
+                target=target,
             )
             .to_dataframe()
             .reset_index()

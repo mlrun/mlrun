@@ -18,11 +18,12 @@ from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies, ArtifactsFormat
+from mlrun.common.schemas.artifact import ArtifactsDeletionStrategies
 from mlrun.utils import logger
 from server.api.api import deps
 from server.api.api.utils import artifact_project_and_resource_name_extractor
@@ -151,7 +152,9 @@ async def list_artifacts(
     tree: str = None,
     producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    format_: mlrun.common.formatters.ArtifactFormat = Query(
+        mlrun.common.formatters.ArtifactFormat.full, alias="format"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -196,7 +199,9 @@ async def get_artifact(
     tag: str = None,
     iter: int = None,
     object_uid: str = Query(None, alias="object-uid"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    format_: mlrun.common.formatters.ArtifactFormat = Query(
+        mlrun.common.formatters.ArtifactFormat.full, alias="format"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

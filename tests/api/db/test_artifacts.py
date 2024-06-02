@@ -1062,9 +1062,9 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
         assert len(artifacts) == 5
 
-        # query all artifacts tags, should return 15+5=20 tags
+        # query all artifacts tags, should return 4 tags = 3 tags + latest
         tags = db.list_artifact_tags(db_session, project=project)
-        assert len(tags) == 20
+        assert len(tags) == 4
 
         # files counters should return the most recent artifacts, for each key -> 5 artifacts
         project_to_files_count = db._calculate_files_counters(db_session)

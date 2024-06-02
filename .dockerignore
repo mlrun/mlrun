@@ -17,3 +17,6 @@ kubeconfig
 **/patch_env.yml
 **/mlrun.env
 mlrun.egg-info
+
+# this is just a template
+!dockerfiles/jupyter/mlrun.env

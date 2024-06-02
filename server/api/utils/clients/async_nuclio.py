@@ -27,6 +27,9 @@ from mlrun.utils import logger
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
+NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER = (
+    "X-Nuclio-Delete-Function-With-API-Gateways"
+)
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 
@@ -128,7 +131,8 @@ class Client:
         )
 
     async def delete_function(self, name: str, project_name: str = None):
-        headers = {}
+        # this header allows nuclio to delete function along with its api gateways
+        headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name

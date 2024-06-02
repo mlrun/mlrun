@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -87,7 +88,7 @@ default_config = {
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
     "log_level": "INFO",
-    # log formatter (options: human | json)
+    # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
@@ -370,7 +371,7 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
             # size of serving spec to move to config maps
-            "serving_spec_env_cutoff": 4096,
+            "serving_spec_env_cutoff": 0,
         },
         "logs": {
             "decode": {
@@ -966,6 +967,10 @@ class Config:
 
         self.httpdb.clusterization.chief.url = chief_api_url
         return self.httpdb.clusterization.chief.url
+
+    @staticmethod
+    def internal_labels():
+        return mlrun.common.constants.MLRunInternalLabels.all()
 
     @staticmethod
     def get_storage_auto_mount_params():

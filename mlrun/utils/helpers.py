@@ -181,8 +181,12 @@ def verify_field_regex(
             )
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
+                    if len(field_name) > max_chars:
+                        field_name = field_name[:max_chars] + "...truncated"
+                    if len(field_value) > max_chars:
+                        field_value = field_value[:max_chars] + "...truncated"
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"Field '{field_name}' is malformed. '{field_value}' "
                         f"does not match required pattern: {pattern}"
                     )
                 return False
@@ -1020,7 +1024,7 @@ def create_function(pkg_func: str, reload_modules: bool = False):
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
-    :param reload_modules: reload the function if it is in the modules list.
+    :param reload_modules: reload the function again.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
@@ -1104,7 +1108,7 @@ def get_function(function, namespaces, reload_modules: bool = False):
 
     :param function: path to the function ([class_name::]function)
     :param namespaces: one or list of namespaces/modules to search the function in
-    :param reload_modules: reload the function if it is in the modules list
+    :param reload_modules: reload the function again
     :return: function handler (callable)
     """
     if callable(function):
@@ -1141,9 +1145,10 @@ def get_handler_extended(
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
-    :param reload_modules: reload the function if it is in the modules list
+    :param reload_modules: reload the function again
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
         return get_function(handler_path, namespaces, reload_modules)
 
@@ -1613,11 +1618,12 @@ def validate_component_version_compatibility(
             component_current_version = mlrun.mlconf.igz_version
             parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
 
-            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
-            # major, minor, and patch versions
-            parsed_current_version = semver.VersionInfo.parse(
-                f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
-            )
+            if parsed_current_version:
+                # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+                # major, minor, and patch versions
+                parsed_current_version = semver.VersionInfo.parse(
+                    f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+                )
         if component_name == "nuclio":
             component_current_version = mlrun.mlconf.nuclio_version
             parsed_current_version = semver.VersionInfo.parse(

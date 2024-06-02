@@ -172,7 +172,7 @@ class ApplicationStatus(NuclioStatus):
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
 
-    @min_nuclio_versions("1.12.7")
+    @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -387,7 +387,7 @@ class ApplicationRuntime(RemoteRuntime):
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
 
-        db = mlrun.get_run_db()
+        db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
             api_gateway=api_gateway.to_scheme(), project=self.metadata.project
         )
@@ -505,7 +505,7 @@ class ApplicationRuntime(RemoteRuntime):
         if not self.status.api_gateway_name:
             return
 
-        db = mlrun.get_run_db()
+        db = self._get_db()
         api_gateway_scheme = db.get_api_gateway(
             name=self.status.api_gateway_name, project=self.metadata.project
         )

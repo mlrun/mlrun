@@ -28,6 +28,7 @@ import pytest
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
 import mlrun.db.nopdb
@@ -1262,7 +1263,7 @@ def test_function_receives_project_default_function_node_selector():
     )
     assert non_enriched_function.spec.node_selector == {}
 
-    proj1.spec.default_function_node_selector = default_function_node_selector
+    proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
     assert enriched_function.spec.node_selector == default_function_node_selector
 
@@ -1818,7 +1819,9 @@ def test_create_api_gateway_valid(
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
-            labels={"nuclio.io/project-name": "project-name"},
+            labels={
+                mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+            },
         ),
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
@@ -1939,7 +1942,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test",
@@ -1955,7 +1960,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test2": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test2",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test2",
@@ -1976,7 +1983,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[0].name == "test"
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
-    assert gateways[0].spec.functions == ["my-func1"]
+    assert gateways[0].spec.functions == ["project-name/my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
 

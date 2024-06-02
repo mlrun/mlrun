@@ -21,6 +21,8 @@ import fastapi.concurrency
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
@@ -185,7 +187,7 @@ class Projects(
         # delete runtime resources
         server.api.crud.RuntimeResources().delete_runtime_resources(
             session,
-            label_selector=f"mlrun/project={name}",
+            label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
         )
         if mlrun.mlconf.resolve_kfp_url():
@@ -247,7 +249,7 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
@@ -268,7 +270,7 @@ class Projects(
             self.list_projects,
             session,
             owner,
-            mlrun.common.schemas.ProjectsFormat.name_only,
+            mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
             names,
@@ -419,7 +421,7 @@ class Projects(
     @staticmethod
     def _list_pipelines(
         session,
-        format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_token: str = "",
     ):
         return server.api.crud.Pipelines().list_pipelines(
@@ -527,7 +529,8 @@ class Projects(
 
         def _verify_no_project_function_pods():
             project_function_pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                selector=f"nuclio.io/project-name={project_name},nuclio.io/class=function"
+                selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_project_name}={project_name},"
+                f"{mlrun_constants.MLRunInternalLabels.nuclio_class}=function"
             )
             if not project_function_pods:
                 logger.debug(

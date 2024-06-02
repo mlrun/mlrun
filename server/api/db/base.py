@@ -18,6 +18,7 @@ from typing import Any, Optional, Union
 from deprecated import deprecated
 
 import mlrun.alerts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
@@ -290,7 +291,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = None,
+    ):
         pass
 
     @abstractmethod
@@ -306,6 +315,7 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        _format: str = None,
         page: int = None,
         page_size: int = None,
     ):
@@ -416,7 +426,7 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: Optional[list[str]] = None,

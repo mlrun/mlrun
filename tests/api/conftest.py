@@ -220,6 +220,12 @@ class MockedK8sHelper:
             return_value=True
         )
 
+        config_map = unittest.mock.Mock()
+        config_map.items = []
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_map
+        )
+
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
     def __init__(self):

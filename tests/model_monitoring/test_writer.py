@@ -234,7 +234,7 @@ class TestTSDB:
     ) -> None:
         event, kind = ModelMonitoringWriter._reconstruct_event(event)
         writer._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
-        record_from_tsdb = writer._tsdb_connector.get_records(
+        record_from_tsdb = writer._tsdb_connector._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
             start="now-1d",
@@ -259,7 +259,7 @@ class TestTSDB:
         writer._tsdb_connector.delete_tsdb_resources()
 
         with pytest.raises(v3io_frames.errors.ReadError):
-            writer._tsdb_connector.get_records(
+            writer._tsdb_connector._get_records(
                 table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
                 filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
                 start="now-1d",

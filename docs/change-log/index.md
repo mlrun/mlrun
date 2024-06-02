@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 
+
 - [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -946,10 +947,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
-|ML-6048|UI: An admin user cannot change its role in the project. | NA |v1.6.2|
-|ML-6045|UI: If a user-filter has a large number of matches, it may not display all the matching users. |Narrow your search to be sure you get all the matches.|v1.6.2|
-|ML-6051|UI: After an admin user deletes itself from a project, the user stays in the Projects Members page even though it has no permissions and cannot view any aspects of the project.|  NA |v1.6.2|
-
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

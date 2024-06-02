@@ -31,8 +31,8 @@ import yaml
 from kfp import Client
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
-from mlrun_pipelines.models import PipelineRun
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
@@ -973,8 +973,8 @@ def get_pipeline(
     run_id,
     namespace=None,
     format_: Union[
-        str, mlrun.common.schemas.PipelinesFormat
-    ] = mlrun.common.schemas.PipelinesFormat.summary,
+        str, mlrun.common.formatters.PipelineFormat
+    ] = mlrun.common.formatters.PipelineFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1010,9 +1010,9 @@ def get_pipeline(
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
+                or format_ == mlrun.common.formatters.PipelineFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(PipelineRun(resp))
+                resp = mlrun.common.formatters.PipelineFormat.format_obj(resp, format_)
 
     show_kfp_run(resp)
     return resp
@@ -1026,7 +1026,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+    format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
 ) -> tuple[int, Optional[int], list[dict]]:
     """List pipelines
 
@@ -1046,7 +1046,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.common.schemas.PipelinesFormat.full
+        format_ = mlrun.common.formatters.PipelineFormat.full
     run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size

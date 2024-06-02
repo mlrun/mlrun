@@ -1085,6 +1085,9 @@ class SQLRunDB(RunDBInterface):
     ) -> bool:
         raise NotImplementedError
 
+    def delete_model_monitoring_function(self, project: str, functions: list[str]):
+        raise NotImplementedError
+
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:

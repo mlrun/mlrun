@@ -2470,13 +2470,22 @@ class MlrunProject(ModelObj):
 
         :param name: name of the model-monitoring-function/s (under the project)
         """
-        names = name if isinstance(name, list) else [name]
-        self.disable_model_monitoring(
-            delete_resources=False,
-            delete_histogram_data_drift_app=False,
-            delete_user_applications=True,
-            user_application_list=names,
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        succeed = db.delete_model_monitoring_function(
+            project=self.name,
+            functions=name if isinstance(name, list) else [name],
         )
+        if succeed:
+            logger.info(
+                "All the desired monitoring functions were deleted",
+                project=self.name,
+                functions=name,
+            )
+        else:
+            logger.info(
+                "Some of the desired monitoring functions were not deleted",
+                project=self.name,
+            )
 
     def get_function(
         self,

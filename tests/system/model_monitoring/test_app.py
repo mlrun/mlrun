@@ -688,7 +688,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 class TestModelMonitoringInitialize(TestMLRunSystem):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     def test_model_monitoring_crud(self) -> None:
         with pytest.raises(mlrun.errors.MLRunNotFoundError):

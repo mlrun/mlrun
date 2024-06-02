@@ -3408,6 +3408,41 @@ class HTTPRunDB(RunDBInterface):
                     deletion_failed = True
         return not deletion_failed
 
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> None:
+        """
+        Delete a model monitoring application.
+
+        :param functions:            List of the model monitoring function to delete.
+        :param project:              Project name.
+        """
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/functions",
+            params={"functions": functions},
+        )
+        deletion_failed = False
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            logger.info("User applications are being deleted", project_name=project)
+            background_tasks = mlrun.common.schemas.BackgroundTaskList(
+                **response.json()
+            ).background_tasks
+            for task in background_tasks:
+                task = self._wait_for_background_task_to_reach_terminal_state(
+                    task.metadata.name, project=project
+                )
+                if (
+                    task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
+                    continue
+                elif (
+                    task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
+                    deletion_failed = True
+        return not deletion_failed
+
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:

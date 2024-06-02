@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Annotated, Optional
 
 import fastapi
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -205,9 +205,9 @@ async def disable_model_monitoring(
     Disabled model monitoring application controller, writer, stream, histogram data drift application
     and the user's applications functions, according to the given params.
 
-    :param response:
     :param commons:                             The common parameters of the request.
     :param background_tasks:                    Background tasks.
+    :param response:                            The response.
     :param delete_resources:                    If True, it would delete the model monitoring controller & writer
                                                 functions. Default True
     :param delete_stream_function:              If True, it would delete model monitoring stream function,
@@ -233,6 +233,45 @@ async def disable_model_monitoring(
         delete_histogram_data_drift_app=delete_histogram_data_drift_app,
         delete_user_applications=delete_user_applications,
         user_application_list=user_application_list,
+        background_tasks=background_tasks,
+    )
+    response.status_code = http.HTTPStatus.ACCEPTED.value
+    return tasks
+
+
+@router.delete(
+    "/functions",
+    responses={
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
+    },
+)
+async def delete_model_monitoring_function(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+    functions: list[str] = Query([], alias="function"),
+):
+    """
+    Delete model monitoring functions.
+
+    :param commons:                             The common parameters of the request.
+    :param background_tasks:                    Background tasks.
+    :param response:                            The response.
+    :param functions:                           List of the user's model monitoring application to delete.
+    """
+    tasks = await MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
+    ).disable_model_monitoring(
+        delete_resources=False,
+        delete_stream_function=False,
+        delete_histogram_data_drift_app=False,
+        delete_user_applications=True,
+        user_application_list=functions,
         background_tasks=background_tasks,
     )
     response.status_code = http.HTTPStatus.ACCEPTED.value

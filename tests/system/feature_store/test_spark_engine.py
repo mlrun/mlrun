@@ -406,6 +406,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         result = sort_df(result, ["patient_id"])
         assert_frame_equal(result, expected, check_dtype=False)
 
+        target = ParquetTarget(
+            "vector_target", path=f"{self.output_dir()}-get_offline_features_by_vector"
+        )
         #  check get_offline_features vector function:
         resp = vec.get_offline_features(
             additional_filters=[
@@ -413,7 +416,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 ("movements", "<", 6),
             ],
             with_indexes=True,
-            target=get_offline_target,
+            target=target,
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local, kind=kind),
             spark_service=self.spark_service,

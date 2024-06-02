@@ -28,10 +28,6 @@ mlrun.egg-info
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
 
-**/project.yaml
-!tests/run/assets/project.yaml
-!tests/projects/assets/load_setup_test/project.yaml
-!tests/projects/assets/project.yaml
 **/patch-env.yml
 **/google-big-query-credentials.json
 

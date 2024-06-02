@@ -120,7 +120,7 @@ class TestTDEngineSchema:
         assert (
             super_table._delete_subtable_query(subtable=subtable, values=values)
             == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
-            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -128,7 +128,7 @@ class TestTDEngineSchema:
             values.pop("tag1")
             assert (
                 super_table._delete_subtable_query(subtable=subtable, values=values)
-                == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} WHERE tag2 like '{values['tag2']}';"
+                == f"DELETE FROM {_MODEL_MONITORING_DATABASE}.{subtable} WHERE tag2 LIKE '{values['tag2']}';"
             )
 
             # test without tags
@@ -155,7 +155,7 @@ class TestTDEngineSchema:
         assert (
             super_table._get_subtables_query(values=values)
             == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-            f"WHERE tag1 like '{values['tag1']}' AND tag2 like '{values['tag2']}';"
+            f"WHERE tag1 LIKE '{values['tag1']}' AND tag2 LIKE '{values['tag2']}';"
         )
 
         if remove_tag:
@@ -164,7 +164,7 @@ class TestTDEngineSchema:
             assert (
                 super_table._get_subtables_query(values=values)
                 == f"SELECT tbname FROM {_MODEL_MONITORING_DATABASE}.{super_table.super_table} "
-                f"WHERE tag2 like '{values['tag2']}';"
+                f"WHERE tag2 LIKE '{values['tag2']}';"
             )
 
             # test without tags
@@ -186,16 +186,16 @@ class TestTDEngineSchema:
                 "subtable_1",
                 [],
                 "",
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
-                datetime.datetime.now().astimezone(),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
+                mlrun.utils.datetime_now(),
                 "time",
             ),
             (
                 "subtable_2",
                 ["column2", "column3"],
                 "column2 > 0",
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=2),
-                datetime.datetime.now().astimezone() - datetime.timedelta(hours=1),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=2),
+                mlrun.utils.datetime_now() - datetime.timedelta(hours=1),
                 "time_column",
             ),
         ],
@@ -217,15 +217,16 @@ class TestTDEngineSchema:
 
         if filter_query:
             expected_query = (
-                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
-                f"where {filter_query} and {timestamp_column} >= '{start}' "
-                f"and {timestamp_column} <= '{end}';"
+                f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"WHERE {filter_query} AND {timestamp_column} >= '{start}' "
+                f"AND {timestamp_column} <= '{end}';"
             )
         else:
             expected_query = (
-                f"SELECT {columns_to_select} from {_MODEL_MONITORING_DATABASE}.{subtable} "
-                f"where {timestamp_column} >= '{start}' and {timestamp_column} <= '{end}';"
+                f"SELECT {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+                f"WHERE {timestamp_column} >= '{start}' AND {timestamp_column} <= '{end}';"
             )
+
         assert (
             super_table._get_records_query(
                 table=subtable,
@@ -234,6 +235,127 @@ class TestTDEngineSchema:
                 start=start,
                 end=end,
                 timestamp_column=timestamp_column,
+            )
+            == expected_query
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "subtable",
+            "columns_to_filter",
+            "start",
+            "end",
+            "timestamp_column",
+            "interval",
+            "limit",
+            "agg_funcs",
+            "sliding_window_step",
+        ),
+        [
+            (
+                "subtable_1",
+                ["column2"],
+                datetime.datetime.now() - datetime.timedelta(hours=2),
+                datetime.datetime.now() - datetime.timedelta(hours=1),
+                "time_column",
+                "3m",
+                2,
+                ["count"],
+                "1m",
+            ),
+            (
+                "subtable_2",
+                ["column2", "column3", "column4", "column5"],
+                datetime.datetime.now() - datetime.timedelta(hours=2),
+                datetime.datetime.now() - datetime.timedelta(hours=1),
+                "time_column_v2",
+                "3h",
+                50,
+                ["avg", "max", "sum"],
+                "12m",
+            ),
+        ],
+    )
+    def test_get_records_with_interval_query(
+        self,
+        super_table: TDEngineSchema,
+        subtable: str,
+        columns_to_filter: list[str],
+        start: str,
+        end: str,
+        timestamp_column: str,
+        interval: str,
+        limit: int,
+        agg_funcs: list,
+        sliding_window_step: str,
+    ):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide aggregation functions without columns to filter
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                timestamp_column=timestamp_column,
+                interval=interval,
+                limit=limit,
+                agg_funcs=agg_funcs,
+                sliding_window_step=sliding_window_step,
+            )
+            assert (
+                "columns_to_filter must be provided when using aggregate functions"
+                in str(err.value)
+            )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide interval without aggregation functions
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                columns_to_filter=columns_to_filter,
+                timestamp_column=timestamp_column,
+                limit=limit,
+                interval=interval,
+                sliding_window_step=sliding_window_step,
+            )
+            assert "`agg_funcs` must be provided when using interval" in str(err.value)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+            # Provide sliding window without interval
+            super_table._get_records_query(
+                table=subtable,
+                start=start,
+                end=end,
+                columns_to_filter=columns_to_filter,
+                timestamp_column=timestamp_column,
+                limit=limit,
+                agg_funcs=agg_funcs,
+                sliding_window_step=sliding_window_step,
+            )
+            assert "interval must be provided when using sliding window" in str(
+                err.value
+            )
+        columns_to_select = ", ".join(
+            [f"{a}({col})" for a in agg_funcs for col in columns_to_filter]
+        )
+        expected_query = (
+            f""
+            f"SELECT _wstart, _wend, {columns_to_select} FROM {_MODEL_MONITORING_DATABASE}.{subtable} "
+            f"WHERE {timestamp_column} >= '{start}' AND {timestamp_column} <= '{end}' "
+            f"INTERVAL({interval}) SLIDING({sliding_window_step}) LIMIT {limit};"
+        )
+
+        assert (
+            super_table._get_records_query(
+                table=subtable,
+                columns_to_filter=columns_to_filter,
+                start=start,
+                end=end,
+                timestamp_column=timestamp_column,
+                interval=interval,
+                limit=limit,
+                agg_funcs=agg_funcs,
+                sliding_window_step=sliding_window_step,
             )
             == expected_query
         )

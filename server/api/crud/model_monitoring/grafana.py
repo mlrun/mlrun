@@ -20,6 +20,7 @@ import pandas as pd
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.utils.auth.verifier
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
@@ -47,7 +48,7 @@ def grafana_list_projects(
 
     projects_output = get_project_member().list_projects(
         db_session,
-        format_=mlrun.common.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.formatters.ProjectFormat.name_only,
         leader_session=auth_info.session,
     )
     return projects_output.projects

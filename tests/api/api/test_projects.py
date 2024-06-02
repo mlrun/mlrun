@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -778,7 +779,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.common.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.common.formatters.ProjectFormat.leader},
         headers={
             mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -879,7 +880,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.common.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.common.formatters.ProjectFormat.full}
     )
     projects_output = mlrun.common.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -1563,7 +1564,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.common.formatters.ProjectFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",

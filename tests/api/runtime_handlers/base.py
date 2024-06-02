@@ -30,13 +30,13 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.clients.chief
 from mlrun.common.runtimes.constants import PodPhases, RunStates
-from mlrun.utils import create_logger, now_date
+from mlrun.utils import create_test_logger, now_date
 from server.api.constants import LogSources
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.k8s import get_k8s_helper
 
-logger = create_logger(level="debug", name="test-runtime-handlers")
+logger = create_test_logger(name="test-runtime-handlers")
 
 
 class TestRuntimeHandlerBase:

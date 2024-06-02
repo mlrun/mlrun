@@ -24,9 +24,9 @@ import mlrun
 import mlrun.common.schemas
 import tests.conftest
 from mlrun.db.httpdb import HTTPRunDB
-from mlrun.utils import create_logger, retry_until_successful
+from mlrun.utils import FormatterKinds, create_test_logger, retry_until_successful
 
-logger = create_logger(level="debug", name="test-integration")
+logger = create_test_logger(name="test-integration")
 
 
 class TestMLRunIntegration:
@@ -34,6 +34,7 @@ class TestMLRunIntegration:
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
 
+    db_container_name = "test-db"
     db_liveness_timeout = 40
     db_host_internal = "host.docker.internal"
     db_host_external = "localhost"
@@ -42,33 +43,38 @@ class TestMLRunIntegration:
     db_name = "mlrun"
     db_dsn = f"mysql+pymysql://{db_user}@{db_host_internal}:{db_port}/{db_name}"
 
+    @classmethod
+    def setup_class(cls):
+        cls._logger = logger
+        cls._logger.info(f"Setting up class {cls.__class__.__name__}")
+        cls._run_db()
+
     def setup_method(self, method, extra_env=None):
-        self._logger = logger
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
-        self._run_db()
-        api_url = self._run_api(extra_env)
         self._test_env = {}
         self._old_env = {}
+        self._reset_db()
+        api_url = self._run_api(extra_env)
         self._setup_env({"MLRUN_DBPATH": api_url})
-
         self.custom_setup()
-
         self._logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
+
+    @classmethod
+    def teardown_class(cls):
+        cls._logger.info(f"Tearing down class {cls.__class__.__name__}")
+        cls._log_container_logs(cls.db_container_name)
+        cls._remove_container(cls.db_container_name)
 
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
-
         self.custom_teardown()
-
         self._remove_api()
-        self._remove_db()
-
         self._teardown_env()
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
@@ -114,22 +120,18 @@ class TestMLRunIntegration:
         # reload the config so changes to the env vars will take affect
         mlrun.mlconf.reload()
 
-    def _run_db(self):
-        self._logger.debug("Starting DataBase")
-        self._run_command(
+    @classmethod
+    def _run_db(cls):
+        cls._logger.debug("Starting mlrun database")
+        cls._run_command(
             "make",
             args=["run-test-db"],
             cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command(
-            "docker",
-            args=["ps", "--last", "1", "-q"],
-        )
-        self.db_container_id = output.strip()
+        cls._logger.debug("Started mlrun database")
 
-        self._logger.debug("Started DataBase", container_id=self.db_container_id)
-
-        self._ensure_database_liveness(timeout=self.db_liveness_timeout)
+        cls._ensure_database_liveness(timeout=cls.db_liveness_timeout)
+        return False
 
     def _run_api(self, extra_env=None):
         self._logger.debug("Starting API")
@@ -142,6 +144,7 @@ class TestMLRunIntegration:
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
+                    "MLRUN_LOG_FORMATTER": FormatterKinds.HUMAN_EXTENDED.value,
                     "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
                 },
                 extra_env,
@@ -172,43 +175,82 @@ class TestMLRunIntegration:
             logs = self._run_command(
                 "docker", args=["logs", self.api_container_id]
             ).replace("\n", "\n\t")
-            # for tests, we want to see the logs in human readable form
+            # for tests, we want to see the logs in human-readable form
             self._logger.debug(
                 f"Removing API container. Container logs:\n {logs}",
                 container_id=self.api_container_id,
             )
+            self._remove_container(self.api_container_id)
             self._run_command("docker", args=["rm", "--force", self.api_container_id])
 
-    def _remove_db(self):
-        if self.db_container_id:
-            logs = self._run_command("docker", args=["logs", self.db_container_id])
-            self._logger.debug(
-                "Removing Database container",
-                container_name=self.db_container_id,
-                logs=logs,
-            )
-            out = self._run_command(
-                "docker", args=["rm", "--force", self.db_container_id]
-            )
-            self._logger.debug(
-                "Removed Database container",
-                out=out,
-            )
+    def _reset_db(self):
+        self._logger.debug(
+            "Recreating MLRun database",
+        )
+        self._run_command(
+            "docker",
+            args=[
+                "exec",
+                self.db_container_name,
+                "mysql",
+                "-u",
+                "root",
+                "-e",
+                "'DROP DATABASE IF EXISTS mlrun'",
+            ],
+        )
+        self._run_command(
+            "docker",
+            args=[
+                "exec",
+                self.db_container_name,
+                "mysql",
+                "-u",
+                "root",
+                "-e",
+                "'CREATE DATABASE mlrun'",
+            ],
+        )
+        self._logger.debug(
+            "Recreated MLRun database",
+        )
 
-    def _ensure_database_liveness(self, retry_interval=2, timeout=30):
-        self._logger.debug("Ensuring database liveness")
+    @classmethod
+    def _remove_container(cls, container_id):
+        cls._logger.debug(
+            "Removing container",
+            container_id=container_id,
+        )
+        cls._run_command("docker", args=["rm", "--force", container_id])
+        cls._logger.debug(
+            "Removed container",
+            container_id=container_id,
+        )
+
+    @classmethod
+    def _log_container_logs(cls, container_id):
+        logs = cls._run_command("docker", args=["logs", container_id])
+        cls._logger.debug(
+            "Retrieved container logs",
+            container_name=container_id,
+            logs=logs,
+        )
+
+    @classmethod
+    def _ensure_database_liveness(cls, retry_interval=2, timeout=30):
+        cls._logger.debug("Ensuring database liveness")
         retry_until_successful(
             retry_interval,
             timeout,
-            self._logger,
+            cls._logger,
             True,
             pymysql.connect,
-            host=self.db_host_external,
-            user=self.db_user,
-            port=self.db_port,
-            database=self.db_name,
+            host=cls.db_host_external,
+            user=cls.db_user,
+            port=cls.db_port,
+            database=cls.db_name,
         )
-        self._logger.debug("Database ready for connection")
+        cls._logger.debug("Database ready for connection")
 
     @staticmethod
     def _extend_current_env(env, extra_env=None):

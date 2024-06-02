@@ -42,11 +42,11 @@ import tests.api.conftest
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
-from mlrun.utils import create_logger
+from mlrun.utils import create_test_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from server.api.utils.singletons.k8s import get_k8s_helper
 
-logger = create_logger(level="debug", name="test-runtime")
+logger = create_test_logger(name="test-runtime")
 
 
 class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
@@ -719,7 +719,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         expected_limits=None,
         expected_requests=None,
         expected_code=None,
-        expected_env={},
+        expected_env=None,
         expected_node_name=None,
         expected_node_selector=None,
         expected_affinity=None,
@@ -727,7 +727,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         assert_create_pod_called=True,
         assert_namespace_env_variable=True,
         expected_labels=None,
-        expected_env_from_secrets={},
+        expected_env_from_secrets=None,
         expected_args=None,
     ):
         if assert_create_pod_called:
@@ -749,6 +749,8 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         expected_code_found = False
 
+        expected_env = expected_env or {}
+        expected_env_from_secrets = expected_env_from_secrets or {}
         if assert_namespace_env_variable:
             expected_env["MLRUN_NAMESPACE"] = self.namespace
 

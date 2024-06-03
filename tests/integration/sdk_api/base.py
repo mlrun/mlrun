@@ -33,8 +33,9 @@ class TestMLRunIntegration:
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
-
+    extra_env = None
     db_container_name = "test-db"
+    api_container_name = "mlrun-api"
     db_liveness_timeout = 40
     db_host_internal = "host.docker.internal"
     db_host_external = "localhost"
@@ -46,17 +47,17 @@ class TestMLRunIntegration:
     @classmethod
     def setup_class(cls):
         cls._logger = logger
-        cls._logger.info(f"Setting up class {cls.__class__.__name__}")
+        cls._logger.info(f"Setting up class {cls.__name__}")
         cls._run_db()
+        cls._run_api(cls.extra_env)
 
-    def setup_method(self, method, extra_env=None):
+    def setup_method(self, method):
         self._logger.info(
             f"Setting up test {self.__class__.__name__}::{method.__name__}"
         )
         self._test_env = {}
         self._old_env = {}
-        self._reset_db()
-        api_url = self._run_api(extra_env)
+        api_url = self._start_api()
         self._setup_env({"MLRUN_DBPATH": api_url})
         self.custom_setup()
         self._logger.info(
@@ -68,14 +69,17 @@ class TestMLRunIntegration:
         cls._logger.info(f"Tearing down class {cls.__class__.__name__}")
         cls._log_container_logs(cls.db_container_name)
         cls._remove_container(cls.db_container_name)
+        cls._log_container_logs(cls.api_container_name)
+        cls._remove_container(cls.api_container_name)
 
     def teardown_method(self, method):
         self._logger.info(
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
         self.custom_teardown()
-        self._remove_api()
         self._teardown_env()
+        self._stop_api()
+        self._reset_db()
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
@@ -133,16 +137,17 @@ class TestMLRunIntegration:
         cls._ensure_database_liveness(timeout=cls.db_liveness_timeout)
         return False
 
-    def _run_api(self, extra_env=None):
-        self._logger.debug("Starting API")
-        self._run_command(
+    @classmethod
+    def _run_api(cls, extra_env=None):
+        cls._logger.debug("Starting API")
+        cls._run_command(
             # already compiled schemas in run-test-db
             "MLRUN_SKIP_COMPILE_SCHEMAS=true make",
             args=["run-api"],
-            env=self._extend_current_env(
+            env=cls._extend_current_env(
                 {
                     "MLRUN_VERSION": "0.0.0+unstable",
-                    "MLRUN_HTTPDB__DSN": self.db_dsn,
+                    "MLRUN_HTTPDB__DSN": cls.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
                     "MLRUN_LOG_FORMATTER": FormatterKinds.HUMAN_EXTENDED.value,
                     "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
@@ -151,37 +156,29 @@ class TestMLRunIntegration:
             ),
             cwd=TestMLRunIntegration.root_path,
         )
-        output = self._run_command(
-            "docker",
-            args=["ps", "--last", "1", "-q"],
-        )
-        self.api_container_id = output.strip()
-        # retrieve container bind port + host
-        output = self._run_command(
-            "docker", args=["port", self.api_container_id, "8080"]
-        )
-        # usually the output is something like '0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
-        # '0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
-        host = output.splitlines()[0]
-        url = f"http://{host}"
-        self._check_api_is_healthy(url)
-        self._logger.info(
-            "Successfully started API", url=url, container_id=self.api_container_id
-        )
-        return url
 
-    def _remove_api(self):
-        if self.api_container_id:
-            logs = self._run_command(
-                "docker", args=["logs", self.api_container_id]
-            ).replace("\n", "\n\t")
-            # for tests, we want to see the logs in human-readable form
-            self._logger.debug(
-                f"Removing API container. Container logs:\n {logs}",
-                container_id=self.api_container_id,
+    def _stop_api(self):
+        self._run_command("docker", args=["kill", self.api_container_name])
+
+    def _start_api(self):
+        running = False
+        try:
+            output = self._run_command(
+                "docker",
+                args=["inspect", "-f", "{{.State.Running}}", self.api_container_name],
             )
-            self._remove_container(self.api_container_id)
-            self._run_command("docker", args=["rm", "--force", self.api_container_id])
+            running = output.strip().lower() == "true"
+        except Exception as exc:
+            self._logger.debug(
+                "Failed to check if API container is running",
+                exc=exc,
+            )
+        if not running:
+            self._run_command("docker", args=["start", self.api_container_name])
+        api_url = self._resolve_mlrun_api_url()
+        self._check_api_is_healthy(api_url)
+        self._logger.info("Successfully started API", api_url=api_url)
+        return api_url
 
     def _reset_db(self):
         self._logger.debug(
@@ -230,10 +227,10 @@ class TestMLRunIntegration:
     @classmethod
     def _log_container_logs(cls, container_id):
         logs = cls._run_command("docker", args=["logs", container_id])
+        logs = logs.replace("\n", "\n\t")
         cls._logger.debug(
-            "Retrieved container logs",
+            f"Retrieved container logs:\n {logs}",
             container_name=container_id,
-            logs=logs,
         )
 
     @classmethod
@@ -296,3 +293,14 @@ class TestMLRunIntegration:
         output = process.stdout
 
         return output
+
+    def _resolve_mlrun_api_url(self):
+        # retrieve container bind port + host
+        output = self._run_command(
+            "docker", args=["port", self.api_container_name, "8080"]
+        )
+        # usually the output is something like '0.0.0.0:49154\n' but sometimes (in GH actions) it's something like
+        # '0.0.0.0:49154\n:::49154\n' for some reason, so just taking the first line
+        host = output.splitlines()[0]
+        url = f"http://{host}"
+        return url

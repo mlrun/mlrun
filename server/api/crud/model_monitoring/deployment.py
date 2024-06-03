@@ -547,7 +547,6 @@ class MonitoringDeployment:
                 return True
             except mlrun.errors.MLRunNotFoundError:
                 pass
-        # logger.info(f"Deploying {function_name} function", project=self.project)
         return False
 
     def deploy_histogram_data_drift_app(self, image: str) -> None:

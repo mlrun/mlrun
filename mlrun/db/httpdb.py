@@ -979,6 +979,7 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """Read an artifact, identified by its key, tag, tree and iteration.
 
@@ -1061,6 +1062,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 

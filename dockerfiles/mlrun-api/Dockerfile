@@ -84,10 +84,4 @@ VOLUME /mlrun/db
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-CMD [ \
-    "uvicorn", \
-    "server.api.main:app", \
-    "--proxy-headers", \
-    "--host", "0.0.0.0", \
-    "--log-config", "server/api/uvicorn_log_config.yaml" \
-]
+CMD ["bash", "./dockerfiles/mlrun-api/start_api.sh"]

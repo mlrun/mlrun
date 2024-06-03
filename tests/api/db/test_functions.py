@@ -264,9 +264,15 @@ def test_list_functions_with_format(db: DBInterface, db_session: Session):
         "status": {"state": "online"},
         "spec": {
             "description": "some_description",
+            "command": "some_command",
             "image": "some_image",
             "default_handler": "some_handler",
             "entry_points": "some_entry_points",
+            "default_class": "some_class",
+            "graph": "some_graph",
+            "preemption_mode": "some_preemption_mode",
+            "node_selector": "some_node_selector",
+            "priority_class_name": "some_priority_class_name",
             "extra_field": "extra_field",
         },
     }

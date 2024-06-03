@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import pathlib
 import re
 
@@ -107,14 +108,38 @@ def test_timestamp_format_inference(rundb_mock):
 
 
 @pytest.mark.parametrize(
-    "additional_filters",
-    [[("age", "=", float("nan"))], [("age", "in", [10, float("nan")])]],
+    "additional_filters, message",
+    [
+        ([("x", "=", 3)], ""),
+        (
+            [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
+            "additional_filters does not support nested list inside filter tuples except in -in- logic.",
+        ),
+    ],
 )
-def test_nan_additional_filters(additional_filters):
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="using NaN in additional_filters is not supported",
-    ):
+def test_transform_list_filters_to_tuple(additional_filters, message):
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
+
+    if message:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=additional_filters,
+            )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=back_from_json_serialization,
+            )
+    else:
         ParquetSource(
             "parquet_source", path="path/to/file", additional_filters=additional_filters
         )
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path="path/to/file",
+            additional_filters=back_from_json_serialization,
+        )
+        assert parquet_source.additional_filters == additional_filters

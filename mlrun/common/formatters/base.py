@@ -15,6 +15,8 @@
 
 import typing
 
+import mlrun.errors
+
 
 class ObjectFormat:
     full = "full"
@@ -26,9 +28,26 @@ class ObjectFormat:
         }[_format]
 
     @classmethod
-    def format_obj(cls, obj: typing.Any, _format: str) -> typing.Any:
+    def format_obj(
+        cls,
+        obj: typing.Any,
+        _format: str,
+        exclude_formats: typing.Optional[list[str]] = None,
+    ) -> typing.Any:
+        exclude_formats = exclude_formats or []
         _format = _format or cls.full
-        format_method = cls.format_method(_format)
+        invalid_format_exc = mlrun.errors.MLRunBadRequestError(
+            f"Provided format is not supported. format={_format}"
+        )
+
+        if _format in exclude_formats:
+            raise invalid_format_exc
+
+        try:
+            format_method = cls.format_method(_format)
+        except KeyError:
+            raise invalid_format_exc
+
         if not format_method:
             return obj
 

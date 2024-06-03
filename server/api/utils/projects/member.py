@@ -17,6 +17,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.crud
@@ -41,7 +42,7 @@ class Member(abc.ABC):
     ):
         project_names = self.list_projects(
             db_session,
-            format_=mlrun.common.schemas.ProjectsFormat.name_only,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
             leader_session=auth_info.session,
         )
         if name not in project_names.projects:
@@ -104,7 +105,7 @@ class Member(abc.ABC):
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -113,7 +114,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,

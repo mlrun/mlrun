@@ -60,7 +60,7 @@ class _ApplicationResultOrMetric:
     )
 
     @declared_attr
-    def endpoint_id(cls):
+    def endpoint_id(self):
         return Column(
             String(40),
             ForeignKey(f"{EventFieldType.MODEL_ENDPOINTS}.{EventFieldType.UID}"),
@@ -81,7 +81,7 @@ class ApplicationMetricsTable(
 
 class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
     @declared_attr
-    def endpoint_id(cls):
+    def endpoint_id(self):
         return Column(
             String(40),
             ForeignKey(f"{EventFieldType.MODEL_ENDPOINTS}.{EventFieldType.UID}"),

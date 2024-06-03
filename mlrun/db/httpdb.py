@@ -30,6 +30,7 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
+import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types
@@ -995,7 +996,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
-            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "format": mlrun.common.formatters.ArtifactFormat.full.value,
             "tag": tag,
             "tree": tree,
             "uid": uid,
@@ -1111,7 +1112,7 @@ class HTTPRunDB(RunDBInterface):
             "kind": kind,
             "category": category,
             "tree": tree,
-            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "format": mlrun.common.formatters.ArtifactFormat.full.value,
             "producer_uri": producer_uri,
         }
         error = "list artifacts"
@@ -1933,8 +1934,8 @@ class HTTPRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         """Retrieve a list of KFP pipelines. This function can be invoked to get all pipelines from all projects,
@@ -1980,8 +1981,8 @@ class HTTPRunDB(RunDBInterface):
         namespace: str = None,
         timeout: int = 30,
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.summary,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
@@ -2623,8 +2624,8 @@ class HTTPRunDB(RunDBInterface):
         self,
         owner: str = None,
         format_: Union[
-            str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.name_only,
+            str, mlrun.common.formatters.ProjectFormat
+        ] = mlrun.common.formatters.ProjectFormat.name_only,
         labels: list[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> list[Union[mlrun.projects.MlrunProject, str]]:
@@ -2650,7 +2651,7 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
-        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+        if format_ == mlrun.common.formatters.ProjectFormat.name_only:
             # projects is just a list of strings
             return response.json()["projects"]
 

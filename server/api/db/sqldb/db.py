@@ -2220,7 +2220,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
@@ -2229,7 +2229,7 @@ class SQLDB(DBInterface):
 
         # if format is name_only, we don't need to query the full project object, we can just query the name
         # and return it as a list of strings
-        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+        if format_ == mlrun.common.formatters.ProjectFormat.name_only:
             query = self._query(session, Project.name, owner=owner, state=state)
 
         # attach filters to the query
@@ -2243,29 +2243,17 @@ class SQLDB(DBInterface):
         # format the projects according to the requested format
         projects = []
         for project_record in project_records:
-            if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            if format_ == mlrun.common.formatters.ProjectFormat.name_only:
+                # can't use formatter as we haven't queried the entire object anyway
                 projects.append(project_record.name)
-
-            elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+            else:
                 projects.append(
-                    server.api.utils.helpers.minimize_project_schema(
+                    mlrun.common.formatters.ProjectFormat.format_obj(
                         self._transform_project_record_to_schema(
                             session, project_record
-                        )
+                        ),
+                        format_,
                     )
-                )
-
-            # leader format is only for follower mode which will format the projects returned from here
-            elif format_ in [
-                mlrun.common.schemas.ProjectsFormat.full,
-                mlrun.common.schemas.ProjectsFormat.leader,
-            ]:
-                projects.append(
-                    self._transform_project_record_to_schema(session, project_record)
-                )
-            else:
-                raise NotImplementedError(
-                    f"Provided format is not supported. format={format_}"
                 )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 

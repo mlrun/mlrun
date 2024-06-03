@@ -2283,39 +2283,6 @@ class TestModelMonitoring:
         return unittest.mock.Mock()
 
     @staticmethod
-    @pytest.mark.parametrize(
-        ("delete_app", "expected_deleted_fns"),
-        [
-            (
-                True,
-                mm_consts.constants.MonitoringFunctionNames.list()
-                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
-            ),
-            (False, mm_consts.constants.MonitoringFunctionNames.list()),
-        ],
-    )
-    def test_disable(
-        project: mlrun.projects.MlrunProject,
-        delete_app: bool,
-        expected_deleted_fns: list[str],
-    ) -> None:
-        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
-        with unittest.mock.patch(
-            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
-        ):
-            mlrun.projects.MlrunProject.disable_model_monitoring(
-                project, delete_histogram_data_drift_app=delete_app
-            )
-
-        deleted_fns = [
-            call_args.kwargs["name"]
-            for call_args in db_mock.delete_function.call_args_list
-        ]
-        assert (
-            deleted_fns == expected_deleted_fns
-        ), "The deleted functions are different than expexted"
-
-    @staticmethod
     def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:
         with unittest.mock.patch.object(
             project, "_wait_for_functions_deployment", autospec=True

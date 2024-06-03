@@ -21,6 +21,7 @@ import kfp
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -474,7 +475,7 @@ def test_list_project_leader_format(
     )
     projects = projects_follower.list_projects(
         db,
-        format_=mlrun.common.schemas.ProjectsFormat.leader,
+        format_=mlrun.common.formatters.ProjectFormat.leader,
         projects_role=mlrun.common.schemas.ProjectsRole.nop,
     )
     assert (
@@ -503,7 +504,7 @@ def _assert_list_projects(
 
     # assert again - with name only format
     projects = projects_follower.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only, **kwargs
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only, **kwargs
     )
     assert len(projects.projects) == len(expected_projects)
     assert (

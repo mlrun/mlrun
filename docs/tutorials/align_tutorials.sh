@@ -44,7 +44,7 @@ if [[ "${tag_prefix}" < "1.4" ]]; then
 fi
 
 # removing old tutorial folder
-rm -rf "${tutorial_dir}/tutorial"
+rm -rf "${tutorial_dir}/tutorials"
 
 # Making of git url that holds tar asset
 # e.g. https://github.com/mlrun/mlrun/releases/download/v1.5.0-rc3/mlrun-tutorials.tar 

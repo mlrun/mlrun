@@ -17,6 +17,7 @@ import http
 import pytest
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -66,9 +67,14 @@ async def test_nuclio_get_api_gateway(
     api_gateway.with_canary(["test", "test2"], [20, 80])
 
     request_url = f"{api_url}/api/api_gateways/test-basic"
+
+    expected_payload = api_gateway.to_scheme()
+    expected_payload.metadata.labels = {
+        mlrun.common.constants.MLRunInternalLabels.nuclio_project_name: "default-project"
+    }
     mock_aioresponse.get(
         request_url,
-        payload=api_gateway.to_scheme().dict(),
+        payload=expected_payload.dict(),
         status=http.HTTPStatus.ACCEPTED,
     )
     r = await nuclio_client.get_api_gateway("test-basic", "default")
@@ -79,7 +85,10 @@ async def test_nuclio_get_api_gateway(
         received_api_gateway.authentication.authentication_mode
         == api_gateway.spec.authentication.authentication_mode
     )
-    assert received_api_gateway.spec.functions == ["test", "test2"]
+    assert received_api_gateway.spec.functions == [
+        "default-project/test",
+        "default-project/test2",
+    ]
     assert received_api_gateway.spec.canary == [20, 80]
 
 

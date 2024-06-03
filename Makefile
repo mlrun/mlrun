@@ -21,9 +21,9 @@ MLRUN_VERSION ?= unstable
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_REPO ?= mlrun
-# empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
-MLRUN_DOCKER_REGISTRY ?=
+DOCKER_HUB ?= registry.hub.docker.com
+MLRUN_DOCKER_REGISTRY ?= $(DOCKER_HUB)/
 # empty by default (use cache), set it to anything to disable caching (will add flags to pip and docker commands to
 # disable caching)
 MLRUN_NO_CACHE ?=
@@ -565,6 +565,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
+		--env MLRUN_LOG_FORMATTER=$(MLRUN_LOG_FORMATTER) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
@@ -575,17 +576,16 @@ run-test-db:
 	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
-		-v $(shell pwd):/mlrun \
-		-p 3306:3306 \
-		-e MYSQL_ROOT_PASSWORD="" \
-		-e MYSQL_ALLOW_EMPTY_PASSWORD="true" \
-		-e MYSQL_ROOT_HOST=% \
-		-e MYSQL_DATABASE="mlrun" \
-		-d \
-		mysql/mysql-server:8.0 \
+		--volume $(shell pwd):/mlrun \
+		--publish 3306:3306 \
+		--env MYSQL_ROOT_PASSWORD="" \
+		--env MYSQL_ALLOW_EMPTY_PASSWORD="true" \
+		--env MYSQL_ROOT_HOST=% \
+		--env MYSQL_DATABASE="mlrun" \
+		--detach \
+		$(DOCKER_HUB)/mysql/mysql-server:8.0 \
 		--character-set-server=utf8 \
-		--collation-server=utf8_bin \
-		--sql_mode=""
+		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs

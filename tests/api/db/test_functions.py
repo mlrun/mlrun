@@ -267,7 +267,6 @@ def test_list_functions_with_format(db: DBInterface, db_session: Session):
             "command": "some_command",
             "image": "some_image",
             "default_handler": "some_handler",
-            "entry_points": "some_entry_points",
             "default_class": "some_class",
             "graph": "some_graph",
             "preemption_mode": "some_preemption_mode",

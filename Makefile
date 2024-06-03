@@ -35,8 +35,6 @@ MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 23.2.1
 MLRUN_CACHE_DATE ?= $(shell date +%s)
-MLRUN_MEMRAY ?= 0
-MLRUN_MEMRAY_OUTPUT_FILE ?=
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
 # 2. add the --cache-from flag to the docker build
@@ -567,8 +565,6 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
-		--env MLRUN_MEMRAY=$(MLRUN_MEMRAY) \
-		--env MLRUN_MEMRAY_OUTPUT_FILE=$(MLRUN_MEMRAY_OUTPUT_FILE) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db

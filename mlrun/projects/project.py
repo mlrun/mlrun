@@ -3242,7 +3242,8 @@ class MlrunProject(ModelObj):
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param reset_on_run: when set to True it is required to reload the code again because it may have changed
+        :param reset_on_run:    when set to True and local=True it is required to reload the code again because
+                                it may have changed
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         return run_function(

@@ -313,8 +313,6 @@ class DBInterface(ABC):
         labels: list[str] = None,
         hash_key: str = None,
         _format: str = None,
-        page: int = None,
-        page_size: int = None,
     ):
         pass
 

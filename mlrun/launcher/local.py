@@ -69,7 +69,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None
+        reset_on_run: Optional[bool] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:

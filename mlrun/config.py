@@ -229,6 +229,7 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            "reload_max_recursion_depth": 100,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"

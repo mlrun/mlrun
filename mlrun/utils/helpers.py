@@ -1036,7 +1036,10 @@ def create_function(pkg_func: str, reload_modules: bool = False):
         # the code again because it may have changed
         try:
             logger.debug("Reloading module", module=pkg_func)
-            _reload(pkg_module)
+            _reload(
+                pkg_module,
+                max_recursion_depth=mlrun.mlconf.function.spec.reload_max_recursion_depth,
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to reload module. Not all associated modules can be reloaded, import them manually."
@@ -1657,10 +1660,13 @@ def format_alert_summary(
     return result
 
 
-def _reload(module):
+def _reload(module, max_recursion_depth):
     """Recursively reload modules."""
+    if max_recursion_depth <= 0:
+        return
+
     reload(module)
     for attribute_name in dir(module):
         attribute = getattr(module, attribute_name)
         if type(attribute) is ModuleType:
-            _reload(attribute)
+            _reload(attribute, max_recursion_depth - 1)

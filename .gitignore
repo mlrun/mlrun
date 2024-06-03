@@ -38,7 +38,7 @@ project.yaml
 *.bak
 docs/contributing.md
 server/api/proto/*pb2*.py
-automation/patch_igz/patch_env.yml
+automation/patch_igz/patch[_-]env.yml
 kubeconfig
 
 # used for local development.
@@ -51,3 +51,7 @@ mlrun_bc_*.json
 
 # used for local development.
 playground
+credentials.txt
+credentials.json
+google-big-query-credentials.json
+*.coverage

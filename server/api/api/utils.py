@@ -1315,7 +1315,7 @@ async def _delete_function(
             auth_info, project, nuclio_function_names
         )
         if failed_requests:
-            error_message = f"Failed to delete function {function_name}. Errors: {';'.join(failed_requests)}"
+            error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"
             await _update_functions_with_deletion_info(
                 functions, project, {"status.deletion_error": error_message}
             )

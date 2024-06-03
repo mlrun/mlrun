@@ -208,8 +208,8 @@ async def _create_pipeline(
     if project and project != workflow_project:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="Some resources in the workflow are from a different project than the one specified in the URL. "
-                   "Cross project pipelines are not supported.",
+            reason=f"Pipeline contains resources from project {workflow_project} but was requested to be created in "
+            f"project {project}",
         )
 
     project = project or workflow_project

@@ -54,4 +54,4 @@ playground
 credentials.txt
 credentials.json
 google-big-query-credentials.json
-.coverage
+*.coverage

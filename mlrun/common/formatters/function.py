@@ -33,9 +33,14 @@ class FunctionFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     ["metadata"],
                     ["status"],
                     ["spec", "description"],
+                    ["spec", "command"],
                     ["spec", "image"],
                     ["spec", "default_handler"],
-                    ["spec", "entry_points"],
+                    ["spec", "default_class"],
+                    ["spec", "graph"],
+                    ["spec", "preemption_mode"],
+                    ["spec", "node_selector"],
+                    ["spec", "priority_class_name"],
                 ]
             ),
         }[_format]

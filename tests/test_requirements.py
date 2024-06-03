@@ -108,6 +108,9 @@ def test_requirement_specifiers_convention():
                 continue
 
     ignored_invalid_map = {
+        # 0.1.0 is not compatible with mlrun >=1.7.0rc19
+        "mlrun-pipelines-kfp-common": {"~=0.1.1, >0.1.0"},
+        "mlrun-pipelines-kfp-v1-8": {"~=0.1.1, >0.1.0"},
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
         "storey": {"~=1.7.17"},

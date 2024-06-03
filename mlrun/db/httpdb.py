@@ -1225,7 +1225,8 @@ class HTTPRunDB(RunDBInterface):
             ):
                 reason = background_task.status.error
                 logger.info(
-                    f"Function deletion failed. Reason: {reason}",
+                    "Function deletion failed",
+                    reason=reason,
                     project_name=project,
                     function_name=name,
                 )

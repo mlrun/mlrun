@@ -48,7 +48,7 @@ def train_iris(context: MLClientCtx):
                       labels={"class": "sklearn.linear_model.LogisticRegression"})
 ```
 
-Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [Quick start tutorial](../tutorials/01-mlrun-basics.html) to learn how to create the project and set the artifact path. 
+Save the code above to `train_iris.py`. The following code loads the function and runs it as a job. See the [quick-start page](quick-start.html#mlrun-setup) to learn how to create the project and set the artifact path. 
 
 ``` python
 from mlrun import code_to_function

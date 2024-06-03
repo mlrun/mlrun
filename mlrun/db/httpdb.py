@@ -1525,7 +1525,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Deploy a Nuclio function.
-        
+
         :param func:            Function to build.
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
         """
@@ -3695,7 +3695,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Set notifications on a run. This will override any existing notifications on the run.
-        
+
         :param project: Project containing the run.
         :param run_uid: UID of the run.
         :param notifications: List of notifications to set on the run. Default is an empty list.
@@ -3721,7 +3721,7 @@ class HTTPRunDB(RunDBInterface):
     ):
         """
         Set notifications on a schedule. This will override any existing notifications on the schedule.
-        
+
         :param project: Project containing the schedule.
         :param schedule_name: Name of the schedule.
         :param notifications: List of notifications to set on the schedule. Default is an empty list.
@@ -4066,7 +4066,7 @@ class HTTPRunDB(RunDBInterface):
     def reset_alert_config(self, alert_name: str, project=""):
         """
         Reset an alert.
-        
+
         :param alert_name: The name of the alert to reset.
         :param project: The project that the alert belongs to.
         """

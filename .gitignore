@@ -51,4 +51,3 @@ mlrun_bc_*.json
 
 # used for local development.
 playground
-patch-env.yml

@@ -139,11 +139,22 @@ class Client(
 ):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        retry_on_exception = (
+            mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+        )
         self._session = mlrun.utils.HTTPSessionWithRetry(
-            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            retry_on_exception=retry_on_exception,
             verbose=True,
         )
+        self._retry_on_post_session = None
+        if retry_on_exception:
+            self._retry_on_post_session = mlrun.utils.HTTPSessionWithRetry(
+                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+                retry_on_post=True,
+                verbose=True,
+            )
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
@@ -172,6 +183,7 @@ class Client(
                 "authorization": request.headers.get("authorization"),
                 "cookie": request.headers.get("cookie"),
             },
+            retry_on_post=True,
         )
         return self._generate_auth_info_from_session_verification_response(
             response.headers, response.json()
@@ -618,11 +630,20 @@ class Client(
         return response.json()
 
     def _send_request_to_api(
-        self, method, path, error_message: str, session=None, **kwargs
+        self,
+        method,
+        path,
+        error_message: str,
+        session=None,
+        retry_on_post=False,
+        **kwargs,
     ):
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        response = self._session.request(
+        http_session = self._session
+        if retry_on_post and self._retry_on_post_session:
+            http_session = self._retry_on_post_session
+        response = http_session.request(
             method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
@@ -752,11 +773,25 @@ class Client(
             body["data"]["attributes"]["owner_username"] = project.spec.owner
 
         if project.spec.default_function_node_selector is not None:
-            body["data"]["attributes"]["default_function_node_selector"] = (
-                Client._transform_mlrun_labels_to_iguazio_labels(
-                    project.spec.default_function_node_selector
+            # This feature requires support for project-level default_function_node_selector,
+            # which is available starting from version 3.5.5.
+            # We are adding this validation to maintain backward compatibility with older versions of Iguazio.
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", "3.5.5"
+            ):
+                body["data"]["attributes"]["default_function_node_selector"] = (
+                    Client._transform_mlrun_labels_to_iguazio_labels(
+                        project.spec.default_function_node_selector
+                    )
                 )
-            )
+            else:
+                logger.debug(
+                    "Omitting project-level default function node selector from Iguazio project, "
+                    "as Iguazio version is insufficient",
+                    igz_version=mlrun.mlconf.get_parsed_igz_version(),
+                    project_name=project.metadata.name,
+                )
+
         return body
 
     @staticmethod

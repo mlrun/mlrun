@@ -28,10 +28,10 @@ from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
 
-from .function import get_fullname, min_nuclio_versions
+from .function import min_nuclio_versions
 
 
-class APIGatewayAuthenticator(typing.Protocol):
+class Authenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
         return schemas.APIGatewayAuthenticationMode.none.value
@@ -61,6 +61,10 @@ class APIGatewayAuthenticator(typing.Protocol):
         self,
     ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return None
+
+
+class APIGatewayAuthenticator(Authenticator, ModelObj):
+    _dict_fields = ["authentication_mode"]
 
 
 class NoneAuth(APIGatewayAuthenticator):
@@ -283,7 +287,21 @@ class APIGatewaySpec(ModelObj):
         function_names = []
         for func in functions:
             if isinstance(func, str):
-                function_names.append(func)
+                # check whether the function was passed as a URI or just a name
+                parsed_project, function_name, _, _ = (
+                    mlrun.common.helpers.parse_versioned_object_uri(func)
+                )
+
+                if parsed_project and function_name:
+                    # check that parsed project and passed project are the same
+                    if parsed_project != project:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "Function doesn't belong to passed project"
+                        )
+                    function_uri = func
+                else:
+                    function_uri = mlrun.utils.generate_object_uri(project, func)
+                function_names.append(function_uri)
                 continue
 
             function_name = (
@@ -298,8 +316,13 @@ class APIGatewaySpec(ModelObj):
                     f"input function {function_name} "
                     f"does not belong to this project"
                 )
-            nuclio_name = get_fullname(function_name, project, func.metadata.tag)
-            function_names.append(nuclio_name)
+            function_uri = mlrun.utils.generate_object_uri(
+                project,
+                function_name,
+                func.metadata.tag,
+                func.metadata.hash,
+            )
+            function_names.append(function_uri)
         return function_names
 
 

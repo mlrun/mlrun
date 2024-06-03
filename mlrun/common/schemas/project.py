@@ -23,16 +23,6 @@ from .common import ImageBuilder
 from .object import ObjectKind, ObjectStatus
 
 
-class ProjectsFormat(mlrun.common.types.StrEnum):
-    full = "full"
-    name_only = "name_only"
-    # minimal format removes large fields from the response (e.g. functions, workflows, artifacts)
-    # and is used for faster response times (in the UI)
-    minimal = "minimal"
-    # internal - allowed only in follower mode, only for the leader for upgrade purposes
-    leader = "leader"
-
-
 class ProjectMetadata(pydantic.BaseModel):
     name: str
     created: typing.Optional[datetime.datetime] = None

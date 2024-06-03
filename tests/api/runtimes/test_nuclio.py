@@ -147,7 +147,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_class="remote",
         call_count=1,
-        expected_params=[],
+        expected_params=None,
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,
@@ -300,9 +300,29 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
+
+        expected_cm_volume = {
+            "volume": {
+                "name": "serving-conf",
+                "configMap": {"name": "serving-conf-test-project-test-function"},
+            },
+            "volumeMount": {
+                "name": "serving-conf",
+                "mountPath": "/tmp/mlrun/serving-conf",
+                "readOnly": True,
+            },
+        }
+        expected = (
+            [expected_volume, expected_cm_volume]
+            if self.runtime_kind == "serving"
+            else [expected_volume]
+        )
+
         assert (
             deepdiff.DeepDiff(
-                deploy_spec["volumes"], [expected_volume], ignore_order=True
+                deploy_spec["volumes"],
+                expected,
+                ignore_order=True,
             )
             == {}
         )

@@ -334,7 +334,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
 
-    def test_parquet_filters(self):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_parquet_filters(self, passthrough):
         parquet_source_path = self.get_pq_source_path()
         source_file_name = "testdata_with_none.parquet"
         parquet_source_path = parquet_source_path.replace(
@@ -358,7 +359,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             additional_filters=filters,
         )
         feature_set = fstore.FeatureSet(
-            "parquet-filters-fs", entities=[fstore.Entity("patient_id")], engine="spark"
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+            engine="spark",
+            passthrough=passthrough,
         )
 
         target = ParquetTarget(
@@ -372,15 +376,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_context=self.spark_service,
             run_config=run_config,
         )
-        result = sort_df(pd.read_parquet(feature_set.get_target_path()), "patient_id")
-        expected = sort_df(filtered_df, "patient_id")
-        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        if not passthrough:
+            result = sort_df(
+                pd.read_parquet(feature_set.get_target_path()), "patient_id"
+            )
+            expected = sort_df(filtered_df, "patient_id")
+            assert_frame_equal(
+                result, expected, check_dtype=False, check_categorical=False
+            )
 
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
         )
         vec.save()
-        get_offline_target = ParquetTarget(
+        target = ParquetTarget(
             "mytarget", path=f"{self.output_dir()}-get_offline_features"
         )
         kind = None if self.run_local else "remote-spark"
@@ -391,7 +400,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 ("movements", "<", 6),
             ],
             with_indexes=True,
-            target=get_offline_target,
+            target=target,
             engine="spark",
             run_config=fstore.RunConfig(local=self.run_local, kind=kind),
             spark_service=self.spark_service,
@@ -399,10 +408,33 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         result = resp.to_dataframe()
         result.reset_index(drop=False, inplace=True)
+
+        expected = pd.read_parquet(parquet_source_path) if passthrough else filtered_df
         expected = sort_df(
-            filtered_df.query("bad not in [38,100] & movements < 6"),
+            expected.query("bad not in [38,100] & movements < 6"),
             ["patient_id"],
         )
+        result = sort_df(result, ["patient_id"])
+        assert_frame_equal(result, expected, check_dtype=False)
+
+        target = ParquetTarget(
+            "vector_target", path=f"{self.output_dir()}-get_offline_features_by_vector"
+        )
+        #  check get_offline_features vector function:
+        resp = vec.get_offline_features(
+            additional_filters=[
+                ("bad", "not in", [38, 100]),
+                ("movements", "<", 6),
+            ],
+            with_indexes=True,
+            target=target,
+            engine="spark",
+            run_config=fstore.RunConfig(local=self.run_local, kind=kind),
+            spark_service=self.spark_service,
+        )
+
+        result = resp.to_dataframe()
+        result.reset_index(drop=False, inplace=True)
         result = sort_df(result, ["patient_id"])
         assert_frame_equal(result, expected, check_dtype=False)
 

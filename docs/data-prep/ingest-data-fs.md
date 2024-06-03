@@ -12,7 +12,7 @@ the ingestion process runs the graph transformations, infers metadata and stats,
 
 When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 
-### Ingestion engines
+## Ingestion engines
 
 MLRun supports a several ingestion engines:
 - `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
@@ -55,7 +55,7 @@ df = quotes_set.preview(quotes)
 print(quotes_set.get_stats_table())
 ```
 
-### Inferring data
+## Inferring data
 
 There are two ways to infer data:
 - Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 

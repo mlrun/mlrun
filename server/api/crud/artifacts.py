@@ -17,6 +17,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
@@ -113,7 +114,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = None,
         project: str = mlrun.mlconf.default_project,
-        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         object_uid: str = None,
     ) -> dict:
@@ -142,7 +143,7 @@ class Artifacts(
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
-        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         producer_uri: str = None,
     ) -> list:

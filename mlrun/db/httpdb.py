@@ -1223,10 +1223,9 @@ class HTTPRunDB(RunDBInterface):
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
-                reason = background_task.status.error
                 logger.info(
                     "Function deletion failed",
-                    reason=reason,
+                    reason=background_task.status.error,
                     project_name=project,
                     function_name=name,
                 )

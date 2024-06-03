@@ -205,7 +205,7 @@ async def _create_pipeline(
     content_type = request.headers.get("content-type", "")
 
     workflow_project = _try_resolve_project_from_body(content_type, data)
-    if project and project != workflow_project:
+    if project and workflow_project and project != workflow_project:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Pipeline contains resources from project {workflow_project} but was requested to be created in "

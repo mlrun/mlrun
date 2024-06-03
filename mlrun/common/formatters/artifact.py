@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 
-from .artifact import ArtifactFormat  # noqa
-from .function import FunctionFormat  # noqa
-from .pipeline import PipelineFormat  # noqa
-from .project import ProjectFormat  # noqa
+import mlrun.common.types
+
+
+# TODO: add a format that returns a minimal response with ObjectFormat
+class ArtifactFormat(mlrun.common.types.StrEnum):
+    full = "full"

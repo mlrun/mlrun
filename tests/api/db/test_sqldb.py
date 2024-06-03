@@ -24,6 +24,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.artifacts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.db.sqldb.models
 from mlrun.lists import ArtifactList
@@ -281,7 +282,7 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

@@ -181,8 +181,12 @@ def verify_field_regex(
             )
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
+                    if len(field_name) > max_chars:
+                        field_name = field_name[:max_chars] + "...truncated"
+                    if len(field_value) > max_chars:
+                        field_value = field_value[:max_chars] + "...truncated"
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"Field '{field_name}' is malformed. '{field_value}' "
                         f"does not match required pattern: {pattern}"
                     )
                 return False

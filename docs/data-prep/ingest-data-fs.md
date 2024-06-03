@@ -55,7 +55,7 @@ df = quotes_set.preview(quotes)
 print(quotes_set.get_stats_table())
 ```
 
-### Inferring data
+## Inferring data
 
 There are two ways to infer data:
 - Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 

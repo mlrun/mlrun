@@ -769,12 +769,13 @@ class _RemoteRunner(_PipelineRunner):
         workflow_id = None
 
         # for start message, fallback to old notification behavior
-        # if a notification with `when=running` is provided, it will be used explicitly and others will be ignored
         if send_start_notification:
             for notification in notifications or []:
                 project.notifiers.add_notification(
                     notification.kind, notification.params
                 )
+                # if a notification with `when=running` is provided, it will be used explicitly and others
+                # will be ignored
                 if "running" in notification.when:
                     break
 

@@ -39,6 +39,7 @@ class ObjectFormat:
             f"Provided format is not supported. format={_format}"
         )
 
+        exclude_formats = exclude_formats or []
         if _format in exclude_formats:
             raise invalid_format_exc
 

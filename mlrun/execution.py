@@ -111,7 +111,7 @@ class MLClientCtx:
 
         self._project_object = None
         self._allow_empty_resources = None
-        self._reset_on_run = False
+        self._reset_on_run = None
 
     def __enter__(self):
         return self

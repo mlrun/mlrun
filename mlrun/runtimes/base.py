@@ -337,7 +337,7 @@ class BaseRuntime(ModelObj):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = False,
+        reset_on_run: Optional[bool] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """

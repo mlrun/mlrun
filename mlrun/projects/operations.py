@@ -77,7 +77,7 @@ def run_function(
     notifications: list[mlrun.model.Notification] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
-    reset_on_run: Optional[bool] = False,
+    reset_on_run: Optional[bool] = None,
 ) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 

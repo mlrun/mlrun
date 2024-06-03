@@ -871,7 +871,7 @@ class RunSpec(ModelObj):
         returns=None,
         notifications=None,
         state_thresholds=None,
-        reset_on_run=False,
+        reset_on_run=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.

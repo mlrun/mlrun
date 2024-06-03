@@ -1134,7 +1134,7 @@ def get_function(function, namespaces, reload_modules: bool = False):
 def get_handler_extended(
     handler_path: str,
     context=None,
-    class_args: dict = {},
+    class_args: dict = None,
     namespaces=None,
     reload_modules: bool = False,
 ):

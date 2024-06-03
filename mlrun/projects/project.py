@@ -1931,6 +1931,7 @@ class MlrunProject(ModelObj):
         call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
+
             project.set_model_monitoring_function(
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
@@ -1996,6 +1997,7 @@ class MlrunProject(ModelObj):
         Create a monitoring function object without setting it to the project
 
         examples::
+
             project.create_model_monitoring_function(
                 application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
             )
@@ -2017,6 +2019,7 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
+
         _, function_object, _ = self._instantiate_model_monitoring_function(
             func,
             application_class,
@@ -2546,10 +2549,10 @@ class MlrunProject(ModelObj):
     def create_remote(self, url, name="origin", branch=None):
         """Create remote for the project git
 
-         This method creates a new remote repository associated with the project's Git repository.
-         If a remote with the specified name already exists, it will not be overwritten.
+        This method creates a new remote repository associated with the project's Git repository.
+        If a remote with the specified name already exists, it will not be overwritten.
 
-         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
+        If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
@@ -2904,9 +2907,10 @@ class MlrunProject(ModelObj):
                           For using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a one of:
-                            1. Remote URL which is loaded dynamically to the workflow runner.
-                            2. A path to the project's context on the workflow runner's image.
+                          Can be one of:
+
+                          * Remote URL which is loaded dynamically to the workflow runner.
+                          * A path to the project's context on the workflow runner's image.
                           Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
                           (enriched when building a project image with source, see `MlrunProject.build_image`).
                           For other engines the source is used to validate that the code is up-to-date.
@@ -3874,15 +3878,15 @@ class MlrunProject(ModelObj):
         on MLRun and Nuclio sides, such as the 'host' attribute.
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-        of the API Gateway to be created or updated.
-        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
-            after creation or update (default is True)
-        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
+        :param api_gateway:        An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the
+            configuration of the API Gateway to be created or updated.
+        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become
+            ready after creation or update (default is True).
+        :param max_wait_time:      (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
 
 
-        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
-        information retrieved from the Nuclio API
+        :returns: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+            information retrieved from the Nuclio API
         """
 
         api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
@@ -3904,8 +3908,8 @@ class MlrunProject(ModelObj):
         """
         Retrieves a list of Nuclio API gateways associated with the project.
 
-        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
-        the Nuclio API gateways associated with the project.
+        :returns: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+           the Nuclio API gateways associated with the project.
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [
@@ -3946,6 +3950,7 @@ class MlrunProject(ModelObj):
     ) -> AlertConfig:
         """
         Create/modify an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert.
         :return: the created/modified alert.
@@ -3958,6 +3963,7 @@ class MlrunProject(ModelObj):
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
         Retrieve an alert.
+
         :param alert_name: The name of the alert to retrieve.
         :return: The alert object.
         """
@@ -3967,6 +3973,7 @@ class MlrunProject(ModelObj):
     def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3977,6 +3984,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Delete an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to delete.
         """
@@ -3996,6 +4004,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Reset an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to reset.
         """
@@ -4013,6 +4022,7 @@ class MlrunProject(ModelObj):
     def get_alert_template(self, template_name: str) -> AlertTemplate:
         """
         Retrieve a specific alert template.
+
         :param template_name: The name of the template to retrieve.
         :return: The template object.
         """
@@ -4022,6 +4032,7 @@ class MlrunProject(ModelObj):
     def list_alert_templates(self) -> list[AlertTemplate]:
         """
         Retrieve list of all alert templates.
+
         :return: All the alert template objects in the database.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)

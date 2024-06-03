@@ -14,7 +14,7 @@ __pycache__
 .ruff_cache
 kubeconfig
 **/env.yml
-**/patch_env.yml
+**/patch[_\-]env.yml
 **/mlrun.env
 mlrun.egg-info
 
@@ -28,7 +28,6 @@ mlrun.egg-info
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
 
-**/patch-env.yml
 **/google-big-query-credentials.json
 
 # this is just a template

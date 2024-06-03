@@ -1690,31 +1690,6 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
-    def update_function(
-        self,
-        session,
-        name,
-        updates: dict,
-        project: str = None,
-        tag: str = "",
-        hash_key: str = "",
-    ):
-        project = project or config.default_project
-        query = self._query(session, Function, name=name, project=project)
-        uid = self._get_function_uid(
-            session=session, name=name, tag=tag, hash_key=hash_key, project=project
-        )
-        if uid:
-            query = query.filter(Function.uid == uid)
-        function = query.one_or_none()
-        if function:
-            struct = function.struct
-            for key, val in updates.items():
-                update_in(struct, key, val)
-            function.struct = struct
-            self._upsert(session, [function])
-            return function.struct
-
     def _get_function(
         self,
         session,

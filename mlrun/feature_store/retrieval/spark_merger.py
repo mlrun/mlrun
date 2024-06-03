@@ -243,7 +243,7 @@ class SparkFeatureMerger(BaseMerger):
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
             source_kwargs.update(feature_set.spec.source.attributes)
-            source_kwargs.pop("additional_filters")
+            source_kwargs.pop("additional_filters", None)
         else:
             target = get_offline_target(feature_set)
             if not target:

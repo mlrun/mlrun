@@ -15,7 +15,9 @@
 
 import mlrun.common.types
 
+from .base import ObjectFormat
+
 
 # TODO: add a format that returns a minimal response with ObjectFormat
-class ArtifactFormat(mlrun.common.types.StrEnum):
+class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
     full = "full"

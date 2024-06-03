@@ -144,7 +144,7 @@ def test_launch_local_reload_module(tmp_path):
     with open(file_path, mode="w+") as file:
         file.write(function_code)
 
-    run = project.run_function("func", local=True)
+    run = project.run_function("func", local=True, reset_on_run=True)
     assert run.output("return") == "dummy value updated"
 
 
@@ -183,5 +183,5 @@ def func_b():
         file.write(function_code)
 
     # rerunning temp_b with temp_a dependence and verifying with the updated temp_a code
-    run = project.run_function("func", local=True)
+    run = project.run_function("func", local=True, reset_on_run=True)
     assert run.output("return") == "dummy value updated"

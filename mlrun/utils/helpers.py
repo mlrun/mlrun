@@ -1029,22 +1029,21 @@ def create_function(pkg_func: str, reload_modules: bool = False):
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
-    pkg_module_exists_in_modules = pkg_module in sys.modules
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
 
     if reload_modules:
-        # if the function appears in the modules list, we need to reload the code again because it may have changed
-        if pkg_module_exists_in_modules:
-            try:
-                logger.debug("Reloading module", module=pkg_func)
-                _reload(pkg_module)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to reload module. Not all associated modules can be reloaded, import them manually."
-                    "Or, with Jupyter, restart the Python kernel.",
-                    module=pkg_func,
-                    err=mlrun.errors.err_to_str(exc),
-                )
+        # Even though the function appears in the modules list, we need to reload
+        # the code again because it may have changed
+        try:
+            logger.debug("Reloading module", module=pkg_func)
+            _reload(pkg_module)
+        except Exception as exc:
+            logger.warning(
+                "Failed to reload module. Not all associated modules can be reloaded, import them manually."
+                "Or, with Jupyter, restart the Python kernel.",
+                module=pkg_func,
+                err=mlrun.errors.err_to_str(exc),
+            )
 
     function_ = getattr(pkg_module, cb_fname)
     return function_

@@ -3601,6 +3601,7 @@ class HTTPRunDB(RunDBInterface):
     def list_api_gateways(self, project=None) -> mlrun.common.schemas.APIGatewaysOutput:
         """
         Returns a list of Nuclio api gateways
+
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
         :return: :py:class:`~mlrun.common.schemas.APIGateways`.
@@ -3614,6 +3615,7 @@ class HTTPRunDB(RunDBInterface):
     def get_api_gateway(self, name, project=None) -> mlrun.common.schemas.APIGateway:
         """
         Returns an API gateway
+
         :param name: API gateway name
         :param project: optional str parameter to filter by project, if not passed, default project value is taken
 
@@ -3628,6 +3630,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_api_gateway(self, name, project=None):
         """
         Deletes an API gateway
+
         :param name: API gateway name
         :param project: Project name
         """
@@ -3646,7 +3649,8 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.APIGateway:
         """
         Stores an API Gateway.
-        :param api_gateway :py:class:`~mlrun.runtimes.nuclio.APIGateway`
+
+        :param api_gateway: :py:class:`~mlrun.runtimes.nuclio.APIGateway`
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
 

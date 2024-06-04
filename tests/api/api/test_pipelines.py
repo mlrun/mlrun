@@ -283,7 +283,7 @@ def test_create_pipeline(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    project = "some-project"
+    project = "getting-started-tutorial-iguazio"
     pipeline_file_path = (
         tests.conftest.tests_root_directory
         / "api"

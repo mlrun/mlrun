@@ -7,5 +7,6 @@ mlrun.common.schemas
   :maxdepth: 1
   :glob:
 
+  mlrun.common.schemas.api_gateway
   mlrun.common.schemas.artifact
   mlrun.common.schemas.notification

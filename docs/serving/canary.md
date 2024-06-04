@@ -18,12 +18,81 @@ percentage for the canary function. Verify that the canary function works as exp
 work as desired). Then gradually increase its percentage until you turn it into a production function. 
 
 **In this section**
-
-- [Create an API gateway](#create-gateway)
+- [Creating and managing API gateways using the SDK](#creating-and-managing-api-gateways-using-the-sdk)
+- [Create an API gateway in the UI](#create-gateway)
 - [Create and use a canary function](#canary-function)
 
+## Creating and managing API gateway using the SDK
+
+### Create an API gateway with basic authorization
+
+Assume you already have a deployed nuclio function:
+```
+fn = mlrun.code_to_function(
+            filename="nuclio_function.py",
+            name=f"nuclio-func",
+            kind="nuclio",
+            image="python:3.9",
+            handler="handler",
+        )
+```		
+
+Create the gateway with basic auth:
+```
+# Define the API gateway entity
+my_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name="gw-with-basic-auth",
+            ),
+            mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=fn,
+                project=project.name,
+            ),
+    )
+# add basic authorization configuration
+my_api_gateway.with_basic_auth(username="test",
+ password="pass")
+
+# create (or update) the API gateway
+# It's crucial to update the defined API Gateway entity with the entity returned from store_api_gateway method. Thia fills in important fields like host/path, etc.
+
+my_api_gateway = project.store_api_gateway(my_api_gateway)
+
+# even though store_api_gateway checks that api_gateway is ready to be invoked before returning it, there is a way to check if api gateway is in ready state
+my_api_gateway.is_ready()
+
+# If you know that api gateway was changed (for example, in the UI), you can easily load the latest changes:
+my_api_gateway.sync()
+```
+### Invoke the API gateway
+Since the gateway is configured with basic auth, you need to pass authorization credentials. 
+```
+response = my_api_gateway.invoke(auth=("test", "pass"), verify=False)
+```
+### Using the API Gateway as a Canary function
+Assume you have two functions defined as above, named fn1 and fn2. 
+Define the API gateway entity with canary configuration [60, 40] which means that 60% of traffic will go to function1 and 40% to function2 
+```
+my_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
+        mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+            name="gw-canary",
+        ),
+        mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+            functions=[fn1, fn2],
+            project=project.name,
+            canary=[60, 40],
+        ),
+    )
+```
+
+Create (or update) the API gateway:
+```
+my_api_gateway = project.store_api_gateway(my_api_gateway)
+```
+
+
 <a id="create-gateway"></a>
-## Create an API gateway
+## Create an API gateway in the UI
 
 To create an API gateway in the UI:
 1. In your project page, press **API Gateways** tab, then press **NEW API GATEWAY**.

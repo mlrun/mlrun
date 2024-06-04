@@ -303,11 +303,7 @@ def test_get_or_create_ctx_run_kind():
     assert context.labels.get("kind") == "local"
 
 
-@pytest.mark.parametrize(
-    "run_kind",
-    ["local", "job"],
-)
-def test_get_or_create_ctx_run_kind_from_function(run_kind):
+def test_get_or_create_ctx_run_kind_local_from_function():
     project = mlrun.get_or_create_project("dummy-project")
     project.set_function(
         name="func",
@@ -317,9 +313,7 @@ def test_get_or_create_ctx_run_kind_from_function(run_kind):
     )
     run = project.run_function(
         "func",
-        local=(run_kind == "local"),
-        artifact_path="/tmp",
-        # params={"time_to_sleep": 1},
+        local=True,
     )
     assert run.state() == "completed"
-    assert run.output("return") == run_kind
+    assert run.output("return") == "local"

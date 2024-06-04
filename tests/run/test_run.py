@@ -301,6 +301,9 @@ def test_get_or_create_ctx_run_kind():
     # varify the default run kind is local
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "local"
+    assert context.state == "running"
+    context.commit(completed=True)
+    assert context.state == "completed"
 
 
 def test_get_or_create_ctx_run_kind_local_from_function():

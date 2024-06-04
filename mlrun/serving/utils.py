@@ -79,9 +79,10 @@ class StepToDict:
         class_path = self.__class__.__qualname__
         if mod_name not in ["__main__", "builtins"]:
             class_path = f"{mod_name}.{class_path}"
+        name = self.name or self.__class__.__name__
         struct = {
             "class_name": class_path,
-            "name": self.name or self.__class__.__name__,
+            "name": self.name if hasattr(self, "name") else self.__class__.__name__,
             "class_args": args,
         }
         if hasattr(self, "_STEP_KIND"):
@@ -96,7 +97,7 @@ class StepToDict:
 
 
 class MonitoringApplicationToDict(StepToDict):
-    _STEP_KIND = "model_monitoring_application"
+    _STEP_KIND = "monitoring_application"
     meta_keys = []
 
 

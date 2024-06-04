@@ -32,8 +32,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.common.constants as mlrun_constants
-import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -1716,13 +1714,13 @@ class SQLDB(DBInterface):
         self._delete(session, Function, project=project, name=name)
 
     def update_function(
-        self,
-        session,
-        name,
-        updates: dict,
-        project: str = None,
-        tag: str = "",
-        hash_key: str = "",
+            self,
+            session,
+            name,
+            updates: dict,
+            project: str = None,
+            tag: str = "",
+            hash_key: str = "",
     ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
@@ -1739,6 +1737,66 @@ class SQLDB(DBInterface):
             function.struct = struct
             self._upsert(session, [function])
             return function.struct
+
+    def add_function_external_invocation_url(
+            self,
+            session,
+            name,
+            external_invocation_url: str,
+            project="",
+            tag="",
+            hash_key="",
+    ):
+        logger.debug("Adding external invocation url to db", project=project, name=name,
+                     external_invocation_url=external_invocation_url)
+        project = project or config.default_project
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        function = self._get_function_object(
+            session, normalized_function_name, project, tag, hash_key
+        )
+        struct = function.struct
+        existing_invocation_urls = struct["status"].get("external_invocation_urls")
+        if (
+                existing_invocation_urls
+        ):
+            logger.debug("Adding additional external invocation url to db", project=project, name=name,
+                         external_invocation_url=external_invocation_url)
+            if external_invocation_url not in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].append(external_invocation_url)
+        else:
+            logger.debug("Adding new external invocation url to db", project=project, name=name,
+                         external_invocation_url=external_invocation_url)
+            struct["status"]["external_invocation_urls"] = [external_invocation_url]
+        function.struct = struct
+        self._upsert(session, [function])
+
+    def delete_function_external_invocation_url(
+            self,
+            session,
+            name,
+            external_invocation_url: str,
+            project="",
+            tag="",
+            hash_key="",
+    ):
+        project = project or config.default_project
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        try:
+            function = self._get_function_object(
+                session, normalized_function_name, project, tag, hash_key
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            return
+        struct = function.struct
+        existing_invocation_urls = struct["status"].get("external_invocation_url")
+        if (
+                existing_invocation_urls
+                and external_invocation_url in existing_invocation_urls
+        ):
+            struct["status"]["external_invocation_urls"].remove(external_invocation_url)
+            function.struct = struct
+            self._upsert(session, [function])
+
 
     def _get_function(
         self,
@@ -1777,6 +1835,16 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def _get_function_object(self, session, name, project="", tag="", hash_key=""):
+        project = project or config.default_project
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        return query.one_or_none()
 
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str

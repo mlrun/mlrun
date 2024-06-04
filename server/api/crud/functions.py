@@ -153,3 +153,36 @@ class Functions(
             project=project,
             updates=updates,
         )
+
+    def add_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().add_function_external_invocation_url(
+            session=db_session,
+            name=function_name,
+            external_invocation_url=invocation_url,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+        )
+
+    def delete_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().delete_function_external_invocation_url(
+            db_session, function_name, invocation_url, project, tag, hash_key
+        )

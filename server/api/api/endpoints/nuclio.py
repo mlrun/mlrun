@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import traceback
 import typing
 from http import HTTPStatus
@@ -26,6 +27,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio.function
+import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.clients.async_nuclio
@@ -137,6 +139,22 @@ async def store_api_gateway(
             name=gateway,
             project_name=project,
         )
+    if api_gateway:
+        logger.info(f"Stored API Gateway {gateway}", host=api_gateway.spec.host)
+
+        tasks = [
+            asyncio.create_task(
+                run_in_threadpool(
+                    server.api.db.session.run_function_with_new_db_session,
+                    server.api.crud.Functions().add_function_external_invocation_url,
+                    function_uri=function,
+                    project=project,
+                    invocation_url=api_gateway.spec.host,
+                )
+            )
+            for function in api_gateway.get_function_names()
+        ]
+        await asyncio.gather(*tasks)
     return api_gateway
 
 
@@ -160,9 +178,24 @@ async def delete_api_gateway(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        return await client.delete_api_gateway(project_name=project, name=gateway)
+        api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
+
+        if api_gateway:
+            tasks = [
+                asyncio.create_task(
+                    run_in_threadpool(
+                        server.api.db.session.run_function_with_new_db_session,
+                        server.api.crud.Functions().delete_function_external_invocation_url,
+                        function_uri=function,
+                        project=project,
+                        invocation_url=api_gateway.spec.host,
+                    )
+                )
+                for function in api_gateway.get_function_names()
+            ]
+            await asyncio.gather(*tasks)
+            return await client.delete_api_gateway(project_name=project, name=gateway)
 
 
 @router.post("/projects/{project}/nuclio/{name}/deploy")

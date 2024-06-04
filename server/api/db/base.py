@@ -334,6 +334,30 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def add_function_external_invocation_url(
+        self,
+        session,
+        name,
+        external_invocation_url: str,
+        project="",
+        tag="",
+        hash_key="",
+    ):
+        pass
+
+    @abstractmethod
+    def delete_function_external_invocation_url(
+        self,
+        session,
+        name,
+        external_invocation_url: str,
+        project="",
+        tag="",
+        hash_key="",
+    ):
+        pass
+
+    @abstractmethod
     def create_schedule(
         self,
         session,

@@ -207,7 +207,7 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_predictions_table(cls, ep_id: str, should_be_empty=False) -> None:
+    def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"

@@ -195,15 +195,6 @@ async def _create_pipeline(
     run_name: str,
     project: typing.Optional[str] = None,
 ):
-    # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
-    if project:
-        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            "",
-            mlrun.common.schemas.AuthorizationAction.create,
-            auth_info,
-        )
     run_name = run_name or experiment_name + " " + datetime.now().strftime(
         "%Y-%m-%d %H-%M-%S"
     )
@@ -213,8 +204,15 @@ async def _create_pipeline(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="Request body is empty")
     content_type = request.headers.get("content-type", "")
 
-    # otherwise, best effort - try to parse it from the body - if successful - perform auth check - otherwise explode
-    project = _try_resolve_project_from_body(content_type, data)
+    workflow_project = _try_resolve_project_from_body(content_type, data)
+    if project and workflow_project and project != workflow_project:
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Pipeline contains resources from project {workflow_project} but was requested to be created in "
+            f"project {project}",
+        )
+
+    project = project or workflow_project
     if not project:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Pipelines can not be created without a project - you are probably running with old client - try upgrade to"

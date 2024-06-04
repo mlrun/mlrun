@@ -79,7 +79,6 @@ class StepToDict:
         class_path = self.__class__.__qualname__
         if mod_name not in ["__main__", "builtins"]:
             class_path = f"{mod_name}.{class_path}"
-        name = self.name or self.__class__.__name__
         struct = {
             "class_name": class_path,
             "name": self.name if hasattr(self, "name") else self.__class__.__name__,

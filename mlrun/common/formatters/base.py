@@ -31,7 +31,7 @@ class ObjectFormat:
     def format_method(_format: str) -> typing.Optional[typing.Callable]:
         """
         Get the formatting method for the provided format.
-        A `None` value signifies a pass-through formatting method.
+        A `None` value signifies a pass-through formatting method (no formatting).
         :param _format: The format as a string representation.
         :return: The formatting method.
         """
@@ -79,6 +79,13 @@ class ObjectFormat:
         The keys should be in a dot-separated format, denoting the path within the dictionary to the desired key.
         The object maintains its structure, with the filtered keys and their values, while all other keys are removed.
         :param _filter: The list of keys to filter by.
+                        Example:
+                        [
+                            "kind",
+                            "metadata.name",
+                            "spec.something.else",
+                        ]
+
         :return: The filtering method.
         """
 

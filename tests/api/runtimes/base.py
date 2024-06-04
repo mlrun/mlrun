@@ -42,11 +42,11 @@ import tests.api.conftest
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
-from mlrun.utils import create_logger
+from mlrun.utils import create_test_logger
 from mlrun.utils.azure_vault import AzureVaultStore
 from server.api.utils.singletons.k8s import get_k8s_helper
 
-logger = create_logger(level="debug", name="test-runtime")
+logger = create_test_logger(name="test-runtime")
 
 
 class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):

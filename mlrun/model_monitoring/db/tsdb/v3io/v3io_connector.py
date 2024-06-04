@@ -626,7 +626,7 @@ class V3IOTSDBConnector(TSDBConnector):
         predictions = self.read_predictions(
             endpoint_id=endpoint_id, start="0", end="now", limit=1
         )
-        if predictions:
+        if predictions.data:
             return mm_schemas.ModelEndpointMonitoringMetric(
                 project=self.project,
                 app=mm_schemas.SpecialApps.MLRUN_INFRA,

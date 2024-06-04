@@ -1224,7 +1224,10 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
                 logger.info(
-                    "Function deletion failed", project_name=project, function_name=name
+                    "Function deletion failed",
+                    reason=background_task.status.error,
+                    project_name=project,
+                    function_name=name,
                 )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):

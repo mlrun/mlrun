@@ -1041,8 +1041,9 @@ class MLClientCtx:
 
         # completion of runs is not decided by the execution as there may be
         # multiple executions for a single run (e.g. mpi)
+        run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
         if (
-            self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "") == "local"
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
             or self._state != "completed"
         ):
             struct["status.state"] = self._state

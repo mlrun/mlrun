@@ -28,6 +28,7 @@ __all__ = [
     "KubeResource",
     "ApplicationRuntime",
     "MpiRuntimeV1",
+    "APIGateway",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version

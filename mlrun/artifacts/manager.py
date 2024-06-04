@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import re
 import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
@@ -75,6 +76,23 @@ class ArtifactProducer:
     @property
     def uid(self):
         return None
+
+    @staticmethod
+    def parse_uri(uri):
+        """parse artifact producer's uri to project, uid, iteration"""
+        uri_pattern = r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"
+        match = re.match(uri_pattern, uri)
+        if not match:
+            raise ValueError(
+                "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
+            )
+        group_dict = match.groupdict()
+
+        return (
+            group_dict["project"] or "",
+            group_dict["uid"] or "",
+            group_dict["iteration"] or "",
+        )
 
 
 def dict_to_artifact(struct: dict) -> Artifact:

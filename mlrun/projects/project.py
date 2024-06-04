@@ -4140,12 +4140,21 @@ class MlrunProject(ModelObj):
             else:
                 producer_dict = artifact.spec.producer
 
+            producer_tag = producer_dict.get("tag", None)
+            producer_project = producer_dict.get("project", None)
+            if not producer_tag or not producer_project:
+                # try resolving the producer tag from the uri
+                producer_uri = artifact.spec.producer.get("uri", "")
+                producer_project, producer_tag, _ = ArtifactProducer.parse_uri(
+                    producer_uri
+                )
+
             if producer_dict.get("kind", "") == "run":
                 return ArtifactProducer(
                     name=producer_dict.get("name", ""),
                     kind=producer_dict.get("kind", ""),
-                    project=producer_dict.get("project", ""),
-                    tag=producer_dict.get("tag", ""),
+                    project=producer_project,
+                    tag=producer_tag,
                 ), True
 
         # do not retain the artifact's producer, replace it with the project as the producer

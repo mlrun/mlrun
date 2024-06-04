@@ -117,6 +117,7 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
+      timeout-minutes: 90
 
   migrations-tests:
     name: Run Dockerized Migrations Tests

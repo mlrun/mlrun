@@ -853,6 +853,7 @@ class RunDBInterface(ABC):
     ) -> bool:
         pass
 
+    @abstractmethod
     def delete_model_monitoring_function(
         self, project: str, functions: list[str]
     ) -> bool:

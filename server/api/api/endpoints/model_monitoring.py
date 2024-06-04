@@ -202,7 +202,7 @@ async def disable_model_monitoring(
     user_application_list: list[str] = None,
 ):
     """
-    Disabled model monitoring application controller, writer, stream, histogram data drift application
+    Disable model monitoring application controller, writer, stream, histogram data drift application
     and the user's applications functions, according to the given params.
 
     :param commons:                             The common parameters of the request.
@@ -221,6 +221,9 @@ async def disable_model_monitoring(
                                                 application according to user_application_list, Default False.
     :param user_application_list:               List of the user's model monitoring application to disable.
                                                 Default all the applications.
+                                                Note: you have to set delete_user_applications to True
+                                                in order to delete the desired application.
+
     """
     tasks = await MonitoringDeployment(
         project=commons.project,

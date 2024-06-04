@@ -26,7 +26,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-import v3io.dataplane
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
@@ -701,6 +700,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
     image: typing.Optional[str] = None
 
     def test_model_monitoring_crud(self) -> None:
+        import v3io.dataplane
+
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"

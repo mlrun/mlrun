@@ -40,6 +40,7 @@ import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
+import server.api.utils.background_tasks
 import server.api.utils.functions
 import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
@@ -657,7 +658,7 @@ class MonitoringDeployment:
         background_tasks: fastapi.BackgroundTasks = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
-        Disabled model monitoring application controller, writer, stream, histogram data drift application
+        Disable model monitoring application controller, writer, stream, histogram data drift application
         and the user's applications functions, according to the given params.
 
         :param delete_resources:                    If True, it would delete the model monitoring controller & writer
@@ -673,7 +674,9 @@ class MonitoringDeployment:
                                                     application according to user_application_list, Default False.
         :param user_application_list:               List of the user's model monitoring application to disable.
                                                     Default all the applications.
-        :param background_tasks:                    Background tasks.
+                                                    Note: you have to set delete_user_applications to True
+                                                    in order to delete the desired application.
+        :param background_tasks:                    Fastapi Background tasks.
         """
         function_to_delete = []
         if delete_resources:
@@ -823,6 +826,9 @@ class MonitoringDeployment:
             background_task_name=background_task_name,
         )
         if delete_v3io_stream:
+            import v3io.dataplane
+            import v3io.dataplane.response
+
             for i in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
@@ -840,7 +846,6 @@ class MonitoringDeployment:
                 else:
                     logger.debug(f"{function_name} pod found, retrying")
                     time.sleep(5)
-            import v3io.dataplane
 
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
             stream_paths = server.api.crud.model_monitoring.get_stream_path(

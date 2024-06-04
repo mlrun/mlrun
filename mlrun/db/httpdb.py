@@ -3354,7 +3354,7 @@ class HTTPRunDB(RunDBInterface):
         user_application_list: list[str] = None,
     ) -> bool:
         """
-        Disabled model monitoring application controller, writer, stream, histogram data drift application
+        Disable model monitoring application controller, writer, stream, histogram data drift application
         and the user's applications functions, according to the given params.
 
         :param project:                             Project name.
@@ -3371,6 +3371,10 @@ class HTTPRunDB(RunDBInterface):
                                                     application according to user_application_list, Default False.
         :param user_application_list:               List of the user's model monitoring application to disable.
                                                     Default all the applications.
+                                                    Note: you have to set delete_user_applications to True
+                                                    in order to delete the desired application.
+
+        :returns:                                   True if the deletion was successful, False otherwise.
         """
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,
@@ -3412,12 +3416,14 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_model_monitoring_function(
         self, project: str, functions: list[str]
-    ) -> None:
+    ) -> bool:
         """
         Delete a model monitoring application.
 
         :param functions:            List of the model monitoring function to delete.
         :param project:              Project name.
+
+        :returns:                    True if the deletion was successful, False otherwise.
         """
         response = self.api_call(
             method=mlrun.common.types.HTTPMethod.DELETE,

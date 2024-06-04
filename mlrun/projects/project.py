@@ -2224,7 +2224,7 @@ class MlrunProject(ModelObj):
         user_application_list: list[str] = None,
     ) -> None:
         """
-        Disabled model monitoring application controller, writer, stream, histogram data drift application
+        Disable model monitoring application controller, writer, stream, histogram data drift application
         and the user's applications functions, according to the given params.
 
         :param delete_resources:                    If True, it would delete the model monitoring controller & writer
@@ -2240,7 +2240,14 @@ class MlrunProject(ModelObj):
                                                     application according to user_application_list, Default False.
         :param user_application_list:               List of the user's model monitoring application to disable.
                                                     Default all the applications.
+                                                    Note: you have to set delete_user_applications to True
+                                                    in order to delete the desired application.
         """
+        if not delete_user_applications and user_application_list:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "user_application_list can be specified only if delete_user_applications is set to True"
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         succeed = db.disable_model_monitoring(
             project=self.name,
@@ -2251,18 +2258,23 @@ class MlrunProject(ModelObj):
             user_application_list=user_application_list,
         )
         if succeed and delete_resources:
-            logger.info("Model Monitoring disabled", project=self.name)
-        elif not succeed and delete_resources:
-            logger.info("Model Monitoring was not disabled properly", project=self.name)
-        if succeed and delete_user_applications:
-            logger.info(
-                "All the desired monitoring application were deleted", project=self.name
-            )
-        elif not succeed and delete_user_applications:
-            logger.info(
-                "Some of the desired monitoring application were not deleted",
-                project=self.name,
-            )
+            if delete_resources:
+                logger.info("Model Monitoring disabled", project=self.name)
+            if delete_user_applications:
+                logger.info(
+                    "All the desired monitoring application were deleted",
+                    project=self.name,
+                )
+        else:
+            if delete_resources:
+                logger.info(
+                    "Model Monitoring was not disabled properly", project=self.name
+                )
+            if delete_user_applications:
+                logger.info(
+                    "Some of the desired monitoring application were not deleted",
+                    project=self.name,
+                )
 
     def set_function(
         self,
@@ -2459,7 +2471,7 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
-        """remove the specified model-monitoring-app function from the project spec
+        """remove the specified model-monitoring-app function/s from the project spec
 
         :param name: name of the model-monitoring-function/s (under the project)
         """

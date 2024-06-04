@@ -295,3 +295,31 @@ def test_args_integrity():
     verify_state(result)
 
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
+
+
+def test_get_or_create_ctx_run_kind():
+    # varify the default run kind is local
+    context = mlrun.get_or_create_ctx("ctx")
+    assert context.labels.get("kind") == "local"
+
+
+@pytest.mark.parametrize(
+    "run_kind",
+    ["local", "job"],
+)
+def test_get_or_create_ctx_run_kind_from_function(run_kind):
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        name="func",
+        func=f"{assets_path}/simple.py",
+        handler="func",
+        image="mlrun/mlrun",
+    )
+    run = project.run_function(
+        "func",
+        local=(run_kind == "local"),
+        artifact_path="/tmp",
+        # params={"time_to_sleep": 1},
+    )
+    assert run.state() == "completed"
+    assert run.output("return") == run_kind

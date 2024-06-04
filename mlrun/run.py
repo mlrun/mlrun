@@ -292,6 +292,8 @@ def get_or_create_ctx(
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
+    newspec["metadata"].setdefault("labels", {})
+    newspec["metadata"]["labels"] = {"kind": RuntimeKinds.local}
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()

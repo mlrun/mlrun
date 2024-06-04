@@ -418,18 +418,24 @@ class V3IOTSDBConnector(TSDBConnector):
             # Frames client expects the aggregators to be a comma-separated string
             agg_funcs = ",".join(agg_funcs)
         table_path = self.tables[table]
-        df = self._frames_client.read(
-            backend=_TSDB_BE,
-            table=table_path,
-            start=start,
-            end=end,
-            columns=columns,
-            filter=filter_query,
-            aggregation_window=interval,
-            aggregators=agg_funcs,
-            step=sliding_window_step,
-            **kwargs,
-        )
+        try:
+            df = self._frames_client.read(
+                backend=_TSDB_BE,
+                table=table_path,
+                start=start,
+                end=end,
+                columns=columns,
+                filter=filter_query,
+                aggregation_window=interval,
+                aggregators=agg_funcs,
+                step=sliding_window_step,
+                **kwargs,
+            )
+        except v3io_frames.ReadError as err:
+            if "No TSDB schema file found" in str(err):
+                return pd.DataFrame()
+            else:
+                raise err
 
         if limit:
             df = df.head(limit)

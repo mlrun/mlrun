@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+# This is until we take care of the F401 violations with respect to __all__ & sphinx
+# flake8: noqa
 
 __all__ = [
     "BaseRuntime",
@@ -26,11 +27,12 @@ __all__ = [
     "Spark3Runtime",
     "DatabricksRuntime",
     "KubeResource",
+    "ApplicationRuntime",
+    "MpiRuntimeV1",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
 
-from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
@@ -38,6 +40,7 @@ from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeV1  # noqa
 from .nuclio import (
+    ApplicationRuntime,
     RemoteRuntime,
     ServingRuntime,
     new_v2_model_server,

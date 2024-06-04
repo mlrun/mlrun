@@ -217,7 +217,8 @@ steps. When implementing custom transformations, the code has to support all eng
 
 ```{admonition} Note
 The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
-[here](../feature-store/transformations.html#data-transformation-steps).
+[here](../serving/available-steps.html#data-transformation-steps).
+```
 
 The following are the main differences between transformation steps executing on different engines:
 

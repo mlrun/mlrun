@@ -263,7 +263,8 @@ class RemoteRuntime(KubeResource):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
     def pre_deploy_validation(self):
-        pass
+        if self.metadata.tag:
+            mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -543,8 +544,6 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
-
-        mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()

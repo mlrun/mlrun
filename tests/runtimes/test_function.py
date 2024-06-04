@@ -216,6 +216,6 @@ def test_update_credentials_from_remote_build(function_kind):
     ],
 )
 def test_invalid_tags(tag, expected, rundb_mock):
-    function = mlrun.new_function("test", kind="nuclio")
+    function = mlrun.new_function("test", kind="nuclio", tag=tag)
     with expected:
-        function.deploy(tag=tag)
+        function.pre_deploy_validation()

@@ -35,8 +35,11 @@ from mlrun.utils import logger
 
 here = os.path.dirname(__file__)
 config_file_path = os.path.join(here, "test-aws-s3.yml")
-with open(config_file_path) as yaml_file:
-    config = yaml.safe_load(yaml_file)
+
+config = {}
+if os.path.exists(config_file_path):
+    with open(config_file_path) as yaml_file:
+        config = yaml.safe_load(yaml_file)
 
 # Used to test dataframe functionality (will be saved as csv)
 test_df_string = "col1,col2,col3\n1,2,3"
@@ -45,8 +48,10 @@ credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 
 
 def aws_s3_configured(extra_params=None):
+    if not os.path.exists(config_file_path):
+        return False
     extra_params = extra_params or []
-    env_params = config["env"]
+    env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params, *extra_params]
     for param in needed_params:
         if not env_params.get(param):
@@ -58,7 +63,7 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-    env = config["env"]
+    env = config.get("env", {})
     bucket_name = env.get("bucket_name")
     access_key_id = env.get("AWS_ACCESS_KEY_ID")
     _secret_access_key = env.get("AWS_SECRET_ACCESS_KEY")

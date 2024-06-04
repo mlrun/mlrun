@@ -574,7 +574,7 @@ run-test-db:
 		-e MYSQL_ROOT_HOST=% \
 		-e MYSQL_DATABASE="mlrun" \
 		-d \
-		mysql/mysql-server:8.0 \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin \
 		--sql_mode=""

@@ -74,11 +74,17 @@ class AlertConfig(ModelObj):
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         data = super().to_dict(self._dict_fields)
 
+        if self.entities is None:
+            raise mlrun.errors.MLRunBadRequestError("Alert entity field is missing")
         data["entities"] = (
             self.entities.dict()
             if not isinstance(self.entities, dict)
             else self.entities
         )
+        if not self.notifications:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Alert must have at least one notification"
+            )
         data["notifications"] = [
             notification_data.dict()
             if not isinstance(notification_data, dict)

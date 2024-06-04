@@ -33,6 +33,7 @@ __all__ = [
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
 
+from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
@@ -40,7 +41,6 @@ from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeV1  # noqa
 from .nuclio import (
-    ApplicationRuntime,
     RemoteRuntime,
     ServingRuntime,
     new_v2_model_server,

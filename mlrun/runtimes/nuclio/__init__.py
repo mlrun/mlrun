@@ -14,7 +14,6 @@
 
 from .serving import ServingRuntime, new_v2_model_server  # noqa
 from .nuclio import nuclio_init_hook  # noqa
-from .application import ApplicationRuntime
 from .function import (
     min_nuclio_versions,
     RemoteRuntime,

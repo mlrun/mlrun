@@ -68,6 +68,10 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         # remove the host label
         assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
         del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
+
+        # remove the kind label
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.kind]
+
         assert runs[0]["metadata"]["labels"] == {}
 
         ctx.set_label("label-key", "label-value")

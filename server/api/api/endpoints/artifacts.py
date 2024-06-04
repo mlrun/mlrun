@@ -18,11 +18,11 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
 from mlrun.utils import logger
 from server.api.api import deps
@@ -97,6 +97,15 @@ async def list_artifact_tags(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
+    # verify that the user has permissions to read the project's artifacts
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        "",
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
     tags = await run_in_threadpool(
         server.api.crud.Artifacts().list_artifact_tags, db_session, project, category
     )
@@ -113,7 +122,9 @@ async def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    format_: mlrun.common.formatters.ArtifactFormat = Query(
+        mlrun.common.formatters.ArtifactFormat.full, alias="format"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -190,7 +201,9 @@ async def list_artifacts(
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    format_: mlrun.common.formatters.ArtifactFormat = Query(
+        mlrun.common.formatters.ArtifactFormat.full, alias="format"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

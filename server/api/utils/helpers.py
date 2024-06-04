@@ -73,15 +73,6 @@ def ensure_running_on_chief(function):
     return wrapper
 
 
-def minimize_project_schema(
-    project: mlrun.common.schemas.Project,
-) -> mlrun.common.schemas.Project:
-    project.spec.functions = None
-    project.spec.workflows = None
-    project.spec.artifacts = None
-    return project
-
-
 def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
     if not time_str:
         return None

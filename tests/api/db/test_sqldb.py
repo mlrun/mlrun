@@ -23,6 +23,8 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.db.sqldb.models
 from mlrun.lists import ArtifactList
@@ -84,15 +86,23 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     t3 = t2 - timedelta(days=7)
     project = "p7"
 
+    # create artifacts in the db directly to avoid the store_artifact function which sets the updated field
     artifacts_to_create = []
     for key, updated, producer_id in [
         ("k1", t1, "p1"),
         ("k2", t2, "p2"),
         ("k3", t3, "p3"),
     ]:
+        artifact_struct = mlrun.artifacts.Artifact(
+            metadata=mlrun.artifacts.ArtifactMetadata(
+                key=key, project=project, tree=producer_id
+            ),
+            spec=mlrun.artifacts.ArtifactSpec(),
+        )
         db_artifact = ArtifactV2(
             project=project, key=key, updated=updated, producer_id=producer_id
         )
+        db_artifact.full_object = artifact_struct.to_dict()
         artifacts_to_create.append(db_artifact)
 
     db._upsert(db_session, artifacts_to_create)
@@ -272,7 +282,7 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

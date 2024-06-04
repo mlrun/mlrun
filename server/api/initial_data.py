@@ -25,6 +25,7 @@ import sqlalchemy.orm
 
 import mlrun.artifacts
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
@@ -418,7 +419,7 @@ def _resolve_current_data_version(
     ) as exc:
         try:
             projects = db.list_projects(
-                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+                db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
             )
         except (
             sqlalchemy.exc.ProgrammingError,

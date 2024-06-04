@@ -23,6 +23,7 @@ import mlrun
 import mlrun.errors
 from mlrun.artifacts import ModelArtifact
 from mlrun.artifacts.base import LinkArtifact
+from mlrun.datastore.inmem import InMemoryStore
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -34,18 +35,22 @@ raw_data = {
 df = pd.DataFrame(raw_data, columns=["name", "age"])
 
 
-def test_in_memory() -> None:
+@pytest.fixture
+def in_mem_store() -> InMemoryStore:
+    return InMemoryStore()
+
+
+def test_in_memory(in_mem_store: InMemoryStore) -> None:
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
     k1 = context.log_artifact("k1", body="abc")
     k2 = context.log_dataset("k2", df=df)
 
-    data = mlrun.datastore.set_in_memory_item("aa", "123")
-    in_memory_store = mlrun.datastore.get_in_memory_items()
+    in_mem_store.put("aa", "123")
     new_df = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
-    assert len(in_memory_store) == 3, "data not written properly to in mem store"
-    assert data.get() == "123", "in mem store failed to get/put"
+    assert len(in_mem_store._items) == 1, "data not written properly to in mem store"
+    assert in_mem_store.get("aa") == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
     assert (
         mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"

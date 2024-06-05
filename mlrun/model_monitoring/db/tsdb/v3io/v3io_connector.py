@@ -505,7 +505,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         query = self._get_sql_query(
             endpoint_id=endpoint_id,
-            names=[(metric.app, metric.name) for metric in metrics],
+            metric_and_app_names=[(metric.app, metric.name) for metric in metrics],
             table_path=table_path,
             name=name,
         )
@@ -533,9 +533,9 @@ class V3IOTSDBConnector(TSDBConnector):
     def _get_sql_query(
         *,
         endpoint_id: str,
-        names: list[tuple[str, str]],
         table_path: str,
         name: str = mm_schemas.ResultData.RESULT_NAME,
+        metric_and_app_names: Optional[list[tuple[str, str]]] = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
         with StringIO() as query:
@@ -543,10 +543,10 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"SELECT * FROM '{table_path}' "
                 f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
             )
-            if names:
+            if metric_and_app_names:
                 query.write(" AND (")
 
-                for i, (app_name, result_name) in enumerate(names):
+                for i, (app_name, result_name) in enumerate(metric_and_app_names):
                     sub_cond = (
                         f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}' "
                         f"AND {name}='{result_name}')"

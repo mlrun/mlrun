@@ -375,7 +375,7 @@ def test_tsdb_query(
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(
-            endpoint_id=endpoint_id, names=names, table_path=table_path
+            endpoint_id=endpoint_id, metric_and_app_names=names, table_path=table_path
         )
         == expected_query
     )

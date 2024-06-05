@@ -504,8 +504,8 @@ class V3IOTSDBConnector(TSDBConnector):
             raise ValueError(f"Invalid {type = }")
 
         query = self._get_sql_query(
-            endpoint_id,
-            [(metric.app, metric.name) for metric in metrics],
+            endpoint_id=endpoint_id,
+            names=[(metric.app, metric.name) for metric in metrics],
             table_path=table_path,
             name=name,
         )
@@ -531,6 +531,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
     @staticmethod
     def _get_sql_query(
+        *,
         endpoint_id: str,
         names: list[tuple[str, str]],
         table_path: str,

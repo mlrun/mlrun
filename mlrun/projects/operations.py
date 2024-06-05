@@ -168,8 +168,9 @@ def run_function(
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-    :param reset_on_run:    when set to True and local=True it is required to reload the code again because
-                            it may have changed
+    :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                            This ensures latest code changes are executed. This argument must be used in
+                            conjunction with the local=True argument.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     engine, function = _get_engine_and_function(function, project_object)

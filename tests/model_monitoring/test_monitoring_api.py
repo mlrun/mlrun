@@ -13,28 +13,16 @@
 # limitations under the License.
 
 import datetime
+import pathlib
 from unittest.mock import Mock, patch
 
 import pytest
 
 import mlrun.model_monitoring.api
-import mlrun.model_monitoring.applications as mm_applications
 from mlrun.db import RunDBInterface
 from mlrun.model_monitoring import ModelEndpoint
 
-
-class DemoMonitoringAppV2(mm_applications.ModelMonitoringApplicationBaseV2):
-    _dict_fields = ["param_1", "param_2"]
-
-    def __init__(self, param_1, **kwargs) -> None:
-        self.param_1 = param_1
-        self.param_2 = kwargs["param_2"]
-
-    def do_tracking(
-        self,
-        monitoring_context,
-    ):
-        pass
+from .assets.application import DemoMonitoringAppV2
 
 
 def test_read_dataset_as_dataframe():
@@ -88,11 +76,11 @@ def test_record_result_updates_last_request() -> None:
     "function",
     [
         {
-            "func": "./test_monitoring_api.py",
+            "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
             "application_class": DemoMonitoringAppV2(param_1=1, param_2=2),
         },
         {
-            "func": "./test_monitoring_api.py",
+            "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
             "application_class": "DemoMonitoringAppV2",
             "param_1": 1,
             "param_2": 2,

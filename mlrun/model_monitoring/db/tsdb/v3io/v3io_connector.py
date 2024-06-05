@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 from datetime import datetime
 from io import StringIO
 from typing import Literal, Optional, Union
@@ -47,7 +46,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         project: str,
         container: str = _CONTAINER,
-        v3io_framesd: typing.Optional[str] = None,
+        v3io_framesd: Optional[str] = None,
         create_table: bool = False,
     ) -> None:
         super().__init__(project=project)
@@ -291,7 +290,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: typing.Optional[str] = None):
+    def delete_tsdb_resources(self, table: Optional[str] = None):
         if table:
             # Delete a specific table
             tables = [table]
@@ -372,11 +371,11 @@ class V3IOTSDBConnector(TSDBConnector):
         table: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        columns: typing.Optional[list[str]] = None,
+        columns: Optional[list[str]] = None,
         filter_query: str = "",
-        interval: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list[str]] = None,
-        sliding_window_step: typing.Optional[str] = None,
+        interval: Optional[str] = None,
+        agg_funcs: Optional[list[str]] = None,
+        sliding_window_step: Optional[str] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """

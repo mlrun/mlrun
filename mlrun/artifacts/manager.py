@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import mlrun.common.schemas.artifact
 import mlrun.config
+import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
@@ -78,14 +79,16 @@ class ArtifactProducer:
         return None
 
     @staticmethod
-    def parse_uri(uri):
-        """parse artifact producer's uri to project, uid, iteration"""
-        uri_pattern = r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"
+    def parse_uri(uri: str) -> tuple[str, str, str]:
+        """Parse artifact producer's uri
+
+        :param uri: artifact producer's uri in the format <project>/<uid>[-<iteration>]
+        :returns: tuple of project, uid, iteration
+        """
+        uri_pattern = mlrun.utils.regex.artifact_producer_uri_pattern
         match = re.match(uri_pattern, uri)
         if not match:
-            raise ValueError(
-                "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
-            )
+            return "", "", ""
         group_dict = match.groupdict()
 
         return (

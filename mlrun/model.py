@@ -29,6 +29,7 @@ import pydantic.error_wrappers
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.utils.regex
 
 from .utils import (
     dict_to_json,
@@ -1649,9 +1650,12 @@ class RunObject(RunTemplate):
 
     @staticmethod
     def parse_uri(uri: str) -> tuple[str, str, str, str]:
-        uri_pattern = (
-            r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
-        )
+        """Parse the run's uri
+
+        :param uri: run uri in the format of <project>@<uid>#<iteration>[:tag]
+        :return: project, uid, iteration, tag
+        """
+        uri_pattern = mlrun.utils.regex.run_uri_pattern
         match = re.match(uri_pattern, uri)
         if not match:
             raise ValueError(

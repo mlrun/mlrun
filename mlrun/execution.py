@@ -1041,6 +1041,7 @@ class MLClientCtx:
 
         # completion of runs is not decided by the execution as there may be
         # multiple executions for a single run (e.g. mpi)
+        # If the run is local, we can change the state to completed, so it doesn't stay in running mode forever.
         run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
         if (
             mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)

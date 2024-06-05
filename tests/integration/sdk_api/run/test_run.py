@@ -82,6 +82,8 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(runs) == 1
         assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
         del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
+        # remove the kind label
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.kind]
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
 
         # mock not logging worker
@@ -97,4 +99,6 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(runs) == 1
         assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
         del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
+        # remove the kind label
+        del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.kind]
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}

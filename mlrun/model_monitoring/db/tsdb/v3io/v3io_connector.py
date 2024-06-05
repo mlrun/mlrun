@@ -17,9 +17,8 @@ from io import StringIO
 from typing import Literal, Optional, Union
 
 import pandas as pd
+import v3io_frames
 import v3io_frames.client
-import v3io_frames.errors
-from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -32,6 +31,14 @@ from mlrun.utils import logger
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _CONTAINER = "users"
+
+
+def _is_no_schema_error(exc: v3io_frames.ReadError) -> bool:
+    """
+    In case of a nonexistent TSDB table - a `v3io_frames.ReadError` error is raised.
+    Check if the error message contains the relevant string to verify the cause.
+    """
+    return "No TSDB schema file found" in str(exc)
 
 
 class V3IOTSDBConnector(TSDBConnector):
@@ -131,7 +138,7 @@ class V3IOTSDBConnector(TSDBConnector):
             self._frames_client.create(
                 backend=_TSDB_BE,
                 table=table,
-                if_exists=IGNORE,
+                if_exists=v3io_frames.IGNORE,
                 rate=_TSDB_RATE,
             )
 
@@ -279,7 +286,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 index_cols=index_cols,
             )
             logger.info("Updated V3IO TSDB successfully", table=table)
-        except v3io_frames.errors.Error as err:
+        except v3io_frames.Error as err:
             logger.exception(
                 "Could not write drift measures to TSDB",
                 err=err,
@@ -300,7 +307,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_to_delete in tables:
             try:
                 self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
-            except v3io_frames.errors.DeleteError as e:
+            except v3io_frames.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
                     err=mlrun.errors.err_to_str(e),
@@ -361,7 +368,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 ]
                 metrics_mapping[metric] = values
 
-        except v3io_frames.errors.Error as err:
+        except v3io_frames.Error as err:
             logger.warn("Failed to read tsdb", err=err, endpoint=endpoint_id)
 
         return metrics_mapping
@@ -429,7 +436,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 **kwargs,
             )
         except v3io_frames.ReadError as err:
-            if "No TSDB schema file found" in str(err):
+            if _is_no_schema_error(err):
                 return pd.DataFrame()
             else:
                 raise err

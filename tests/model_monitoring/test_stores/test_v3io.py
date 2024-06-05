@@ -25,6 +25,7 @@ import pytest
 import v3io.dataplane.kv
 import v3io.dataplane.output
 import v3io.dataplane.response
+import v3io_frames
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
@@ -36,7 +37,10 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import V3IOTSDBConnector
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
+    V3IOTSDBConnector,
+    _is_no_schema_error,
+)
 
 
 @pytest.fixture(params=["default-project"])
@@ -172,6 +176,25 @@ def test_extract_metrics_from_items(
     expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
     assert store._extract_metrics_from_items(items) == expected_metrics
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected_is_no_schema"),
+    [
+        (v3io_frames.ReadError("Another read error"), False),
+        (
+            v3io_frames.ReadError(
+                "can't query: failed to create adapter: No TSDB schema file found at "
+                "'v3io-webapi:8081/users/pipelines/mm-serving-no-data/model-endpoints/predictions/'."
+            ),
+            True,
+        ),
+    ],
+)
+def test_is_no_schema_error(
+    exc: v3io_frames.ReadError, expected_is_no_schema: bool
+) -> None:
+    assert _is_no_schema_error(exc) == expected_is_no_schema
 
 
 @pytest.fixture

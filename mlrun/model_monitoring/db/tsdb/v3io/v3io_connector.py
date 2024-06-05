@@ -629,11 +629,30 @@ class V3IOTSDBConnector(TSDBConnector):
     def read_prediction_metric_for_endpoint_if_exists(
         self, endpoint_id: str
     ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        # Read just one record, because we just want to check if there is any data for this endpoint_id
-        predictions = self.read_predictions(
-            endpoint_id=endpoint_id, start="0", end="now"
+        """
+        Read the count of the latency column in the predictions table for the given endpoint_id.
+        We just want to check if there is any data for this endpoint_id.
+        """
+        query = self._get_sql_query(
+            endpoint_id=endpoint_id,
+            table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
+            columns=[f"COUNT({mm_schemas.EventFieldType.LATENCY})"],
         )
-        if predictions.data:
+        try:
+            logger.debug("Checking TSDB", project=self.project, query=query)
+            df: pd.DataFrame = self._frames_client.read(
+                backend=_TSDB_BE, query=query, start="0", end="now"
+            )
+        except v3io_frames.ReadError as err:
+            if _is_no_schema_error(err):
+                logger.debug(
+                    "No predictions yet", project=self.project, endpoint_id=endpoint_id
+                )
+                return
+            else:
+                raise
+
+        if not df.empty:
             return mm_schemas.ModelEndpointMonitoringMetric(
                 project=self.project,
                 app=mm_schemas.SpecialApps.MLRUN_INFRA,

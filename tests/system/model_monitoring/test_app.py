@@ -207,7 +207,7 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_predictions_table(cls, ep_id: str) -> None:
+    def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
@@ -219,10 +219,13 @@ class _V3IORecordsChecker:
                 start=datetime.min,
                 end=datetime.now().astimezone(),
             )
-        assert not predictions_df.empty, "No TSDB predictions data"
-        assert (
-            predictions_df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
+        if should_be_empty:
+            assert predictions_df.empty, "Predictions should be empty"
+        else:
+            assert not predictions_df.empty, "No TSDB predictions data"
+            assert (
+                predictions_df.endpoint_id == ep_id
+            ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
     def _test_apps_parquet(
@@ -255,7 +258,6 @@ class _V3IORecordsChecker:
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
-        cls._test_predictions_table(ep_id)
 
     @classmethod
     def _test_api_get_metrics(
@@ -539,6 +541,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         ep_id = self._get_model_endpoint_id()
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
+        self._test_predictions_table(ep_id)
 
         if with_training_set:
             self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
@@ -690,6 +693,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(
             self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
         )
+        self._test_predictions_table(self.endpoint_id, should_be_empty=True)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

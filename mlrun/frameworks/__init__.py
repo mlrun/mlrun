@@ -12,5 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+MLRun provides a quick and easy integration into your code with mlrun.frameworks: a collection of sub-modules
+for the most commonly used machine and deep learning frameworks, providing features such as automatic logging,
+model management, and distributed training.
+"""
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from .parallel_coordinates import compare_db_runs, compare_run_objects

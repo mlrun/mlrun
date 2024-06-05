@@ -15,9 +15,26 @@
 import datetime
 from unittest.mock import Mock, patch
 
+import pytest
+
 import mlrun.model_monitoring.api
+import mlrun.model_monitoring.applications as mm_applications
 from mlrun.db import RunDBInterface
 from mlrun.model_monitoring import ModelEndpoint
+
+
+class DemoMonitoringAppV2(mm_applications.ModelMonitoringApplicationBaseV2):
+    _dict_fields = ["param_1", "param_2"]
+
+    def __init__(self, param_1, **kwargs) -> None:
+        self.param_1 = param_1
+        self.param_2 = kwargs["param_2"]
+
+    def do_tracking(
+        self,
+        monitoring_context,
+    ):
+        pass
 
 
 def test_read_dataset_as_dataframe():
@@ -65,3 +82,34 @@ def test_record_result_updates_last_request() -> None:
         db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
         == datetime_mock.isoformat()
     ), "last_request attribute of the model endpoint was not updated as expected"
+
+
+@pytest.mark.parametrize(
+    "function",
+    [
+        {
+            "func": "./test_monitoring_api.py",
+            "application_class": DemoMonitoringAppV2(param_1=1, param_2=2),
+        },
+        {
+            "func": "./test_monitoring_api.py",
+            "application_class": "DemoMonitoringAppV2",
+            "param_1": 1,
+            "param_2": 2,
+        },
+    ],
+)
+def test_create_model_monitoring_function(function) -> None:
+    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+        project="", name="my-app", **function
+    )
+    assert app.metadata.name == "my-app"
+
+    steps = app.spec.graph.steps
+
+    assert "PrepareMonitoringEvent" in app.spec.graph.steps
+    assert "DemoMonitoringAppV2" in app.spec.graph.steps
+    assert "PushToMonitoringWriter" in app.spec.graph.steps
+
+    app_step = steps["DemoMonitoringAppV2"]
+    assert app_step.class_args == {"param_1": 1, "param_2": 2}

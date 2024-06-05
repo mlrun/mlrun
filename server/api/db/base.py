@@ -770,6 +770,14 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_num_configured_alerts(self, session) -> int:
+        pass
+
+    @abstractmethod
     def store_alert_notifications(
         self,
         session,

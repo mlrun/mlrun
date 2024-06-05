@@ -636,7 +636,7 @@ class V3IOTSDBConnector(TSDBConnector):
         query = self._get_sql_query(
             endpoint_id=endpoint_id,
             table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
-            columns=[f"COUNT({mm_schemas.EventFieldType.LATENCY})"],
+            columns=[f"count({mm_schemas.EventFieldType.LATENCY})"],
         )
         try:
             logger.debug("Checking TSDB", project=self.project, query=query)

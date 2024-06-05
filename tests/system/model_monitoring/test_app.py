@@ -99,6 +99,10 @@ class _V3IORecordsChecker:
 
     @classmethod
     def custom_setup(cls, project_name: str) -> None:
+        # By default, the TSDB connection is based on V3IO TSDB
+        # To use TDEngine, set the `TSDB_CONNECTION` environment variable to the TDEngine connection string,
+        # e.g. "taosws://user:password@host:port"
+
         if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
             project = mlrun.get_or_create_project(
                 project_name, "./", allow_cross_project=True
@@ -169,14 +173,14 @@ class _V3IORecordsChecker:
     def _test_tsdb_record(cls, ep_id: str) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             # V3IO TSDB
-            df: pd.DataFrame = cls._tsdb_storage.get_records(
+            df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.APP_RESULTS,
                 start=f"now-{10 * cls.app_interval}m",
                 end="now",
             )
         else:
             # TDEngine
-            df: pd.DataFrame = cls._tsdb_storage.get_records(
+            df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.TDEngineSuperTables.APP_RESULTS,
                 start=datetime.now().astimezone()
                 - timedelta(minutes=10 * cls.app_interval),
@@ -203,14 +207,25 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_predictions_table(cls, ep_id: str) -> None:
-        predictions_df: pd.DataFrame = cls._tsdb_storage.get_records(
-            table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
-        )
-        assert not predictions_df.empty, "No TSDB predictions data"
-        assert (
-            predictions_df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
+    def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
+        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
+                table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
+            )
+        else:
+            # TDEngine
+            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
+                table=mm_constants.TDEngineSuperTables.PREDICTIONS,
+                start=datetime.min,
+                end=datetime.now().astimezone(),
+            )
+        if should_be_empty:
+            assert predictions_df.empty, "Predictions should be empty"
+        else:
+            assert not predictions_df.empty, "No TSDB predictions data"
+            assert (
+                predictions_df.endpoint_id == ep_id
+            ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
     def _test_apps_parquet(
@@ -243,7 +258,6 @@ class _V3IORecordsChecker:
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
-        cls._test_predictions_table(ep_id)
 
     @classmethod
     def _test_api_get_metrics(
@@ -281,7 +295,7 @@ class _V3IORecordsChecker:
         if type == "metrics":
             expected_results.add("invocations")
 
-        assert get_app_results == getattr(app_data, type)
+        assert get_app_results == expected_results
         assert app_results_full_names, f"No {type}"
         return app_results_full_names
 
@@ -317,13 +331,11 @@ class _V3IORecordsChecker:
             ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
         )
 
-        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            # TODO : implement for TDEngine once the API is supported
-            cls._test_api_get_values(
-                ep_id=ep_id,
-                results_full_names=metrics_full_names + results_full_names,
-                run_db=run_db,
-            )
+        cls._test_api_get_values(
+            ep_id=ep_id,
+            results_full_names=metrics_full_names + results_full_names,
+            run_db=run_db,
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -529,6 +541,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         ep_id = self._get_model_endpoint_id()
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
+        self._test_predictions_table(ep_id)
 
         if with_training_set:
             self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
@@ -680,6 +693,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(
             self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
         )
+        self._test_predictions_table(self.endpoint_id, should_be_empty=True)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -689,7 +703,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
-    def test_enable_model_monitoring(self) -> None:
+    def test_model_monitoring_crud(self) -> None:
+        import v3io.dataplane
+
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
@@ -700,7 +716,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
         )
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
@@ -722,6 +739,78 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             ]
             == "1m"
         )
+
+        self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
+        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+
+        # controller and writer(with hus stream) should be deleted
+        for name in mm_constants.MonitoringFunctionNames.list():
+            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                project=self.project.name, function_name=name
+            )
+            _, container, stream_path = (
+                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                    stream_path
+                )
+            )
+            if name != mm_constants.MonitoringFunctionNames.STREAM:
+                with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                    self.project.get_function(
+                        key=name,
+                        ignore_cache=True,
+                    )
+                with pytest.raises(v3io.dataplane.response.HttpResponseError):
+                    v3io_client.stream.describe(container, stream_path)
+            else:
+                self.project.get_function(
+                    key=name,
+                    ignore_cache=True,
+                )
+                v3io_client.stream.describe(container, stream_path)
+
+        self.project.disable_model_monitoring(
+            delete_histogram_data_drift_app=False, delete_stream_function=True
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.MonitoringFunctionNames.STREAM,
+                ignore_cache=True,
+            )
+
+        # check that the stream of the stream pod is not deleted
+        stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+            project=self.project.name,
+            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        )
+        _, container, stream_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                stream_path
+            )
+        )
+        v3io_client.stream.describe(container, stream_path)
+
+        self.project.delete_model_monitoring_function(
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        )
+        # check that the histogram data drift app and it's stream is deleted
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                ignore_cache=True,
+            )
+
+        with pytest.raises(v3io.dataplane.response.HttpResponseError):
+            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                project=self.project.name,
+                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            )
+            _, container, stream_path = (
+                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                    stream_path
+                )
+            )
+            v3io_client.stream.describe(container, stream_path)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

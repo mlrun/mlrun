@@ -17,6 +17,8 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import mlrun.alerts
+import mlrun.common
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.model_monitoring
@@ -267,7 +269,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -443,8 +445,8 @@ class RunDBInterface(ABC):
         namespace: str = None,
         timeout: int = 30,
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.summary,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         pass
@@ -458,8 +460,8 @@ class RunDBInterface(ABC):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         pass
@@ -837,6 +839,24 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
     ) -> None:
+        pass
+
+    @abstractmethod
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
         pass
 
     @abstractmethod

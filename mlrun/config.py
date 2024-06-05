@@ -371,7 +371,7 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
             # size of serving spec to move to config maps
-            "serving_spec_env_cutoff": 4096,
+            "serving_spec_env_cutoff": 0,
         },
         "logs": {
             "decode": {
@@ -701,7 +701,10 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "enabled"
+        "mode": "enabled",
+        # maximum number of alerts we allow to be configured.
+        # user will get an error when exceeding this
+        "max_allowed": 1000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -806,6 +809,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
+
         :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance

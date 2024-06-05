@@ -4818,8 +4818,16 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
+    @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_parquet_filters(self, engine):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_parquet_filters(self, engine, local, passthrough):
+        if passthrough and engine == "dask":
+            pytest.skip(
+                "Dask engine with passthrough=True is not supported. Open issue ML-6684"
+            )
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
         filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
@@ -4840,7 +4848,9 @@ class TestFeatureStore(TestMLRunSystem):
             filtered_df.sort_values(by="patient_id").reset_index(drop=True),
         )
         feature_set = fstore.FeatureSet(
-            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+            passthrough=passthrough,
         )
 
         target = ParquetTarget(
@@ -4849,16 +4859,25 @@ class TestFeatureStore(TestMLRunSystem):
             partitioned=True,
             partition_cols=["department"],
         )
-        feature_set.ingest(source=parquet_source, targets=[target])
-        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
-        # We want to include patient_id in the comparison,
-        # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = sort_df(result, "patient_id")
-        expected = sort_df(filtered_df.query("room == 1"), "patient_id")
-        # the content of category column is still checked:
-        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        feature_set.ingest(
+            source=parquet_source, targets=[target], run_config=run_config
+        )
+        if not passthrough:
+            result = target.as_df(additional_filters=[("room", "=", 1)]).reset_index()
+            # We want to include patient_id in the comparison,
+            # sort the columns alphabetically, and sort the rows by patient_id values.
+            result = sort_df(result, "patient_id")
+            expected = sort_df(filtered_df.query("room == 1"), "patient_id")
+            # the content of category column is still checked:
+            assert_frame_equal(
+                result, expected, check_dtype=False, check_categorical=False
+            )
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        vec.save()
+        target = ParquetTarget(
+            path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
         )
         result = (
             fstore.get_offline_features(
@@ -4866,11 +4885,14 @@ class TestFeatureStore(TestMLRunSystem):
                 additional_filters=[("bad", "=", 95)],
                 with_indexes=True,
                 engine=engine,
+                run_config=run_config,
+                target=target,
             )
             .to_dataframe()
             .reset_index()
         )
-        expected = sort_df(filtered_df.query("bad == 95"), "patient_id")
+        expected = df if passthrough else filtered_df
+        expected = sort_df(expected.query("bad == 95"), "patient_id")
         result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 

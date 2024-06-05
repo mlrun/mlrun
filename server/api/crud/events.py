@@ -27,6 +27,7 @@ class Events(
 ):
     # we cache alert names based on project and event name as key
     _cache: dict[(str, str), list[str]] = {}
+    cache_initialized = False
 
     @staticmethod
     def is_valid_event(project: str, event_data: mlrun.common.schemas.Event):
@@ -41,13 +42,16 @@ class Events(
     def add_event_configuration(self, project, name, alert_name):
         self._cache.setdefault((project, name), []).append(alert_name)
 
-    def remove_event_configuration(self, project, name):
-        del self._cache[(project, name)]
+    def remove_event_configuration(self, project, name, alert_name):
+        alerts = self._cache[(project, name)]
+        alerts.remove(alert_name)
+        if len(alerts) == 0:
+            self._cache.pop((project, name))
 
     def delete_project_alert_events(self, project):
         to_delete = [name for proj, name in self._cache if proj == project]
         for name in to_delete:
-            self.remove_event_configuration(project, name)
+            self._cache.pop((project, name))
 
     def process_event(
         self,
@@ -65,6 +69,12 @@ class Events(
             )
 
         event_data.timestamp = datetime.datetime.now(datetime.timezone.utc)
+
+        if not self.cache_initialized:
+            server.api.crud.Alerts().process_event_no_cache(
+                session, event_name, event_data
+            )
+            return
 
         try:
             for name in self._cache[(project, event_name)]:

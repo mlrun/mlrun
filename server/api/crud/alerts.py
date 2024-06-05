@@ -17,10 +17,12 @@ import datetime
 
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.utils.helpers
 import server.api.utils.singletons.db
+from mlrun.config import config as mlconfig
 from mlrun.utils import logger
 from server.api.utils.notification_pusher import AlertNotificationPusher
 
@@ -45,12 +47,22 @@ class Alerts(
 
         if alert is not None:
             self._delete_notifications(alert)
+        else:
+            num_alerts = (
+                server.api.utils.singletons.db.get_db().get_num_configured_alerts(
+                    session
+                )
+            )
+            if num_alerts >= mlconfig.alerts.max_allowed:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Allowed number of alerts exceeded: {num_alerts}"
+                )
 
         self._validate_and_mask_notifications(alert_data)
 
         if alert is not None:
             for kind in alert.trigger.events:
-                server.api.crud.Events().remove_event_configuration(project, kind)
+                server.api.crud.Events().remove_event_configuration(project, kind, name)
             alert_data.created = alert.created
             alert_data.id = alert.id
 
@@ -116,7 +128,7 @@ class Alerts(
             return
 
         for kind in alert.trigger.events:
-            server.api.crud.Events().remove_event_configuration(project, kind)
+            server.api.crud.Events().remove_event_configuration(project, kind, name)
 
         server.api.utils.singletons.db.get_db().delete_alert(session, project, name)
 
@@ -190,6 +202,41 @@ class Alerts(
                 name=alert.name,
                 event=event_data.entity.ids[0],
             )
+
+    def populate_event_cache(self, session: sqlalchemy.orm.Session):
+        try:
+            self._try_populate_event_cache(session)
+        except Exception as exc:
+            logger.error(
+                "Error populating event cache for alerts. Transitioning state to offline!",
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            mlconfig.httpdb.state = mlrun.common.schemas.APIStates.offline
+            return
+
+        server.api.crud.Events().cache_initialized = True
+        logger.debug("Finished populating event cache for alerts")
+
+    @staticmethod
+    def _try_populate_event_cache(session: sqlalchemy.orm.Session):
+        for alert in server.api.utils.singletons.db.get_db().get_all_alerts(session):
+            for event_name in alert.trigger.events:
+                server.api.crud.Events().add_event_configuration(
+                    alert.project, event_name, alert.name
+                )
+
+    def process_event_no_cache(
+        self,
+        session: sqlalchemy.orm.Session,
+        event_name: str,
+        event_data: mlrun.common.schemas.Event,
+    ):
+        for alert in server.api.utils.singletons.db.get_db().get_all_alerts(session):
+            for config_event_name in alert.trigger.events:
+                if config_event_name == event_name:
+                    self.process_event(
+                        alert.project, event_name, alert.name, event_data
+                    )
 
     @staticmethod
     def _event_entity_matches(alert_entity, event_entity):

@@ -20,6 +20,7 @@ MLRUN_SERVING_SPEC_FILENAME = "serving_spec.json"
 MLRUN_SERVING_SPEC_PATH = (
     f"{MLRUN_SERVING_SPEC_MOUNT_PATH}/{MLRUN_SERVING_SPEC_FILENAME}"
 )
+MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"
 DASK_LABEL_PREFIX = "dask.org/"
@@ -41,6 +42,7 @@ class MLRunInternalLabels:
 
     ### nuclio
     nuclio_project_name = f"{NUCLIO_LABEL_PREFIX}project-name"
+    nuclio_function_name = f"{NUCLIO_LABEL_PREFIX}function-name"
     nuclio_class = f"{NUCLIO_LABEL_PREFIX}class"
 
     ### mlrun

@@ -248,6 +248,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_remote_deploy_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
 
@@ -325,6 +327,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_child_functions_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
         graph = function.spec.graph

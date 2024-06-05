@@ -536,11 +536,17 @@ class V3IOTSDBConnector(TSDBConnector):
         table_path: str,
         name: str = mm_schemas.ResultData.RESULT_NAME,
         metric_and_app_names: Optional[list[tuple[str, str]]] = None,
+        columns: Optional[list[str]] = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
+        if columns:
+            selection = ",".join(columns)
+        else:
+            selection = "*"
+
         with StringIO() as query:
             query.write(
-                f"SELECT * FROM '{table_path}' "
+                f"SELECT {selection} FROM '{table_path}' "
                 f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
             )
             if metric_and_app_names:

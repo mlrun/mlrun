@@ -161,7 +161,7 @@ class V3IOTSDBConnector(TSDBConnector):
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
-            columns=["latency"],
+            columns=[mm_schemas.EventFieldType.LATENCY],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],

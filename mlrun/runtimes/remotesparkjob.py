@@ -130,14 +130,20 @@ class RemoteSparkRuntime(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
-    def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
+    def with_spark_service(
+        self,
+        spark_service,
+        provider=RemoteSparkProviders.iguazio,
+        with_v3io_mount=True,
+    ):
         """Attach spark service to function"""
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-            self.apply(mount_v3io())
+            if with_v3io_mount:
+                self.apply(mount_v3io())
             self.apply(
                 mount_v3iod(
                     namespace=config.namespace,

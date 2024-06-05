@@ -29,6 +29,7 @@ import mergedeep
 import pytz
 from sqlalchemy import MetaData, and_, distinct, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -88,8 +89,10 @@ from server.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
+    _labeled,
+    _tagged,
+    _with_notifications,
 )
-from server.api.db.sqldb.models.common import _labeled, _tagged, _with_notifications
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
@@ -3779,6 +3782,9 @@ class SQLDB(DBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
+    def _get_count(self, session, cls):
+        return session.query(func.count(inspect(cls).primary_key[0])).scalar()
+
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
         new = set(user_names) - {user.name for user in users}
@@ -4387,6 +4393,13 @@ class SQLDB(DBInterface):
         return self._transform_alert_template_record_to_schema(
             self._get_alert_template_record(session, name)
         )
+
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        query = self._query(session, AlertConfig)
+        return list(map(self._transform_alert_config_record_to_schema, query.all()))
+
+    def get_num_configured_alerts(self, session) -> int:
+        return self._get_count(session, AlertConfig)
 
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig

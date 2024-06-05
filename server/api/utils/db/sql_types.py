@@ -12,19 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import sqlalchemy
+import sqlalchemy.dialects.mysql
+
 from .mysql import MySQLUtil
 
 
-class SQLCollationUtil:
+class SQLTypesUtil:
     class Collations:
         # with sqlite we use the default collation
         sqlite = None
-        mysql = "utf8_bin"
+        mysql = "utf8mb3_bin"
+
+    class Timestamp:
+        sqlite = sqlalchemy.TIMESTAMP
+        mysql = sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3)
+
+    class Blob:
+        sqlite = sqlalchemy.BLOB
+        mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
 
     @staticmethod
     def collation():
+        return SQLTypesUtil._return_type(SQLTypesUtil.Collations)
+
+    @staticmethod
+    def timestamp():
+        return SQLTypesUtil._return_type(SQLTypesUtil.Timestamp)
+
+    @staticmethod
+    def blob():
+        return SQLTypesUtil._return_type(SQLTypesUtil.Blob)
+
+    @staticmethod
+    def _return_type(type_cls):
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if mysql_dsn_data:
-            return SQLCollationUtil.Collations.mysql
+            return type_cls.mysql
 
-        return SQLCollationUtil.Collations.sqlite
+        return type_cls.sqlite

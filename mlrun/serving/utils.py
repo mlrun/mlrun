@@ -81,7 +81,9 @@ class StepToDict:
             class_path = f"{mod_name}.{class_path}"
         struct = {
             "class_name": class_path,
-            "name": self.name if hasattr(self, "name") else self.__class__.__name__,
+            "name": self.name
+            if hasattr(self, "name") and self.name
+            else self.__class__.__name__,
             "class_args": args,
         }
         if hasattr(self, "_STEP_KIND"):

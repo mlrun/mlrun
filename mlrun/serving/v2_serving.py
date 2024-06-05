@@ -528,8 +528,8 @@ def _init_endpoint_record(
         return None
 
     # Generating version model value based on the model name and model version
-    # Enrich the model server with the model artifact metadata
     if model.model_path and model.model_path.startswith("store://"):
+        # Enrich the model server with the model artifact metadata
         model.get_model()
         model.version = model.model_spec.tag
         model.labels = model.model_spec.labels

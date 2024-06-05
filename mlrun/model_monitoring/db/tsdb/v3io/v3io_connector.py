@@ -376,7 +376,6 @@ class V3IOTSDBConnector(TSDBConnector):
         filter_query: str = "",
         interval: typing.Optional[str] = None,
         agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         **kwargs,
     ) -> pd.DataFrame:
@@ -400,7 +399,6 @@ class V3IOTSDBConnector(TSDBConnector):
         :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
                                       provided, `interval` must bg provided as well. Provided as a list of strings in
                                       the format of ['sum', 'avg', 'count', ...].
-        :param limit:                 The maximum number of records to return.
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
@@ -437,8 +435,6 @@ class V3IOTSDBConnector(TSDBConnector):
             else:
                 raise err
 
-        if limit:
-            df = df.head(limit)
         return df
 
     def _get_v3io_source_directory(self) -> str:
@@ -572,7 +568,6 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Union[datetime, str],
         aggregation_window: Optional[str] = None,
         agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -591,7 +586,6 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id=='{endpoint_id}'",
             interval=aggregation_window,
             agg_funcs=agg_funcs,
-            limit=limit,
             sliding_window_step=aggregation_window,
         )
 
@@ -624,7 +618,7 @@ class V3IOTSDBConnector(TSDBConnector):
     ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
         # Read just one record, because we just want to check if there is any data for this endpoint_id
         predictions = self.read_predictions(
-            endpoint_id=endpoint_id, start="0", end="now", limit=1
+            endpoint_id=endpoint_id, start="0", end="now"
         )
         if predictions.data:
             return mm_schemas.ModelEndpointMonitoringMetric(

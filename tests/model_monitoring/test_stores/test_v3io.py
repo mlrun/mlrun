@@ -410,8 +410,8 @@ def test_tsdb_predictions_existence_query() -> None:
         table_path="pipelines/metrics-data-v2/model-endpoints/predictions/",
         endpoint_id="d4b50a7727d65c7f73c33590f6fe87a40d93af2a",
     ) == (
-        "SELECT count(latency) FROM 'pipelines/metrics-data-v2/model-endpoints/predictions/'"
-        " WHERE endpoint_id='d4b50a7727d65c7f73c33590f6fe87a40d93af2a';"
+        "SELECT count(latency) FROM 'pipelines/metrics-data-v2/model-endpoints/predictions/' "
+        "WHERE endpoint_id='d4b50a7727d65c7f73c33590f6fe87a40d93af2a';"
     )
 
 

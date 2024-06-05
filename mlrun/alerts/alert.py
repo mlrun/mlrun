@@ -30,6 +30,11 @@ class AlertConfig(ModelObj):
         "reset_policy",
         "state",
     ]
+    _fields_to_serialize = ModelObj._fields_to_serialize + [
+        "entities",
+        "notifications",
+        "trigger",
+    ]
 
     def __init__(
         self,
@@ -71,30 +76,44 @@ class AlertConfig(ModelObj):
         if not self.project or not self.name:
             raise mlrun.errors.MLRunBadRequestError("Project and name must be provided")
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
-        data = super().to_dict(self._dict_fields)
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ):
+        if field_name == "entities":
+            if self.entities:
+                return (
+                    self.entities.dict()
+                    if not isinstance(self.entities, dict)
+                    else self.entities
+                )
+            return None
+        if field_name == "notifications":
+            if self.notifications:
+                return [
+                    notification_data.dict()
+                    if not isinstance(notification_data, dict)
+                    else notification_data
+                    for notification_data in self.notifications
+                ]
+            return None
+        if field_name == "trigger":
+            if self.trigger:
+                return (
+                    self.trigger.dict()
+                    if not isinstance(self.trigger, dict)
+                    else self.trigger
+                )
+            return None
+        return super()._serialize_field(struct, field_name, strip)
 
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         if self.entities is None:
             raise mlrun.errors.MLRunBadRequestError("Alert entity field is missing")
-        data["entities"] = (
-            self.entities.dict()
-            if not isinstance(self.entities, dict)
-            else self.entities
-        )
         if not self.notifications:
             raise mlrun.errors.MLRunBadRequestError(
                 "Alert must have at least one notification"
             )
-        data["notifications"] = [
-            notification_data.dict()
-            if not isinstance(notification_data, dict)
-            else notification_data
-            for notification_data in self.notifications
-        ]
-        data["trigger"] = (
-            self.trigger.dict() if not isinstance(self.trigger, dict) else self.trigger
-        )
-        return data
+        return super().to_dict(self._dict_fields)
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):

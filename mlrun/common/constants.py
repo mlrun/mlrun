@@ -42,6 +42,7 @@ class MLRunInternalLabels:
 
     ### nuclio
     nuclio_project_name = f"{NUCLIO_LABEL_PREFIX}project-name"
+    nuclio_function_name = f"{NUCLIO_LABEL_PREFIX}function-name"
     nuclio_class = f"{NUCLIO_LABEL_PREFIX}class"
 
     ### mlrun

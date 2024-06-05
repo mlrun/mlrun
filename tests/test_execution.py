@@ -47,12 +47,12 @@ def test_local_context(rundb_mock):
         artifact.format = "z"
         context.update_artifact(artifact)
 
-    assert context._state == "completed", "task completed"
+    assert context._state == "completed", "task did not complete"
 
     run = db.read_run(context._uid, project=project_name)
 
     # run state should be updated by the context for local run
-    assert run["status"]["state"] == "completed", "run status was updated in db"
+    assert run["status"]["state"] == "completed", "run status was not updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
     ), "artifact not updated in db"

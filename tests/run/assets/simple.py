@@ -19,6 +19,6 @@ def handler(context, x=1):
     context.log_result("y", x * 2)
 
 
-def func():
+def get_ctx_kind_label():
     ctx = mlrun.get_or_create_ctx("func-func")
     return ctx.labels.get("kind")

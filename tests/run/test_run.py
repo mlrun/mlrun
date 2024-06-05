@@ -311,7 +311,7 @@ def test_get_or_create_ctx_run_kind_local_from_function():
     project.set_function(
         name="func",
         func=f"{assets_path}/simple.py",
-        handler="func",
+        handler="get_ctx_kind_label",
         image="mlrun/mlrun",
     )
     run = project.run_function(

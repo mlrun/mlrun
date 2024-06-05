@@ -141,6 +141,10 @@ latest_data_version = 5
 
 
 def update_default_configuration_data():
+    server.api.db.session.run_function_with_new_db_session(
+        server.api.crud.Alerts().populate_event_cache
+    )
+
     logger.debug("Updating default configuration data")
     db_session = create_session()
     try:

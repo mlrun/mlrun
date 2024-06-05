@@ -12,3 +12,4 @@ sqlalchemy~=1.4
 pymysql~=1.0
 alembic~=1.9
 timelength~=1.1
+memray~=1.12

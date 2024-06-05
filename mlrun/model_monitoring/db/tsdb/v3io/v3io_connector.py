@@ -375,7 +375,7 @@ class V3IOTSDBConnector(TSDBConnector):
         columns: typing.Optional[list[str]] = None,
         filter_query: str = "",
         interval: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
+        agg_funcs: typing.Optional[list[str]] = None,
         sliding_window_step: typing.Optional[str] = None,
         **kwargs,
     ) -> pd.DataFrame:
@@ -414,7 +414,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         if agg_funcs:
             # Frames client expects the aggregators to be a comma-separated string
-            agg_funcs = ",".join(agg_funcs)
+            aggregators = ",".join(agg_funcs)
         table_path = self.tables[table]
         try:
             df = self._frames_client.read(
@@ -425,7 +425,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 columns=columns,
                 filter=filter_query,
                 aggregation_window=interval,
-                aggregators=agg_funcs,
+                aggregators=aggregators,
                 step=sliding_window_step,
                 **kwargs,
             )

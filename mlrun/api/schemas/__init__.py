@@ -97,7 +97,7 @@ sys.modules["mlrun.api.schemas.tag"] = old_tag
 # and return the new schema. This is done for backwards compatibility with mlrun.api.schemas.
 ArtifactCategories = DeprecationHelper(mlrun.common.schemas.ArtifactCategories)
 ArtifactIdentifier = DeprecationHelper(mlrun.common.schemas.ArtifactIdentifier)
-ArtifactsFormat = DeprecationHelper(mlrun.common.formatters.ArtifactsFormat)
+ArtifactsFormat = DeprecationHelper(mlrun.common.formatters.ArtifactFormat)
 AuthInfo = DeprecationHelper(mlrun.common.schemas.AuthInfo)
 AuthorizationAction = DeprecationHelper(mlrun.common.schemas.AuthorizationAction)
 AuthorizationResourceTypes = DeprecationHelper(

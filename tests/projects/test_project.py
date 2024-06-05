@@ -993,15 +993,26 @@ def test_import_artifact_retain_producer(rundb_mock):
     # create an artifact with a 'run' producer
     artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
     run_name = "my-run"
-    run_tag = "some-tag"
+    run_tag = "sometag123"
 
     # we set the producer as dict so the export will work
     artifact.producer = mlrun.artifacts.ArtifactProducer(
         kind="run",
         project=project_1.name,
         name=run_name,
-        tag=run_tag,
     ).get_meta()
+
+    # imitate the artifact being produced by a run with uri and without a tag
+    artifact.producer["uri"] = f"{project_1.name}/{run_tag}"
+    artifact.producer["project"] = project_1.name
+
+    # the uri is parsed when importing the artifact, so we set the expected producer
+    # also, the project is removed from the producer when importing
+    expected_producer = {
+        "kind": "run",
+        "name": run_name,
+        "tag": run_tag,
+    }
 
     # export the artifact
     artifact_path = f"{base_path}/my-artifact.yaml"
@@ -1010,7 +1021,7 @@ def test_import_artifact_retain_producer(rundb_mock):
     # import the artifact to another project
     new_key = "y"
     imported_artifact = project_2.import_artifact(artifact_path, new_key)
-    assert imported_artifact.producer == artifact.producer
+    assert imported_artifact.producer == expected_producer
 
     # set the artifact on the first project
     project_1.set_artifact(artifact.key, artifact)
@@ -1023,7 +1034,7 @@ def test_import_artifact_retain_producer(rundb_mock):
 
     # make sure the artifact was registered with the new key
     loaded_artifact = project_3.get_artifact(new_key)
-    assert loaded_artifact.producer == artifact.producer
+    assert loaded_artifact.producer == expected_producer
 
 
 def test_replace_exported_artifact_producer(rundb_mock):

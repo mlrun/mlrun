@@ -23,6 +23,7 @@ on:
         options:
           - '*'
           - 'mlrun-pipelines-kfp-common'
+          - 'mlrun-pipelines-kfp-nop'
           - 'mlrun-pipelines-kfp-v1-8'
           - 'mlrun-pipelines-kfp-v2'
 
@@ -40,7 +41,7 @@ jobs:
         shell: bash
         run: |
           if [[ "$PACKAGES" = "*" ]]; then \
-            export packages=("mlrun-pipelines-kfp-common" "mlrun-pipelines-kfp-v1-8" "mlrun-pipelines-kfp-v2") ;\
+            export packages=("mlrun-pipelines-kfp-common" "mlrun-pipelines-kfp-v1-8" "mlrun-pipelines-kfp-v2" "mlrun-pipelines-kfp-nop") ;\
           else \
             export packages=("${PACKAGES}") ;\
           fi

@@ -172,6 +172,8 @@ async def delete_alert(
             project=project, name=name, request=request
         )
 
+    logger.debug("Deleting alert", project=project, name=name)
+
     await run_in_threadpool(
         server.api.crud.Alerts().delete_alert, db_session, project, name
     )

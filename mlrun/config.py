@@ -701,7 +701,10 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "enabled"
+        "mode": "enabled",
+        # maximum number of alerts we allow to be configured.
+        # user will get an error when exceeding this
+        "max_allowed": 1000,
     },
     "auth_with_client_id": {
         "enabled": False,

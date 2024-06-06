@@ -1294,8 +1294,11 @@ class SparkAggregateByKey(StepToDict):
             return func(column)
 
     def do(self, event):
+        import uuid
+
         import pyspark.sql.functions as funcs
         from pyspark.sql import Window
+        from pyspark.sql.functions import udf
 
         time_column = self.time_column or "time"
         input_df = event
@@ -1339,7 +1342,7 @@ class SparkAggregateByKey(StepToDict):
                             def __call__(self, df, epoch_id):
                                 self.df = df
 
-                        batchProcessor = MyBatchProcessor()
+                        batch_processor = MyBatchProcessor()
 
                         df = (
                             input_df.withWatermark(time_column, spark_window)
@@ -1372,12 +1375,12 @@ class SparkAggregateByKey(StepToDict):
                             query = (
                                 df.writeStream.outputMode("update")
                                 .trigger(once=True)
-                                .foreachBatch(batchProcessor)
+                                .foreachBatch(batch_processor)
                                 .option("checkpointLocation", checkpoint_path)
                                 .start()
                             )
                             query.awaitTermination()
-                            df = batchProcessor.df.withColumn(
+                            df = batch_processor.df.withColumn(
                                 time_column, funcs.col(f"{time_column}.end")
                             )
                         else:
@@ -1404,7 +1407,11 @@ class SparkAggregateByKey(StepToDict):
             # We'll use this column to identify our original row and group-by across the various windows
             # (either sliding windows or multiple windows provided). See below comment for more details.
             rowid_col = "__mlrun_rowid"
-            df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
+            if df.isStreaming:
+                uuid_udf = udf(lambda: str(uuid.uuid4()))
+                df = input_df.withColumn(rowid_col, uuid_udf)
+            else:
+                df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
 
             drop_columns = [rowid_col]
             window_rank_cols = []

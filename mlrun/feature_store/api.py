@@ -1078,16 +1078,16 @@ def _ingest_with_spark(
                 def __call__(self, df, epoch_id):
                     self.df = df
 
-            batchProcessor = MyBatchProcessor()
+            batch_processor = MyBatchProcessor()
 
             query = (
                 df.writeStream.outputMode("update")
                 .trigger(once=True)
-                .foreachBatch(batchProcessor)
+                .foreachBatch(batch_processor)
                 .start()
             )
             query.awaitTermination()
-            df = batchProcessor.df
+            df = batch_processor.df
 
         df.persist()
 

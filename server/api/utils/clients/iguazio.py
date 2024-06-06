@@ -283,9 +283,7 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._wait_for_job_completion(
-                session, job_id, "Project deletion job failed"
-            )
+            self._wait_for_job_completion(session, job_id)
             self._logger.debug(
                 "Successfully deleted project in Iguazio",
                 name=name,
@@ -593,7 +591,9 @@ class Client(
         response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
+    def _wait_for_job_completion(
+        self, session: str, job_id: str, error_message: str = ""
+    ):
         def _verify_job_in_terminal_state():
             job_response_body = self._get_job_from_iguazio(session, job_id)
             _job_state = job_response_body["data"]["attributes"]["state"]
@@ -612,15 +612,19 @@ class Client(
             status_code = None
             try:
                 parsed_result = json.loads(job_result)
-                error_message = f"{error_message} {parsed_result['message']}"
+                result_message = parsed_result["message"]
+                final_error_message = self._resolve_final_error_message(
+                    error_message, result_message
+                )
+
                 # status is optional
                 if "status" in parsed_result:
                     status_code = int(parsed_result["status"])
             except Exception:
                 pass
             if not status_code:
-                raise mlrun.errors.MLRunRuntimeError(error_message)
-            raise mlrun.errors.err_for_status_code(status_code, error_message)
+                raise mlrun.errors.MLRunRuntimeError(final_error_message)
+            raise mlrun.errors.err_for_status_code(status_code, final_error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
 
     def _get_job_from_iguazio(self, session: str, job_id: str) -> dict:
@@ -955,6 +959,17 @@ class Client(
                     f"Job {job_id} not found in Iguazio"
                 )
             raise
+
+    @staticmethod
+    def _resolve_final_error_message(error_message, result_message):
+        if error_message and result_message:  # If both are not empty
+            return f"{error_message}: {result_message}"
+        if not result_message:  # If result_message is empty
+            return error_message
+        if not error_message:  # If error_message is empty
+            return result_message
+        # If both are empty
+        return ""
 
 
 class AsyncClient(Client):

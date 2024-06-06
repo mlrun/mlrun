@@ -25,7 +25,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.helpers import get_invocations_fqn, get_invocations_metric
+from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -626,31 +626,33 @@ class V3IOTSDBConnector(TSDBConnector):
             ),  # pyright: ignore[reportArgumentType]
         )
 
-    def read_prediction_metric_for_endpoint_if_exists(
-        self, endpoint_id: str
-    ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Read the count of the latency column in the predictions table for the given endpoint_id.
-        We just want to check if there is any data for this endpoint_id.
-        """
-        query = self._get_sql_query(
-            endpoint_id=endpoint_id,
-            table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
-            columns=[f"count({mm_schemas.EventFieldType.LATENCY})"],
-        )
-        try:
-            logger.debug("Checking TSDB", project=self.project, query=query)
-            df: pd.DataFrame = self._frames_client.read(
-                backend=_TSDB_BE, query=query, start="0", end="now"
-            )
-        except v3io_frames.ReadError as err:
-            if _is_no_schema_error(err):
-                logger.debug(
-                    "No predictions yet", project=self.project, endpoint_id=endpoint_id
-                )
-                return
-            else:
-                raise
-
-        if not df.empty:
-            return get_invocations_metric(self.project)
+    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
+    #
+    # def read_prediction_metric_for_endpoint_if_exists(
+    #     self, endpoint_id: str
+    # ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    #     """
+    #     Read the count of the latency column in the predictions table for the given endpoint_id.
+    #     We just want to check if there is any data for this endpoint_id.
+    #     """
+    #     query = self._get_sql_query(
+    #         endpoint_id=endpoint_id,
+    #         table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
+    #         columns=[f"count({mm_schemas.EventFieldType.LATENCY})"],
+    #     )
+    #     try:
+    #         logger.debug("Checking TSDB", project=self.project, query=query)
+    #         df: pd.DataFrame = self._frames_client.read(
+    #             backend=_TSDB_BE, query=query, start="0", end="now"
+    #         )
+    #     except v3io_frames.ReadError as err:
+    #         if _is_no_schema_error(err):
+    #             logger.debug(
+    #                 "No predictions yet", project=self.project, endpoint_id=endpoint_id
+    #             )
+    #             return
+    #         else:
+    #             raise
+    #
+    #     if not df.empty:
+    #         return get_invocations_metric(self.project)

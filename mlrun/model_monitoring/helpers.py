@@ -278,9 +278,13 @@ def calculate_inputs_statistics(
     return inputs_statistics
 
 
-def get_endpoint_record(project: str, endpoint_id: str):
+def get_endpoint_record(
+    project: str,
+    endpoint_id: str,
+    secret_provider: typing.Optional[typing.Callable] = None,
+) -> dict[str, typing.Any]:
     model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
+        project=project, secret_provider=secret_provider
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 

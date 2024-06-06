@@ -25,14 +25,15 @@ from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
+from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import datetime_now, logger
 
 
-class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
+class SQLStoreBase(StoreBase):
+    type: str = mm_schemas.ModelEndpointTarget.SQL
     """
     Handles the DB operations when the DB target is from type SQL. For the SQL operations, we use SQLAlchemy, a Python
     SQL toolkit that handles the communication with the database.  When using SQL for storing the model monitoring
@@ -44,23 +45,22 @@ class SQLStoreBase(mlrun.model_monitoring.db.StoreBase):
     def __init__(
         self,
         project: str,
-        secret_provider: typing.Callable = None,
+        **kwargs,
     ):
         """
         Initialize SQL store target object.
 
         :param project:               The name of the project.
-        :param secret_provider:       An optional secret provider to get the connection string secret.
         """
 
         super().__init__(project=project)
 
-        self._sql_connection_string = (
-            mlrun.model_monitoring.helpers.get_connection_string(
-                secret_provider=secret_provider
+        if "store_connection_string" not in kwargs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "connection_string is a required parameter for SQLStoreBase."
             )
-        )
 
+        self._sql_connection_string = kwargs.get("store_connection_string")
         self._engine = get_engine(dsn=self._sql_connection_string)
 
     def _init_tables(self):

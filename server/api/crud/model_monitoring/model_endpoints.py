@@ -376,7 +376,6 @@ class ModelEndpoints:
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
         model_endpoint_store = mlrun.model_monitoring.get_store_object(
             project=project,
-            access_key=auth_info.data_session,
             secret_provider=server.api.crud.secrets.get_project_secret_provider(
                 project=project
             ),
@@ -472,7 +471,6 @@ class ModelEndpoints:
 
         # Generate a model endpoint store object and get a list of model endpoint dictionaries
         endpoint_store = mlrun.model_monitoring.get_store_object(
-            access_key=auth_info.data_session,
             project=project,
             secret_provider=server.api.crud.secrets.get_project_secret_provider(
                 project=project
@@ -538,22 +536,23 @@ class ModelEndpoints:
             data_session=os.getenv("V3IO_ACCESS_KEY")
         )
 
-        # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
-        # we're using the igz version heuristic
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
-            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
-            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
-        ):
-            return
         # Delete model monitoring store resources
         endpoint_store = mlrun.model_monitoring.get_store_object(
-            access_key=auth_info.data_session,
             project=project_name,
             secret_provider=server.api.crud.secrets.get_project_secret_provider(
                 project=project_name
             ),
         )
+
+        # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
+        # we're using the igz version heuristic
+        if (
+            endpoint_store.type
+            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
+            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        ):
+            return
+
         endpoint_store.delete_model_endpoints_resources()
 
         # Delete model monitoring TSDB resources

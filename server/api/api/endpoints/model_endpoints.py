@@ -349,7 +349,10 @@ async def get_model_endpoint_monitoring_metrics(
     )
 
     get_model_endpoint_metrics = mlrun.model_monitoring.get_store_object(
-        project=project
+        project=project,
+        secret_provider=server.api.crud.secrets.get_project_secret_provider(
+            project=project
+        ),
     ).get_model_endpoint_metrics
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     tasks: list[asyncio.Task] = []

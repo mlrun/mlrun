@@ -212,7 +212,9 @@ class Client:
             pass
         else:
             if error:
-                error_message = f"{error_message}: {str(error)}" if error_message else str(error)
+                error_message = (
+                    f"{error_message}: {str(error)}" if error_message else str(error)
+                )
             if error:
                 log_kwargs.update(
                     {"error": error, "errorStackTrace": error_stack_trace}

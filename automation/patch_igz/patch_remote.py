@@ -152,9 +152,11 @@ class MLRunPatcher:
 
     def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
+        mlrun_docker_registry = self._resolve_mlrun_docker_registry()
         env = {
             "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REPO": self._config["DOCKER_REGISTRY"],
+            "MLRUN_DOCKER_REPO": "mlrun",
+            "MLRUN_DOCKER_REGISTRY": mlrun_docker_registry,
         }
         cmd = ["make", target]
         self._exec_local(cmd, live=True, env=env)
@@ -447,6 +449,19 @@ class MLRunPatcher:
     @staticmethod
     def _get_image_tag(tag) -> str:
         return f"{tag}"
+
+    def _resolve_mlrun_docker_registry(self):
+        mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
+
+        # remove "mlrun" as it will be added via the docker repo env var
+        if mlrun_docker_registry.endswith("mlrun"):
+            mlrun_docker_registry = mlrun_docker_registry[:-5]
+
+        # ensure we have a trailing slash
+        if not mlrun_docker_registry.endswith("/"):
+            mlrun_docker_registry += "/"
+
+        return mlrun_docker_registry
 
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):

@@ -33,6 +33,7 @@ from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
 from mlrun_pipelines.utils import get_client
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
@@ -293,6 +294,10 @@ def get_or_create_ctx(
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
+    newspec["metadata"].setdefault("labels", {})
+    newspec["metadata"]["labels"] = {
+        mlrun_constants.MLRunInternalLabels.kind: RuntimeKinds.local
+    }
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()

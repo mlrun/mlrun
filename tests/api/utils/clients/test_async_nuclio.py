@@ -26,7 +26,7 @@ import server.api.utils.clients.async_nuclio
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     return "http://nuclio-dashboard-url"
 
 

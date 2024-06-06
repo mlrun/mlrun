@@ -392,8 +392,9 @@ class BaseRuntime(ModelObj):
                 standards and is at least 1 minute (-1 for infinite).
                 If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
-        :param reset_on_run: when set to True and local=True it is required to reload the code again because
-                             it may have changed
+        :param reset_on_run: When True, function python modules would reload prior to code execution.
+                             This ensures latest code changes are executed. This argument must be used in
+                             conjunction with the local=True argument.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(

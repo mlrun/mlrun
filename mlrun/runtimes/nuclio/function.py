@@ -19,6 +19,7 @@ import warnings
 from datetime import datetime
 from time import sleep
 
+import inflection
 import nuclio
 import nuclio.utils
 import requests
@@ -65,7 +66,14 @@ def min_nuclio_versions(*versions):
             if validate_nuclio_version_compatibility(*versions):
                 return function(*args, **kwargs)
 
-            message = f"'{function.__qualname__}' function requires Nuclio v{' or v'.join(versions)} or higher"
+            if function.__name__ == "__init__":
+                name = inflection.titleize(function.__qualname__.split(".")[0])
+            else:
+                name = function.__qualname__
+
+            message = (
+                f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
+            )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
         return wrapper
@@ -263,7 +271,8 @@ class RemoteRuntime(KubeResource):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
     def pre_deploy_validation(self):
-        pass
+        if self.metadata.tag:
+            mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
     def set_config(self, key, value):
         self.spec.config[key] = value

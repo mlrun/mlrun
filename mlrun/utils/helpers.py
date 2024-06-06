@@ -659,7 +659,7 @@ def parse_artifact_uri(uri, default_project=""):
         [3] = tag
         [4] = tree
     """
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+    uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(

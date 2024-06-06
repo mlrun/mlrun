@@ -1041,9 +1041,14 @@ class MLClientCtx:
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is not decided by the execution as there may be
-        # multiple executions for a single run (e.g. mpi)
-        if self._state != "completed":
+        # Completion of runs is decided by the API runs monitoring as there may be
+        # multiple executions for a single run (e.g. mpi).
+        # For kinds that are not monitored by the API (local) we allow changing the state.
+        run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
+            or self._state != "completed"
+        ):
             struct["status.state"] = self._state
 
         if self.is_logging_worker():

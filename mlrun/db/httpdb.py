@@ -1224,7 +1224,10 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
                 logger.info(
-                    "Function deletion failed", project_name=project, function_name=name
+                    "Function deletion failed",
+                    reason=background_task.status.error,
+                    project_name=project,
+                    function_name=name,
                 )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
@@ -3344,6 +3347,113 @@ class HTTPRunDB(RunDBInterface):
             },
         )
 
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        """
+        Disable model monitoring application controller, writer, stream, histogram data drift application
+        and the user's applications functions, according to the given params.
+
+        :param project:                             Project name.
+        :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                    functions. Default True
+        :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                    need to use wisely because if you're deleting this function
+                                                    this can cause data loss in case you will want to
+                                                    enable the model monitoring capability to the project.
+                                                    Default False.
+        :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                    application. Default False.
+        :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                    application according to user_application_list, Default False.
+        :param user_application_list:               List of the user's model monitoring application to disable.
+                                                    Default all the applications.
+                                                    Note: you have to set delete_user_applications to True
+                                                    in order to delete the desired application.
+
+        :returns:                                   True if the deletion was successful, False otherwise.
+        """
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/disable-model-monitoring",
+            params={
+                "delete_resources": delete_resources,
+                "delete_stream_function": delete_stream_function,
+                "delete_histogram_data_drift_app": delete_histogram_data_drift_app,
+                "delete_user_applications": delete_user_applications,
+                "user_application_list": user_application_list,
+            },
+        )
+        deletion_failed = False
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            if delete_resources:
+                logger.info(
+                    "Model Monitoring is being disable",
+                    project_name=project,
+                )
+            if delete_user_applications:
+                logger.info("User applications are being deleted", project_name=project)
+            background_tasks = mlrun.common.schemas.BackgroundTaskList(
+                **response.json()
+            ).background_tasks
+            for task in background_tasks:
+                task = self._wait_for_background_task_to_reach_terminal_state(
+                    task.metadata.name, project=project
+                )
+                if (
+                    task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
+                    continue
+                elif (
+                    task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
+                    deletion_failed = True
+        return not deletion_failed
+
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
+        """
+        Delete a model monitoring application.
+
+        :param functions:            List of the model monitoring function to delete.
+        :param project:              Project name.
+
+        :returns:                    True if the deletion was successful, False otherwise.
+        """
+        response = self.api_call(
+            method=mlrun.common.types.HTTPMethod.DELETE,
+            path=f"projects/{project}/model-monitoring/functions",
+            params={"functions": functions},
+        )
+        deletion_failed = False
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            logger.info("User applications are being deleted", project_name=project)
+            background_tasks = mlrun.common.schemas.BackgroundTaskList(
+                **response.json()
+            ).background_tasks
+            for task in background_tasks:
+                task = self._wait_for_background_task_to_reach_terminal_state(
+                    task.metadata.name, project=project
+                )
+                if (
+                    task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
+                    continue
+                elif (
+                    task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
+                ):
+                    deletion_failed = True
+        return not deletion_failed
+
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
@@ -3651,8 +3761,8 @@ class HTTPRunDB(RunDBInterface):
         """
         Stores an API Gateway.
 
-        :param api_gateway {py:class}`~mlrun.runtimes.nuclio.APIGateway` or
-            {py:class}`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param api_gateway: :py:class:`~mlrun.runtimes.nuclio.APIGateway`
+            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
 
         :returns:  :py:class:`~mlrun.common.schemas.APIGateway`.

@@ -152,11 +152,18 @@ class MLRunPatcher:
 
     def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
-        mlrun_docker_registry = self._resolve_mlrun_docker_registry()
+        mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
+        ends_with_mlrun = mlrun_docker_registry.endswith("mlrun")
+
+        # ensure we have a trailing slash, unless a "mlrun" specific repo is used
+        if not mlrun_docker_registry.endswith("/") and not ends_with_mlrun:
+            mlrun_docker_registry += "/"
+
         env = {
             "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REPO": "mlrun",
             "MLRUN_DOCKER_REGISTRY": mlrun_docker_registry,
+            # unless set to an empty string, the makefile will add "mlrun" as the repo
+            "MLRUN_DOCKER_REPO": "" if ends_with_mlrun else "mlrun",
         }
         cmd = ["make", target]
         self._exec_local(cmd, live=True, env=env)
@@ -453,14 +460,11 @@ class MLRunPatcher:
     def _resolve_mlrun_docker_registry(self):
         mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
 
-        # remove "mlrun" as it will be added via the docker repo env var
-        if mlrun_docker_registry.endswith("mlrun"):
-            mlrun_docker_registry = mlrun_docker_registry[:-5]
-
-        # ensure we have a trailing slash
-        if not mlrun_docker_registry.endswith("/"):
+        # ensure we have a trailing slash, unless we are using the an mlrun registry
+        if not mlrun_docker_registry.endswith(
+            "/"
+        ) and not mlrun_docker_registry.endswith("mlrun"):
             mlrun_docker_registry += "/"
-
         return mlrun_docker_registry
 
     @staticmethod

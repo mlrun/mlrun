@@ -27,7 +27,7 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
@@ -1716,6 +1716,19 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def delete_functions(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing functions from db", project=project, name=names)
+
+        self._delete_multi_object(
+            session=session,
+            main_table=Function,
+            related_tables=[Function.Tag, Function.Label],
+            project=project,
+            names=names,
+        )
+
     def update_function(
         self,
         session,
@@ -1796,7 +1809,7 @@ class SQLDB(DBInterface):
                 )
             return tag_function_uid
 
-    def _delete_functions(self, session: Session, project: str):
+    def _delete_project_functions(self, session: Session, project: str):
         for function_name in self._list_project_function_names(session, project):
             self.delete_function(session, project, function_name)
 
@@ -2071,10 +2084,68 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
         for schedule in self.list_schedules(session, project=project):
             self.delete_schedule(session, project, schedule.name)
+
+    def delete_schedules(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing schedules from db", project=project, name=names)
+        self._delete_multi_object(
+            session=session,
+            main_table=Schedule,
+            related_tables=[Schedule.Tag],
+            project=project,
+            names=names,
+        )
+
+    @staticmethod
+    def _delete_multi_object(
+        session: Session,
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
+        project: str,
+        names: typing.Union[str, list[str]],
+    ):
+        for cls in related_tables + [main_table]:
+            logger.debug(f"Removing from {cls}", project=project, name=names)
+
+            # The select is mandatory for sqlalchemy 1.4 because
+            # query.delete does not support multiple-table criteria within DELETE
+            if project != "*":
+                subquery = (
+                    select(cls.id)
+                    .where(
+                        and_(
+                            main_table.project == project,
+                            or_(main_table.name == name for name in names),
+                        )
+                    )
+                    .scalar_subquery()
+                )
+            else:
+                subquery = (
+                    select(cls.id)
+                    .where(or_(main_table.name == name for name in names))
+                    .scalar_subquery()
+                )
+            stmt = (
+                delete(cls)
+                .where(cls.id.in_(subquery))
+                .execution_options(synchronize_session=False)
+            )
+
+            # Execute the delete statement
+            execution_obj = session.execute(stmt)
+            logger.debug(
+                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                project=project,
+                name=names,
+            )
+
+        session.commit()
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -2624,8 +2695,8 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
-        self.delete_schedules(session, name)
-        self._delete_functions(session, name)
+        self.delete_project_schedules(session, name)
+        self._delete_project_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
@@ -3948,6 +4019,7 @@ class SQLDB(DBInterface):
 
     def _delete(self, session, cls, **kw):
         query = session.query(cls).filter_by(**kw)
+        query.delete()
         for obj in query:
             session.delete(obj)
         session.commit()

@@ -403,6 +403,73 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     )
 
 
+def test_delete_functions(db: DBInterface, db_session: Session):
+    names = ["some_name", "some_name2"]
+    labels = {
+        "key": "value",
+    }
+    function = {
+        "bla": "blabla",
+        "metadata": {"labels": labels},
+        "status": {"bla": "blabla"},
+    }
+    for name in names:
+        db.store_function(
+            db_session, function, name, project="project1", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project1",
+            tag="latest_2",
+            versioned=True,
+        )
+        db.store_function(
+            db_session, function, name, project="project2", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project2",
+            tag="latest_2",
+            versioned=True,
+        )
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == len(names) * 2
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == len(names) * 2
+
+    assert db_session.query(Function.Label).count() != 0
+    assert db_session.query(Function.Tag).count() != 0
+    assert db_session.query(Function).count() != 0
+
+    db.delete_functions(db_session, "*", names=names)
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == 0
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == 0
+
+    assert db_session.query(Function.Label).count() == 0
+    assert db_session.query(Function.Tag).count() == 0
+    assert db_session.query(Function).count() == 0
+
+    db.store_function(
+        db_session,
+        function,
+        "no_delete",
+        project="project1",
+        tag="latest",
+        versioned=True,
+    )
+    db.delete_functions(db_session, "*", names=names)
+
+    assert db_session.query(Function.Label).count() != 0
+    assert db_session.query(Function.Tag).count() != 0
+    assert db_session.query(Function).count() != 0
+
+
 def _generate_function(
     function_name: str = "function_name_1",
     project: str = "project_name",

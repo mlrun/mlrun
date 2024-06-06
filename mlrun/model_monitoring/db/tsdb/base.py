@@ -177,19 +177,6 @@ class TSDBConnector(ABC):
         :return:                   Metric values object or no data object.
         """
 
-    @abstractmethod
-    def read_prediction_metric_for_endpoint_if_exists(
-        self, endpoint_id: str
-    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Read the "invocations" metric for the provided model endpoint, and return the metric object
-        if it exists.
-
-        :param endpoint_id: The model endpoint identifier.
-        :return:            `None` if the invocations metric does not exist, otherwise return the
-                            corresponding metric object.
-        """
-
     @staticmethod
     def df_to_metrics_values(
         *,

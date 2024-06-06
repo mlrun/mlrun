@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import typing
 import unittest.mock
@@ -22,6 +22,7 @@ import deepdiff
 import httpx
 import kfp
 import pytest
+import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -87,7 +88,7 @@ def api_config_test():
 
 
 @pytest.fixture()
-def db() -> Generator:
+def db() -> typing.Iterator[sqlalchemy.orm.Session]:
     """
     This fixture initialize the db singleton (so it will be accessible using server.api.singletons.get_db()
     and generates a db session that can be used by the test
@@ -154,9 +155,8 @@ def unversioned_client(db) -> Generator:
             yield unversioned_test_client
 
 
-@pytest.fixture()
-@pytest.mark.asyncio
-async def async_client(db) -> Generator:
+@pytest_asyncio.fixture()
+async def async_client(db) -> typing.AsyncIterator[httpx.AsyncClient]:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
         mlconf.monitoring.runs.interval = 0
@@ -180,15 +180,14 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
     mlrun.mlconf.iguazio_api_url = api_url
     return api_url
 
 
 @pytest.fixture()
-async def iguazio_client(
-    api_url: str,
+def iguazio_client(
     request: pytest.FixtureRequest,
 ) -> server.api.utils.clients.iguazio.Client:
     if request.param == "async":

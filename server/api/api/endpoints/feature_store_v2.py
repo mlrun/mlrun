@@ -69,12 +69,9 @@ async def list_entities(
             )
         )
         # dedup feature set list
-        # TODO: we should be able to rely on the object ID because SQLAlchemy already avoids duplication at the object
-        # level, but the conversion from "model" to "schema" messes that up and duplicates the objects
-        # feature_set_digest_obj_id = id(feature_set_digest)
-        feature_set_digest_obj_id = hash(
-            (feature_set_digest.metadata.name, feature_set_digest.metadata.tag)
-        )
+        # we can rely on the object ID because SQLAlchemy already avoids duplication at the object
+        # level, and the conversion from "model" to "schema" retains this property
+        feature_set_digest_obj_id = id(feature_set_digest)
         if feature_set_digest_obj_id not in feature_set_digest_id_set:
             feature_set_digest_id_set.add(feature_set_digest_obj_id)
             feature_set_digests_v2.append(

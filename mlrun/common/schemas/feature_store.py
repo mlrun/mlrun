@@ -117,6 +117,9 @@ class FeatureSetDigestOutput(BaseModel):
     metadata: ObjectMetadata
     spec: FeatureSetDigestSpec
 
+    class Config:
+        copy_on_model_validation = False
+
 
 class FeatureSetDigestSpecV2(BaseModel):
     entities: list[Entity]

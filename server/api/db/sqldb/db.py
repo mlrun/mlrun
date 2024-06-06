@@ -2969,11 +2969,6 @@ class SQLDB(DBInterface):
                     )
                 )
 
-        logger.info(
-            f"SQLDB.list_entities: number of unique feature set digests: "
-            f"{len(set([id(entities_result.feature_set_digest) for entities_result in entities_results]))}"
-        )
-
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod

@@ -169,6 +169,12 @@ class PipelineRun(FlexibleMapper):
 
     @property
     def experiment_id(self) -> str:
+        # If the PipelineRun object was created from another PipelineRun object/format,
+        # the experiment_id is already available
+        experiment_id = self._external_data.get("experiment_id")
+        if experiment_id:
+            return experiment_id
+
         for reference in self._external_data.get("resource_references") or []:
             data = reference.get("key", {})
             if (

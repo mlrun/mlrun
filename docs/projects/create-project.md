@@ -10,7 +10,7 @@ A project is a container for all the assets, configuration, and code of a partic
 - [Adding functions, artifacts, workflow, and config](#add-elements)
 - [Pushing the project content into git or an archive](#push)
 - [Get a project from DB or create it](#get-or-create)
-- Deleting a project](#deleting-a-project)
+- [Deleting a project](#deleting-a-project)
 
 <a id="create"></a>
 ## Creating a project
@@ -257,7 +257,7 @@ Example:
 
 ## Deleting a project
 
-See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`. Deleting a project also deletes the project's objects (artifact metadata, runs, etc.), 
-but not the artifact data. (When deleting a project that has resources, you must use `deletion_strategy=cascade`, which deletes the objects. See 
-{py:meth}`~mlrun.db.httpdb.HTTPRunDB.delete_project`.)
-After you delete a project, the only way to delete the artifact files is by browsing the storage where they are located and deleting the files. 
+See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project` 
+also deletes the project's objects (artifact metadata, runs, etc.), 
+but not the artifact data. (When deleting a project that has resources, you must use `deletion_strategy=cascade`, which deletes the objects.)
+After you delete a project, the only way to delete its artifact files is by browsing the storage where they are located and deleting the files. 

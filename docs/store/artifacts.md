@@ -133,9 +133,8 @@ Example artifact URLs:
 
 ## Deleting artifacts
 
-Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You ModelArtifact, DirArtifact, and DatasetArtifact. delete artifacts from a specific project 
+Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You delete artifacts from a specific project 
 and choose what you want to delete. Deleting artifacts is supported for v3IO, Google, Azure, DBFS, Filestore, and S3. 
-
 You cannot delete artifacts of type: ModelArtifact, DirArtifact, and DatasetArtifact.
 
 The options for {py:meth}`~mlrun.projects.MlrunProject.delete_artifact`:

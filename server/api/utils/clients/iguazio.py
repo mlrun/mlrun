@@ -25,6 +25,7 @@ import urllib.parse
 
 import aiohttp
 import fastapi
+import httpx
 import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
@@ -210,11 +211,17 @@ class Client(
             for plane in planes
             if plane in igz_mgmt.constants.SessionPlanes.all()
         ]
-        access_key = igz_mgmt.AccessKey.get_or_create(
-            self._get_igz_client(session),
-            planes=planes,
-            label="MLRun",
-        )
+        try:
+            access_key = igz_mgmt.AccessKey.get_or_create(
+                self._get_igz_client(session),
+                planes=planes,
+                label="MLRun",
+            )
+        except httpx.HTTPStatusError as exc:
+            # igz mgmt client might raise httpx.HTTPStatusError, but we want to raise mlrun.errors.MLRunError
+            raise mlrun.errors.err_for_status_code(
+                exc.response.status_code, message=mlrun.errors.err_to_str(exc)
+            ) from exc
         return access_key.id
 
     def create_project(

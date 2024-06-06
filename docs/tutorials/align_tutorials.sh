@@ -127,25 +127,26 @@ backup_old_tutorials(){
         old_tutorials_dir="${dest_dir}/tutorials.old/${dt}"
         echo "Moving existing '${tutorials_dir}' to ${old_tutorials_dir}'..."
         mkdir -p "${old_tutorials_dir}"
-        cp "${tutorials_dir}/." "${old_tutorials_dir}" || echo "$tutorials_dir is missing, skipping backup"
+        cp -rf "${tutorials_dir}/." "${old_tutorials_dir}" || echo "$tutorials_dir is missing, skipping backup"
         rm -rf "${tutorials_dir}"
         mkdir -p "${tutorials_dir}"
     fi
     }
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# when not using v3io, writing tutorials to "./tutorials"
-# otherwise just use V3IO_USERNAME
+# Function to verify align_tutorials is present, otherwise grab it
 # --------------------------------------------------------------------------------------------------------------------------------
 
-# Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
-if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
-    echo "--user and --path argument are empty, using local path"
-    backup_old_tutorials "${HOME}" "${HOME}/tutorials"
-    tutorials_dir="${HOME}/tutorials"
-    # error_usage "Please specify --path or specify --user when on iguazio"
+verify_align_tutorials(){
+    local tutorials_dir="$1"
+    if [ ! -f "${tutorials_dir}/align_tutorials.sh" ]; then
+        wget -O "${tutorials_dir}/align_tutorials.sh" https://raw.githubusercontent.com/mlrun/mlrun/development/docs/tutorials/align_tutorials.sh
+    fi
+    }
 
-fi
+# --------------------------------------------------------------------------------------------------------------------------------
+# Printing flags - dry_run and no_backup
+# --------------------------------------------------------------------------------------------------------------------------------
 
 # Don't download new tutorials only print them
 # shellcheck disable=SC2236
@@ -159,7 +160,32 @@ if [ ! -z "${no_backup}" ]; then
     echo "The existing tutorials directory won't be backed up before the update."
 fi
 
-# If --path argument is not specified, use default v3io location
+# --------------------------------------------------------------------------------------------------------------------------------
+# Detecting tutorials_dir and dest_dir
+# if --path is provided (tutorials_dir):
+#    use it to create detination directory (parent directory)
+# else:
+#    if --user or V3IO_USERNAME is provided:
+#        use it to create tutorials_dir and dest_dir
+#    else: (no user and no v3io_username)
+#        use pwd/tutorials as tutorials_dir and pwd as dest_dir
+# --------------------------------------------------------------------------------------------------------------------------------
+
+current_dir=$(pwd)
+cd
+
+if [ "${tutorials_dir}" ]; then # means --path is specified
+    dest_dir=${tutorials_dir%/*}
+fi
+# Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
+if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
+    echo "--user and --path argument are empty, using local path"
+    # backup_old_tutorials "${HOME}" "${HOME}/tutorials"
+    tutorials_dir="${current_dir}/tutorials"
+    dest_dir="${current_dir}"
+fi
+
+# when --path isnt specified and either V3IO_USERNAME or --user is specified (otherwise case caught above).
 if [ -z "${tutorials_dir}" ]; then
     dest_dir="/v3io/users/${user}"
     tutorials_dir="${dest_dir}/tutorials"
@@ -276,7 +302,7 @@ download_tar_to_temp_dir() {
 
     wget -c "${tar_url}" -O mlrun-tutorials.tar
 
-    tar -xvf mlrun-tutorials.tar -C "${temp_dir}" --strip-components 1
+    tar -xf mlrun-tutorials.tar -C "${temp_dir}" --strip-components 1
 
     rm -rf mlrun-tutorials.tar
 
@@ -296,14 +322,11 @@ download_tar_gz_to_temp_dir() {
 
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# backup tutorials, Downloading
+# Main script.
+# backup old tutorials.
+# if --branch is specified, use it to fetch mlrun/mlrun repository.
 # --------------------------------------------------------------------------------------------------------------------------------
 
-# Creating temp directory
-if [ -z "${tutorials_dir}" ]; then
-    dest_dir="/v3io/users/${user}"
-    tutorials_dir="${dest_dir}/tutorials"
-fi
 mkdir -p "${tutorials_dir}"
 
 # Backup tutorials if needed and deleting tutorials directory
@@ -326,19 +349,24 @@ if [ "$branch" ]; then
     download_tar_to_temp_dir "$tar_url" "$temp_dir"
     # make sure only tutorials content in mlrun/mlrun/docs left.
     new_temp_dir=$(mktemp -d /tmp/temp-get-tutorials.XXXXXXXXXX)
+
     if [ -z "${dry_run}" ]; then
         cp -rf "${temp_dir}/docs/tutorials/." "${new_temp_dir}/tutorials"
+        temp_dir="${new_temp_dir}/tutorials"
+        verify_align_tutorials "${new_temp_dir}/tutorials"
+        cp -rf "${new_temp_dir}/tutorials/." "$tutorials_dir"
     else
         echo "dry run, not copying from branch ${branch}"
         echo "Identified the following files to copy to '${dest_dir}':"
-        find "${temp_dir}/docs/tutorials/" -not -path '*/\.*' -type f -printf "%p\n" | sed -e "s|^${temp_dir}/|./tutorials/|"
+        cd ${temp_dir}
+        cd docs/tutorials
+        echo "$(ls -a)"
     fi
-    # temp_dir="${new_temp_dir}/tutorials"
     exit
 fi
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# If branch isn't specified, trying to use mlrun_version or detect installed mlrun version
+# If branch isn't specified, trying to use --mlrun_ver or detect installed mlrun version
 # When mlrun isn't installed, using 1.7.0
 # --------------------------------------------------------------------------------------------------------------------------------
 
@@ -364,6 +392,11 @@ branch=${latest_tag#refs/tags/}
 
 if [[ "${branch}">"v1.4" ]]; then
     tar_url="${git_base_url}/releases/download/${branch}/mlrun-tutorials.tar"
+    if [[ "${branch}"<"v1.5" ]]; then # Folder name changed in 1.5.0
+        folder_name="tutorial"
+    else
+        folder_name="tutorials"
+    fi
 else
     error_exit "mlrun must be >= 1.4"
 fi
@@ -373,10 +406,14 @@ echo "Using tar_url ${tar_url} branch: ${branch}"
 
 download_tar_to_temp_dir "$tar_url" "$temp_dir"
 
+verify_align_tutorials "${temp_dir}/${folder_name}"
+
 if [ -z "${dry_run}" ]; then
     echo "copy files from ${temp_dir}/tutorials to ${tutorials_dir}"
-    cp -rf "$temp_dir/tutorials/." "$tutorials_dir"
+    cp -rf "$temp_dir/$folder_name/." "$tutorials_dir"
 else
     echo "Identified the following files to copy to '${dest_dir}':"
-    find "${temp_dir}/tutorials/" -not -path '*/\.*' -type f -printf "%p\n" | sed -e "s|^${temp_dir}/|./tutorials/|"
+    cd ${temp_dir}
+    cd ${folder_name}
+    echo "$(ls -a)"
 fi

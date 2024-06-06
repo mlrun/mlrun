@@ -27,8 +27,12 @@ SSH_PASSWORD:
 
 # Docker registry you can push to. Make sure you are logged into it before running the script (required)
 # e.g. docker.io/my_user
-# For iguazio datanode registry use <data-node-ip>:8009/mlrun
+# For iguazio datanode registry use <data-node-ip>:8009
 DOCKER_REGISTRY:
+
+# Docker repository to push to
+# If you are using the iguazio datanode registry, use "mlrun"
+DOCKER_REPO:
 
 # Optional - Use when your registry is connected to a DNS which is accessible from the cluster
 # For iguazio datanode registry use:

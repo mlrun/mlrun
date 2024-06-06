@@ -4019,7 +4019,6 @@ class SQLDB(DBInterface):
 
     def _delete(self, session, cls, **kw):
         query = session.query(cls).filter_by(**kw)
-        query.delete()
         for obj in query:
             session.delete(obj)
         session.commit()

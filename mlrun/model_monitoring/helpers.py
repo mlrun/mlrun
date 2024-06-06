@@ -25,6 +25,7 @@ from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
 )
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
     _compose_full_name,
 )
@@ -304,4 +305,20 @@ def get_invocations_fqn(project: str) -> str:
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
         type=ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+
+def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
+    """
+    Return the invocations metric of any model endpoint in the given project.
+
+    :param project: The project name.
+    :returns:       The model monitoring metric object.
+    """
+    return ModelEndpointMonitoringMetric(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        type=ModelEndpointMonitoringMetricType.METRIC,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        full_name=get_invocations_fqn(project),
     )

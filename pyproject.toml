@@ -42,6 +42,7 @@ python_files = [
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_packages = [

@@ -20,6 +20,7 @@ docs/_build
 docs/external/*.html
 docs/external/*.md
 docs/api/generated_rsts/
+docs/api/_autosummary/
 iteration_results.csv
 mlrun.egg-info/
 model.txt

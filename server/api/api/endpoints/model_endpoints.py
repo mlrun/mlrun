@@ -351,6 +351,7 @@ async def get_model_endpoint_monitoring_metrics(
     get_model_endpoint_metrics = mlrun.model_monitoring.get_store_object(
         project=project
     ).get_model_endpoint_metrics
+    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     tasks: list[asyncio.Task] = []
     if type == "results" or type == "all":
         tasks.append(
@@ -372,23 +373,8 @@ async def get_model_endpoint_monitoring_metrics(
                 )
             )
         )
-        tasks.append(
-            asyncio.create_task(
-                _wrap_coroutine_in_list(
-                    run_in_threadpool(
-                        mlrun.model_monitoring.get_tsdb_connector(
-                            project=project,
-                            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                                project=project
-                            ),
-                        ).read_prediction_metric_for_endpoint_if_exists,
-                        endpoint_id=endpoint_id,
-                    )
-                )
-            )
-        )
+        metrics.append(mlrun.model_monitoring.helpers.get_invocations_metric(project))
     await asyncio.wait(tasks)
-    metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     for task in tasks:
         metrics.extend(task.result())
     return metrics

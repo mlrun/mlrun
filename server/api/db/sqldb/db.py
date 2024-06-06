@@ -1721,7 +1721,7 @@ class SQLDB(DBInterface):
     ) -> None:
         logger.debug("Removing functions from db", project=project, name=names)
 
-        self._delete_multi_object(
+        self._delete_multi_objects(
             session=session,
             main_table=Function,
             related_tables=[Function.Tag, Function.Label],
@@ -2093,7 +2093,7 @@ class SQLDB(DBInterface):
         self, session: Session, project: str, names: typing.Union[str, list[str]]
     ) -> None:
         logger.debug("Removing schedules from db", project=project, name=names)
-        self._delete_multi_object(
+        self._delete_multi_objects(
             session=session,
             main_table=Schedule,
             related_tables=[Schedule.Label],
@@ -2102,7 +2102,7 @@ class SQLDB(DBInterface):
         )
 
     @staticmethod
-    def _delete_multi_object(
+    def _delete_multi_objects(
         session: Session,
         main_table: mlrun.utils.db.BaseModel,
         related_tables: list[mlrun.utils.db.BaseModel],

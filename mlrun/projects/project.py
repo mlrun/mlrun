@@ -1931,6 +1931,7 @@ class MlrunProject(ModelObj):
         call `fn.deploy()` where `fn` is the object returned by this method.
 
         examples::
+
             project.set_model_monitoring_function(
                 name="myApp", application_class="MyApp", image="mlrun/mlrun"
             )
@@ -1996,6 +1997,7 @@ class MlrunProject(ModelObj):
         Create a monitoring function object without setting it to the project
 
         examples::
+
             project.create_model_monitoring_function(
                 application_class_name="MyApp", image="mlrun/mlrun", name="myApp"
             )
@@ -2017,6 +2019,7 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
+
         _, function_object, _ = self._instantiate_model_monitoring_function(
             func,
             application_class,
@@ -2212,22 +2215,66 @@ class MlrunProject(ModelObj):
             )
 
     def disable_model_monitoring(
-        self, *, delete_histogram_data_drift_app: bool = True
+        self,
+        *,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
     ) -> None:
         """
-        Note: This method is currently not advised for use. See ML-3432.
-        Disable model monitoring by deleting the underlying functions infrastructure from MLRun database.
+        Disable model monitoring application controller, writer, stream, histogram data drift application
+        and the user's applications functions, according to the given params.
 
-        :param delete_histogram_data_drift_app: Whether to delete the histogram data drift app.
+        :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                    functions. Default True
+        :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                    need to use wisely because if you're deleting this function
+                                                    this can cause data loss in case you will want to
+                                                    enable the model monitoring capability to the project.
+                                                    Default False.
+        :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                    application. Default False.
+        :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                    application according to user_application_list, Default False.
+        :param user_application_list:               List of the user's model monitoring application to disable.
+                                                    Default all the applications.
+                                                    Note: you have to set delete_user_applications to True
+                                                    in order to delete the desired application.
         """
-        db = mlrun.db.get_run_db(secrets=self._secrets)
-        for fn_name in mm_constants.MonitoringFunctionNames.list():
-            db.delete_function(project=self.name, name=fn_name)
-        if delete_histogram_data_drift_app:
-            db.delete_function(
-                project=self.name,
-                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        if not delete_user_applications and user_application_list:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "user_application_list can be specified only if delete_user_applications is set to True"
             )
+
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        succeed = db.disable_model_monitoring(
+            project=self.name,
+            delete_resources=delete_resources,
+            delete_stream_function=delete_stream_function,
+            delete_histogram_data_drift_app=delete_histogram_data_drift_app,
+            delete_user_applications=delete_user_applications,
+            user_application_list=user_application_list,
+        )
+        if succeed and delete_resources:
+            if delete_resources:
+                logger.info("Model Monitoring disabled", project=self.name)
+            if delete_user_applications:
+                logger.info(
+                    "All the desired monitoring application were deleted",
+                    project=self.name,
+                )
+        else:
+            if delete_resources:
+                logger.info(
+                    "Model Monitoring was not disabled properly", project=self.name
+                )
+            if delete_user_applications:
+                logger.info(
+                    "Some of the desired monitoring application were not deleted",
+                    project=self.name,
+                )
 
     def set_function(
         self,
@@ -2423,22 +2470,47 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_function(name)
 
-    def remove_model_monitoring_function(self, name):
-        """remove the specified model-monitoring-app function from the project and from the db
+    def remove_model_monitoring_function(self, name: Union[str, list[str]]):
+        """remove the specified model-monitoring-app function/s from the project spec
 
-        :param name: name of the model-monitoring-app function (under the project)
+        :param name: name of the model-monitoring-function/s (under the project)
         """
-        function = self.get_function(key=name)
-        if (
-            function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-            == mm_constants.ModelMonitoringAppLabel.VAL
-        ):
-            self.remove_function(name=name)
-            mlrun.db.get_run_db().delete_function(name=name.lower())
-            logger.info(f"{name} function has been removed from {self.name} project")
+        names = name if isinstance(name, list) else [name]
+        for func_name in names:
+            function = self.get_function(key=func_name)
+            if (
+                function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+                == mm_constants.ModelMonitoringAppLabel.VAL
+            ):
+                self.remove_function(name=func_name)
+                logger.info(
+                    f"{func_name} function has been removed from {self.name} project"
+                )
+            else:
+                raise logger.warn(
+                    f"There is no model monitoring function with {func_name} name"
+                )
+
+    def delete_model_monitoring_function(self, name: Union[str, list[str]]):
+        """delete the specified model-monitoring-app function/s
+
+        :param name: name of the model-monitoring-function/s (under the project)
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        succeed = db.delete_model_monitoring_function(
+            project=self.name,
+            functions=name if isinstance(name, list) else [name],
+        )
+        if succeed:
+            logger.info(
+                "All the desired monitoring functions were deleted",
+                project=self.name,
+                functions=name,
+            )
         else:
-            raise logger.error(
-                f"There is no model monitoring function with {name} name"
+            logger.info(
+                "Some of the desired monitoring functions were not deleted",
+                project=self.name,
             )
 
     def get_function(
@@ -2546,10 +2618,10 @@ class MlrunProject(ModelObj):
     def create_remote(self, url, name="origin", branch=None):
         """Create remote for the project git
 
-         This method creates a new remote repository associated with the project's Git repository.
-         If a remote with the specified name already exists, it will not be overwritten.
+        This method creates a new remote repository associated with the project's Git repository.
+        If a remote with the specified name already exists, it will not be overwritten.
 
-         If you wish to update the URL of an existing remote, use the `set_remote` method instead.
+        If you wish to update the URL of an existing remote, use the `set_remote` method instead.
 
         :param url:    remote git url
         :param name:   name for the remote (default is 'origin')
@@ -2904,9 +2976,10 @@ class MlrunProject(ModelObj):
                           For using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   Timeout in seconds to wait for pipeline completion (watch will be activated)
         :param source:    Source to use instead of the actual `project.spec.source` (used when engine is remote).
-                          Can be a one of:
-                            1. Remote URL which is loaded dynamically to the workflow runner.
-                            2. A path to the project's context on the workflow runner's image.
+                          Can be one of:
+
+                          * Remote URL which is loaded dynamically to the workflow runner.
+                          * A path to the project's context on the workflow runner's image.
                           Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
                           (enriched when building a project image with source, see `MlrunProject.build_image`).
                           For other engines the source is used to validate that the code is up-to-date.
@@ -3185,6 +3258,7 @@ class MlrunProject(ModelObj):
         notifications: list[mlrun.model.Notification] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
+        reset_on_run: bool = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -3241,6 +3315,10 @@ class MlrunProject(ModelObj):
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                                This ensures latest code changes are executed. This argument must be used in
+                                conjunction with the local=True argument.
+
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         return run_function(
@@ -3266,6 +3344,7 @@ class MlrunProject(ModelObj):
             notifications=notifications,
             returns=returns,
             builder_env=builder_env,
+            reset_on_run=reset_on_run,
         )
 
     def build_function(
@@ -3874,15 +3953,15 @@ class MlrunProject(ModelObj):
         on MLRun and Nuclio sides, such as the 'host' attribute.
         Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param api_gateway: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the configuration
-        of the API Gateway to be created or updated.
-        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become ready
-            after creation or update (default is True)
-        :param max_wait_time: (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
+        :param api_gateway:        An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` representing the
+            configuration of the API Gateway to be created or updated.
+        :param wait_for_readiness: (Optional) A boolean indicating whether to wait for the API Gateway to become
+            ready after creation or update (default is True).
+        :param max_wait_time:      (Optional) Maximum time to wait for API Gateway readiness in seconds (default is 90s)
 
 
-        @return: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
-        information retrieved from the Nuclio API
+        :returns: An instance of :py:class:`~mlrun.runtimes.nuclio.APIGateway` with all fields populated based on the
+            information retrieved from the Nuclio API
         """
 
         api_gateway_json = mlrun.db.get_run_db().store_api_gateway(
@@ -3904,8 +3983,8 @@ class MlrunProject(ModelObj):
         """
         Retrieves a list of Nuclio API gateways associated with the project.
 
-        @return: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
-        the Nuclio API gateways associated with the project.
+        :returns: List of :py:class:`~mlrun.runtimes.nuclio.api_gateway.APIGateway` objects representing
+           the Nuclio API gateways associated with the project.
         """
         gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
         return [
@@ -3946,6 +4025,7 @@ class MlrunProject(ModelObj):
     ) -> AlertConfig:
         """
         Create/modify an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert.
         :return: the created/modified alert.
@@ -3958,6 +4038,7 @@ class MlrunProject(ModelObj):
     def get_alert_config(self, alert_name: str) -> AlertConfig:
         """
         Retrieve an alert.
+
         :param alert_name: The name of the alert to retrieve.
         :return: The alert object.
         """
@@ -3967,6 +4048,7 @@ class MlrunProject(ModelObj):
     def list_alerts_configs(self) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
+
         :return: All the alerts objects of the project.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3977,6 +4059,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Delete an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to delete.
         """
@@ -3996,6 +4079,7 @@ class MlrunProject(ModelObj):
     ):
         """
         Reset an alert.
+
         :param alert_data: The data of the alert.
         :param alert_name: The name of the alert to reset.
         """
@@ -4013,6 +4097,7 @@ class MlrunProject(ModelObj):
     def get_alert_template(self, template_name: str) -> AlertTemplate:
         """
         Retrieve a specific alert template.
+
         :param template_name: The name of the template to retrieve.
         :return: The template object.
         """
@@ -4022,6 +4107,7 @@ class MlrunProject(ModelObj):
     def list_alert_templates(self) -> list[AlertTemplate]:
         """
         Retrieve list of all alert templates.
+
         :return: All the alert template objects in the database.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -4129,12 +4215,21 @@ class MlrunProject(ModelObj):
             else:
                 producer_dict = artifact.spec.producer
 
+            producer_tag = producer_dict.get("tag", None)
+            producer_project = producer_dict.get("project", None)
+            if not producer_tag or not producer_project:
+                # try resolving the producer tag from the uri
+                producer_uri = artifact.spec.producer.get("uri", "")
+                producer_project, producer_tag, _ = ArtifactProducer.parse_uri(
+                    producer_uri
+                )
+
             if producer_dict.get("kind", "") == "run":
                 return ArtifactProducer(
                     name=producer_dict.get("name", ""),
                     kind=producer_dict.get("kind", ""),
-                    project=producer_dict.get("project", ""),
-                    tag=producer_dict.get("tag", ""),
+                    project=producer_project,
+                    tag=producer_tag,
                 ), True
 
         # do not retain the artifact's producer, replace it with the project as the producer

@@ -39,8 +39,10 @@ parquets_dir = "parquets"
 csv_dir = "csv"
 
 config_file_path = here / "test-azure-blob.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+config = {}
+if os.path.exists(str(config_file_path)):
+    with config_file_path.open() as fp:
+        config = yaml.safe_load(fp)
 
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "env_conn_str": ["AZURE_STORAGE_CONNECTION_STRING"],
@@ -71,15 +73,19 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
     "auth_method ,use_datastore_profile", generated_pytest_parameters
 )
 @pytest.mark.skipif(
-    not config["env"].get("AZURE_CONTAINER"),
+    not config.get("env", {}).get("AZURE_CONTAINER"),
     reason="AZURE_CONTAINER is not set",
+)
+@pytest.mark.skipif(
+    not os.path.exists(str(config_file_path)),
+    reason="azure credentials file is not exists",
 )
 class TestAzureBlob:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
     profile_name = "azure_blob_ds_profile"
     test_dir = "test_mlrun_azure_blob"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
-    bucket_name = config["env"].get("AZURE_CONTAINER", None)
+    bucket_name = config.get("env", {}).get("AZURE_CONTAINER", None)
     test_file = os.path.join(assets_path, "test.txt")
 
     @classmethod

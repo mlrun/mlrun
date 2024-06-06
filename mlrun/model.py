@@ -29,6 +29,7 @@ import pydantic.error_wrappers
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.utils.regex
 
 from .utils import (
     dict_to_json,
@@ -871,6 +872,7 @@ class RunSpec(ModelObj):
         returns=None,
         notifications=None,
         state_thresholds=None,
+        reset_on_run=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -907,6 +909,7 @@ class RunSpec(ModelObj):
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
+        self.reset_on_run = reset_on_run
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
@@ -1649,9 +1652,12 @@ class RunObject(RunTemplate):
 
     @staticmethod
     def parse_uri(uri: str) -> tuple[str, str, str, str]:
-        uri_pattern = (
-            r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
-        )
+        """Parse the run's uri
+
+        :param uri: run uri in the format of <project>@<uid>#<iteration>[:tag]
+        :return: project, uid, iteration, tag
+        """
+        uri_pattern = mlrun.utils.regex.run_uri_pattern
         match = re.match(uri_pattern, uri)
         if not match:
             raise ValueError(

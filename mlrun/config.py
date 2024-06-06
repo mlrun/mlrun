@@ -229,6 +229,9 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
+            # function is used to prevent infinite loop
+            "reload_max_recursion_depth": 100,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
@@ -701,7 +704,10 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "enabled"
+        "mode": "enabled",
+        # maximum number of alerts we allow to be configured.
+        # user will get an error when exceeding this
+        "max_allowed": 1000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -806,6 +812,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
+
         :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance

@@ -21,9 +21,9 @@ MLRUN_VERSION ?= unstable
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_REPO ?= mlrun
-# empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
-MLRUN_DOCKER_REGISTRY ?=
+DOCKER_HUB ?= registry.hub.docker.com
+MLRUN_DOCKER_REGISTRY ?= $(DOCKER_HUB)/
 # empty by default (use cache), set it to anything to disable caching (will add flags to pip and docker commands to
 # disable caching)
 MLRUN_NO_CACHE ?=
@@ -114,16 +114,12 @@ install-all-requirements: ## Install all requirements needed for development and
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	python -m pip install .[all]
 
-.PHONY: create-migration-sqlite
-create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-	./automation/scripts/create_migration_sqlite.sh
-
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 	./automation/scripts/create_migration_mysql.sh
 
 .PHONY: create-migration
-create-migration: create-migration-sqlite create-migration-mysql
+create-migration: create-migration-mysql
 	@echo "Migrations created successfully"
 
 .PHONY: bump-version
@@ -481,19 +477,14 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-t \
 		--rm \
 		--network='host' \
+		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	python -m pytest -v \
-		--capture=no \
-		--disable-warnings \
-		--durations=100 \
-		-rf \
-		--test-alembic \
-		server/api/migrations_sqlite/tests/*
+	./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -583,7 +574,7 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		mysql/mysql-server:8.0 \
+		$(DOCKER_HUB)/mysql/mysql-server:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 

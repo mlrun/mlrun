@@ -27,8 +27,9 @@ from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-azure-blob.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+if os.path.exists(str(config_file_path)):
+    with config_file_path.open() as fp:
+        config = yaml.safe_load(fp)
 
 
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
@@ -37,6 +38,8 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 
 
 def verify_auth_parameters_and_configure_env(auth_method):
+    if not os.path.exists(str(config_file_path)):
+        return False
     if not config["env"].get("AZURE_CONTAINER"):
         return False
 

@@ -26,6 +26,8 @@ __all__ = [
     "Spark3Runtime",
     "DatabricksRuntime",
     "KubeResource",
+    "ApplicationRuntime",
+    "MpiRuntimeV1",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version

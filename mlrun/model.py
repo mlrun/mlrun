@@ -872,6 +872,7 @@ class RunSpec(ModelObj):
         returns=None,
         notifications=None,
         state_thresholds=None,
+        reset_on_run=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -908,6 +909,7 @@ class RunSpec(ModelObj):
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
+        self.reset_on_run = reset_on_run
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False

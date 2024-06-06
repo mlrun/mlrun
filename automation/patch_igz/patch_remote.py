@@ -457,16 +457,6 @@ class MLRunPatcher:
     def _get_image_tag(tag) -> str:
         return f"{tag}"
 
-    def _resolve_mlrun_docker_registry(self):
-        mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
-
-        # ensure we have a trailing slash, unless we are using the an mlrun registry
-        if not mlrun_docker_registry.endswith(
-            "/"
-        ) and not mlrun_docker_registry.endswith("mlrun"):
-            mlrun_docker_registry += "/"
-        return mlrun_docker_registry
-
     @staticmethod
     def _execute_local_proc_interactive(cmd, env=None):
         env = os.environ | (env or {})

@@ -257,5 +257,7 @@ Example:
 
 ## Deleting a project
 
-See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`. Deleting a project also deletes the project's objects (artifact metadata, runs, etc.). 
+See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`. Deleting a project also deletes the project's objects (artifact metadata, runs, etc.), 
+but not the artifact data. (When deleting a project that has resources, you must use `deletion_strategy=cascade`, which deletes the objects. See 
+{py:meth}`~mlrun.db.httpdb.HTTPRunDB.delete_project`.)
 After you delete a project, the only way to delete the artifact files is by browsing the storage where they are located and deleting the files. 

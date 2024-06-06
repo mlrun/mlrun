@@ -45,6 +45,18 @@ class Entity(BaseModel):
         extra = Extra.allow
 
 
+class QualifiedEntity(BaseModel):
+    name: str
+    value_type: str
+    project: str
+    feature_set_name: str
+    feature_set_tag: Optional[str]
+    labels: Optional[dict] = {}
+
+    class Config:
+        extra = Extra.allow
+
+
 class FeatureSetSpec(ObjectSpec):
     entities: list[Entity] = []
     features: list[Feature] = []
@@ -106,6 +118,15 @@ class FeatureSetDigestOutput(BaseModel):
     spec: FeatureSetDigestSpec
 
 
+class FeatureSetDigestSpecV2(BaseModel):
+    entities: list[Entity]
+
+
+class FeatureSetDigestOutputV2(BaseModel):
+    metadata: ObjectMetadata
+    spec: FeatureSetDigestSpecV2
+
+
 class FeatureListOutput(BaseModel):
     feature: Feature
     feature_set_digest: FeatureSetDigestOutput
@@ -118,6 +139,11 @@ class FeaturesOutput(BaseModel):
 class EntityListOutput(BaseModel):
     entity: Entity
     feature_set_digest: FeatureSetDigestOutput
+
+
+class EntitiesOutputV2(BaseModel):
+    entities: list[QualifiedEntity]
+    feature_set_digests: list[FeatureSetDigestOutputV2]
 
 
 class EntitiesOutput(BaseModel):

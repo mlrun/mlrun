@@ -2096,7 +2096,7 @@ class SQLDB(DBInterface):
         self._delete_multi_object(
             session=session,
             main_table=Schedule,
-            related_tables=[Schedule.Tag],
+            related_tables=[Schedule.Label],
             project=project,
             names=names,
         )

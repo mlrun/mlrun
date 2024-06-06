@@ -88,6 +88,17 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
+type = "forbidden"
+source_modules = [
+    "mlrun",
+    "server.api",
+]
+forbidden_modules = [
+    "kfp",
+]
+
+[[tool.importlinter.contracts]]
 name = "MLRun server may import mlrun but not the way around"
 type = "layers"
 layers = [

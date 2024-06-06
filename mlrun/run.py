@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import importlib.util as imputil
 import json
 import os
@@ -28,9 +29,9 @@ from typing import Optional, Union
 
 import nuclio
 import yaml
-from kfp import Client
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.utils import get_client
 
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -943,7 +944,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1004,7 +1005,7 @@ def get_pipeline(
         )
 
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

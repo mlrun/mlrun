@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""
+r"""
 MLRun comes with the following list of modules, out of the box. All of the packagers listed here
 use the implementation of :ref:`DefaultPackager <mlrun.package.packagers.default\_packager.DefaultPackager>` and are
 available by default at the start of each run.
 """
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+
 from .default_packager import DefaultPackager
 from .numpy_packagers import NumPySupportedFormat

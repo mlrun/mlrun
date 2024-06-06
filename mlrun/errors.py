@@ -155,6 +155,10 @@ class MLRunNotFoundError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.NOT_FOUND.value
 
 
+class MLRunPaginationEndOfResultsError(MLRunNotFoundError):
+    pass
+
+
 class MLRunBadRequestError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
@@ -181,6 +185,10 @@ class MLRunIncompatibleVersionError(MLRunHTTPStatusError):
 
 class MLRunInternalServerError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+
+class MLRunNotImplementedServerError(MLRunHTTPStatusError):
+    error_status_code = HTTPStatus.NOT_IMPLEMENTED.value
 
 
 class MLRunServiceUnavailableError(MLRunHTTPStatusError):
@@ -234,4 +242,7 @@ STATUS_ERRORS = {
     HTTPStatus.PRECONDITION_FAILED.value: MLRunPreconditionFailedError,
     HTTPStatus.INTERNAL_SERVER_ERROR.value: MLRunInternalServerError,
     HTTPStatus.SERVICE_UNAVAILABLE.value: MLRunServiceUnavailableError,
+    HTTPStatus.NOT_IMPLEMENTED.value: MLRunNotImplementedServerError,
 }
+
+EXPECTED_ERRORS = (MLRunPaginationEndOfResultsError,)

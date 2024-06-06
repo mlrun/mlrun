@@ -18,6 +18,7 @@ from typing import Optional, Union
 from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context
@@ -76,6 +77,7 @@ def run_function(
     notifications: list[mlrun.model.Notification] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
+    reset_on_run: Optional[bool] = None,
 ) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -166,6 +168,9 @@ def run_function(
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+    :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                            This ensures latest code changes are executed. This argument must be used in
+                            conjunction with the local=True argument.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -190,7 +195,9 @@ def run_function(
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels["workflow"] = pipeline_context.workflow_id
+            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
+                pipeline_context.workflow_id
+            )
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
@@ -212,6 +219,7 @@ def run_function(
             schedule=schedule,
             notifications=notifications,
             builder_env=builder_env,
+            reset_on_run=reset_on_run,
         )
         if run_result:
             run_result._notified = False
@@ -225,9 +233,9 @@ def run_function(
 class BuildStatus:
     """returned status from build operation"""
 
-    def __init__(self, ready, outputs={}, function=None):
+    def __init__(self, ready, outputs=None, function=None):
         self.ready = ready
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):
@@ -340,9 +348,9 @@ def build_function(
 class DeployStatus:
     """returned status from deploy operation"""
 
-    def __init__(self, state, outputs={}, function=None):
+    def __init__(self, state, outputs=None, function=None):
         self.state = state
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):

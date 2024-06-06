@@ -21,6 +21,7 @@ import kfp
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -35,9 +36,7 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def projects_follower() -> (
-    typing.Generator[server.api.utils.projects.follower.Member, None, None]
-):
+def projects_follower() -> typing.Iterator[server.api.utils.projects.follower.Member]:
     logger.info("Creating projects follower")
     mlrun.mlconf.httpdb.projects.leader = "nop"
     mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
@@ -49,7 +48,7 @@ async def projects_follower() -> (
 
 
 @pytest.fixture()
-async def nop_leader(
+def nop_leader(
     db: sqlalchemy.orm.Session,
     projects_follower: server.api.utils.projects.follower.Member,
 ) -> server.api.utils.projects.remotes.leader.Member:
@@ -232,10 +231,7 @@ def test_delete_project(
     nop_leader: server.api.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
-    projects_follower.create_project(
-        db,
-        project,
-    )
+    projects_follower.create_project(db, project)
     _assert_project_in_follower(db, projects_follower, project)
     server.api.utils.singletons.db.get_db().verify_project_has_no_related_resources = (
         unittest.mock.Mock(return_value=None)
@@ -413,9 +409,11 @@ async def test_list_project_summaries(
         models_count=6,
         runs_failed_recent_count=7,
         runs_running_count=8,
-        schedules_count=1,
+        distinct_schedules_count=1,
         runs_completed_recent_count=9,
         pipelines_running_count=2,
+        distinct_scheduled_jobs_pending_count=3,
+        distinct_scheduled_pipelines_pending_count=4,
     )
     server.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
         return_value=asyncio.Future()
@@ -452,12 +450,12 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     )
 
     server.api.utils.singletons.db.get_db().get_project_resources_counters = (
-        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(7)))
+        unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
     )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert project_summaries.project_summaries[0].name == project_name
-    assert project_summaries.project_summaries[0].pipelines_running_count is None
+    assert project_summaries.project_summaries[0].pipelines_running_count == 0
     assert project_summaries.project_summaries[0].files_count == 0
 
 
@@ -472,7 +470,7 @@ def test_list_project_leader_format(
     )
     projects = projects_follower.list_projects(
         db,
-        format_=mlrun.common.schemas.ProjectsFormat.leader,
+        format_=mlrun.common.formatters.ProjectFormat.leader,
         projects_role=mlrun.common.schemas.ProjectsRole.nop,
     )
     assert (
@@ -501,7 +499,7 @@ def _assert_list_projects(
 
     # assert again - with name only format
     projects = projects_follower.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only, **kwargs
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only, **kwargs
     )
     assert len(projects.projects) == len(expected_projects)
     assert (

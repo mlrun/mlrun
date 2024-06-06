@@ -32,6 +32,7 @@ class SlackNotification(NotificationBase):
         "completed": ":smiley:",
         "running": ":man-running:",
         "error": ":x:",
+        "skipped": ":zzz:",
     }
 
     async def push(
@@ -135,8 +136,16 @@ class SlackNotification(NotificationBase):
         line = [
             self._get_slack_row(f":bell: {alert.name} alert has occurred"),
             self._get_slack_row(f"*Project:*\n{alert.project}"),
-            self._get_slack_row(f"*UID:*\n{event_data.entity.id}"),
+            self._get_slack_row(f"*ID:*\n{event_data.entity.ids[0]}"),
         ]
+
+        if alert.summary:
+            line.append(
+                self._get_slack_row(
+                    f"*Summary:*\n{mlrun.utils.helpers.format_alert_summary(alert, event_data)}"
+                )
+            )
+
         if event_data.value_dict:
             data_lines = []
             for key, value in event_data.value_dict.items():
@@ -144,8 +153,21 @@ class SlackNotification(NotificationBase):
             data_text = "\n".join(data_lines)
             line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
 
-        if url := mlrun.utils.helpers.get_ui_url(alert.project, event_data.entity.id):
-            line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
+        if (
+            event_data.entity.kind == mlrun.common.schemas.alert.EventEntityKind.JOB
+        ):  # JOB entity
+            uid = event_data.value_dict.get("uid")
+            url = mlrun.utils.helpers.get_ui_url(alert.project, uid)
+            overview_type = "Job overview"
+        else:  # MODEL entity
+            model_name = event_data.value_dict.get("model")
+            model_endpoint_id = event_data.value_dict.get("model_endpoint_id")
+            url = mlrun.utils.helpers.get_model_endpoint_url(
+                alert.project, model_name, model_endpoint_id
+            )
+            overview_type = "Model endpoint"
+
+        line.append(self._get_slack_row(f"*Overview:*\n<{url}|*{overview_type}*>"))
 
         return line
 
@@ -155,11 +177,11 @@ class SlackNotification(NotificationBase):
 
         # Only show the URL if the run is not a function (serving or mlrun function)
         kind = run.get("step_kind")
-        if url and not kind or kind == "run":
+        state = run["status"].get("state", "")
+        if state != "skipped" and (url and not kind or kind == "run"):
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
-        state = run["status"].get("state", "")
         if kind:
             line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
         line = f'{self.emojis.get(state, ":question:")}  {line}'

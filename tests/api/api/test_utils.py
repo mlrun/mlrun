@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import kubernetes.client
 import pytest
+import sqlalchemy.orm
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
 from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
@@ -41,6 +42,7 @@ from server.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
+    _update_functions_with_deletion_info,
     ensure_function_has_auth_set,
     ensure_function_security_context,
     get_scheduler,
@@ -1688,5 +1690,32 @@ async def test_delete_function_calls_k8s_helper_methods():
         )
 
         assert len(failed_requests) == 0
-        k8s_helper_mock.get_configmap.assert_called_with("function1", "model-conf")
+        k8s_helper_mock.get_configmap.assert_called_with("function1", "serving-conf")
         k8s_helper_mock.delete_configmap.assert_called_with("config-map-1")
+
+
+@pytest.mark.asyncio
+async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
+    project = "my_project"
+    deletion_task_id = "12345"
+    function_name = "test_function"
+    function_tag = "latest"
+    function = {
+        "metadata": {"name": function_name, "tag": function_tag},
+    }
+    server.api.crud.Functions().store_function(
+        db, project=project, function=function, name=function_name, tag=function_tag
+    )
+    functions = [function]
+
+    await _update_functions_with_deletion_info(
+        functions,
+        project,
+        updates={
+            "status.deletion_task_id": deletion_task_id,
+        },
+    )
+    function = server.api.crud.Functions().get_function(
+        db, name=function_name, project=project, tag=function_tag
+    )
+    assert function["status"]["deletion_task_id"] == deletion_task_id

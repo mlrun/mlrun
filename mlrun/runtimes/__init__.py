@@ -26,6 +26,8 @@ __all__ = [
     "Spark3Runtime",
     "DatabricksRuntime",
     "KubeResource",
+    "ApplicationRuntime",
+    "MpiRuntimeV1",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
@@ -43,6 +45,7 @@ from .nuclio import (
     new_v2_model_server,
     nuclio_init_hook,
 )
+from .nuclio.api_gateway import APIGateway
 from .nuclio.application import ApplicationRuntime
 from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime

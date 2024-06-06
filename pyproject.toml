@@ -11,6 +11,11 @@ extend-select = [
     "I",   # isort
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
+    "N805", # first argument of instance method should be 'self'
+    "N806", # lowercase variable names
+    "N816", # snake_case for global variable names
+    "N999", # snake_case for module names
+    "B006", # mutable default arguments
 ]
 exclude = ["*.ipynb"]
 explicit-preview-rules = true
@@ -37,6 +42,7 @@ python_files = [
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_packages = [

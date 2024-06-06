@@ -58,11 +58,6 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # hash: typing.Optional[str]
 
 
-class ArtifactsFormat(mlrun.common.types.StrEnum):
-    # TODO: add a format that returns a minimal response
-    full = "full"
-
-
 class ArtifactMetadata(pydantic.BaseModel):
     key: str
     project: str

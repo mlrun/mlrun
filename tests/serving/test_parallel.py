@@ -21,10 +21,10 @@ import mlrun.serving
 class Echo:
     """example class"""
 
-    def __init__(self, context, name=None, data={}):
+    def __init__(self, context, name=None, data=None):
         self.context = context
         self.name = name
-        self.data = data
+        self.data = data or {}
 
     def do(self, x):
         self.context.logger.info("test text")

@@ -17,6 +17,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
@@ -113,7 +114,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = None,
         project: str = mlrun.mlconf.default_project,
-        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         object_uid: str = None,
     ) -> dict:
@@ -142,8 +143,9 @@ class Artifacts(
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
-        format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
+        producer_uri: str = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -161,6 +163,7 @@ class Artifacts(
             iter,
             best_iteration,
             producer_id=producer_id,
+            producer_uri=producer_uri,
         )
         return artifacts
 
@@ -271,9 +274,18 @@ class Artifacts(
                 producer_id=producer_id,
                 object_uid=object_uid,
             )
+
+            # Data artifacts that are ModelArtifact, DirArtifact, or DatasetArtifact
+            # must not be removed because we do not yet support the deletion of artifacts that contain multiple files
+            # TODO: must be removed once it is supported
+            artifact_kind = artifact["kind"]
+            if artifact_kind in ["model", "dataset", "dir"]:
+                raise mlrun.errors.MLRunNotImplementedServerError(
+                    f"Deleting artifact data kind: {artifact_kind} is currently not supported"
+                )
             path = artifact["spec"]["target_path"]
             server.api.crud.Files().delete_artifact_data(
-                auth_info, project, path, secrets
+                auth_info, project, path, secrets=secrets
             )
         except Exception as exc:
             logger.debug(
@@ -288,6 +300,4 @@ class Artifacts(
                 deletion_strategy
                 == mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
             ):
-                raise mlrun.errors.MLRunInternalServerError(
-                    "Failed to delete artifact data"
-                ) from exc
+                raise

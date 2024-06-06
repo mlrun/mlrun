@@ -21,6 +21,7 @@ from typing import Union
 import mlrun_pipelines.common.models
 
 import mlrun
+import mlrun.common.constants
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
@@ -460,7 +461,14 @@ def format_summary_from_kfp_run(
     runs = run_db.list_runs(project=project, labels=f"workflow={run_id}")
 
     for run in runs:
-        step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])
+        step = get_in(
+            run,
+            [
+                "metadata",
+                "labels",
+                mlrun.common.constants.MLRunInternalLabels.runner_pod,
+            ],
+        )
         if step and step in dag:
             dag[step]["run_uid"] = get_in(run, "metadata.uid")
             dag[step]["kind"] = get_in(run, "metadata.labels.kind")
@@ -614,7 +622,9 @@ def get_kfp_outputs(artifacts, labels, project):
         if target.startswith("v3io:///"):
             target = target.replace("v3io:///", "http://v3io-webapi:8081/")
 
-        user = labels.get("v3io_user", "") or os.environ.get("V3IO_USERNAME", "")
+        user = labels.get(
+            mlrun.common.constants.MLRunInternalLabels.v3io_user, ""
+        ) or os.environ.get("V3IO_USERNAME", "")
         if target.startswith("/User/"):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]

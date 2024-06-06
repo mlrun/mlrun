@@ -31,6 +31,7 @@ import pytest
 import requests_mock as requests_mock_package
 
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -273,6 +274,10 @@ def test_runs(create_server):
     for i in range(count):
         uid = f"uid_{i}"
         run_as_dict["metadata"]["name"] = "run-name"
+        if i % 2 == 0:
+            run_as_dict["status"]["state"] = "completed"
+        else:
+            run_as_dict["status"]["state"] = "created"
         db.store_run(run_as_dict, uid, prj)
 
     # retrieve only the last run as it is partitioned by name
@@ -287,8 +292,20 @@ def test_runs(create_server):
     )
     assert len(runs) == 7, "bad number of runs"
 
+    # retrieve only created runs
+    runs = db.list_runs(project=prj, states=["created"])
+    assert len(runs) == 3, "bad number of runs"
+
+    # retrieve created and completed runs
+    runs = db.list_runs(project=prj, states=["created", "completed"])
+    assert len(runs) == 7, "bad number of runs"
+
     # delete runs in created state
     db.del_runs(project=prj, state="created")
+
+    # delete runs in completed state
+    db.del_runs(project=prj, state="completed")
+
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"
 
@@ -851,7 +868,7 @@ def test_project_sql_db_roundtrip(create_server):
     _assert_projects(project, patched_project)
     get_project = db.get_project(project_name)
     _assert_projects(project, get_project)
-    list_projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+    list_projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
     _assert_projects(project, list_projects[0])
 
 

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import pathlib
 import re
 
@@ -19,7 +20,7 @@ import pytest
 
 import mlrun.config
 from mlrun import new_function
-from mlrun.datastore import CSVSource, KafkaSource
+from mlrun.datastore import CSVSource, KafkaSource, ParquetSource
 
 
 def test_kafka_source_with_old_nuclio():
@@ -104,3 +105,41 @@ def test_timestamp_format_inference(rundb_mock):
         )
     )
     pd.testing.assert_frame_equal(result_df, expected_result_df)
+
+
+@pytest.mark.parametrize(
+    "additional_filters, message",
+    [
+        ([("x", "=", 3)], ""),
+        (
+            [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]],
+            "additional_filters does not support nested list inside filter tuples except in -in- logic.",
+        ),
+    ],
+)
+def test_transform_list_filters_to_tuple(additional_filters, message):
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
+
+    if message:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=additional_filters,
+            )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=message):
+            ParquetSource(
+                "parquet_source",
+                path="path/to/file",
+                additional_filters=back_from_json_serialization,
+            )
+    else:
+        ParquetSource(
+            "parquet_source", path="path/to/file", additional_filters=additional_filters
+        )
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path="path/to/file",
+            additional_filters=back_from_json_serialization,
+        )
+        assert parquet_source.additional_filters == additional_filters

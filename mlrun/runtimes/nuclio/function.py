@@ -19,6 +19,7 @@ import warnings
 from datetime import datetime
 from time import sleep
 
+import inflection
 import nuclio
 import nuclio.utils
 import requests
@@ -65,9 +66,13 @@ def min_nuclio_versions(*versions):
             if validate_nuclio_version_compatibility(*versions):
                 return function(*args, **kwargs)
 
+            if function.__name__ == "__init__":
+                name = inflection.titleize(function.__qualname__.split(".")[0])
+            else:
+                name = function.__qualname__
+
             message = (
-                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
-                f"nuclio {mlconf.nuclio_version}, please upgrade."
+                f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
@@ -266,7 +271,8 @@ class RemoteRuntime(KubeResource):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
     def pre_deploy_validation(self):
-        pass
+        if self.metadata.tag:
+            mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -547,7 +553,6 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        save_record = False
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
@@ -565,15 +570,18 @@ class RemoteRuntime(KubeResource):
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
         #       if not exists, take the internal invocation url
-        if self.status.external_invocation_urls:
+        if (
+            self.status.external_invocation_urls
+            and self.status.external_invocation_urls[0] != ""
+        ):
             self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
-            save_record = True
-        elif self.status.internal_invocation_urls:
+        elif (
+            self.status.internal_invocation_urls
+            and self.status.internal_invocation_urls[0] != ""
+        ):
             self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
-            save_record = True
-        elif self.status.address:
+        elif self.status.address and self.status.address != "":
             self.spec.command = f"http://{self.status.address}"
-            save_record = True
 
         logger.info(
             "Successfully deployed function",
@@ -581,8 +589,7 @@ class RemoteRuntime(KubeResource):
             external_invocation_urls=self.status.external_invocation_urls,
         )
 
-        if save_record:
-            self.save(versioned=False)
+        self.save(versioned=False)
 
         return self.spec.command
 
@@ -966,20 +973,29 @@ class RemoteRuntime(KubeResource):
             sidecar["image"] = image
 
         ports = mlrun.utils.helpers.as_list(ports)
+        # according to RFC-6335, port name should be less than 15 characters,
+        # so we truncate it if needed and leave room for the index
+        port_name = name[:13].rstrip("-_") if len(name) > 13 else name
         sidecar["ports"] = [
             {
-                "name": f"{name}-{i}",
+                "name": f"{port_name}-{i}",
                 "containerPort": port,
                 "protocol": "TCP",
             }
             for i, port in enumerate(ports)
         ]
 
-        if command:
+        # if it is a redeploy, 'command' might be set with the previous invocation url.
+        # in this case, we don't want to use it as the sidecar command
+        if command and not command.startswith("http"):
             sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
-        if args:
+        if args and sidecar["command"]:
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
+
+        # populate the sidecar resources from the function spec
+        if self.spec.resources:
+            sidecar["resources"] = self.spec.resources
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

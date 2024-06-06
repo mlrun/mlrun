@@ -67,10 +67,11 @@ class Functions(
         project: str = mlrun.mlconf.default_project,
         tag: str = "",
         hash_key: str = "",
+        _format: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().get_function(
-            db_session, name, project, tag, hash_key
+            db_session, name, project, tag, hash_key, _format
         )
 
     def delete_function(
@@ -93,6 +94,7 @@ class Functions(
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
+        _format: str = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -104,6 +106,7 @@ class Functions(
             tag=tag,
             labels=labels,
             hash_key=hash_key,
+            _format=_format,
             page=page,
             page_size=page_size,
         )
@@ -134,3 +137,19 @@ class Functions(
             client_python_version=client_python_version,
         )
         function.save(versioned=False)
+
+    def update_function(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function,
+        project,
+        updates: dict,
+    ):
+        return server.api.utils.singletons.db.get_db().update_function(
+            session=db_session,
+            name=function["metadata"]["name"],
+            tag=function["metadata"]["tag"],
+            hash_key=function.get("metadata", {}).get("hash"),
+            project=project,
+            updates=updates,
+        )

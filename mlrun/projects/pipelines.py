@@ -26,6 +26,7 @@ from kfp.compiler import compiler
 from mlrun_pipelines.helpers import new_pipe_metadata
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
@@ -371,7 +372,7 @@ class _PipelineRunStatus:
         engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
-        state: str = "",
+        state: mlrun_pipelines.common.models.RunStatuses = "",
         exc: Exception = None,
     ):
         """
@@ -443,6 +444,7 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pass
 
@@ -479,6 +481,7 @@ class _PipelineRunner(abc.ABC):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        **kwargs,
     ):
         pass
 
@@ -521,6 +524,7 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -569,13 +573,13 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-            project.get_param("commit_id", None),
-            run_id,
-            True,
-        )
+        if send_start_notification:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+                project.get_param("commit_id", None),
+                run_id,
+                True,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -610,6 +614,7 @@ class _KFPRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        **kwargs,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -665,6 +670,7 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -685,9 +691,11 @@ class _LocalRunner(_PipelineRunner):
             original_source = project.spec.source
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name, pipeline_id=workflow_id
-        )
+
+        if send_start_notification:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name, pipeline_id=workflow_id
+            )
         err = None
         try:
             workflow_handler(**workflow_spec.args)
@@ -733,6 +741,7 @@ class _LocalRunner(_PipelineRunner):
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        **kwargs,
     ):
         pass
 
@@ -754,13 +763,21 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
 
         # for start message, fallback to old notification behavior
-        for notification in notifications or []:
-            project.notifiers.add_notification(notification.kind, notification.params)
+        if send_start_notification:
+            for notification in notifications or []:
+                project.notifiers.add_notification(
+                    notification.kind, notification.params
+                )
+                # if a notification with `when=running` is provided, it will be used explicitly and others
+                # will be ignored
+                if "running" in notification.when:
+                    break
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
@@ -860,7 +877,7 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun_pipelines.common.models.RunStatuses.failed
         else:
-            state = mlrun_pipelines.common.models.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.running
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,
             )
@@ -877,24 +894,47 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run,
+        run: _PipelineRunStatus,
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        inner_engine: type[_PipelineRunner] = None,
     ):
-        # ignore notifiers, as they are handled by the remote pipeline notifications,
-        # so overriding with CustomNotificationPusher with empty list of notifiers
-        state, had_errors, text = _KFPRunner.get_run_status(
-            project,
-            run,
-            timeout,
-            expected_statuses,
-            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
-        )
+        inner_engine = inner_engine or _KFPRunner
+        if inner_engine.engine == _KFPRunner.engine:
+            # ignore notifiers for remote notifications, as they are handled by the remote pipeline notifications,
+            # so overriding with CustomNotificationPusher with empty list of notifiers or only local notifiers
+            local_project_notifiers = list(
+                set(mlrun.utils.notifications.NotificationTypes.local()).intersection(
+                    set(project.notifiers.notifications.keys())
+                )
+            )
+            notifiers = mlrun.utils.notifications.CustomNotificationPusher(
+                local_project_notifiers
+            )
+            return _KFPRunner.get_run_status(
+                project,
+                run,
+                timeout,
+                expected_statuses,
+                notifiers=notifiers,
+            )
 
-        # indicate the pipeline status since we don't push the notifications in the remote runner
-        logger.info(text)
-        return state, had_errors, text
+        elif inner_engine.engine == _LocalRunner.engine:
+            mldb = mlrun.db.get_run_db(secrets=project._secrets)
+            pipeline_runner_run = mldb.read_run(run.run_id, project=project.name)
+            pipeline_runner_run = mlrun.run.RunObject.from_dict(pipeline_runner_run)
+            pipeline_runner_run.logs(db=mldb)
+            pipeline_runner_run.refresh()
+            run._state = mlrun.common.runtimes.constants.RunStates.run_state_to_pipeline_run_status(
+                pipeline_runner_run.status.state
+            )
+            run._exc = pipeline_runner_run.status.error
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported inner runner engine: {inner_engine.engine}"
+            )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

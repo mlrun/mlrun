@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import os
 import typing
 
 import sqlalchemy.orm
@@ -335,7 +334,6 @@ class ModelEndpoints:
 
     def get_model_endpoint(
         self,
-        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
         metrics: list[str] = None,
@@ -346,7 +344,6 @@ class ModelEndpoints:
         """Get a single model endpoint object. You can apply different time series metrics that will be added to the
            result.
 
-        :param auth_info:                  The auth info of the request
         :param project:                    The name of the project
         :param endpoint_id:                The unique id of the model endpoint.
         :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
@@ -393,7 +390,6 @@ class ModelEndpoints:
         # If time metrics were provided, retrieve the results from the time series DB
         if metrics:
             self._add_real_time_metrics(
-                model_endpoint_store=model_endpoint_store,
                 model_endpoint_object=model_endpoint_object,
                 metrics=metrics,
                 start=start,
@@ -404,7 +400,6 @@ class ModelEndpoints:
 
     def list_model_endpoints(
         self,
-        auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         model: str = None,
         function: str = None,
@@ -430,7 +425,6 @@ class ModelEndpoints:
         and depends on the 'start' and 'end' parameters. By default, when the metrics parameter is None, no metrics are
         added to the output of this function.
 
-        :param auth_info: The auth info of the request.
         :param project:   The name of the project.
         :param model:     The name of the model to filter by.
         :param function:  The name of the function to filter by.
@@ -494,7 +488,6 @@ class ModelEndpoints:
             # If time metrics were provided, retrieve the results from the time series DB
             if metrics:
                 self._add_real_time_metrics(
-                    model_endpoint_store=endpoint_store,
                     model_endpoint_object=endpoint_obj,
                     metrics=metrics,
                     start=start,
@@ -512,14 +505,11 @@ class ModelEndpoints:
 
         :param project_name: project name.
         """
-        auth_info = mlrun.common.schemas.AuthInfo(
-            data_session=os.getenv("V3IO_ACCESS_KEY")
-        )
 
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        endpoints = self.list_model_endpoints(auth_info, project_name)
+        endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"
@@ -532,9 +522,6 @@ class ModelEndpoints:
 
         :param project_name: The name of the project.
         """
-        auth_info = mlrun.common.schemas.AuthInfo(
-            data_session=os.getenv("V3IO_ACCESS_KEY")
-        )
 
         # Delete model monitoring store resources
         endpoint_store = mlrun.model_monitoring.get_store_object(
@@ -616,7 +603,6 @@ class ModelEndpoints:
 
     @staticmethod
     def _add_real_time_metrics(
-        model_endpoint_store: mlrun.model_monitoring.db.StoreBase,
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
         metrics: list[str] = None,
         start: str = "now-1h",
@@ -625,8 +611,6 @@ class ModelEndpoints:
         """Add real time metrics from the time series DB to a provided `ModelEndpoint` object. The real time metrics
            will be stored under `ModelEndpoint.status.metrics.real_time`
 
-        :param model_endpoint_store:  `StoreBase` object that will be used for communicating with the database
-                                       and querying the required metrics.
         :param model_endpoint_object: `ModelEndpoint` object that will be filled with the relevant
                                        real time metrics.
         :param metrics:                A list of metrics to return for each endpoint. There are pre-defined metrics for

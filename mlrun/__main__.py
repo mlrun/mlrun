@@ -102,7 +102,9 @@ def main():
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
-@click.option("--workflow", help="workflow name/id")
+@click.option(
+    "--workflow", help="sets the run pipeline labels to match given workflow name/id"
+)
 @click.option("--project", help="project name/id")
 @click.option("--db", default="", help="save run results to path or DB url")
 @click.option(

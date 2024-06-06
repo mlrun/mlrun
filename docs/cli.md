@@ -204,7 +204,7 @@ Examples:
 | -s, --secrets TEXT           | Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt`           |
 | \--uid TEXT                  | Unique run ID                                                                                           |
 | \--name TEXT                 | Run name                                                                                                |
-| \--workflow TEXT             | Workflow name/id                                                                                        |
+| \--workflow TEXT             | Sets run metadata pipelines related labels to match given workflow name/id                              |
 | \--project TEXT              | Project name or ID                                                                                      |
 | \--db TEXT                   | Save run results to DB url                                                                              |
 | \--runtime TEXT              | Function spec dict, for pipeline usage                                                                  |

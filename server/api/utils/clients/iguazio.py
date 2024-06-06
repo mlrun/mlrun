@@ -610,6 +610,7 @@ class Client(
         )
         if job_state != JobStates.completed:
             status_code = None
+            final_error_message = ""
             try:
                 parsed_result = json.loads(job_result)
                 result_message = parsed_result["message"]

@@ -25,7 +25,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_invocations_metric
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
@@ -653,10 +653,4 @@ class V3IOTSDBConnector(TSDBConnector):
                 raise
 
         if not df.empty:
-            return mm_schemas.ModelEndpointMonitoringMetric(
-                project=self.project,
-                app=mm_schemas.SpecialApps.MLRUN_INFRA,
-                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
-                full_name=get_invocations_fqn(self.project),
-            )
+            return get_invocations_metric(self.project)

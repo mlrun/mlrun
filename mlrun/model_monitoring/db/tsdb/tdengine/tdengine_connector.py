@@ -22,7 +22,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.helpers import get_invocations_fqn
+from mlrun.model_monitoring.helpers import get_invocations_fqn, get_invocations_metric
 from mlrun.utils import logger
 
 
@@ -388,10 +388,4 @@ class TDEngineConnector(TSDBConnector):
             limit=1,
         )
         if predictions:
-            return mm_schemas.ModelEndpointMonitoringMetric(
-                project=self.project,
-                app=mm_schemas.SpecialApps.MLRUN_INFRA,
-                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
-                full_name=get_invocations_fqn(self.project),
-            )
+            return get_invocations_metric(self.project)

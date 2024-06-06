@@ -455,11 +455,7 @@ async def _get_metrics_values_params(
 
 
 async def _wrap_coroutine_in_list(x):
-    result = await x
-    if result is None:
-        return []
-    else:
-        return [result]
+    return [await x]
 
 
 @router.get(

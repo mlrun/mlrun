@@ -1303,12 +1303,17 @@ async def _delete_function(
     # in MLRun terminology, they are all just versions of the same function
     # therefore, it's enough to check the kind of the first one only
     if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+
+        # filter functions which doesn't have status
+        # it means that they aren't attached to the actual nuclio function
+        nuclio_functions = [function for function in functions if function["status"]]
+
         # generate Nuclio function names based on function tags
         nuclio_function_names = [
             mlrun.runtimes.nuclio.function.get_fullname(
                 function_name, project, function.get("metadata", {}).get("tag")
             )
-            for function in functions
+            for function in nuclio_functions
         ]
         # delete Nuclio functions associated with the function tags in batches
         failed_requests = await _delete_nuclio_functions_in_batches(
@@ -1317,7 +1322,7 @@ async def _delete_function(
         if failed_requests:
             error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"
             await _update_functions_with_deletion_info(
-                functions, project, {"status.deletion_error": error_message}
+                nuclio_functions, project, {"status.deletion_error": error_message}
             )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 

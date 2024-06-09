@@ -91,6 +91,7 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
+    overwrite: bool = False,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -107,6 +108,7 @@ async def enable_model_monitoring(
                         stream functions, which are real time nuclio functions.
                         By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+    :param overwrite:   If True, it would overwrite the existing model monitoring controller & writer functions.
     """
     MonitoringDeployment(
         project=commons.project,
@@ -117,6 +119,7 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        overwrite=overwrite,
     )
 
 

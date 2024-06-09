@@ -675,6 +675,7 @@ class NopDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        overwrite: bool = False,
     ) -> None:
         pass
 

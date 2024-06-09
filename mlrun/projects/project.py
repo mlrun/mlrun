@@ -2116,6 +2116,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
+        overwrite: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2135,6 +2136,7 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
                                                 Otherwise, deploy the model monitoring infrastructure on the
                                                 background, including the histogram data drift app if selected.
+        :param overwrite:                       If true, overwrite the existing model monitoring infrastructure.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2150,6 +2152,7 @@ class MlrunProject(ModelObj):
             image=image,
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            overwrite=overwrite,
         )
 
         if wait_for_deployment:

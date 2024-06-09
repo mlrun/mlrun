@@ -98,6 +98,7 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        overwrite: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -108,14 +109,19 @@ class MonitoringDeployment:
                             stream functions, which are real time nuclio functino.
                             By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        :param overwrite:   If true, overwrite the existing model monitoring controller, writer & stream functions.
         """
         self.deploy_model_monitoring_controller(
-            controller_image=image, base_period=base_period
+            controller_image=image, base_period=base_period, overwrite=overwrite
         )
-        self.deploy_model_monitoring_writer_application(writer_image=image)
-        self.deploy_model_monitoring_stream_processing(stream_image=image)
+        self.deploy_model_monitoring_writer_application(
+            writer_image=image, overwrite=overwrite
+        )
+        self.deploy_model_monitoring_stream_processing(
+            stream_image=image, overwrite=overwrite
+        )
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, overwrite=overwrite)
         # Create tsdb tables that will be used for storing the model monitoring data
         self._create_tsdb_tables()
 
@@ -550,41 +556,50 @@ class MonitoringDeployment:
                 pass
         return False
 
-    def deploy_histogram_data_drift_app(self, image: str) -> None:
+    def deploy_histogram_data_drift_app(
+        self, image: str, overwrite: bool = False
+    ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image: The image on with the function will run.
+        :param image:       The image on with the function will run.
+        :param overwrite:   If True, the function will be overwritten.
         """
-        logger.info("Preparing the histogram data drift function")
-        func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
-            project=self.project,
-            func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
-            name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            application_class="HistogramDataDriftApplication",
-            image=image,
-        )
+        if not self._check_if_already_deployed(
+            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            overwrite=overwrite,
+        ):
+            logger.info("Preparing the histogram data drift function")
+            func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+                project=self.project,
+                func=_HISTOGRAM_DATA_DRIFT_APP_PATH,
+                name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                application_class="HistogramDataDriftApplication",
+                image=image,
+            )
 
-        if not mlrun.mlconf.is_ce_mode():
-            logger.info("Setting the access key for the histogram data drift function")
-            func.metadata.credentials.access_key = self.model_monitoring_access_key
-            server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
-            logger.info("Ensured the histogram data drift function auth")
+            if not mlrun.mlconf.is_ce_mode():
+                logger.info(
+                    "Setting the access key for the histogram data drift function"
+                )
+                func.metadata.credentials.access_key = self.model_monitoring_access_key
+                server.api.api.utils.ensure_function_has_auth_set(func, self.auth_info)
+                logger.info("Ensured the histogram data drift function auth")
 
-        func.set_label(
-            mm_constants.ModelMonitoringAppLabel.KEY,
-            mm_constants.ModelMonitoringAppLabel.VAL,
-        )
+            func.set_label(
+                mm_constants.ModelMonitoringAppLabel.KEY,
+                mm_constants.ModelMonitoringAppLabel.VAL,
+            )
 
-        fn, ready = server.api.utils.functions.build_function(
-            db_session=self.db_session, auth_info=self.auth_info, function=func
-        )
+            fn, ready = server.api.utils.functions.build_function(
+                db_session=self.db_session, auth_info=self.auth_info, function=func
+            )
 
-        logger.debug(
-            "Submitted the histogram data drift app deployment",
-            app_data=fn.to_dict(),
-            app_ready=ready,
-        )
+            logger.debug(
+                "Submitted the histogram data drift app deployment",
+                app_data=fn.to_dict(),
+                app_ready=ready,
+            )
 
     def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
         """

@@ -48,9 +48,7 @@ class Entity(BaseModel):
 class QualifiedEntity(BaseModel):
     name: str
     value_type: str
-    project: str
-    feature_set_name: str
-    feature_set_tag: Optional[str]
+    feature_set_index: int
     labels: Optional[dict] = {}
 
     class Config:
@@ -126,6 +124,7 @@ class FeatureSetDigestSpecV2(BaseModel):
 
 
 class FeatureSetDigestOutputV2(BaseModel):
+    feature_set_index: int
     metadata: ObjectMetadata
     spec: FeatureSetDigestSpecV2
 

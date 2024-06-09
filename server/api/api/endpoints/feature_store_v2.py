@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -53,35 +52,42 @@ async def list_entities(
 
     entities_v2: list[QualifiedEntity] = []
     feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
-    feature_set_digest_id_set: set[int] = set()
+    feature_set_digest_id_to_index: dict[int, int] = {}
 
     for entity_v1 in entities.entities:
-        entity = entity_v1.entity
         feature_set_digest = entity_v1.feature_set_digest
-        entities_v2.append(
-            QualifiedEntity(
-                name=entity.name,
-                value_type=entity.value_type,
-                project=project,
-                feature_set_name=feature_set_digest.metadata.name,
-                feature_set_tag=feature_set_digest.metadata.tag,
-                labels=entity.labels,
-            )
-        )
+
         # dedup feature set list
         # we can rely on the object ID because SQLAlchemy already avoids duplication at the object
         # level, and the conversion from "model" to "schema" retains this property
         feature_set_digest_obj_id = id(feature_set_digest)
-        if feature_set_digest_obj_id not in feature_set_digest_id_set:
-            feature_set_digest_id_set.add(feature_set_digest_obj_id)
+        feature_set_index = feature_set_digest_id_to_index.get(
+            feature_set_digest_obj_id, None
+        )
+        if feature_set_index is None:
+            feature_set_index = len(feature_set_digest_id_to_index)
+            feature_set_digest_id_to_index[feature_set_digest_obj_id] = (
+                feature_set_index
+            )
             feature_set_digests_v2.append(
                 FeatureSetDigestOutputV2(
+                    feature_set_index=feature_set_index,
                     metadata=feature_set_digest.metadata,
                     spec=FeatureSetDigestSpecV2(
                         entities=feature_set_digest.spec.entities,
                     ),
                 )
             )
+
+        entity = entity_v1.entity
+        entities_v2.append(
+            QualifiedEntity(
+                name=entity.name,
+                value_type=entity.value_type,
+                feature_set_index=feature_set_index,
+                labels=entity.labels,
+            )
+        )
 
     return mlrun.common.schemas.EntitiesOutputV2(
         entities=entities_v2, feature_set_digests=feature_set_digests_v2

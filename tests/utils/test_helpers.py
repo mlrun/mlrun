@@ -286,6 +286,7 @@ def test_validate_tag_name(tag_name, expected):
             "artifact-name\\test",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
+        ("", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         # Valid names
         ("artifact-name2.0", does_not_raise()),
         ("artifact-name", does_not_raise()),

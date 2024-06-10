@@ -158,7 +158,7 @@ class Runs(
 
         else:
             # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
-            # the producer_id may be too heavy with the as it fetches all the artifacts of the workflow and then
+            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
             # filters by producer URI in memory.
             artifacts = self._get_artifacts_from_uris(db_session, project, run)
 
@@ -499,7 +499,7 @@ class Runs(
     ):
         best_iteration = False
         # If the iteration is 0, we mark the artifacts as best iteration.
-        # Specifically for hyper runs, iteration 0 is the parent run, so we needs the get the artifacts
+        # Specifically for hyper runs, iteration 0 is the parent run, so we need the get the artifacts
         # of the real best iteration run, which can be from a different iteration.
         if not iteration:
             iteration = None

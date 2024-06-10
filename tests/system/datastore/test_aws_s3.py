@@ -62,10 +62,8 @@ class TestAwsS3(TestMLRunSystem):
             "bucket_path": bucket_path,
             "object_sub_dir_path": object_sub_dir_path,
             "object_sub_dir_url": object_sub_dir_url,
-            "parquet_path": f"{object_sub_dir_path}/{parquet_file}",
             "parquet_url": f"{object_sub_dir_url}/{parquet_file}",
             "parquets_url": f"{object_sub_dir_url}/parquets",
-            "test_dir_url": f"{bucket_path}/{self.object_dir}",
             "test_dir_path": f"{bucket_name}/{self.object_dir}",
         }
         return res

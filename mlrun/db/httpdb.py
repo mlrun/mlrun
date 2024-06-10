@@ -997,7 +997,7 @@ class HTTPRunDB(RunDBInterface):
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": mlrun.common.formatters.ArtifactFormat.full,
             "tag": tag,
             "tree": tree,
             "uid": uid,
@@ -1114,7 +1114,7 @@ class HTTPRunDB(RunDBInterface):
             "kind": kind,
             "category": category,
             "tree": tree,
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": mlrun.common.formatters.ArtifactFormat.full,
             "producer_uri": producer_uri,
         }
         error = "list artifacts"

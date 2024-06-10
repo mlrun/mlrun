@@ -169,17 +169,35 @@ fi
 # --------------------------------------------------------------------------------------------------------------------------------
 
 current_dir=$(pwd)
+folder_name=$(basename "$PWD")
+parent_dir=$(dirname "$(pwd)")
 # cd to avoid running shell from deleted path
 cd
 if [ "${tutorials_dir}" ]; then # means --path is specified
     dest_dir=${tutorials_dir%/*} # taking parent dir
 fi
 # Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
+# if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
+#     echo "--user and --path argument are empty, using local path"
+#     tutorials_dir="${current_dir}/tutorials"
+#     dest_dir="${current_dir}"
+# fi
+
+# Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
 if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
     echo "--user and --path argument are empty, using local path"
-    tutorials_dir="${current_dir}/tutorials"
-    dest_dir="${current_dir}"
+    # To support when running inside tutorials folder or arbitrary folder - add /tutorials
+    if [[ "${folder_name}" == "tutorials" ]]; then
+        tutorials_dir="${current_dir}"
+        dest_dir="${parent_dir}"
+        echo "A"
+    else
+        tutorials_dir="${current_dir}/tutorials"
+        dest_dir="${current_dir}"
+        echo "B"
+    fi
 fi
+
 # when --path isn't specified and either V3IO_USERNAME or --user is specified (otherwise case caught above).
 if [ -z "${tutorials_dir}" ]; then
     dest_dir="/v3io/users/${user}"
@@ -341,7 +359,7 @@ if [ "$branch" ]; then
 fi
 
 # --------------------------------------------------------------------------------------------------------------------------------
-# If branch isn't specified, trying to use --mlrun_ver or detect installed mlrun version
+# If branch isn't specified, trying to use --mlrun-ver or detect installed mlrun version
 # When mlrun isn't installed, using 1.7.0
 # --------------------------------------------------------------------------------------------------------------------------------
 

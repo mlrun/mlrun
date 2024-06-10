@@ -120,7 +120,8 @@ class TestAwsS3(TestMLRunSystem):
             s3_fs.rm(full_path)
 
     @pytest.mark.parametrize("url_type", ["s3", "ds_with_bucket", "ds_no_bucket"])
-    def test_ingest_with_parquet_source(self, url_type):
+    @pytest.mark.parametrize("target_path", ["parquets_url", "parquet_url"])
+    def test_ingest_with_parquet_source(self, url_type, target_path):
         #  create source
         s3_fs = fsspec.filesystem(
             "s3", key=self._access_key_id, secret=self._secret_access_key
@@ -139,13 +140,16 @@ class TestAwsS3(TestMLRunSystem):
         parquet_source = ParquetSource(name="test", path=source_url)
 
         # ingest
-        target = ParquetTarget(path=param["parquets_url"])
+        target = ParquetTarget(path=param[target_path])
         fset = fstore.FeatureSet(
             name="test_fs",
             entities=[fstore.Entity("Column1")],
         )
-
-        fset.ingest(source=parquet_source, targets=[target])
+        fset.set_targets(
+            targets=[target],
+            with_defaults=False,
+        )
+        fset.ingest(source=parquet_source)
         target_path = fset.get_target_path()
         result = ParquetSource(path=target_path).to_dataframe(
             columns=("Column1", "Column2")
@@ -161,52 +165,7 @@ class TestAwsS3(TestMLRunSystem):
         )
         # Check for ML-6587 regression
         assert s3_fs.exists(s3_path)
-        target.purge()
-        assert not s3_fs.exists(s3_path)
-
-    @pytest.mark.parametrize("url_type", ["ds_no_bucket"])
-    def test_ingest_with_parquet_source_file(self, url_type):
-        #  create source
-        s3_fs = fsspec.filesystem(
-            "s3", key=self._access_key_id, secret=self._secret_access_key
-        )
-        param = self.s3[url_type]
-        logger.info(f"Using URL {param['object_sub_dir_url']}")
-        data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
-        df = pd.DataFrame(data)
-        source_file = f"source_{uuid.uuid4()}.parquet"
-        source_url = f"{param['object_sub_dir_url']}/{source_file}"
-
-        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
-            df.to_parquet(temp_file.name)
-            path_only = f"{self.s3['s3']['object_sub_dir_path']}/{source_file}"
-            s3_fs.put_file(temp_file.name, f"{self._bucket_name}/{path_only}")
-        parquet_source = ParquetSource(name="test", path=source_url)
-
-        # ingest
-        target = ParquetTarget(path=param["parquet_url"])
-        fset = fstore.FeatureSet(
-            name="test_fs",
-            entities=[fstore.Entity("Column1")],
-        )
-
-        fset.ingest(source=parquet_source, targets=[target])
-        target_path = fset.get_target_path()
-        result = ParquetSource(path=target_path).to_dataframe(
-            columns=("Column1", "Column2")
-        )
-        result.reset_index(inplace=True, drop=False)
-
-        assert_frame_equal(
-            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
-        )
-
-        s3_path = (
-            f"{self._bucket_name}/{target_path[target_path.index(self.object_dir):]}"
-        )
-        # Check for ML-6587 regression
-        assert s3_fs.exists(s3_path)
-        target.purge()
+        fset.purge_targets()
         assert not s3_fs.exists(s3_path)
 
     def test_ingest_ds_default_target(self):
@@ -254,6 +213,7 @@ class TestAwsS3(TestMLRunSystem):
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
 
-        # Check for ML-6587 regression
+        # check our protection against direct target.purge in the
+        # case of default target + ds (could delete the whole bucket).
         target.purge()
         assert s3_fs.ls(f"{self._bucket_name}")

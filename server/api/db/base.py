@@ -22,6 +22,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
+from mlrun.common.types import Operation
 
 
 class DBError(Exception):
@@ -337,12 +338,12 @@ class DBInterface(ABC):
     def update_function_external_invocation_url(
         self,
         session,
-        name,
-        external_invocation_url: str,
-        project="",
-        tag="",
-        hash_key="",
-        operation="add",
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation=Operation.ADD,
     ):
         pass
 

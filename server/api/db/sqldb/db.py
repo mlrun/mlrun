@@ -42,6 +42,7 @@ import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.types import Operation
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -1744,13 +1745,18 @@ class SQLDB(DBInterface):
     def update_function_external_invocation_url(
         self,
         session,
-        name,
-        external_invocation_url: str,
-        project="",
-        tag="",
-        hash_key="",
-        operation="add",
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation=Operation.ADD,
     ):
+        """
+        This function updates the external invocation URLs of a function within a project.
+        It can add or remove URLs based on the specified `operation` which can be
+        either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
+        """
         project = project or config.default_project
         normalized_function_name = mlrun.utils.normalize_name(name)
         query = self._query(
@@ -1768,36 +1774,34 @@ class SQLDB(DBInterface):
         function = query.one_or_none()
         if not function:
             logger.debug(
-                "Function is not found",
+                "Function is not found, skipping external invocation urls update",
                 project=project,
                 name=name,
-                external_invocation_url=external_invocation_url,
+                url=url,
             )
             return
 
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == "add":
+        if operation == Operation.ADD:
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
                 name=name,
-                external_invocation_url=external_invocation_url,
+                url=url,
             )
-            if external_invocation_url not in existing_invocation_urls:
-                existing_invocation_urls.append(external_invocation_url)
+            if url not in existing_invocation_urls:
+                existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        else:
+        elif operation == Operation.REMOVE:
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,
                 name=name,
-                external_invocation_url=external_invocation_url,
+                url=url,
             )
-            if external_invocation_url in existing_invocation_urls:
-                struct["status"]["external_invocation_urls"].remove(
-                    external_invocation_url
-                )
+            if url in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].remove(url)
         function.struct = struct
         self._upsert(session, [function])
 

@@ -22,6 +22,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.runtime_handlers
 import server.api.utils.singletons.db
+from mlrun.common.types import Operation
 
 
 class Functions(
@@ -167,7 +168,7 @@ class Functions(
         server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,
-            external_invocation_url=invocation_url,
+            url=invocation_url,
             project=project,
             tag=tag,
             hash_key=hash_key,
@@ -186,9 +187,9 @@ class Functions(
         server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
             session=db_session,
             name=function_name,
-            external_invocation_url=invocation_url,
+            url=invocation_url,
             project=project,
             tag=tag,
             hash_key=hash_key,
-            operation="delete",
+            operation=Operation.REMOVE,
         )

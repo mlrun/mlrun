@@ -306,7 +306,7 @@ async def deploy_status(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
-    api_gateways_hosts = await _get_api_gateways_hosts_for_function(
+    api_gateways_hosts = await _get_api_gateways_urls_for_function(
         auth_info, project, name, tag
     )
     return await run_in_threadpool(
@@ -542,12 +542,12 @@ def _handle_nuclio_deploy_status(
     db_session,
     auth_info,
     fn,
-    name,
-    project,
-    tag,
-    last_log_timestamp,
-    verbose,
-    api_gateway_hosts,
+    name: str,
+    project: str,
+    tag: str,
+    last_log_timestamp: int,
+    verbose: bool,
+    api_gateway_hosts: list[str],
 ):
     (
         state,
@@ -634,7 +634,7 @@ def _handle_nuclio_deploy_status(
     )
 
 
-async def _get_api_gateways_hosts_for_function(
+async def _get_api_gateways_urls_for_function(
     auth_info, project, name, tag
 ) -> list[str]:
     function_uri = generate_object_uri(project, name, tag)

@@ -306,9 +306,7 @@ if [ -z "$mlrun_version" ]; then # mlrun version isn't specified. using installe
         mlrun_version="${pip_mlrun##Version: }"
     fi
 fi
-
 echo "Looking for demos with MLRun version - ${mlrun_version}."
-
 if [[ "${mlrun_version}"<"1.7" ]]; then
     git_repo="demos"
 fi
@@ -317,21 +315,8 @@ echo "release tag or latest tag : ${latest_tag}"
 if [ -z "${latest_tag}" ]; then
      error_exit "Couldn't locate a Git tag with prefix 'v${mlrun_version}.*'."
 fi
-
-
-# latest_tag=$(get_latest_tag "${mlrun_version}" "${git_owner}" "${git_repo}" "${git_base_url}" "${git_url}")
-# if [ -z "${latest_tag}" ]; then # Couldnt find matching releases and rcs, use the prefix of the version - e.g. "1.7.0"
-#     tag_prefix=`echo "${mlrun_version}" |  tr -cs '0-9' ' ' | cut -d ' ' -f 1,2,3 | sed 's/ /./g'`
-#     latest_tag=$(get_latest_tag "${tag_prefix}" "${git_owner}" "${git_repo}" "${git_base_url}" "${git_url}")
-#     if [ -z "${latest_tag}" ]; then
-#         error_exit "mlrun version installed with prefix : ${tag_prefix} doesn't match any mlrun versions"
-#     fi
-# fi
-
-
 branch=${latest_tag#refs/tags/}
 echo "Using branch ${branch} to download demos"
-
 temp_dir=$(mktemp -d /tmp/temp-get-demos.XXXXXXXXXX)
 # demos introduced to mlrun in 1.7.0
 if [[ "${branch}">"v1.7" ]]; then
@@ -345,7 +330,6 @@ else
     download_tar_gz_to_temp_dir "$tar_url" "$temp_dir"
     verify_update_demos "${temp_dir}" "${branch}"
 fi
-
 if [ -z "${dry_run}" ]; then
     echo "copy files from ${temp_dir} to ${demos_dir}"
     cp -rf "$temp_dir/." "$demos_dir"

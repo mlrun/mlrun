@@ -27,6 +27,7 @@ from server.api.api.endpoints import (
     datastore_profile,
     events,
     feature_store,
+    feature_store_v2,
     files,
     frontend_spec,
     functions,
@@ -120,6 +121,11 @@ api_router.include_router(
 )
 api_router.include_router(
     feature_store.router,
+    tags=["feature-store"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    feature_store_v2.router,
     tags=["feature-store"],
     dependencies=[Depends(deps.authenticate_request)],
 )

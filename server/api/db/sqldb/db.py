@@ -1753,7 +1753,6 @@ class SQLDB(DBInterface):
     ):
         project = project or config.default_project
         normalized_function_name = mlrun.utils.normalize_name(name)
-        project = project or config.default_project
         query = self._query(
             session, Function, name=normalized_function_name, project=project
         )
@@ -1775,6 +1774,7 @@ class SQLDB(DBInterface):
                 external_invocation_url=external_invocation_url,
             )
             return
+
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
         if operation == "add":
@@ -1784,11 +1784,8 @@ class SQLDB(DBInterface):
                 name=name,
                 external_invocation_url=external_invocation_url,
             )
-            if existing_invocation_urls:
-                if external_invocation_url not in existing_invocation_urls:
-                    existing_invocation_urls.append(external_invocation_url)
-            else:
-                existing_invocation_urls = [external_invocation_url]
+            if external_invocation_url not in existing_invocation_urls:
+                existing_invocation_urls.append(external_invocation_url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
         else:
             logger.debug(
@@ -1797,11 +1794,10 @@ class SQLDB(DBInterface):
                 name=name,
                 external_invocation_url=external_invocation_url,
             )
-            struct["status"]["external_invocation_urls"].remove(
-                external_invocation_url
-            ) if external_invocation_url in struct["status"][
-                "external_invocation_urls"
-            ] else None
+            if external_invocation_url in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].remove(
+                    external_invocation_url
+                )
         function.struct = struct
         self._upsert(session, [function])
 

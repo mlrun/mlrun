@@ -497,7 +497,9 @@ class Runs(
         project: str,
     ):
         best_iteration = False
-        # For non-hyper runs iteration 0 is the best iteration
+        # If the iteration is 0, we mark the artifacts as best iteration.
+        # Specifically for hyper runs, iteration 0 is the parent run, so it needs the get the artifacts
+        # of the real best iteration which has some other iteration number.
         if not iteration:
             iteration = None
             best_iteration = True

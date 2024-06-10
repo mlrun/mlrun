@@ -460,12 +460,13 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
+    @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
     def test_get_workflow_run_iteration_restore_artifacts_metadata(
-        self, db: sqlalchemy.orm.Session
+        self, db: sqlalchemy.orm.Session, workflow_id
     ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
-        workflow_uid = str(uuid.uuid4())
+        workflow_uid = workflow_id
         iter = 3
         artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
 
@@ -478,6 +479,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
+        labels = {"kind": "job"}
+        if workflow_id:
+            labels["workflow"] = workflow_id
+
         server.api.crud.Runs().store_run(
             db,
             {
@@ -485,10 +490,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "iter": iter,
-                    "labels": {
-                        "kind": "job",
-                        "workflow": workflow_uid,
-                    },
+                    "labels": labels,
                 },
                 "status": {
                     "artifacts": artifacts,

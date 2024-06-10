@@ -208,10 +208,10 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
             Index(
-                "idx_artifacts_producer_id_iteration_and_project",
+                "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
                 "producer_id",
-                "iteration",
+                "best_iteration",
             ),
         )
 

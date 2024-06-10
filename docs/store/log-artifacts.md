@@ -32,7 +32,7 @@ To log an artifacts file, specify the local file path to the file using the `loc
     )
 ```
 
-**Log with body**
+**Log with body (useful for a small body; use a file for a large body)**
 ```python
     project.log_artifact(
         "some-data",

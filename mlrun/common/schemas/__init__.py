@@ -82,6 +82,7 @@ from .events import (
 )
 from .feature_store import (
     EntitiesOutput,
+    EntitiesOutputV2,
     Entity,
     EntityListOutput,
     EntityRecord,

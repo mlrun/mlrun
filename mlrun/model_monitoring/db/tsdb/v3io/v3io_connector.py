@@ -418,9 +418,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Available tables: {list(self.tables.keys())}"
             )
 
-        if agg_funcs:
-            # Frames client expects the aggregators to be a comma-separated string
-            aggregators = ",".join(agg_funcs)
+        # Frames client expects the aggregators to be a comma-separated string
+        aggregators = ",".join(agg_funcs) if agg_funcs else None
         table_path = self.tables[table]
         try:
             df = self._frames_client.read(

@@ -45,6 +45,16 @@ class Entity(BaseModel):
         extra = Extra.allow
 
 
+class QualifiedEntity(BaseModel):
+    name: str
+    value_type: str
+    feature_set_index: int
+    labels: Optional[dict] = {}
+
+    class Config:
+        extra = Extra.allow
+
+
 class FeatureSetSpec(ObjectSpec):
     entities: list[Entity] = []
     features: list[Feature] = []
@@ -105,6 +115,19 @@ class FeatureSetDigestOutput(BaseModel):
     metadata: ObjectMetadata
     spec: FeatureSetDigestSpec
 
+    class Config:
+        copy_on_model_validation = False
+
+
+class FeatureSetDigestSpecV2(BaseModel):
+    entities: list[Entity]
+
+
+class FeatureSetDigestOutputV2(BaseModel):
+    feature_set_index: int
+    metadata: ObjectMetadata
+    spec: FeatureSetDigestSpecV2
+
 
 class FeatureListOutput(BaseModel):
     feature: Feature
@@ -118,6 +141,11 @@ class FeaturesOutput(BaseModel):
 class EntityListOutput(BaseModel):
     entity: Entity
     feature_set_digest: FeatureSetDigestOutput
+
+
+class EntitiesOutputV2(BaseModel):
+    entities: list[QualifiedEntity]
+    feature_set_digests: list[FeatureSetDigestOutputV2]
 
 
 class EntitiesOutput(BaseModel):

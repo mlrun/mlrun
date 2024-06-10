@@ -35,6 +35,7 @@ import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.utils import logger
+from mlrun.utils.helpers import generate_object_uri
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
 
@@ -307,7 +308,9 @@ async def deploy_status(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
-
+    api_gateways_hosts = await _get_functions_api_gateways_hosts(
+        auth_info, project, name, tag
+    )
     return await run_in_threadpool(
         _handle_nuclio_deploy_status,
         db_session,
@@ -318,6 +321,7 @@ async def deploy_status(
         tag,
         last_log_timestamp,
         verbose,
+        api_gateways_hosts,
     )
 
 
@@ -537,7 +541,15 @@ def _deploy_nuclio_runtime(
 
 
 def _handle_nuclio_deploy_status(
-    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+    db_session,
+    auth_info,
+    fn,
+    name,
+    project,
+    tag,
+    last_log_timestamp,
+    verbose,
+    api_gateway_hosts,
 ):
     (
         state,
@@ -562,6 +574,16 @@ def _handle_nuclio_deploy_status(
 
     internal_invocation_urls = status.get("internalInvocationUrls", [])
     external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # add api gateway's URLs
+    if api_gateway_hosts:
+        external_invocation_urls += api_gateway_hosts
+
+    logger.info(
+        f"Nuclio deployment status: {state}",
+        externalInvocationUrls=external_invocation_urls,
+        api_gateway_hosts=api_gateway_hosts,
+    )
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -618,6 +640,21 @@ def _handle_nuclio_deploy_status(
             "x-mlrun-name": nuclio_name,
         },
     )
+
+
+async def _get_functions_api_gateways_hosts(auth_info, project, name, tag) -> list[str]:
+    function_uri = generate_object_uri(project, name, tag)
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        api_gateways = await client.list_api_gateways(project)
+        return (
+            [
+                api_gateway.spec.host
+                for api_gateway in api_gateways.values()
+                if function_uri in api_gateway.get_function_names()
+            ]
+            if api_gateways
+            else []
+        )
 
 
 def _is_nuclio_deploy_status_changed(

@@ -1775,7 +1775,7 @@ class SQLDB(DBInterface):
             return
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation is "add":
+        if operation == "add":
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
@@ -1784,11 +1784,9 @@ class SQLDB(DBInterface):
             )
             if existing_invocation_urls:
                 if external_invocation_url not in existing_invocation_urls:
-                    existing_invocation_urls.append(
-                        external_invocation_url
-                    )
+                    existing_invocation_urls.append(external_invocation_url)
             else:
-                existing_invocation_urls= [external_invocation_url]
+                existing_invocation_urls = [external_invocation_url]
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
         else:
             logger.debug(

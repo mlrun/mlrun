@@ -442,8 +442,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_model_serving(
         cls, with_training_set: bool
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            mlrun.import_function(
+                "hub://v2_model_server",
+                project=cls.project_name,
+                new_name="model-serving",
+            ),
         )
         serving_fn.add_model(
             f"{cls.model_name}_{with_training_set}",
@@ -454,7 +459,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+        return serving_fn
 
     @classmethod
     def _infer(

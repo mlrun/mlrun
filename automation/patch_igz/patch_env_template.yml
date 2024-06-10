@@ -36,7 +36,7 @@ DOCKER_REPO:
 
 # Optional - Use when your registry is connected to a DNS which is accessible from the cluster
 # For iguazio datanode registry use:
-# datanode-registry.iguazio-platform.app.<system-name>.<lab.iguazeng/cloud-cd>.com:80/mlrun
+# datanode-registry.iguazio-platform.app.<system-name>.<lab.iguazeng/cloud-cd>.com:80
 OVERWRITE_IMAGE_REGISTRY:
 
 # Optional - will attempt docker login if defined, need to login manually otherwise

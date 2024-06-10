@@ -725,6 +725,43 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             ]
             == "10m"
         )
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=False,
+            overwrite=False,
+        )
+        # check that all the function are still deployed
+        for name in mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "ready"
+
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=False,
+            overwrite=True,
+        )
+
+        # check that all the function are in building state
+        for name in mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "building"
+
+        self.project._wait_for_functions_deployment(
+            mm_constants.MonitoringFunctionNames.list()
+            + [mm_constants.HistogramDataDriftApplicationConstants.NAME]
+        )
 
         self.project.update_model_monitoring_controller(
             image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True

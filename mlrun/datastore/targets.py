@@ -727,8 +727,13 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
+        """
+        Delete the files of the target.
+
+        Do not use this function directly from the sdk. Use FeatureSet.purge_targets.
+        """
         store, path_in_store, target_path = self._get_store_and_path()
-        if path_in_store != "":
+        if path_in_store not in ["", "/"]:
             store.rm(path_in_store, recursive=True)
         else:
             logger.warning(

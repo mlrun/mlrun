@@ -1303,7 +1303,7 @@ async def _delete_function(
     # in MLRun terminology, they are all just versions of the same function
     # therefore, it's enough to check the kind of the first one only
     if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-        # filter functions which doesn't have status
+        # filter functions which don't have a status
         # it means that they aren't attached to the actual nuclio function
         nuclio_functions = [function for function in functions if function["status"]]
 

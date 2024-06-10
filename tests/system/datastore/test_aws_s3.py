@@ -213,7 +213,7 @@ class TestAwsS3(TestMLRunSystem):
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
 
-        # check our protection against direct target.purge in the
-        # case of default target + ds (could delete the whole bucket).
+        # check our user protection against direct target.purge call in the
+        # case of default target + ds (it could delete the whole bucket).
         target.purge()
         assert s3_fs.ls(f"{self._bucket_name}")

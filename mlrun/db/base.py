@@ -852,6 +852,24 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
+        pass
+
+    @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:

@@ -35,16 +35,18 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.utils import logger
 
 here = os.path.dirname(__file__)
+config = {}
 config_file_path = os.path.join(here, "test-google-cloud-storage.yml")
-with open(config_file_path) as yaml_file:
-    config = yaml.safe_load(yaml_file)
+if os.path.exists(config_file_path):
+    with open(config_file_path) as yaml_file:
+        config = yaml.safe_load(yaml_file)
 
 
 credential_params = ["credentials_json_file"]
 
 
 def google_cloud_storage_configured():
-    env_params = config["env"]
+    env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params]
     for param in needed_params:
         if not env_params.get(param):
@@ -56,14 +58,18 @@ def google_cloud_storage_configured():
     not google_cloud_storage_configured(),
     reason="Google cloud storage parameters not configured",
 )
+@pytest.mark.skipif(
+    not os.path.exists(config_file_path),
+    reason="Google cloud storage credentials file is not exists",
+)
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-    bucket_name = config["env"].get("bucket_name")
+    bucket_name = config.get("env", {}).get("bucket_name")
     test_dir = "test_mlrun_gcs_objects"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
     profile_name = "gcs_profile"
-    credentials_path = config["env"].get("credentials_json_file")
+    credentials_path = config.get("env", {}).get("credentials_json_file")
     test_file = os.path.join(assets_path, "test.txt")
 
     @classmethod

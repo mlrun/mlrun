@@ -1370,6 +1370,53 @@ class TestArtifacts:
         assert new_artifact.key == db_key
         assert new_artifact.iteration == iteration
 
+    def test_migrate_artifact_without_metadata_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        # empty key on purpose
+        artifact_key = ""
+        artifact_tree = "some-tree"
+        artifact_tag = "artifact-tag-1"
+        project = "project1"
+        db_key = "db-key-1"
+
+        # create project
+        self._create_project(db, db_session, project)
+
+        # create artifacts in the old format
+        artifact_body = self._generate_artifact(artifact_key, artifact_tree, "artifact")
+        artifact_body["metadata"]["project"] = project
+        artifact_body["spec"]["db_key"] = db_key
+
+        # store the artifact with the db_key
+        db.store_artifact_v1(
+            db_session,
+            db_key,
+            artifact_body,
+            artifact_tree,
+            project=project,
+            tag=artifact_tag,
+        )
+
+        # validate the artifact was stored with the db_key
+        artifact = db.read_artifact_v1(db_session, db_key, project=project)
+        assert artifact["metadata"]["key"] == ""
+        assert artifact["spec"]["db_key"] == db_key
+
+        # migrate the artifacts to v2
+        self._run_artifacts_v2_migration(db, db_session)
+
+        # validate the migration succeeded and the metadata key is the db_key
+        query_all = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        )
+        new_artifact = query_all.one()
+
+        assert new_artifact.key == db_key
+        artifact = new_artifact.full_object
+        assert artifact["metadata"]["key"] == db_key
+
     def test_update_model_spec(self, db: DBInterface, db_session: Session):
         artifact_key = "model1"
 

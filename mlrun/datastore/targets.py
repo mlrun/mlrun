@@ -728,7 +728,12 @@ class BaseStoreTarget(DataTargetBase):
 
     def purge(self):
         store, path_in_store, target_path = self._get_store_and_path()
-        store.rm(path_in_store, recursive=True)
+        if path_in_store != "":
+            store.rm(path_in_store, recursive=True)
+        else:
+            logger.warning(
+                "Unable to delete target. Please Use purge_targets from FeatureSet object."
+            )
 
     def as_df(
         self,

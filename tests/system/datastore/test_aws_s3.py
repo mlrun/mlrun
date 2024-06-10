@@ -255,5 +255,5 @@ class TestAwsS3(TestMLRunSystem):
         )
 
         # Check for ML-6587 regression
-        target.purge()  # will delete the entire bucket.
-        # TODO complete
+        target.purge()
+        assert s3_fs.ls(f"{self._bucket_name}")

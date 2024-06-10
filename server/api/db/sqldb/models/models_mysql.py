@@ -214,10 +214,10 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
         kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
-        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
-        iteration = Column(Integer)
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
+        iteration = Column(Integer, index=True)
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(

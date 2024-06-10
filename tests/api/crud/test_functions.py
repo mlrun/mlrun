@@ -48,12 +48,12 @@ def test_set_function_deletion_task_id_updates_correctly(db: sqlalchemy.orm.Sess
 
 
 def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
-    function_name = "test_function"
+    function_name = "test-function"
     function_tag = "latest"
     function = {
         "metadata": {"name": function_name, "tag": function_tag},
     }
-    project = "test_project"
+    project = "test-project"
 
     server.api.crud.Functions().store_function(
         db, project=project, function=function, name=function_name, tag=function_tag
@@ -76,4 +76,4 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     updated_function = server.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag
     )
-    assert updated_function["status"]["external_invocation_urls"] == gw_host
+    assert updated_function["status"]["external_invocation_urls"][0] == gw_host

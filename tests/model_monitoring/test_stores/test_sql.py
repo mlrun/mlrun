@@ -330,7 +330,7 @@ class TestMonitoringSchedules:
             mp_ctx.setenv(
                 ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
             )
-            store = SQLStoreBase(project="tmp_proj")
+            store = mlrun.model_monitoring.get_store_object(project="tmp_proj")
         store._create_tables_if_not_exist()
         return store
 

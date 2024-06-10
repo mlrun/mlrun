@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 from datetime import datetime
 from io import StringIO
 from typing import Literal, Optional, Union
 
 import pandas as pd
+import v3io_frames
 import v3io_frames.client
-import v3io_frames.errors
-from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -35,6 +33,14 @@ _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
 
+def _is_no_schema_error(exc: v3io_frames.ReadError) -> bool:
+    """
+    In case of a nonexistent TSDB table - a `v3io_frames.ReadError` error is raised.
+    Check if the error message contains the relevant string to verify the cause.
+    """
+    return "No TSDB schema file found" in str(exc)
+
+
 class V3IOTSDBConnector(TSDBConnector):
     """
     Handles the TSDB operations when the TSDB connector is of type V3IO. To manage these operations we use V3IO Frames
@@ -47,7 +53,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         project: str,
         container: str = _CONTAINER,
-        v3io_framesd: typing.Optional[str] = None,
+        v3io_framesd: Optional[str] = None,
         create_table: bool = False,
     ) -> None:
         super().__init__(project=project)
@@ -132,7 +138,7 @@ class V3IOTSDBConnector(TSDBConnector):
             self._frames_client.create(
                 backend=_TSDB_BE,
                 table=table,
-                if_exists=IGNORE,
+                if_exists=v3io_frames.IGNORE,
                 rate=_TSDB_RATE,
             )
 
@@ -162,7 +168,7 @@ class V3IOTSDBConnector(TSDBConnector):
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
-            columns=["latency"],
+            columns=[mm_schemas.EventFieldType.LATENCY],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
@@ -280,7 +286,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 index_cols=index_cols,
             )
             logger.info("Updated V3IO TSDB successfully", table=table)
-        except v3io_frames.errors.Error as err:
+        except v3io_frames.Error as err:
             logger.exception(
                 "Could not write drift measures to TSDB",
                 err=err,
@@ -291,7 +297,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: typing.Optional[str] = None):
+    def delete_tsdb_resources(self, table: Optional[str] = None):
         if table:
             # Delete a specific table
             tables = [table]
@@ -301,7 +307,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_to_delete in tables:
             try:
                 self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
-            except v3io_frames.errors.DeleteError as e:
+            except v3io_frames.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
                     err=mlrun.errors.err_to_str(e),
@@ -362,7 +368,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 ]
                 metrics_mapping[metric] = values
 
-        except v3io_frames.errors.Error as err:
+        except v3io_frames.Error as err:
             logger.warn("Failed to read tsdb", err=err, endpoint=endpoint_id)
 
         return metrics_mapping
@@ -372,12 +378,11 @@ class V3IOTSDBConnector(TSDBConnector):
         table: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        columns: typing.Optional[list[str]] = None,
+        columns: Optional[list[str]] = None,
         filter_query: str = "",
-        interval: typing.Optional[str] = None,
-        agg_funcs: typing.Optional[list] = None,
-        limit: typing.Optional[int] = None,
-        sliding_window_step: typing.Optional[str] = None,
+        interval: Optional[str] = None,
+        agg_funcs: Optional[list[str]] = None,
+        sliding_window_step: Optional[str] = None,
         **kwargs,
     ) -> pd.DataFrame:
         """
@@ -400,7 +405,6 @@ class V3IOTSDBConnector(TSDBConnector):
         :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
                                       provided, `interval` must bg provided as well. Provided as a list of strings in
                                       the format of ['sum', 'avg', 'count', ...].
-        :param limit:                 The maximum number of records to return.
         :param sliding_window_step:   The time step for which the time window moves forward. Note that if
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
@@ -414,9 +418,8 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Available tables: {list(self.tables.keys())}"
             )
 
-        if agg_funcs:
-            # Frames client expects the aggregators to be a comma-separated string
-            agg_funcs = ",".join(agg_funcs)
+        # Frames client expects the aggregators to be a comma-separated string
+        aggregators = ",".join(agg_funcs) if agg_funcs else None
         table_path = self.tables[table]
         try:
             df = self._frames_client.read(
@@ -427,18 +430,16 @@ class V3IOTSDBConnector(TSDBConnector):
                 columns=columns,
                 filter=filter_query,
                 aggregation_window=interval,
-                aggregators=agg_funcs,
+                aggregators=aggregators,
                 step=sliding_window_step,
                 **kwargs,
             )
         except v3io_frames.ReadError as err:
-            if "No TSDB schema file found" in str(err):
+            if _is_no_schema_error(err):
                 return pd.DataFrame()
             else:
                 raise err
 
-        if limit:
-            df = df.head(limit)
         return df
 
     def _get_v3io_source_directory(self) -> str:
@@ -509,8 +510,8 @@ class V3IOTSDBConnector(TSDBConnector):
             raise ValueError(f"Invalid {type = }")
 
         query = self._get_sql_query(
-            endpoint_id,
-            [(metric.app, metric.name) for metric in metrics],
+            endpoint_id=endpoint_id,
+            metric_and_app_names=[(metric.app, metric.name) for metric in metrics],
             table_path=table_path,
             name=name,
         )
@@ -536,21 +537,28 @@ class V3IOTSDBConnector(TSDBConnector):
 
     @staticmethod
     def _get_sql_query(
+        *,
         endpoint_id: str,
-        names: list[tuple[str, str]],
         table_path: str,
         name: str = mm_schemas.ResultData.RESULT_NAME,
+        metric_and_app_names: Optional[list[tuple[str, str]]] = None,
+        columns: Optional[list[str]] = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
+        if columns:
+            selection = ",".join(columns)
+        else:
+            selection = "*"
+
         with StringIO() as query:
             query.write(
-                f"SELECT * FROM '{table_path}' "
+                f"SELECT {selection} FROM '{table_path}' "
                 f"WHERE {mm_schemas.WriterEvent.ENDPOINT_ID}='{endpoint_id}'"
             )
-            if names:
+            if metric_and_app_names:
                 query.write(" AND (")
 
-                for i, (app_name, result_name) in enumerate(names):
+                for i, (app_name, result_name) in enumerate(metric_and_app_names):
                     sub_cond = (
                         f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{app_name}' "
                         f"AND {name}='{result_name}')"
@@ -572,7 +580,6 @@ class V3IOTSDBConnector(TSDBConnector):
         end: Union[datetime, str],
         aggregation_window: Optional[str] = None,
         agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -591,7 +598,6 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id=='{endpoint_id}'",
             interval=aggregation_window,
             agg_funcs=agg_funcs,
-            limit=limit,
             sliding_window_step=aggregation_window,
         )
 
@@ -619,18 +625,33 @@ class V3IOTSDBConnector(TSDBConnector):
             ),  # pyright: ignore[reportArgumentType]
         )
 
-    def read_prediction_metric_for_endpoint_if_exists(
-        self, endpoint_id: str
-    ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        # Read just one record, because we just want to check if there is any data for this endpoint_id
-        predictions = self.read_predictions(
-            endpoint_id=endpoint_id, start="0", end="now", limit=1
-        )
-        if predictions.data:
-            return mm_schemas.ModelEndpointMonitoringMetric(
-                project=self.project,
-                app=mm_schemas.SpecialApps.MLRUN_INFRA,
-                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
-                full_name=get_invocations_fqn(self.project),
-            )
+    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
+    #
+    # def read_prediction_metric_for_endpoint_if_exists(
+    #     self, endpoint_id: str
+    # ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    #     """
+    #     Read the count of the latency column in the predictions table for the given endpoint_id.
+    #     We just want to check if there is any data for this endpoint_id.
+    #     """
+    #     query = self._get_sql_query(
+    #         endpoint_id=endpoint_id,
+    #         table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
+    #         columns=[f"count({mm_schemas.EventFieldType.LATENCY})"],
+    #     )
+    #     try:
+    #         logger.debug("Checking TSDB", project=self.project, query=query)
+    #         df: pd.DataFrame = self._frames_client.read(
+    #             backend=_TSDB_BE, query=query, start="0", end="now"
+    #         )
+    #     except v3io_frames.ReadError as err:
+    #         if _is_no_schema_error(err):
+    #             logger.debug(
+    #                 "No predictions yet", project=self.project, endpoint_id=endpoint_id
+    #             )
+    #             return
+    #         else:
+    #             raise
+    #
+    #     if not df.empty:
+    #         return get_invocations_metric(self.project)

@@ -120,6 +120,7 @@ class Artifacts(
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,
         object_uid: str = None,
+        raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = server.api.utils.singletons.db.get_db().read_artifact(
@@ -130,6 +131,7 @@ class Artifacts(
             project,
             producer_id,
             object_uid,
+            raise_on_not_found,
         )
         return artifact
 

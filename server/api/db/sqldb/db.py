@@ -677,6 +677,8 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
 
+            # TODO: filtering by producer uri may be a heavy operation when there are many artifacts in a workflow.
+            #  We should filter the artifacts before loading them into memory with query.all()
             # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
             # When the artifact was produced by a workflow, the producer id is a workflow id.
             if producer_uri:

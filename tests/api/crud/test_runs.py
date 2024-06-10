@@ -507,6 +507,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = str(uuid.uuid4())
+
+        # Create 5 best iteration artifacts
         best_iteration = 3
         best_iteration_count = 5
         best_iteration_artifacts = self._generate_artifacts(
@@ -529,6 +531,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 best_iteration=True,
             )
 
+        # Create 3 bad iteration artifacts
         bad_iteration = 5
         bad_iteration_count = 3
         bad_iteration_artifacts = self._generate_artifacts(
@@ -548,6 +551,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
+        # Create 1 artifact for the parent run (iteration 0) this should be part of the final result
         parent_run_count = 1
         parent_run_arts = self._generate_artifacts(
             project,
@@ -574,6 +578,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                         "kind": "job",
                         "workflow": workflow_uid,
                     },
+                },
+                "status": {
+                    "artifacts": best_iteration_artifacts + parent_run_arts,
                 },
             },
             run_uid,
@@ -606,7 +613,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "iter": iter,
                 },
                 "spec": {
-                    "db_key": f"db_key{i}",
+                    "db_key": f"db_key_{key_prefix}{i}",
                 },
                 "status": {},
             }

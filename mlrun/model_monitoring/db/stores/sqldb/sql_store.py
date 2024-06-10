@@ -33,7 +33,7 @@ from mlrun.utils import datetime_now, logger
 
 
 class SQLStoreBase(StoreBase):
-    type: str = mm_schemas.ModelEndpointTarget.SQL
+    type: typing.ClassVar[str] = mm_schemas.ModelEndpointTarget.SQL
     """
     Handles the DB operations when the DB target is from type SQL. For the SQL operations, we use SQLAlchemy, a Python
     SQL toolkit that handles the communication with the database.  When using SQL for storing the model monitoring

@@ -25,7 +25,7 @@ from mlrun.utils import logger
 
 
 class TSDBConnector(ABC):
-    type: str = ""
+    type: typing.ClassVar[str]
 
     def __init__(self, project: str):
         """

@@ -92,7 +92,8 @@ def get_store_object(
     **kwargs,
 ) -> StoreBase:
     """
-    Getting the DB target type based on mlrun.config.model_endpoint_monitoring.store_type.
+    Generate a store object based on the provided store type. If a connection string is provided, the store type will
+    be updated according to the connection string.
 
     :param project:         The name of the project.
     :param store_type:      The type of the store target. See mlrun.model_monitoring.db.stores.ObjectStoreFactory

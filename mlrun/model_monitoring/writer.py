@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Any, NewType
+from typing import Any, Callable, NewType
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
@@ -102,7 +102,11 @@ class ModelMonitoringWriter(StepToDict):
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, project: str, secret_provider=None) -> None:
+    def __init__(
+        self,
+        project: str,
+        secret_provider: Callable = None,
+    ) -> None:
         self.project = project
         self.name = project  # required for the deployment process
 

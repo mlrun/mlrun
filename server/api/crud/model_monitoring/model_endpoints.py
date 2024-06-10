@@ -41,8 +41,8 @@ class ModelEndpoints:
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
-        Creates model endpoint record in DB. The DB target type is defined under
-        `mlrun.config.model_endpoint_monitoring.store_type` (V3IO-NOSQL by default).
+        Creates model endpoint record in DB. The DB store target is defined either by a provided connection string
+        or by the default store target that is defined in MLRun configuration.
 
         :param db_session:             A session that manages the current dialog with the database.
         :param model_endpoint:         Model endpoint object to update.
@@ -140,11 +140,10 @@ class ModelEndpoints:
         # system
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
         # Write the new model endpoint
-        model_endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=model_endpoint.metadata.project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+        model_endpoint_store = (
+            server.api.crud.model_monitoring.helpers.get_store_object(
                 project=model_endpoint.metadata.project
-            ),
+            )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
 
@@ -172,11 +171,8 @@ class ModelEndpoints:
         """
 
         # Generate a model endpoint store object and apply the update process
-        model_endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
+        model_endpoint_store = (
+            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
         )
         model_endpoint_store.update_model_endpoint(
             endpoint_id=endpoint_id, attributes=attributes
@@ -321,11 +317,8 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
+        model_endpoint_store = (
+            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
         )
 
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
@@ -371,11 +364,8 @@ class ModelEndpoints:
         )
 
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
-        model_endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
+        model_endpoint_store = (
+            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
         )
 
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
@@ -464,11 +454,8 @@ class ModelEndpoints:
         endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
 
         # Generate a model endpoint store object and get a list of model endpoint dictionaries
-        endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project
-            ),
+        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
+            project=project
         )
 
         endpoint_dictionary_list = endpoint_store.list_model_endpoints(
@@ -524,11 +511,8 @@ class ModelEndpoints:
         """
 
         # Delete model monitoring store resources
-        endpoint_store = mlrun.model_monitoring.get_store_object(
-            project=project_name,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project_name
-            ),
+        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
+            project=project_name
         )
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,

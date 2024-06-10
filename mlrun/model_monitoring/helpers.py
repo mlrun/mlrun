@@ -97,7 +97,7 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_connection_string(secret_provider: typing.Callable = None) -> str:
+def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 
@@ -117,7 +117,7 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
 
 
 def get_tsdb_connection_string(
-    secret_provider: typing.Optional[typing.Callable] = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> str:
     """Get TSDB connection string from the project secret. If wasn't set, take it from the system
     configurations.
@@ -281,7 +281,7 @@ def calculate_inputs_statistics(
 def get_endpoint_record(
     project: str,
     endpoint_id: str,
-    secret_provider: typing.Optional[typing.Callable] = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> dict[str, typing.Any]:
     model_endpoint_store = mlrun.model_monitoring.get_store_object(
         project=project, secret_provider=secret_provider

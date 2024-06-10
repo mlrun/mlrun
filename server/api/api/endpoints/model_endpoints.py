@@ -348,12 +348,11 @@ async def get_model_endpoint_monitoring_metrics(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
 
-    get_model_endpoint_metrics = mlrun.model_monitoring.get_store_object(
-        project=project,
-        secret_provider=server.api.crud.secrets.get_project_secret_provider(
+    get_model_endpoint_metrics = (
+        server.api.crud.model_monitoring.helpers.get_store_object(
             project=project
-        ),
-    ).get_model_endpoint_metrics
+        ).get_model_endpoint_metrics
+    )
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     tasks: list[asyncio.Task] = []
     if type == "results" or type == "all":

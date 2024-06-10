@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import typing
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -90,7 +89,7 @@ _EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
 
 class KVStoreBase(StoreBase):
-    type: str = mm_schemas.ModelEndpointTarget.V3IO_NOSQL
+    type: typing.ClassVar[str] = "v3io-nosql"
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
@@ -102,9 +101,8 @@ class KVStoreBase(StoreBase):
     ) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
-        self.access_key = os.environ.get("V3IO_ACCESS_KEY")
         self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=self.access_key
+            endpoint=mlrun.mlconf.v3io_api,
         )
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
@@ -190,7 +188,6 @@ class KVStoreBase(StoreBase):
             table_path=self.path,
             key=endpoint_id,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=self.access_key,
         )
         endpoint = endpoint.output.item
 
@@ -503,7 +500,6 @@ class KVStoreBase(StoreBase):
 
     def _get_frames_client(self):
         return mlrun.utils.v3io_clients.get_frames_client(
-            token=self.access_key,
             address=mlrun.mlconf.v3io_framesd,
             container=self.container,
         )

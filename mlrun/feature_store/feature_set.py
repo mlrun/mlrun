@@ -1407,7 +1407,7 @@ class SparkAggregateByKey(StepToDict):
             # We'll use this column to identify our original row and group-by across the various windows
             # (either sliding windows or multiple windows provided). See below comment for more details.
             rowid_col = "__mlrun_rowid"
-            if df.isStreaming:
+            if input_df.isStreaming:
                 uuid_udf = udf(lambda: str(uuid.uuid4()))
                 df = input_df.withColumn(rowid_col, uuid_udf)
             else:

@@ -592,6 +592,10 @@ def _migrate_artifacts_batch(
         else:
             new_artifact.best_iteration = False
 
+        # to overcome issues with legacy artifacts with missing keys, we will set the key in the metadata
+        if not artifact_metadata.get("key"):
+            artifact_dict["metadata"]["key"] = key
+
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
             artifact_dict, new_artifact.iteration, new_artifact.producer_id

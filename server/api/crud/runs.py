@@ -157,6 +157,8 @@ class Runs(
             )
 
         else:
+            # For workflow runs, we fetch the artifacts one by one since listing them may be too heavy with the
+            # workflow id as the producer_id
             artifacts = self._get_artifacts_from_uris(db_session, project, run)
 
         if artifacts or "artifacts" in run.get("status", {}):
@@ -455,10 +457,13 @@ class Runs(
             )
 
     @staticmethod
-    def _get_artifacts_from_uris(db_session, project, run):
+    def _get_artifacts_from_uris(
+        db_session: sqlalchemy.orm.Session, project: str, run: dict
+    ):
+        """Fetch run artifacts by their artifact URIs in the run status"""
         artifacts = []
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
-        for key, uri in artifact_uris.items():
+        for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
             project, key, iteration, tag, producer_id = mlrun.utils.parse_artifact_uri(
                 uri, project
@@ -485,8 +490,14 @@ class Runs(
         return artifacts
 
     @staticmethod
-    def _list_run_artifacts(db_session, iteration: int, producer_id: str, project: str):
+    def _list_run_artifacts(
+        db_session: sqlalchemy.orm.Session,
+        iteration: int,
+        producer_id: str,
+        project: str,
+    ):
         best_iteration = False
+        # For non-hyper runs iteration 0 is the best iteration
         if not iteration:
             iteration = None
             best_iteration = True

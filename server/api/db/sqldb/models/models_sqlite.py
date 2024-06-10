@@ -199,6 +199,12 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
+            Index(
+                "idx_artifacts_producer_id_iteration_and_project",
+                "project",
+                "producer_id",
+                "iteration",
+            ),
         )
 
         Label = make_label(__tablename__)
@@ -206,14 +212,10 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
-        project = Column(
-            String(255, collation=SQLCollationUtil.collation()), index=True
-        )
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
         kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
-        producer_id = Column(
-            String(255, collation=SQLCollationUtil.collation()), index=True
-        )
-        iteration = Column(Integer, index=True)
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
+        iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))

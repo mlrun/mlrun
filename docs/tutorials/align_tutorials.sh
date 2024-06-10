@@ -17,19 +17,18 @@ Retrieves updated tutorials from the mlrun/mlrun GitHub repository.
 USAGE: ${SCRIPT} [OPTIONS]
 OPTIONS:
   -h|--help   -  Display this message and exit.
-  -b|--branch -  Git branch name. Default: The latest release branch that
-                 matches the version of the installed 'mlrun' package.
+  -b|--branch -  mlrun/mlrun repository branch name, can't be set together with --mlrun-ver.
   -u|--user   -  Username, which determines the directory to which to copy the
-                 retrieved demo files (/v3io/users/<username>).
+                 retrieved demo files (/v3io/users/<username>) - Iguazio platform.
                  Default: \$V3IO_USERNAME, if set to a non-empty string.
   --mlrun-ver -  The MLRun version for which to get tutorials; determines the Git
                  branch from which to get the tutorials, unless -b|--branch is set.
                  Default: The version of the installed 'mlrun' package.
   --dry-run   -  Show files to update but don't execute the update.
   --no-backup -  Don't back up the existing tutorials directory before the update.
-                 Default: Back up the existing tutorials directory to a
-                 /v3io/users/<username>/tutorials.old/<timestamp>/ directory.
-  --path      -  tutorials folder download path."
+                 Default: Back up the existing tutorials directory to --path parent directory.
+  --path      -  tutorials folder download path.
+                 Default: HOME/tutorials directory"
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Function for exit due to fatal program error
@@ -42,7 +41,6 @@ error_exit()
   echo "${SCRIPT}: ${1:-"Unknown Error"}" 1>&2
   exit 1
 }
-
 error_usage()
 {
     echo "${SCRIPT}: ${1:-"Unknown Error"}" 1>&2
@@ -153,7 +151,6 @@ verify_align_tutorials(){
 if [ ! -z "${dry_run}" ]; then
     echo "Dry run; no files will be copied."
 fi
-
 # Don't back up old tutorials
 # shellcheck disable=SC2236
 if [ ! -z "${no_backup}" ]; then
@@ -172,20 +169,18 @@ fi
 # --------------------------------------------------------------------------------------------------------------------------------
 
 current_dir=$(pwd)
+# cd to avoid running shell from deleted path
 cd
-
 if [ "${tutorials_dir}" ]; then # means --path is specified
-    dest_dir=${tutorials_dir%/*}
+    dest_dir=${tutorials_dir%/*} # taking parent dir
 fi
 # Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
 if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
     echo "--user and --path argument are empty, using local path"
-    # backup_old_tutorials "${HOME}" "${HOME}/tutorials"
     tutorials_dir="${current_dir}/tutorials"
     dest_dir="${current_dir}"
 fi
-
-# when --path isnt specified and either V3IO_USERNAME or --user is specified (otherwise case caught above).
+# when --path isn't specified and either V3IO_USERNAME or --user is specified (otherwise case caught above).
 if [ -z "${tutorials_dir}" ]; then
     dest_dir="/v3io/users/${user}"
     tutorials_dir="${dest_dir}/tutorials"
@@ -208,7 +203,6 @@ if [ -z $mlrun_version ]; then
 else
     echo "mlrun version : $mlrun_version"
 fi
-
 # IF BOTH branch and mlrun_ver are specified, raise an error to select only one !
 if [[ -n "$branch" && -n "$mlrun_version" ]]; then
     error_usage "please specify only one, branch or mlrun-ver."
@@ -224,7 +218,6 @@ get_latest_tag() {
     local git_repo="$3"
     local git_base_url="$4" # Unused in this function but can be useful for future enhancements
     local git_url="$5"
-
     # Fetch tags from git
     local tags=($(git ls-remote --tags --refs --sort='v:refname' "${git_url}" | awk '{print $2}'))
     # Initialize two empty arrays to hold the two separate lists
@@ -243,7 +236,6 @@ get_latest_tag() {
         without_rc+=("$tag")
       fi
     done
-
     formatted_version=$(echo "$mlrun_version" | sed -E 's/.*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
     # finding whether there is a release
     for item in "${without_rc[@]}"; do
@@ -252,20 +244,17 @@ get_latest_tag() {
         return
       fi
     done
-
     # if release doesn't exists, find matching rc
     formatted_rc=$(echo "$mlrun_version" | sed -E 's/.*rc([0-9]+)?.*/-rc\1/')
     if [ "$formatted_rc" == "$mlrun_version" ]; then # couldn't find rc (mlrun_version is a release with no rc)
       formatted_rc=""
     fi
-
     all_rcs=()
     for item in "${with_rc[@]}"; do
       if [[ $item == *"$formatted_version"* ]]; then
         all_rcs+=("$item")
       fi
     done
-
     if [ -z "$all_rcs" ]; then # couldn't find any version, returning latest release
       echo "${without_rc[@]}" | tr ' ' '\n' | sort -r | head -n 1
       return
@@ -294,32 +283,19 @@ get_latest_tag() {
 # --------------------------------------------------------------------------------------------------------------------------------
 
 download_tar_to_temp_dir() {
-
     local tar_file="$1"
     local temp_dir="$2"
-
     echo "Downloading : $tar_url ..."
-
     wget -c "${tar_url}" -O mlrun-tutorials.tar
-
     tar -xf mlrun-tutorials.tar -C "${temp_dir}" --strip-components 1
-
     rm -rf mlrun-tutorials.tar
-
     }
-
-
 download_tar_gz_to_temp_dir() {
-
     local tar_file="$1"
     local temp_dir="$2"
-
     echo "Downloading : $tar_url ..."
-
     wget -qO- "${tar_url}" | tar xz -C "${temp_dir}" --strip-components 1
-
     }
-
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Main script.
@@ -327,29 +303,27 @@ download_tar_gz_to_temp_dir() {
 # if --branch is specified, use it to fetch mlrun/mlrun repository.
 # --------------------------------------------------------------------------------------------------------------------------------
 
-mkdir -p "${tutorials_dir}"
-
+mkdir -p "${tutorials_dir}" # in case the tutorials dir isn't exist
 # Backup tutorials if needed and deleting tutorials directory
 if [ -z "${no_backup}" ]; then
     backup_old_tutorials "$dest_dir" "$tutorials_dir"
 else
+    # if --dry-run flag isn't set, remove current tutorials
     if [ -z "${dry_run}" ]; then
         rm -rf "${tutorials_dir}"
         mkdir -p "${tutorials_dir}"
     fi
 fi
-
 # Downloading tar_url to temp dir
 temp_dir=$(mktemp -d /tmp/temp-get-tutorials.XXXXXXXXXX)
-
-# If branch is specified
+# If branch is specified, download mlrun repository and derive tutorials folder to new temp directory
 if [ "$branch" ]; then
     echo "using specified branch $branch"
     tar_url="${git_base_url}/archive/${branch}.tar.gz"
     download_tar_to_temp_dir "$tar_url" "$temp_dir"
     # make sure only tutorials content in mlrun/mlrun/docs left.
     new_temp_dir=$(mktemp -d /tmp/temp-get-tutorials.XXXXXXXXXX)
-
+    # If this isn't a dry run, derive tutorials and copy them to tutorials_dir
     if [ -z "${dry_run}" ]; then
         cp -rf "${temp_dir}/docs/tutorials/." "${new_temp_dir}/tutorials"
         temp_dir="${new_temp_dir}/tutorials"
@@ -362,6 +336,7 @@ if [ "$branch" ]; then
         cd docs/tutorials
         echo "$(ls -a)"
     fi
+    # Finish here the script when --branch is specified
     exit
 fi
 
@@ -375,21 +350,20 @@ if [ -z "$mlrun_version" ]; then # Branch and mlrun version isn't specified. usi
     if [ -z "${pip_mlrun}" ]; then
         mlrun_version="1.7.0"
         # error_exit "MLRun version not found. Aborting..."
+        # no --branch and --mlrun-ver and mlrun isn't installed, using mlrun==1.7.0
     else
         echo "Detected MLRun version: ${pip_mlrun}"
         mlrun_version="${pip_mlrun##Version: }"
     fi
 fi
-
 echo "Looking for tutorials with MLRun version - ${mlrun_version}."
 latest_tag=$(get_latest_tag "${mlrun_version}" "${git_owner}" "${git_repo}" "${git_base_url}" "${git_url}")
 echo "release tag or latest tag : ${latest_tag}"
 if [ -z "${latest_tag}" ]; then
      error_exit "Couldn't locate a Git tag with prefix 'v${mlrun_version}.*'."
 fi
-
 branch=${latest_tag#refs/tags/}
-
+# tutorials are introduced to mlrun in 1.4.0
 if [[ "${branch}">"v1.4" ]]; then
     tar_url="${git_base_url}/releases/download/${branch}/mlrun-tutorials.tar"
     if [[ "${branch}"<"v1.5" ]]; then # Folder name changed in 1.5.0
@@ -400,14 +374,9 @@ if [[ "${branch}">"v1.4" ]]; then
 else
     error_exit "mlrun must be >= 1.4"
 fi
-
-
 echo "Using tar_url ${tar_url} branch: ${branch}"
-
 download_tar_to_temp_dir "$tar_url" "$temp_dir"
-
 verify_align_tutorials "${temp_dir}/${folder_name}"
-
 if [ -z "${dry_run}" ]; then
     echo "copy files from ${temp_dir}/tutorials to ${tutorials_dir}"
     cp -rf "$temp_dir/$folder_name/." "$tutorials_dir"

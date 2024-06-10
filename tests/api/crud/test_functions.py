@@ -54,26 +54,40 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
         "metadata": {"name": function_name, "tag": function_tag},
     }
     project = "test-project"
+    gw_host = "gw.example.com"
 
+    # save a function object to db
     server.api.crud.Functions().store_function(
         db, project=project, function=function, name=function_name, tag=function_tag
     )
-    server.api.utils.singletons.db.get_db().update_function(
-        db,
-        project=project,
-        name=function_name,
-        tag=function_tag,
-        updates={"status.nuclio_name": function_name},
-    )
-
-    gw_host = "gw.example.com"
     uri = mlrun.utils.generate_object_uri(project, function_name)
 
+    # add new external invocation URL
     server.api.crud.Functions().add_function_external_invocation_url(
         db, uri, project, gw_host
     )
-
     updated_function = server.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag
     )
+    # check that URL is there
     assert updated_function["status"]["external_invocation_urls"][0] == gw_host
+
+    # try to add existed external invocation URL
+    server.api.crud.Functions().add_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
+    updated_function = server.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    # check that URL isn't duplicated
+    assert len(updated_function["status"]["external_invocation_urls"]) == 1
+
+    # delete URL from the list
+    server.api.crud.Functions().delete_function_external_invocation_url(
+        db, uri, project, gw_host
+    )
+    updated_function = server.api.crud.Functions().get_function(
+        db, project=project, name=function_name, tag=function_tag
+    )
+    # check that URL was deleted
+    assert len(updated_function["status"]["external_invocation_urls"]) == 0

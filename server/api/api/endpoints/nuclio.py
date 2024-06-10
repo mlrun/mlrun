@@ -141,8 +141,6 @@ async def store_api_gateway(
             project_name=project,
         )
     if api_gateway:
-        logger.info(f"Stored API Gateway {gateway}", host=api_gateway.spec.host)
-
         tasks = [
             asyncio.create_task(
                 run_in_threadpool(
@@ -578,12 +576,6 @@ def _handle_nuclio_deploy_status(
     # add api gateway's URLs
     if api_gateway_hosts:
         external_invocation_urls += api_gateway_hosts
-
-    logger.info(
-        f"Nuclio deployment status: {state}",
-        externalInvocationUrls=external_invocation_urls,
-        api_gateway_hosts=api_gateway_hosts,
-    )
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant

@@ -137,14 +137,13 @@ class TestSQLStore:
     @pytest.fixture
     def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:
         # Generate store object target
-        store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
             return_value=store_connection,
         ):
             sql_store = cast(
                 SQLStoreBase,
-                store_type_object.to_object_store(project=cls._TEST_PROJECT),
+                mlrun.model_monitoring.get_store_object(project=cls._TEST_PROJECT),
             )
             yield sql_store
             sql_store.delete_model_endpoints_resources()

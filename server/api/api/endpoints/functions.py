@@ -54,7 +54,7 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import (
-    _get_functions_api_gateways_hosts,
+    _get_api_gateways_hosts_for_function,
     _handle_nuclio_deploy_status,
 )
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -455,7 +455,7 @@ async def build_status(
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
-        api_gateways_hosts = await _get_functions_api_gateways_hosts(
+        api_gateways_hosts = await _get_api_gateways_hosts_for_function(
             auth_info, project, name, tag
         )
         return await run_in_threadpool(

@@ -90,10 +90,11 @@ def init_data(
 
     if is_migration_from_scratch or is_migration_needed:
         try:
-            _perform_schema_migrations(alembic_util)
             init_db()
             db_session = create_session()
             try:
+                _pre_schema_migrations(alembic_util, db_session)
+                _perform_schema_migrations(alembic_util)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             finally:
@@ -177,6 +178,35 @@ def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
         alembic_config_path, _is_latest_data_version()
     )
     return alembic_util
+
+
+def _pre_schema_migrations(
+    alembic_util: server.api.utils.db.alembic.AlembicUtil,
+    db_session: sqlalchemy.orm.Session,
+):
+    db = server.api.db.sqldb.db.SQLDB()
+    _delete_artifact_v2_indices(db, db_session, alembic_util)
+
+
+def _delete_artifact_v2_indices(
+    db, db_session, alembic_util: server.api.utils.db.alembic.AlembicUtil
+):
+    if not alembic_util.is_artifacts_v2_index_migration_complete():
+        return
+
+    # Delete manually created indices to ensure smooth migration
+    db.delete_index_by_name(
+        session=db_session,
+        index_name="ix_artifacts_v2_project_producer_best_iter",
+        table_name=server.api.db.sqldb.models.ArtifactV2.__tablename__,
+        raise_on_not_exists=False,
+    )
+    db.delete_index_by_name(
+        session=db_session,
+        index_name="idx_artifacts_producer_id_best_iteration_and_project",
+        table_name=server.api.db.sqldb.models.ArtifactV2.__tablename__,
+        raise_on_not_exists=False,
+    )
 
 
 def _perform_schema_migrations(alembic_util: server.api.utils.db.alembic.AlembicUtil):

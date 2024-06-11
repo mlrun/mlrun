@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, distinct, func, inspect, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,7 @@ import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.db.sql_session import get_engine
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -4723,6 +4724,48 @@ class SQLDB(DBInterface):
             table_name=sanitized_table_name,
         )
 
+    def delete_index_by_name(
+        self,
+        session: Session,
+        index_name: str,
+        table_name: str,
+        raise_on_not_exists: bool = False,
+    ):
+        """
+        Delete an index by its name
+
+        :param session:             SQLAlchemy session
+        :param index_name:          Index name
+        :param table_name:          Table name
+        :param raise_on_not_exists: Raise an error if the index does not exist
+        """
+
+        # sanitize table and index names to prevent SQL injection, by removing all non-alphanumeric
+        # characters or underscores
+        sanitized_index_name = re.sub(r"[^a-zA-Z0-9_]", "", index_name)
+        sanitized_table_name = re.sub(r"[^a-zA-Z0-9_]", "", table_name)
+
+        # checking if the index exists can also help prevent SQL injection
+        if self._is_index_exists(
+            index_name=sanitized_index_name, table_name=sanitized_table_name
+        ):
+            drop_index_statement = text(
+                f"DROP INDEX {sanitized_index_name} ON {sanitized_table_name}"
+            )
+            session.execute(drop_index_statement)
+            session.commit()
+            return
+
+        if raise_on_not_exists:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Index not found: {sanitized_index_name}"
+            )
+        logger.debug(
+            "Index not found, skipping delete",
+            index_name=sanitized_index_name,
+            table_name=sanitized_table_name,
+        )
+
     @staticmethod
     def _is_table_exists(session: Session, table_name: str) -> bool:
         """
@@ -4734,3 +4777,18 @@ class SQLDB(DBInterface):
         metadata = MetaData(bind=session.bind)
         metadata.reflect()
         return table_name in metadata.tables.keys()
+
+    @staticmethod
+    def _is_index_exists(index_name: str, table_name: str) -> bool:
+        """
+        Check if an index exists
+
+        :param index_name: index name
+        :return: True if the index exists, False otherwise
+        """
+        # Create an inspector
+        inspector = inspect(get_engine())
+
+        # Get the list of indexes for a specific table
+        indexes = inspector.get_indexes(table_name)
+        return any(index["name"] == index_name for index in indexes)

@@ -90,7 +90,6 @@ def init_data(
 
     if is_migration_from_scratch or is_migration_needed:
         try:
-            init_db()
             db_session = create_session()
             try:
                 _pre_schema_migrations(
@@ -99,6 +98,10 @@ def init_data(
                     is_migration_from_scratch,
                 )
                 _perform_schema_migrations(alembic_util)
+
+                # Init DB creates the tables and needs to be after the schema migrations because
+                # migration will fail if the tables already exist
+                init_db()
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
             finally:

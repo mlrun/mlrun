@@ -85,14 +85,11 @@ class Client:
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
-        logger.debug("Getting API Gateway", name=name, project_name=project_name)
-
         api_gateway = await self._send_request_to_api(
             method="GET",
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
-        logger.debug("Got API Gateway", api_gateway=api_gateway)
         return mlrun.common.schemas.APIGateway.parse_obj(
             api_gateway
         ).replace_nuclio_names_with_mlrun_names()

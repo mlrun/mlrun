@@ -99,13 +99,15 @@ async def test_nuclio_delete_api_gateway(
     nuclio_client,
     mock_aioresponse,
 ):
+    project_name = "default"
+    api_gateway_name = "test-basic"
     request_url = f"{api_url}/api/api_gateways/"
     mock_aioresponse.delete(
         request_url,
-        payload={"metadata": {"name": "test-basic"}},
+        payload={"metadata": {"name": f"{project_name}-{api_gateway_name}"}},
         status=http.HTTPStatus.NO_CONTENT,
     )
-    await nuclio_client.delete_api_gateway("test-basic", "default")
+    await nuclio_client.delete_api_gateway(api_gateway_name, project_name)
 
 
 @pytest.mark.asyncio
@@ -114,14 +116,16 @@ async def test_nuclio_store_api_gateway(
     nuclio_client,
     mock_aioresponse,
 ):
-    request_url = f"{api_url}/api/api_gateways/new-gw"
+    project_name = "default"
+    api_gateway_name = "new-gw"
+    request_url = f"{api_url}/api/api_gateways/{project_name}-{api_gateway_name}"
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
-            name="new-gw",
+            name=api_gateway_name,
         ),
         spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
             functions=["test-func"],
-            project="default",
+            project=project_name,
         ),
     )
 
@@ -130,10 +134,10 @@ async def test_nuclio_store_api_gateway(
         status=http.HTTPStatus.ACCEPTED,
         payload=mlrun.common.schemas.APIGateway(
             metadata=mlrun.common.schemas.APIGatewayMetadata(
-                name="new-gw",
+                name=api_gateway_name,
             ),
             spec=mlrun.common.schemas.APIGatewaySpec(
-                name="new-gw",
+                name=api_gateway_name,
                 path="/",
                 host="test.host",
                 upstreams=[
@@ -145,7 +149,7 @@ async def test_nuclio_store_api_gateway(
         ).dict(),
     )
     await nuclio_client.store_api_gateway(
-        project_name="default", api_gateway=api_gateway.to_scheme()
+        project_name=project_name, api_gateway=api_gateway.to_scheme()
     )
 
 

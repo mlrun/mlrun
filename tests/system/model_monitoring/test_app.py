@@ -70,8 +70,8 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    results: typing.Optional[set[str]] = None  # only for testing
-    metrics: typing.Optional[set[str]] = None  # only for testing (future use)
+    results: set[str] = field(default_factory=set)  # only for testing
+    metrics: set[str] = field(default_factory=set)  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -263,7 +263,6 @@ class _V3IORecordsChecker:
     def _test_api_get_metrics(
         cls,
         ep_id: str,
-        app_data: _AppData,
         run_db: mlrun.db.httpdb.HTTPRunDB,
         type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
@@ -286,11 +285,13 @@ class _V3IORecordsChecker:
             ), "The invocations metric is missing"
 
         for result in parsed_response:
-            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
-                get_app_results.add(result["name"])
-                app_results_full_names.append(result["full_name"])
+            get_app_results.add(result["name"])
+            app_results_full_names.append(result["full_name"])
 
-        expected_results = getattr(app_data, type)
+        expected_results = set().union(
+            *[getattr(app_data, type) for app_data in cls.apps_data]
+        )
+
         if type == "metrics":
             expected_results.add(mm_constants.PredictionsQueryConstants.INVOCATIONS)
 
@@ -320,14 +321,14 @@ class _V3IORecordsChecker:
             ], f"The values list is empty for result {result_values['full_name']}"
 
     @classmethod
-    def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
+    def _test_api(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
         metrics_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
+            ep_id=ep_id, run_db=run_db, type="metrics"
         )
         results_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
+            ep_id=ep_id, run_db=run_db, type="results"
         )
 
         cls._test_api_get_values(
@@ -548,7 +549,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_predictions_table(ep_id)
 
         if with_training_set:
-            self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+            self._test_api(ep_id=ep_id)
             if _DefaultDataDriftAppData in self.apps_data:
                 self._test_model_endpoint_stats(ep_id=ep_id)
 

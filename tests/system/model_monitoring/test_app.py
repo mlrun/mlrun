@@ -278,13 +278,12 @@ class _V3IORecordsChecker:
         parsed_response = json.loads(response.content.decode())
 
         if type == "metrics":
-            assert {
-                "project": cls.project_name,
-                "app": "mlrun-infra",
-                "type": "metric",
-                "name": "invocations",
-                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
-            } in parsed_response
+            assert (
+                mlrun.model_monitoring.helpers.get_invocations_metric(
+                    cls.project_name
+                ).dict()
+                in parsed_response
+            ), "The invocations metric is missing"
 
         for result in parsed_response:
             if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
@@ -293,7 +292,7 @@ class _V3IORecordsChecker:
 
         expected_results = getattr(app_data, type)
         if type == "metrics":
-            expected_results.add("invocations")
+            expected_results.add(mm_constants.PredictionsQueryConstants.INVOCATIONS)
 
         assert get_app_results == expected_results
         assert app_results_full_names, f"No {type}"

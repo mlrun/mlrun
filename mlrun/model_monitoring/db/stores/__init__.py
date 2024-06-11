@@ -71,7 +71,7 @@ class ObjectStoreFactory(enum.Enum):
 def get_model_endpoint_store(
     project: str,
     access_key: str = None,
-    secret_provider: typing.Callable = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> StoreBase:
     # Leaving here for backwards compatibility
     warnings.warn(
@@ -87,21 +87,18 @@ def get_model_endpoint_store(
 
 def get_store_object(
     project: str,
-    store_type: typing.Optional[str] = None,
-    secret_provider: typing.Callable = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     **kwargs,
 ) -> StoreBase:
     """
-    Generate a store object based on the provided store type. If a connection string is provided, the store type will
-    be updated according to the connection string.
+    Generate a store object. If a connection string is provided, the store type will be updated according to the
+    connection string. Currently, the supported store types are SQL and v3io-nosql.
 
     :param project:         The name of the project.
-    :param store_type:      The type of the store target. See mlrun.model_monitoring.db.stores.ObjectStoreFactory
-                            for available store types.
     :param secret_provider: An optional secret provider to get the connection string secret.
 
-    :return: `StoreBase` object. Using this object, the user can apply different operations on the
-             model monitoring record such as write, update, get and delete a model endpoint.
+    :return: `StoreBase` object. Using this object, the user can apply different operations such as write, update, get
+    and delete a model endpoint record.
     """
 
     store_connection_string = mlrun.model_monitoring.helpers.get_connection_string(
@@ -114,14 +111,14 @@ def get_store_object(
     ):
         store_type = mlrun.common.schemas.model_monitoring.ModelEndpointTarget.SQL
         kwargs["store_connection_string"] = store_connection_string
-
-    # Set the default store type if no connection has been set
-    store_type = store_type or mlrun.mlconf.model_endpoint_monitoring.store_type
+    else:
+        # Set the default store type if no connection has been set
+        store_type = mlrun.mlconf.model_endpoint_monitoring.store_type
 
     # Get store type value from ObjectStoreFactory enum class
-    store_type = ObjectStoreFactory(store_type)
+    store_type_fact = ObjectStoreFactory(store_type)
 
     # Convert into store target object
-    return store_type.to_object_store(
+    return store_type_fact.to_object_store(
         project=project, secret_provider=secret_provider, **kwargs
     )

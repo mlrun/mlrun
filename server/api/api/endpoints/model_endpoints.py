@@ -234,7 +234,6 @@ async def list_model_endpoints(
 
     endpoints = await run_in_threadpool(
         server.api.crud.ModelEndpoints().list_model_endpoints,
-        auth_info=auth_info,
         project=project,
         model=model,
         function=function,
@@ -315,7 +314,6 @@ async def get_model_endpoint(
 
     return await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,

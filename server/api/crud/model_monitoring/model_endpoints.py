@@ -510,19 +510,19 @@ class ModelEndpoints:
         :param project_name: The name of the project.
         """
 
-        # Delete model monitoring store resources
-        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project_name
-        )
-
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         if (
-            endpoint_store.type
+            mlrun.mlconf.model_endpoint_monitoring.store_type
             == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
             and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
         ):
             return
+
+        # Delete model monitoring store resources
+        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
+            project=project_name
+        )
 
         endpoint_store.delete_model_endpoints_resources()
 

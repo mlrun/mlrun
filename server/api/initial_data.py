@@ -94,7 +94,9 @@ def init_data(
             db_session = create_session()
             try:
                 _pre_schema_migrations(
-                    alembic_util, db_session, is_migration_from_scratch
+                    alembic_util,
+                    db_session,
+                    is_migration_from_scratch,
                 )
                 _perform_schema_migrations(alembic_util)
                 _add_initial_data(db_session)

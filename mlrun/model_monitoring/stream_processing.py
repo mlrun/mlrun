@@ -66,10 +66,6 @@ class EventStreamProcessor:
         self.parquet_batching_max_events = parquet_batching_max_events
         self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
 
-        self.model_endpoint_store_target = (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
-        )
-
         logger.info(
             "Initializing model monitoring event stream processor",
             parquet_path=self.parquet_path,
@@ -139,7 +135,7 @@ class EventStreamProcessor:
     def apply_monitoring_serving_graph(
         self,
         fn: mlrun.runtimes.ServingRuntime,
-        tsdb_service_provider: typing.Optional[typing.Callable] = None,
+        secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -167,7 +163,8 @@ class EventStreamProcessor:
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
         :param fn: A serving function.
-        :param tsdb_service_provider: An optional callable function that provides the TSDB connection string.
+        :param secret_provider: An optional callable function that provides the connection string from the project
+                                secret.
         """
 
         graph = typing.cast(
@@ -293,7 +290,6 @@ class EventStreamProcessor:
                 name="UpdateEndpoint",
                 after="ProcessBeforeEndpointUpdate",
                 project=self.project,
-                model_endpoint_store_target=self.model_endpoint_store_target,
             )
 
         apply_update_endpoint()
@@ -310,7 +306,10 @@ class EventStreamProcessor:
                 table=self.kv_path,
             )
 
-        if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+        if store_object.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
         # Emits the event in window size of events based on sample_window size (10 by default)
@@ -328,7 +327,7 @@ class EventStreamProcessor:
         # TSDB branch (skip to Prometheus if in CE env)
         if not mlrun.mlconf.is_ce_mode():
             tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                project=self.project, secret_provider=tsdb_service_provider
+                project=self.project, secret_provider=secret_provider
             )
             tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
@@ -904,7 +903,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
 
 class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
-    def __init__(self, project: str, model_endpoint_store_target: str, **kwargs):
+    def __init__(self, project: str, **kwargs):
         """
         Update the model endpoint record in the DB. Note that the event at this point includes metadata and stats about
         the average latency and the amount of predictions over time. This data will be used in the monitoring dashboards
@@ -914,7 +913,6 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
         """
         super().__init__(**kwargs)
         self.project = project
-        self.model_endpoint_store_target = model_endpoint_store_target
 
     def do(self, event: dict):
         # Remove labels from the event

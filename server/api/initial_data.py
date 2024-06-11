@@ -191,7 +191,7 @@ def _pre_schema_migrations(
 def _delete_artifact_v2_indices(
     db, db_session, alembic_util: server.api.utils.db.alembic.AlembicUtil
 ):
-    if not alembic_util.is_artifacts_v2_index_migration_complete():
+    if alembic_util.is_artifacts_v2_index_migration_complete():
         return
 
     # Delete manually created indices to ensure smooth migration

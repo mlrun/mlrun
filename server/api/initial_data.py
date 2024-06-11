@@ -93,7 +93,9 @@ def init_data(
             init_db()
             db_session = create_session()
             try:
-                _pre_schema_migrations(alembic_util, db_session)
+                _pre_schema_migrations(
+                    alembic_util, db_session, is_migration_from_scratch
+                )
                 _perform_schema_migrations(alembic_util)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
@@ -183,15 +185,22 @@ def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
 def _pre_schema_migrations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
     db_session: sqlalchemy.orm.Session,
+    is_migration_from_scratch: bool,
 ):
     db = server.api.db.sqldb.db.SQLDB()
-    _delete_artifact_v2_indices(db, db_session, alembic_util)
+    _delete_artifact_v2_indices(db, db_session, alembic_util, is_migration_from_scratch)
 
 
 def _delete_artifact_v2_indices(
-    db, db_session, alembic_util: server.api.utils.db.alembic.AlembicUtil
+    db,
+    db_session,
+    alembic_util: server.api.utils.db.alembic.AlembicUtil,
+    is_migration_from_scratch: bool,
 ):
-    if alembic_util.is_artifacts_v2_index_migration_complete():
+    if (
+        is_migration_from_scratch
+        or alembic_util.is_artifacts_v2_index_migration_complete()
+    ):
         return
 
     # Delete manually created indices to ensure smooth migration

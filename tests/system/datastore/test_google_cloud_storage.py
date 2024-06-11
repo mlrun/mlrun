@@ -150,7 +150,11 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         fset = fstore.FeatureSet(
             name="gcs_system_test", entities=[fstore.Entity("name")]
         )
-        fset.ingest(source, targets=targets)
+        fset.set_targets(
+            targets=targets,
+            with_defaults=False,
+        )
+        fset.ingest(source)
         target_path = fset.get_target_path()
 
         result = source_class(path=target_path).to_dataframe()
@@ -159,3 +163,11 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         assert_frame_equal(
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
+
+        gcs_path = (
+            f"{self._bucket_name}/{target_path[target_path.index(self.test_dir):]}"
+        )
+        # Check for ML-6587 regression
+        assert self._gcs_fs.exists(gcs_path)
+        fset.purge_targets()
+        assert not self._gcs_fs.exists(gcs_path)

@@ -54,6 +54,7 @@ async def test_nuclio_get_api_gateway(
     nuclio_client,
     mock_aioresponse,
 ):
+    project_name = "default-project"
     api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway(
         metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
             name="test-basic",
@@ -66,18 +67,18 @@ async def test_nuclio_get_api_gateway(
     api_gateway.with_basic_auth("test", "test")
     api_gateway.with_canary(["test", "test2"], [20, 80])
 
-    request_url = f"{api_url}/api/api_gateways/test-basic"
+    request_url = f"{api_url}/api/api_gateways/{project_name}-test-basic"
 
     expected_payload = api_gateway.to_scheme()
     expected_payload.metadata.labels = {
-        mlrun.common.constants.MLRunInternalLabels.nuclio_project_name: "default-project"
+        mlrun.common.constants.MLRunInternalLabels.nuclio_project_name: project_name,
     }
     mock_aioresponse.get(
         request_url,
         payload=expected_payload.dict(),
         status=http.HTTPStatus.ACCEPTED,
     )
-    r = await nuclio_client.get_api_gateway("test-basic", "default")
+    r = await nuclio_client.get_api_gateway("test-basic", project_name)
     received_api_gateway = mlrun.runtimes.nuclio.api_gateway.APIGateway.from_scheme(r)
     assert received_api_gateway.name == api_gateway.metadata.name
     assert received_api_gateway.description == api_gateway.spec.description
@@ -86,8 +87,8 @@ async def test_nuclio_get_api_gateway(
         == api_gateway.spec.authentication.authentication_mode
     )
     assert received_api_gateway.spec.functions == [
-        "default-project/test",
-        "default-project/test2",
+        f"{project_name}/test",
+        f"{project_name}/test2",
     ]
     assert received_api_gateway.spec.canary == [20, 80]
 
@@ -144,9 +145,7 @@ async def test_nuclio_store_api_gateway(
         ).dict(),
     )
     await nuclio_client.store_api_gateway(
-        project_name="default",
-        api_gateway_name="new-gw",
-        api_gateway=api_gateway.to_scheme(),
+        project_name="default", api_gateway=api_gateway.to_scheme()
     )
 
 

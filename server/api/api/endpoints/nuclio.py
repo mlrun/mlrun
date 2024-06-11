@@ -128,10 +128,7 @@ async def store_api_gateway(
             project_name=project,
         )
         await client.store_api_gateway(
-            project_name=project,
-            api_gateway_name=gateway,
-            api_gateway=api_gateway,
-            create=create,
+            project_name=project, api_gateway=api_gateway, create=create
         )
         api_gateway = await client.get_api_gateway(
             name=gateway,

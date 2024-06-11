@@ -2872,13 +2872,20 @@ class SQLDB(DBInterface):
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
         features_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2899,12 +2906,12 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 features_results.append(
                     mlrun.common.schemas.FeatureListOutput(
                         feature=feature,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)

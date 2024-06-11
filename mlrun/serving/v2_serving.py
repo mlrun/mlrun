@@ -604,7 +604,5 @@ def _init_endpoint_record(
                 else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
             },
         )
-        logger.info("Model monitoring is disabled for this model endpoint")
-        return None
 
     return uid

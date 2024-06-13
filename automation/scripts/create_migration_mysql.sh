@@ -35,13 +35,12 @@ export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
 docker run \
 	--name=migration-db \
 	--rm \
-	-v "${ROOT_DIR}:/mlrun" \
 	-p 3306:3306 \
 	-e MYSQL_ROOT_PASSWORD="pass" \
 	-e MYSQL_ROOT_HOST="%" \
 	-e MYSQL_DATABASE="mlrun" \
 	-d \
-	mysql/mysql-server:8.0 \
+	gcr.io/iguazio/mlrun-mysql:8.0 \
 	--character-set-server=utf8 \
 	--collation-server=utf8_bin
 
@@ -57,6 +56,6 @@ done
 
 export PYTHONPATH=$ROOT_DIR
 
-alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" upgrade head
-alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
-
+cd ${ROOT_DIR}/server/api
+alembic upgrade head
+alembic revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

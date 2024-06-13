@@ -111,6 +111,7 @@ class MLClientCtx:
 
         self._project_object = None
         self._allow_empty_resources = None
+        self._reset_on_run = None
 
     def __enter__(self):
         return self
@@ -389,6 +390,7 @@ class MLClientCtx:
             self._state_thresholds = spec.get(
                 "state_thresholds", self._state_thresholds
             )
+            self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
 
@@ -1039,9 +1041,14 @@ class MLClientCtx:
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is not decided by the execution as there may be
-        # multiple executions for a single run (e.g. mpi)
-        if self._state != "completed":
+        # Completion of runs is decided by the API runs monitoring as there may be
+        # multiple executions for a single run (e.g. mpi).
+        # For kinds that are not monitored by the API (local) we allow changing the state.
+        run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
+            or self._state != "completed"
+        ):
             struct["status.state"] = self._state
 
         if self.is_logging_worker():

@@ -12,7 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+"""
+MLRun package enables fully-automated experiment and pipeline tracking and reproducibility, and easy passing of
+python objects between remote jobs, while not requiring any form of editing to the actual function original code.
+Simply set the function code in a project and run it, MLRun takes care of the rest.
 
+MLRun uses packagers: classes that perform 2 tasks:
+
+#. **Parsing inputs** - automatically cast the runtime's inputs (user's input passed to the function via
+the ``inputs`` parameter of the ``run`` method) to the relevant hinted type.  (Does not require handling of data items.)
+#. **Logging outputs** - automatically save, log, and upload the function's returned objects by the provided
+log hints (user's input passed to the function via the ``returns`` parameter of the ``run`` method).
+(Does not require handling of files and artifacts.)
+"""
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 import functools

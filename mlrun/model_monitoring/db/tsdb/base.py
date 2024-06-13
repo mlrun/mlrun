@@ -25,7 +25,7 @@ from mlrun.utils import logger
 
 
 class TSDBConnector(ABC):
-    type: str = ""
+    type: typing.ClassVar[str]
 
     def __init__(self, project: str):
         """
@@ -175,19 +175,6 @@ class TSDBConnector(ABC):
 
         :raise mlrun.errors.MLRunInvalidArgumentError: If only one of `aggregation_window` and `agg_funcs` is provided.
         :return:                   Metric values object or no data object.
-        """
-
-    @abstractmethod
-    def read_prediction_metric_for_endpoint_if_exists(
-        self, endpoint_id: str
-    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        """
-        Read the "invocations" metric for the provided model endpoint, and return the metric object
-        if it exists.
-
-        :param endpoint_id: The model endpoint identifier.
-        :return:            `None` if the invocations metric does not exist, otherwise return the
-                            corresponding metric object.
         """
 
     @staticmethod

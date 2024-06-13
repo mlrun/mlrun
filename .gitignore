@@ -20,6 +20,7 @@ docs/_build
 docs/external/*.html
 docs/external/*.md
 docs/api/generated_rsts/
+docs/api/_autosummary/
 iteration_results.csv
 mlrun.egg-info/
 model.txt
@@ -32,6 +33,7 @@ tests/project.yaml
 mlrun/utils/version/version.json
 tests/system/env.yml
 project.yaml
+server/api/db/mlrun.db
 
 # pyenv file for working with several python versions
 .python-version

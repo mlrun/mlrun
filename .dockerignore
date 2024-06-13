@@ -32,3 +32,4 @@ mlrun.egg-info
 
 # this is just a template
 !dockerfiles/jupyter/mlrun.env
+**/hack/*.env

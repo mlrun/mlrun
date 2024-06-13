@@ -3195,7 +3195,8 @@ class MlrunProject(ModelObj):
         tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
-        infrastructure functions.
+        infrastructure functions. Important to note that you have to set the credentials before deploying any
+        model monitoring or serving function.
 
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string

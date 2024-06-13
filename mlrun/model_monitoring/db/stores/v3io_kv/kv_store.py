@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import typing
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -24,8 +23,8 @@ import v3io.dataplane.response
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import logger
 
 # Fields to encode before storing in the KV table or to decode after retrieving
@@ -89,18 +88,21 @@ _KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
 _EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
 
-class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
+class KVStoreBase(StoreBase):
+    type: typing.ClassVar[str] = "v3io-nosql"
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, project: str, access_key: typing.Optional[str] = None) -> None:
+    def __init__(
+        self,
+        project: str,
+    ) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
-        self.access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=self.access_key
+            endpoint=mlrun.mlconf.v3io_api,
         )
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
@@ -186,7 +188,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             table_path=self.path,
             key=endpoint_id,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=self.access_key,
         )
         endpoint = endpoint.output.item
 
@@ -499,7 +500,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     def _get_frames_client(self):
         return mlrun.utils.v3io_clients.get_frames_client(
-            token=self.access_key,
             address=mlrun.mlconf.v3io_framesd,
             container=self.container,
         )

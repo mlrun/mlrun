@@ -172,18 +172,18 @@ class Artifacts(
         )
         return artifacts
 
-    def list_grouped_artifacts(
+    def list_artifacts_for_producer_id(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        producer_id: str,
+        project: str,
         key_tag_iteration_pairs: list[tuple] = "",
-        producer_id: str = None,
     ):
-        return server.api.utils.singletons.db.get_db().list_grouped_artifacts(
+        return server.api.utils.singletons.db.get_db().list_artifacts_for_producer_id(
             db_session,
-            project=project or mlrun.mlconf.default_project,
-            key_tag_iteration_pairs=key_tag_iteration_pairs,
             producer_id=producer_id,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
         )
 
     def list_artifact_tags(

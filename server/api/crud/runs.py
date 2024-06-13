@@ -468,16 +468,27 @@ class Runs(
         key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, _ = mlrun.utils.parse_artifact_uri(
-                uri, project
+            project, key, iteration, tag, artifact_producer_id = (
+                mlrun.utils.parse_artifact_uri(uri, project)
             )
+            if artifact_producer_id != producer_id:
+                logger.warning(
+                    "Artifact producer ID does not match the run/workflow ID, skipping artiafct",
+                    project=project,
+                    key=key,
+                    tag=tag,
+                    iteration=iteration,
+                    artifact_producer_id=artifact_producer_id,
+                )
+                continue
+
             key_tag_iteration_pairs.append((key, tag, iteration))
 
-        artifacts = server.api.crud.Artifacts().list_grouped_artifacts(
+        artifacts = server.api.crud.Artifacts().list_artifacts_for_producer_id(
             db_session,
+            producer_id,
             project,
             key_tag_iteration_pairs,
-            producer_id,
         )
 
         if len(artifacts) != len(artifact_uris):

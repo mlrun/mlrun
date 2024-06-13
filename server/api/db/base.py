@@ -214,12 +214,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_grouped_artifacts(
+    def list_artifacts_for_producer_id(
         self,
         session,
+        producer_id: str,
         project: str = mlrun.mlconf.default_project,
         key_tag_iteration_pairs: list[tuple] = "",
-        producer_id: str = None,
     ):
         pass
 

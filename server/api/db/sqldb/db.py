@@ -700,20 +700,20 @@ class SQLDB(DBInterface):
 
         return artifacts
 
-    def list_grouped_artifacts(
+    def list_artifacts_for_producer_id(
         self,
         session,
-        project: str = mlrun.mlconf.default_project,
+        producer_id: str,
+        project: str = None,
         key_tag_iteration_pairs: list[tuple] = "",
-        producer_id: str = None,
     ):
-        project = project or config.default_project
+        project = project or mlrun.mlconf.default_project
 
-        artifact_records = self._find_grouped_artifacts(
+        artifact_records = self._find_artifacts_for_producer_id(
             session,
+            producer_id=producer_id,
             project=project,
             key_tag_iteration_pairs=key_tag_iteration_pairs,
-            producer_id=producer_id,
         )
 
         artifacts = ArtifactList()
@@ -1332,19 +1332,19 @@ class SQLDB(DBInterface):
 
         return artifacts_and_tags
 
-    def _find_grouped_artifacts(
+    def _find_artifacts_for_producer_id(
         self,
         session: Session,
-        project: str = mlrun.mlconf.default_project,
+        producer_id: str,
+        project: str,
         key_tag_iteration_pairs: list[tuple] = "",
-        producer_id: str = None,
     ) -> list[tuple[ArtifactV2, str]]:
         """
-        Find specific artifacts matching the given (key, tag, iteration) tuples.
+        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
         :param session:                 DB session
-        :param project:                 Project name
-        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
         :param producer_id:             The artifact producer ID to filter by
+        :param project:                 Project name to filter by
+        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
         :return: a list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)

@@ -69,9 +69,6 @@ class NotificationBase:
         if custom_html:
             return custom_html
 
-        if self.name:
-            message = f"{self.name}: {message}"
-
         if alert:
             if not event_data:
                 return f"[{severity}] {message}"
@@ -90,6 +87,9 @@ class NotificationBase:
             overview_type, url = self._get_overview_type_and_url(alert, event_data)
             html += f"<br><h4>Overview:</h4><a href={url}>{overview_type}</a>"
             return html
+
+        if self.name:
+            message = f"{self.name}: {message}"
 
         if not runs:
             return f"[{severity}] {message}"

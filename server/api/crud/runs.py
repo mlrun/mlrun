@@ -150,29 +150,19 @@ class Runs(
 
         # Since we don't store the artifacts in the run body, we need to fetch them separately
         # The client may be using them as in pipeline as input for the next step
-        producer_uri = None
-        producer_id = run["metadata"].get("labels", {}).get("workflow")
-        if not producer_id:
-            producer_id = uid
+        workflow_id = run["metadata"].get("labels", {}).get("workflow")
+        if not workflow_id:
+            artifacts = self._list_run_artifacts(
+                db_session, iter, producer_id=uid, project=project
+            )
+
         else:
-            # Producer URI is the URI of the MLClientCtx object that produced the artifact
-            producer_uri = f"{project}/{run['metadata']['uid']}"
-            if iter:
-                producer_uri += f"-{iter}"
-
-        best_iteration = False
-        if not iter:
-            iter = None
-            best_iteration = True
-
-        artifacts = server.api.crud.Artifacts().list_artifacts(
-            db_session,
-            iter=iter,
-            best_iteration=best_iteration,
-            producer_id=producer_id,
-            producer_uri=producer_uri,
-            project=project,
-        )
+            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
+            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
+            # filters by producer URI in memory.
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
 
         if artifacts or "artifacts" in run.get("status", {}):
             run.setdefault("status", {})
@@ -468,3 +458,71 @@ class Runs(
                 project,
                 uid,
             )
+
+    @staticmethod
+    def _get_artifacts_from_uris(
+        db_session: sqlalchemy.orm.Session, project: str, producer_id: str, run: dict
+    ):
+        """Fetch run artifacts by their artifact URIs in the run status"""
+        artifact_uris = run.get("status", {}).get("artifact_uris", {})
+        key_tag_iteration_pairs = []
+        for _, uri in artifact_uris.items():
+            _, uri = mlrun.datastore.parse_store_uri(uri)
+            project, key, iteration, tag, artifact_producer_id = (
+                mlrun.utils.parse_artifact_uri(uri, project)
+            )
+            if artifact_producer_id != producer_id:
+                logger.warning(
+                    "Artifact producer ID does not match the run/workflow ID, skipping artifact",
+                    project=project,
+                    key=key,
+                    tag=tag,
+                    iteration=iteration,
+                    artifact_producer_id=artifact_producer_id,
+                )
+                continue
+
+            key_tag_iteration_pairs.append((key, tag, iteration))
+
+        artifacts = server.api.crud.Artifacts().list_artifacts_for_producer_id(
+            db_session,
+            producer_id,
+            project,
+            key_tag_iteration_pairs,
+        )
+
+        if len(artifacts) != len(artifact_uris):
+            missing_artifacts = set(artifact_uris.keys()) - {
+                artifact.key for artifact in artifacts
+            }
+            logger.warning(
+                "Some artifacts are missing from final run response, they may have been deleted",
+                project=project,
+                run_uid=run.get("metadata", {}).get("uid"),
+                producer_id=producer_id,
+                missing_artifacts=missing_artifacts,
+            )
+        return artifacts
+
+    @staticmethod
+    def _list_run_artifacts(
+        db_session: sqlalchemy.orm.Session,
+        iteration: int,
+        producer_id: str,
+        project: str,
+    ):
+        best_iteration = False
+        # If the iteration is 0, we mark the artifacts as best iteration.
+        # Specifically for hyper runs, iteration 0 is the parent run, so we need the get the artifacts
+        # of the real best iteration run, which can be from a different iteration.
+        if not iteration:
+            iteration = None
+            best_iteration = True
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            iter=iteration,
+            best_iteration=best_iteration,
+            producer_id=producer_id,
+            project=project,
+        )
+        return artifacts

@@ -207,6 +207,12 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+            Index(
+                "idx_artifacts_producer_id_best_iteration_and_project",
+                "project",
+                "producer_id",
+                "best_iteration",
+            ),
         )
 
         Label = make_label(__tablename__)

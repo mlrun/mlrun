@@ -32,6 +32,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -376,11 +378,14 @@ def test_list_and_get_project_summaries(
     )
 
     # create schedules for the project
-    schedules_count = 3
-    _create_schedules(
+
+    (
+        schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    ) = _create_schedules(
         client,
         project_name,
-        schedules_count,
     )
 
     # mock pipelines for the project
@@ -395,7 +400,7 @@ def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
@@ -406,6 +411,8 @@ def test_list_and_get_project_summaries(
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
                 schedules_count,
+                distinct_scheduled_jobs_pending_count,
+                distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
             )
         else:
@@ -423,6 +430,8 @@ def test_list_and_get_project_summaries(
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
         schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
     )
 
@@ -465,6 +474,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Enterprise installation configuration pre 3.4.0
@@ -480,6 +491,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -511,6 +524,8 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -526,6 +541,8 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
         0,
         0,
         0,
@@ -762,7 +779,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.common.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.common.formatters.ProjectFormat.leader},
         headers={
             mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -863,7 +880,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.common.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.common.formatters.ProjectFormat.full}
     )
     projects_output = mlrun.common.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -1234,12 +1251,12 @@ def _create_resources_of_all_kinds(
         summary="oops",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         entities={
-            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL,
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
             "project": project,
-            "ids": ["*"],
+            "ids": [1234],
         },
-        trigger={"events": [mlrun.common.schemas.alert.EventKind.DRIFT_DETECTED]},
-        notifications=[notification.to_dict()],
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
+        notifications=[{"notification": notification.to_dict()}],
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
     )
     alert = db.store_alert(db_session, alert)
@@ -1272,7 +1289,7 @@ def _create_resources_of_all_kinds(
 
     # Create several feature sets with several tags
     labels = {
-        "owner": "nobody",
+        mlrun_constants.MLRunInternalLabels.owner: "nobody",
     }
     feature_set = mlrun.common.schemas.FeatureSet(
         metadata=mlrun.common.schemas.ObjectMetadata(
@@ -1547,7 +1564,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.common.formatters.ProjectFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",
@@ -1579,6 +1596,8 @@ def _assert_project_summary(
     runs_failed_recent_count: int,
     runs_running_count: int,
     schedules_count: int,
+    distinct_scheduled_jobs_pending_count: int,
+    distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
@@ -1587,7 +1606,15 @@ def _assert_project_summary(
     assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    assert project_summary.schedules_count == schedules_count
+    assert project_summary.distinct_schedules_count == schedules_count
+    assert (
+        project_summary.distinct_scheduled_jobs_pending_count
+        == distinct_scheduled_jobs_pending_count
+    )
+    assert (
+        project_summary.distinct_scheduled_pipelines_pending_count
+        == distinct_scheduled_pipelines_pending_count
+    )
     assert project_summary.pipelines_running_count == pipelines_running_count
 
 
@@ -1688,19 +1715,59 @@ def _create_runs(
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_schedules(client: TestClient, project_name, schedules_count):
-    for index in range(schedules_count):
-        schedule_name = f"schedule-name-{str(uuid4())}"
-        schedule = mlrun.common.schemas.ScheduleInput(
-            name=schedule_name,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
-            scheduled_object={"metadata": {"name": "something"}},
-            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(year=1999),
+def _create_schedule(
+    client: TestClient,
+    project_name,
+    cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
+    labels: dict = None,
+):
+    if not labels:
+        labels = {}
+
+    schedule_name = f"schedule-name-{str(uuid4())}"
+    schedule = mlrun.common.schemas.ScheduleInput(
+        name=schedule_name,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object={"metadata": {"name": "something"}},
+        cron_trigger=cron_trigger,
+        labels=labels,
+    )
+    response = client.post(f"projects/{project_name}/schedules", json=schedule.dict())
+    assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+
+def _create_schedules(client: TestClient, project_name):
+    schedules_count = 3
+    distinct_scheduled_jobs_pending_count = 5
+    distinct_scheduled_pipelines_pending_count = 7
+
+    for _ in range(schedules_count):
+        _create_schedule(
+            client, project_name, mlrun.common.schemas.ScheduleCronTrigger(year=1999)
         )
-        response = client.post(
-            f"projects/{project_name}/schedules", json=schedule.dict()
+
+    for _ in range(distinct_scheduled_jobs_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {"kind": "job"},
         )
-        assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+    for _ in range(distinct_scheduled_pipelines_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {mlrun_constants.MLRunInternalLabels.workflow: "workflow"},
+        )
+    return (
+        schedules_count
+        + distinct_scheduled_jobs_pending_count
+        + distinct_scheduled_pipelines_pending_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    )
 
 
 def _mock_pipelines(project_name):

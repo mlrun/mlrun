@@ -25,6 +25,7 @@ from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.api.endpoints.functions
 import server.api.runtime_handlers.daskjob
@@ -56,7 +57,7 @@ class TestDaskRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.name = "test-dask-cluster"
         # For dask it is /function instead of /name
-        self.function_name_label = "mlrun/function"
+        self.function_name_label = mlrun_constants.MLRunInternalLabels.function
         self.v3io_access_key = "1111-2222-3333-4444"
         self.v3io_user = "test-user"
         self.scheduler_address = "http://1.2.3.4"
@@ -449,6 +450,8 @@ class TestDaskRuntime(TestRuntimeBase):
                 env=[
                     {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
                     k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+                    {"name": "TEST_DUP", "value": "A"},
+                    {"name": "TEST_DUP", "value": "B"},
                 ],
             ),
         )
@@ -472,14 +475,15 @@ class TestDaskRuntime(TestRuntimeBase):
             {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+            {"name": "TEST_DUP", "value": "A"},
         ]
         expected_labels = {
-            "mlrun/project": "project",
-            "mlrun/class": "dask",
-            "mlrun/function": "test",
+            mlrun_constants.MLRunInternalLabels.project: "project",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
+            mlrun_constants.MLRunInternalLabels.function: "test",
             "label1": "val1",
-            "mlrun/scrape-metrics": "True",
-            "mlrun/tag": "latest",
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "True",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
         }
 
         secrets = []

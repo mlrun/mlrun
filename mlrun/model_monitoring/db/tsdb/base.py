@@ -11,17 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-
-from abc import ABC
+import typing
+from abc import ABC, abstractmethod
+from datetime import datetime
 
 import pandas as pd
 
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.model_monitoring.db.tsdb.helpers
+import mlrun.model_monitoring.helpers
+from mlrun.utils import logger
 
 
 class TSDBConnector(ABC):
+    type: typing.ClassVar[str]
+
     def __init__(self, project: str):
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
@@ -56,14 +61,13 @@ class TSDBConnector(ABC):
     def write_application_event(
         self,
         event: dict,
-        kind: mm_constants.WriterEventKind = mm_constants.WriterEventKind.RESULT,
-    ):
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> None:
         """
         Write a single application or metric to TSDB.
 
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
-        pass
 
     def delete_tsdb_resources(self):
         """
@@ -76,8 +80,8 @@ class TSDBConnector(ABC):
         self,
         endpoint_id: str,
         metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
+        start: str,
+        end: str,
     ) -> dict[str, list[tuple[str, float]]]:
         """
         Getting real time metrics from the TSDB. There are pre-defined metrics for model endpoints such as
@@ -98,38 +102,215 @@ class TSDBConnector(ABC):
         """
         pass
 
-    def get_records(
-        self,
-        table: str,
-        columns: list[str] = None,
-        filter_query: str = "",
-        start: str = "now-1h",
-        end: str = "now",
-    ) -> pd.DataFrame:
+    def create_tables(self) -> None:
         """
-        Getting records from TSDB data collection.
-        :param table:            Table name, e.g. 'metrics', 'app_results'.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
-                                 connector type.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC
-                                 3339 time, a  Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, `'d'` = days, and `'s'`
-                                 = seconds), or 0 for the earliest time.
-
-        :return: DataFrame with the provided attributes from the data collection.
-        :raise:  MLRunNotFoundError if the provided table wasn't found.
-        """
-        pass
-
-    def create_tsdb_application_tables(self):
-        """
-        Create the application tables using the TSDB connector. At the moment we support 2 types of application tables:
+        Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
+        - predictions: latency of each prediction.
         """
-        pass
+
+    @abstractmethod
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        """
+        Read metrics OR results from the TSDB and return as a list.
+
+        :param endpoint_id: The model endpoint identifier.
+        :param start:       The start time of the query.
+        :param end:         The end time of the query.
+        :param metrics:     The list of metrics to get the values for.
+        :param type:        "metrics" or "results" - the type of each item in metrics.
+        :return:            A list of result values or a list of metric values.
+        """
+
+    @abstractmethod
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+        agg_funcs: typing.Optional[list[str]] = None,
+        limit: typing.Optional[int] = None,
+    ) -> typing.Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        """
+        Read the "invocations" metric for the provided model endpoint in the given time range,
+        and return the metric values if any, otherwise signify with the "no data" object.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+        :param aggregation_window: On what time window length should the invocations be aggregated. If provided,
+                                   the `agg_funcs` must be provided as well. Provided as a string in the format of '1m',
+                                   '1h', etc.
+        :param agg_funcs:          List of aggregation functions to apply on the invocations. If provided, the
+                                   `aggregation_window` must be provided as well. Provided as a list of strings in
+                                   the format of ['sum', 'avg', 'count', ...]
+        :param limit:              The maximum number of records to return.
+
+        :raise mlrun.errors.MLRunInvalidArgumentError: If only one of `aggregation_window` and `agg_funcs` is provided.
+        :return:                   Metric values object or no data object.
+        """
+
+    @staticmethod
+    def df_to_metrics_values(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+    ) -> list[
+        typing.Union[
+            mm_schemas.ModelEndpointMonitoringMetricValues,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed DataFrame of metrics from the TSDB into a list of
+        metrics values per distinct results.
+        When a metric is not found in the DataFrame, it is represented in a no-data object.
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+
+        metrics_values: list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+        if not df.empty:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.MetricData.METRIC_NAME,
+                ],
+                observed=False,
+            )
+        else:
+            logger.debug("No metrics", missing_metrics=metrics_without_data.keys())
+            grouped = []
+        for (app_name, name), sub_df in grouped:
+            full_name = mlrun.model_monitoring.helpers._compose_full_name(
+                project=project,
+                app=app_name,
+                name=name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricValues(
+                    full_name=full_name,
+                    values=list(
+                        zip(
+                            sub_df.index,
+                            sub_df[mm_schemas.MetricData.METRIC_VALUE],
+                        )
+                    ),  # pyright: ignore[reportArgumentType]
+                )
+            )
+            del metrics_without_data[full_name]
+
+        for metric in metrics_without_data.values():
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricNoData(
+                    full_name=metric.full_name,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+                )
+            )
+
+        return metrics_values
+
+    @staticmethod
+    def df_to_results_values(
+        *,
+        df: pd.DataFrame,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        project: str,
+    ) -> list[
+        typing.Union[
+            mm_schemas.ModelEndpointMonitoringResultValues,
+            mm_schemas.ModelEndpointMonitoringMetricNoData,
+        ]
+    ]:
+        """
+        Parse a time-indexed DataFrame of results from the TSDB into a list of
+        results values per distinct results.
+        When a result is not found in the DataFrame, it is represented in no-data object.
+        """
+        metrics_without_data = {metric.full_name: metric for metric in metrics}
+
+        metrics_values: list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ]
+        ] = []
+        if not df.empty:
+            grouped = df.groupby(
+                [
+                    mm_schemas.WriterEvent.APPLICATION_NAME,
+                    mm_schemas.ResultData.RESULT_NAME,
+                ],
+                observed=False,
+            )
+        else:
+            grouped = []
+            logger.debug("No results", missing_results=metrics_without_data.keys())
+        for (app_name, name), sub_df in grouped:
+            result_kind = mlrun.model_monitoring.db.tsdb.helpers._get_result_kind(
+                sub_df
+            )
+            full_name = mlrun.model_monitoring.helpers._compose_full_name(
+                project=project, app=app_name, name=name
+            )
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringResultValues(
+                    full_name=full_name,
+                    result_kind=result_kind,
+                    values=list(
+                        zip(
+                            sub_df.index,
+                            sub_df[mm_schemas.ResultData.RESULT_VALUE],
+                            sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                        )
+                    ),  # pyright: ignore[reportArgumentType]
+                )
+            )
+            del metrics_without_data[full_name]
+
+        for metric in metrics_without_data.values():
+            if metric.full_name == mlrun.model_monitoring.helpers.get_invocations_fqn(
+                project
+            ):
+                continue
+            metrics_values.append(
+                mm_schemas.ModelEndpointMonitoringMetricNoData(
+                    full_name=metric.full_name,
+                    type=mm_schemas.ModelEndpointMonitoringMetricType.RESULT,
+                )
+            )
+
+        return metrics_values

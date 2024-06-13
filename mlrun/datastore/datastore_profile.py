@@ -37,6 +37,7 @@ class DatastoreProfile(pydantic.BaseModel):
         extra = pydantic.Extra.forbid
 
     @pydantic.validator("name")
+    @classmethod
     def lower_case(cls, v):
         return v.lower()
 
@@ -304,6 +305,7 @@ class DatastoreProfileGCS(DatastoreProfile):
         return v
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
+    @classmethod
     def convert_dict_to_json(cls, v):
         if isinstance(v, dict):
             return json.dumps(v)

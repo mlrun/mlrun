@@ -23,6 +23,8 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+import mlrun.artifacts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.db.sqldb.models
 from mlrun.lists import ArtifactList
@@ -57,11 +59,10 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
 
     tags = db.list_artifact_tags(db_session, "p1")
     expected_tags = [
-        ("p1", "k1", "t1"),
-        ("p1", "k1", "latest"),
-        ("p1", "k1", "t2"),
-        ("p1", "k2", "t3"),
-        ("p1", "k2", "latest"),
+        "t1",
+        "latest",
+        "t2",
+        "t3",
     ]
     assert deepdiff.DeepDiff(tags, expected_tags, ignore_order=True) == {}
 
@@ -69,13 +70,13 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     model_tags = db.list_artifact_tags(
         db_session, "p1", mlrun.common.schemas.ArtifactCategories.model
     )
-    expected_tags = [("p1", "k2", "t3"), ("p1", "k2", "latest")]
+    expected_tags = ["t3", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
     model_tags = db.list_artifact_tags(
         db_session, "p2", mlrun.common.schemas.ArtifactCategories.dataset
     )
-    expected_tags = [("p2", "k3", "t4"), ("p2", "k3", "latest")]
+    expected_tags = ["t4", "latest"]
     assert deepdiff.DeepDiff(expected_tags, model_tags, ignore_order=True) == {}
 
 
@@ -85,15 +86,23 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     t3 = t2 - timedelta(days=7)
     project = "p7"
 
+    # create artifacts in the db directly to avoid the store_artifact function which sets the updated field
     artifacts_to_create = []
     for key, updated, producer_id in [
         ("k1", t1, "p1"),
         ("k2", t2, "p2"),
         ("k3", t3, "p3"),
     ]:
+        artifact_struct = mlrun.artifacts.Artifact(
+            metadata=mlrun.artifacts.ArtifactMetadata(
+                key=key, project=project, tree=producer_id
+            ),
+            spec=mlrun.artifacts.ArtifactSpec(),
+        )
         db_artifact = ArtifactV2(
             project=project, key=key, updated=updated, producer_id=producer_id
         )
+        db_artifact.full_object = artifact_struct.to_dict()
         artifacts_to_create.append(db_artifact)
 
     db._upsert(db_session, artifacts_to_create)
@@ -273,7 +282,7 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

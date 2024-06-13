@@ -24,6 +24,11 @@ import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
 )
+from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
+    ModelEndpointMonitoringMetricType,
+    _compose_full_name,
+)
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
 
@@ -92,7 +97,7 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_connection_string(secret_provider: typing.Callable = None) -> str:
+def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 
@@ -108,6 +113,24 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
             secret_provider=secret_provider,
         )
         or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    )
+
+
+def get_tsdb_connection_string(
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> str:
+    """Get TSDB connection string from the project secret. If wasn't set, take it from the system
+    configurations.
+    :param secret_provider: An optional secret provider to get the connection string secret.
+    :return:                Valid TSDB connection string.
+    """
+
+    return (
+        mlrun.get_secret_or_env(
+            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
+            secret_provider=secret_provider,
+        )
+        or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
     )
 
 
@@ -255,8 +278,51 @@ def calculate_inputs_statistics(
     return inputs_statistics
 
 
-def get_endpoint_record(project: str, endpoint_id: str):
+def get_endpoint_record(
+    project: str,
+    endpoint_id: str,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> dict[str, typing.Any]:
     model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
+        project=project, secret_provider=secret_provider
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
+
+
+def get_result_instance_fqn(
+    model_endpoint_id: str, app_name: str, result_name: str
+) -> str:
+    return f"{model_endpoint_id}.{app_name}.result.{result_name}"
+
+
+def get_default_result_instance_fqn(model_endpoint_id: str) -> str:
+    return get_result_instance_fqn(
+        model_endpoint_id,
+        mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        mm_constants.HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME,
+    )
+
+
+def get_invocations_fqn(project: str) -> str:
+    return _compose_full_name(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        type=ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+
+def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
+    """
+    Return the invocations metric of any model endpoint in the given project.
+
+    :param project: The project name.
+    :returns:       The model monitoring metric object.
+    """
+    return ModelEndpointMonitoringMetric(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        type=ModelEndpointMonitoringMetricType.METRIC,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        full_name=get_invocations_fqn(project),
+    )

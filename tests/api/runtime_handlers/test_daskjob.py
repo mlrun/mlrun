@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases
 from mlrun.runtimes import RuntimeKinds
@@ -33,13 +34,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         # initializing them here to save space in tests
         scheduler_pod_labels = {
             "app": "dask",
-            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-            "dask.org/component": "scheduler",
-            "mlrun/class": "dask",
-            "mlrun/function": "mydask",
-            "mlrun/project": self.project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
+            mlrun_constants.MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            mlrun_constants.MLRunInternalLabels.dask_component: "scheduler",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
+            mlrun_constants.MLRunInternalLabels.function: "mydask",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
         scheduler_pod_name = "mlrun-mydask-d7656bc1-0n4z9z"
@@ -57,13 +58,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
 
         worker_pod_labels = {
             "app": "dask",
-            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-            "dask.org/component": "worker",
-            "mlrun/class": "dask",
-            "mlrun/function": "mydask",
-            "mlrun/project": self.project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
+            mlrun_constants.MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            mlrun_constants.MLRunInternalLabels.dask_component: "worker",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
+            mlrun_constants.MLRunInternalLabels.function: "mydask",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
         worker_pod_name = "mlrun-mydask-d7656bc1-0pqbnc"
@@ -82,13 +83,13 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
         service_name = "mlrun-mydask-d7656bc1-0"
         service_labels = {
             "app": "dask",
-            "dask.org/cluster-name": "mlrun-mydask-d7656bc1-0",
-            "dask.org/component": "scheduler",
-            "mlrun/class": "dask",
-            "mlrun/function": "mydask",
-            "mlrun/project": self.project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
+            mlrun_constants.MLRunInternalLabels.dask_cluster_name: "mlrun-mydask-d7656bc1-0",
+            mlrun_constants.MLRunInternalLabels.dask_component: "scheduler",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
+            mlrun_constants.MLRunInternalLabels.function: "mydask",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
             "user": "root",
         }
 
@@ -155,7 +156,11 @@ class TestDaskjobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_scheduler_pod.metadata.namespace,
         )
         self._assert_delete_namespaced_services(
-            [self.completed_scheduler_pod.metadata.labels.get("dask.org/cluster-name")],
+            [
+                self.completed_scheduler_pod.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.dask_cluster_name
+                )
+            ],
             self.completed_scheduler_pod.metadata.namespace,
         )
         self._assert_list_namespaced_pods_calls(

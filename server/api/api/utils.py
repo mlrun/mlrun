@@ -15,10 +15,8 @@
 import asyncio
 import collections
 import copy
-import functools
 import json
 import re
-import time
 import traceback
 import typing
 import uuid
@@ -65,40 +63,6 @@ from server.api.utils.singletons.scheduler import get_scheduler
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
-
-
-def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
-    """
-    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
-    https://stackoverflow.com/a/71634221/5257501
-    """
-
-    class Result:
-        __slots__ = ("value", "death")
-
-        def __init__(self, value, death):
-            self.value = value
-            self.death = death
-
-    def decorator(func):
-        @functools.lru_cache(maxsize=maxsize, typed=typed)
-        def cached_func(*args, **kwargs):
-            value = func(*args, **kwargs)
-            death = time.monotonic() + ttl_seconds
-            return Result(value, death)
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            result = cached_func(*args, **kwargs)
-            if result.death < time.monotonic():
-                result.value = func(*args, **kwargs)
-                result.death = time.monotonic() + ttl_seconds
-            return result.value
-
-        wrapper.cache_clear = cached_func.cache_clear
-        return wrapper
-
-    return decorator
 
 
 def log_path(project, uid) -> Path:
@@ -1331,27 +1295,34 @@ async def _delete_function(
     )
 
     # update functions with deletion task id
-    await _update_functions_with_deletion_task_ids(
-        db_session, functions, project, background_task_name
+    await _update_functions_with_deletion_info(
+        functions, project, {"status.deletion_task_id": background_task_name}
     )
 
     # Since we request functions by a specific name and project,
     # in MLRun terminology, they are all just versions of the same function
     # therefore, it's enough to check the kind of the first one only
     if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        # filter functions which don't have a status
+        # it means that they aren't attached to the actual nuclio function
+        nuclio_functions = [function for function in functions if function["status"]]
+
         # generate Nuclio function names based on function tags
         nuclio_function_names = [
             mlrun.runtimes.nuclio.function.get_fullname(
                 function_name, project, function.get("metadata", {}).get("tag")
             )
-            for function in functions
+            for function in nuclio_functions
         ]
         # delete Nuclio functions associated with the function tags in batches
         failed_requests = await _delete_nuclio_functions_in_batches(
             auth_info, project, nuclio_function_names
         )
         if failed_requests:
-            error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
+            error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"
+            await _update_functions_with_deletion_info(
+                nuclio_functions, project, {"status.deletion_error": error_message}
+            )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 
     # delete the function from the database
@@ -1363,24 +1334,22 @@ async def _delete_function(
     )
 
 
-async def _update_functions_with_deletion_task_ids(
-    db_session, functions, project, background_task_name
-):
+async def _update_functions_with_deletion_info(functions, project, updates: dict):
     semaphore = asyncio.Semaphore(
         mlrun.mlconf.background_tasks.function_deletion_batch_size
     )
 
-    async def update_function_with_task_id(function):
+    async def update_function(function):
         async with semaphore:
             await run_in_threadpool(
-                server.api.crud.Functions().set_function_deletion_task_id,
-                db_session,
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().update_function,
                 function,
                 project,
-                background_task_name,
+                updates,
             )
 
-    tasks = [update_function_with_task_id(function) for function in functions]
+    tasks = [update_function(function) for function in functions]
     await asyncio.gather(*tasks)
 
 
@@ -1401,7 +1370,7 @@ async def _delete_nuclio_functions_in_batches(
                 await nuclio_client.delete_function(name=function, project_name=project)
 
                 config_map = k8s_helper.get_configmap(
-                    function, mlrun.common.constants.MLRUN_MODEL_CONF
+                    function, mlrun.common.constants.MLRUN_SERVING_CONF
                 )
                 if config_map:
                     k8s_helper.delete_configmap(config_map.metadata.name)
@@ -1431,8 +1400,6 @@ async def _delete_nuclio_functions_in_batches(
             if isinstance(result, tuple):
                 nuclio_name, error_message = result
                 if error_message:
-                    failed_requests.append(
-                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
-                    )
+                    failed_requests.append(error_message)
 
     return failed_requests

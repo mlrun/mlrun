@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import re
 import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
 import mlrun.common.schemas.artifact
 import mlrun.config
+import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
@@ -71,6 +73,29 @@ class ArtifactProducer:
 
     def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
+
+    @property
+    def uid(self):
+        return None
+
+    @staticmethod
+    def parse_uri(uri: str) -> tuple[str, str, str]:
+        """Parse artifact producer's uri
+
+        :param uri: artifact producer's uri in the format <project>/<uid>[-<iteration>]
+        :returns: tuple of project, uid, iteration
+        """
+        uri_pattern = mlrun.utils.regex.artifact_producer_uri_pattern
+        match = re.match(uri_pattern, uri)
+        if not match:
+            return "", "", ""
+        group_dict = match.groupdict()
+
+        return (
+            group_dict["project"] or "",
+            group_dict["uid"] or "",
+            group_dict["iteration"] or "",
+        )
 
 
 def dict_to_artifact(struct: dict) -> Artifact:
@@ -262,7 +287,7 @@ class ArtifactManager:
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
         target_path = template_artifact_path(
-            artifact_path=target_path, project=producer.project
+            artifact_path=target_path, project=producer.project, run_uid=producer.uid
         )
         item.target_path = target_path
 

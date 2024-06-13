@@ -86,7 +86,7 @@ def test_nothing(config):
 
 def create_yaml_config(**kw):
     tmp = NamedTemporaryFile(mode="wt", suffix=".yml", delete=False)
-    yaml.dump(kw, tmp, default_flow_style=False)
+    yaml.safe_dump(kw, tmp, default_flow_style=False)
     tmp.flush()
     return tmp.name
 

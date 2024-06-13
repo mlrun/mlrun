@@ -19,6 +19,9 @@ from mlrun_pipelines.utils import apply_kfp
 
 import mlrun
 
+# Disable the warning about reusing components
+kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+
 
 class KfpAdapterMixin:
     def apply(self, modify):

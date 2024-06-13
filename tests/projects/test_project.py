@@ -28,8 +28,10 @@ import pytest
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
+import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -991,15 +993,26 @@ def test_import_artifact_retain_producer(rundb_mock):
     # create an artifact with a 'run' producer
     artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
     run_name = "my-run"
-    run_tag = "some-tag"
+    run_tag = "sometag123"
 
     # we set the producer as dict so the export will work
     artifact.producer = mlrun.artifacts.ArtifactProducer(
         kind="run",
         project=project_1.name,
         name=run_name,
-        tag=run_tag,
     ).get_meta()
+
+    # imitate the artifact being produced by a run with uri and without a tag
+    artifact.producer["uri"] = f"{project_1.name}/{run_tag}"
+    artifact.producer["project"] = project_1.name
+
+    # the uri is parsed when importing the artifact, so we set the expected producer
+    # also, the project is removed from the producer when importing
+    expected_producer = {
+        "kind": "run",
+        "name": run_name,
+        "tag": run_tag,
+    }
 
     # export the artifact
     artifact_path = f"{base_path}/my-artifact.yaml"
@@ -1008,7 +1021,7 @@ def test_import_artifact_retain_producer(rundb_mock):
     # import the artifact to another project
     new_key = "y"
     imported_artifact = project_2.import_artifact(artifact_path, new_key)
-    assert imported_artifact.producer == artifact.producer
+    assert imported_artifact.producer == expected_producer
 
     # set the artifact on the first project
     project_1.set_artifact(artifact.key, artifact)
@@ -1021,7 +1034,7 @@ def test_import_artifact_retain_producer(rundb_mock):
 
     # make sure the artifact was registered with the new key
     loaded_artifact = project_3.get_artifact(new_key)
-    assert loaded_artifact.producer == artifact.producer
+    assert loaded_artifact.producer == expected_producer
 
 
 def test_replace_exported_artifact_producer(rundb_mock):
@@ -1261,7 +1274,7 @@ def test_function_receives_project_default_function_node_selector():
     )
     assert non_enriched_function.spec.node_selector == {}
 
-    proj1.spec.default_function_node_selector = default_function_node_selector
+    proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
     assert enriched_function.spec.node_selector == default_function_node_selector
 
@@ -1813,10 +1826,13 @@ def test_create_api_gateway_valid(
     upstreams,
     authentication_mode,
 ):
+    mlrun.mlconf.igz_version = "3.6.0"
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
-            labels={"nuclio.io/project-name": "project-name"},
+            labels={
+                mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+            },
         ),
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
@@ -1937,7 +1953,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test",
@@ -1953,7 +1971,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test2": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test2",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test2",
@@ -1974,7 +1994,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[0].name == "test"
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
-    assert gateways[0].spec.functions == ["my-func1"]
+    assert gateways[0].spec.functions == ["project-name/my-func1"]
 
     assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
 
@@ -2272,39 +2292,6 @@ class TestModelMonitoring:
     @pytest.fixture
     def project() -> mlrun.projects.MlrunProject:
         return unittest.mock.Mock()
-
-    @staticmethod
-    @pytest.mark.parametrize(
-        ("delete_app", "expected_deleted_fns"),
-        [
-            (
-                True,
-                mm_consts.constants.MonitoringFunctionNames.list()
-                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
-            ),
-            (False, mm_consts.constants.MonitoringFunctionNames.list()),
-        ],
-    )
-    def test_disable(
-        project: mlrun.projects.MlrunProject,
-        delete_app: bool,
-        expected_deleted_fns: list[str],
-    ) -> None:
-        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
-        with unittest.mock.patch(
-            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
-        ):
-            mlrun.projects.MlrunProject.disable_model_monitoring(
-                project, delete_histogram_data_drift_app=delete_app
-            )
-
-        deleted_fns = [
-            call_args.kwargs["name"]
-            for call_args in db_mock.delete_function.call_args_list
-        ]
-        assert (
-            deleted_fns == expected_deleted_fns
-        ), "The deleted functions are different than expexted"
 
     @staticmethod
     def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:

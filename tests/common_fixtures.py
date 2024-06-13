@@ -32,6 +32,7 @@ import v3io.dataplane.object
 import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
@@ -436,7 +437,7 @@ class RunDBMock:
     ):
         key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
         api_gateway.metadata.labels = {
-            mlrun.runtimes.nuclio.api_gateway.PROJECT_NAME_LABEL: project
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name: project
         }
         self._api_gateways[key] = api_gateway
         return api_gateway

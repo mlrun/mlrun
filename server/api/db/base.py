@@ -214,6 +214,16 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_grouped_artifacts(
+        self,
+        session,
+        project: str = mlrun.mlconf.default_project,
+        key_tag_iteration_pairs: list[tuple] = "",
+        producer_id: str = None,
+    ):
+        pass
+
+    @abstractmethod
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
     ):

@@ -150,8 +150,8 @@ class Runs(
 
         # Since we don't store the artifacts in the run body, we need to fetch them separately
         # The client may be using them as in pipeline as input for the next step
-        is_workflow = run["metadata"].get("labels", {}).get("workflow")
-        if not is_workflow:
+        workflow_id = run["metadata"].get("labels", {}).get("workflow")
+        if not workflow_id:
             artifacts = self._list_run_artifacts(
                 db_session, iter, producer_id=uid, project=project
             )
@@ -160,7 +160,9 @@ class Runs(
             # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
             # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
             # filters by producer URI in memory.
-            artifacts = self._get_artifacts_from_uris(db_session, project, run)
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
 
         if artifacts or "artifacts" in run.get("status", {}):
             run.setdefault("status", {})
@@ -459,35 +461,36 @@ class Runs(
 
     @staticmethod
     def _get_artifacts_from_uris(
-        db_session: sqlalchemy.orm.Session, project: str, run: dict
+        db_session: sqlalchemy.orm.Session, project: str, producer_id: str, run: dict
     ):
         """Fetch run artifacts by their artifact URIs in the run status"""
-        artifacts = []
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
+        key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, producer_id = mlrun.utils.parse_artifact_uri(
+            project, key, iteration, tag, _ = mlrun.utils.parse_artifact_uri(
                 uri, project
             )
-            artifact = server.api.crud.Artifacts().get_artifact(
-                db_session,
-                key=key,
-                tag=tag,
-                iter=iteration,
+            key_tag_iteration_pairs.append((key, tag, iteration))
+
+        artifacts = server.api.crud.Artifacts().list_grouped_artifacts(
+            db_session,
+            project,
+            key_tag_iteration_pairs,
+            producer_id,
+        )
+
+        if len(artifacts) != len(artifact_uris):
+            missing_artifacts = set(artifact_uris.keys()) - {
+                artifact.key for artifact in artifacts
+            }
+            logger.warning(
+                "Some artifacts are missing from final run response, they may have been deleted",
                 project=project,
+                run_uid=run.get("metadata", {}).get("uid"),
                 producer_id=producer_id,
-                raise_on_not_found=False,
+                missing_artifacts=missing_artifacts,
             )
-            if artifact:
-                artifacts.append(artifact)
-            else:
-                logger.warning(
-                    "Failed to fetch run artifact, it may have been deleted",
-                    project=project,
-                    key=key,
-                    tag=tag,
-                    iteration=iteration,
-                )
         return artifacts
 
     @staticmethod

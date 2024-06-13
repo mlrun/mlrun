@@ -436,7 +436,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 db,
                 artifact["spec"]["db_key"],
                 artifact,
+                iter=artifact["metadata"]["iter"],
                 project=project,
+                producer_id=workflow_uid,
             )
 
         server.api.crud.Runs().store_run(
@@ -612,7 +614,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "tree": workflow_uid or run_uid,
                     "uid": f"uid{i}",
                     "project": project,
-                    "iter": iter,
+                    "iter": iter or 0,
+                    "tag": "latest",
                 },
                 "spec": {
                     "db_key": f"db_key_{key_prefix}{i}",

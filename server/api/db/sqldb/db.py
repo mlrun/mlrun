@@ -700,6 +700,30 @@ class SQLDB(DBInterface):
 
         return artifacts
 
+    def list_grouped_artifacts(
+        self,
+        session,
+        project: str = mlrun.mlconf.default_project,
+        key_tag_iteration_pairs: list[tuple] = "",
+        producer_id: str = None,
+    ):
+        project = project or config.default_project
+
+        artifact_records = self._find_grouped_artifacts(
+            session,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
+            producer_id=producer_id,
+        )
+
+        artifacts = ArtifactList()
+        for artifact, artifact_tag in artifact_records:
+            artifact_struct = artifact.full_object
+            self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            artifacts.append(artifact_struct)
+
+        return artifacts
+
     def read_artifact(
         self,
         session,
@@ -1307,6 +1331,44 @@ class SQLDB(DBInterface):
             return list({artifact for artifact, _ in artifacts_and_tags})
 
         return artifacts_and_tags
+
+    def _find_grouped_artifacts(
+        self,
+        session: Session,
+        project: str = mlrun.mlconf.default_project,
+        key_tag_iteration_pairs: list[tuple] = "",
+        producer_id: str = None,
+    ) -> list[tuple[ArtifactV2, str]]:
+        """
+        Find specific artifacts matching the given (key, tag, iteration) tuples.
+        :param session:                 DB session
+        :param project:                 Project name
+        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :param producer_id:             The artifact producer ID to filter by
+        :return: a list of tuples of (ArtifactV2, tag_name)
+        """
+        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        if project:
+            query = query.filter(ArtifactV2.project == project)
+        if producer_id:
+            query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+
+        tuples_filter = []
+        for key, tag, iteration in key_tag_iteration_pairs:
+            iteration = iteration or 0
+            tag = tag or "latest"
+            tuples_filter.append(
+                (
+                    (ArtifactV2.key == key)
+                    & (ArtifactV2.Tag.name == tag)
+                    & (ArtifactV2.iteration == iteration)
+                )
+            )
+
+        query = query.filter(or_(*tuples_filter))
+        return query.all()
 
     def _add_artifact_name_query(self, query, name=None):
         if not name:

@@ -661,7 +661,9 @@ default_config = {
         "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
-        "concurrent_start_logs_workers": 15,
+        "concurrent_start_logs_workers": 50,
+        # the number of runs for which to start logs on api startup
+        "start_logs_startup_run_limit": 150,
         # the time in hours in which to start log collection from.
         # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)

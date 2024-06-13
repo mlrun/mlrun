@@ -708,7 +708,6 @@ class SQLDB(DBInterface):
         key_tag_iteration_pairs: list[tuple] = "",
     ):
         project = project or mlrun.mlconf.default_project
-
         artifact_records = self._find_artifacts_for_producer_id(
             session,
             producer_id=producer_id,

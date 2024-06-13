@@ -473,7 +473,7 @@ class Runs(
             )
             if artifact_producer_id != producer_id:
                 logger.warning(
-                    "Artifact producer ID does not match the run/workflow ID, skipping artiafct",
+                    "Artifact producer ID does not match the run/workflow ID, skipping artifact",
                     project=project,
                     key=key,
                     tag=tag,

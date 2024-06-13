@@ -218,7 +218,7 @@ class DBInterface(ABC):
         self,
         session,
         producer_id: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str,
         key_tag_iteration_pairs: list[tuple] = "",
     ):
         pass

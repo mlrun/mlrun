@@ -589,7 +589,6 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
 class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-gateways"
     gw_name = "test-gateway"
-    db = mlrun.get_run_db()
 
     def custom_setup(self):
         self.f1 = self._deploy_function(suffix="1")

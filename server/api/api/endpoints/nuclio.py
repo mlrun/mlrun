@@ -306,7 +306,7 @@ async def deploy_status(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
-    api_gateways_hosts = await _get_api_gateways_urls_for_function(
+    api_gateways_urls = await _get_api_gateways_urls_for_function(
         auth_info, project, name, tag
     )
     return await run_in_threadpool(
@@ -319,7 +319,7 @@ async def deploy_status(
         tag,
         last_log_timestamp,
         verbose,
-        api_gateways_hosts,
+        api_gateways_urls,
     )
 
 
@@ -547,7 +547,7 @@ def _handle_nuclio_deploy_status(
     tag: str,
     last_log_timestamp: int,
     verbose: bool,
-    api_gateway_hosts: list[str],
+    api_gateway_urls: list[str],
 ):
     (
         state,
@@ -574,8 +574,8 @@ def _handle_nuclio_deploy_status(
     external_invocation_urls = status.get("externalInvocationUrls", [])
 
     # add api gateway's URLs
-    if api_gateway_hosts:
-        external_invocation_urls += api_gateway_hosts
+    if api_gateway_urls:
+        external_invocation_urls += api_gateway_urls
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -642,6 +642,7 @@ async def _get_api_gateways_urls_for_function(
         api_gateways = await client.list_api_gateways(project)
         # if there are any API gateways, filter the ones associated with the function
         # extract the hosts from the API gateway specifications and return them as a list
+        # TODO: optimise the way we request api gateways by filtering on Nuclio side
         return (
             [
                 api_gateway.spec.host

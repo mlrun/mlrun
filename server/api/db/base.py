@@ -20,9 +20,9 @@ from deprecated import deprecated
 import mlrun.alerts
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.lists
 import mlrun.model
-from mlrun.common.types import Operation
 
 
 class DBError(Exception):
@@ -343,7 +343,7 @@ class DBInterface(ABC):
         project: str = "",
         tag: str = "",
         hash_key: str = "",
-        operation=Operation.ADD,
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
     ):
         pass
 

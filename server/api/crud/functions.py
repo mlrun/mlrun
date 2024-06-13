@@ -16,13 +16,13 @@
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.runtime_handlers
 import server.api.utils.singletons.db
-from mlrun.common.types import Operation
 
 
 class Functions(
@@ -172,6 +172,7 @@ class Functions(
             project=project,
             tag=tag,
             hash_key=hash_key,
+            operation=mlrun.common.types.Operation.ADD,
         )
 
     def delete_function_external_invocation_url(
@@ -191,5 +192,5 @@ class Functions(
             project=project,
             tag=tag,
             hash_key=hash_key,
-            operation=Operation.REMOVE,
+            operation=mlrun.common.types.Operation.REMOVE,
         )

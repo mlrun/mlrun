@@ -589,6 +589,7 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
 class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
     project_name = "nuclio-mlrun-gateways"
     gw_name = "test-gateway"
+    db = mlrun.get_run_db()
 
     def custom_setup(self):
         self.f1 = self._deploy_function(suffix="1")
@@ -599,6 +600,10 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+        )
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
@@ -606,6 +611,11 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(credentials=("test", "test"), verify=False)
         assert res.status_code == 200
+
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+        )
         self._cleanup_gateway()
 
         api_gateway = self._get_basic_gateway()
@@ -613,6 +623,14 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
         res = api_gateway.invoke(verify=False)
         assert res.status_code == 200
+
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+        )
+        self._check_functions_external_invocation_urls(
+            function_name=self.f2.metadata.name, expected_url=api_gateway.spec.host
+        )
 
     def _get_basic_gateway(self):
         return mlrun.runtimes.nuclio.api_gateway.APIGateway(
@@ -626,6 +644,13 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
     def _cleanup_gateway(self):
         self.project.delete_api_gateway(self.gw_name)
+
+    def _check_functions_external_invocation_urls(
+        self, function_name: str, expected_url: str
+    ):
+        function = self.project.get_function(function_name)
+        urls = function.to_dict().get("status", {}).get("external_invocation_urls")
+        assert expected_url in urls
 
     def _deploy_function(self, replicas=1, suffix=""):
         filename = str(self.assets_path / "nuclio_function.py")

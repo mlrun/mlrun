@@ -37,12 +37,12 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
-from mlrun.common.types import Operation
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -1750,7 +1750,7 @@ class SQLDB(DBInterface):
         project: str = "",
         tag: str = "",
         hash_key: str = "",
-        operation=Operation.ADD,
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
     ):
         """
         This function updates the external invocation URLs of a function within a project.
@@ -1783,7 +1783,7 @@ class SQLDB(DBInterface):
 
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == Operation.ADD:
+        if operation == mlrun.common.types.Operation.ADD:
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
@@ -1793,7 +1793,7 @@ class SQLDB(DBInterface):
             if url not in existing_invocation_urls:
                 existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        elif operation == Operation.REMOVE:
+        elif operation == mlrun.common.types.Operation.REMOVE:
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,

@@ -455,7 +455,7 @@ async def build_status(
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
-        api_gateways_hosts = await _get_api_gateways_urls_for_function(
+        api_gateways_urls = await _get_api_gateways_urls_for_function(
             auth_info, project, name, tag
         )
         return await run_in_threadpool(
@@ -468,7 +468,7 @@ async def build_status(
             tag,
             last_log_timestamp,
             verbose,
-            api_gateways_hosts,
+            api_gateways_urls,
         )
 
     return await run_in_threadpool(

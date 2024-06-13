@@ -163,8 +163,10 @@ class TestDBFS(TestMLRunSystem):
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
         measurements.ingest(source=source)
         target_file_path = measurements.get_target_path()
+        # Avoids adding date columns when using a folder as the target.
+        to_dataframe_dict = {"columns": list(expected.columns)} if use_folder else {}
         result = source_class(path=target_file_path, **reader_kwargs).to_dataframe(
-            columns=list(expected.columns)
+            **to_dataframe_dict
         )
         if drop_index:
             result.reset_index(inplace=True, drop=False)

@@ -1343,7 +1343,7 @@ class SQLDB(DBInterface):
         :param producer_id:             The artifact producer ID to filter by
         :param project:                 Project name to filter by
         :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
-        :return: a list of tuples of (ArtifactV2, tag_name)
+        :return: A list of tuples of (ArtifactV2, tag_name)
         """
         query = session.query(ArtifactV2, ArtifactV2.Tag.name)
         if project:

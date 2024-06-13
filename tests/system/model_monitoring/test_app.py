@@ -706,6 +706,9 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
     def test_model_monitoring_crud(self) -> None:
         import v3io.dataplane
 
+        all_functions = mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
@@ -731,9 +734,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             overwrite=False,
         )
         # check that all the function are still deployed
-        for name in mm_constants.MonitoringFunctionNames.list() + [
-            mm_constants.HistogramDataDriftApplicationConstants.NAME
-        ]:
+        for name in mall_functions:
             func = self.project.get_function(
                 key=name,
                 ignore_cache=True,
@@ -748,9 +749,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         # check that all the function are in building state
-        for name in mm_constants.MonitoringFunctionNames.list() + [
-            mm_constants.HistogramDataDriftApplicationConstants.NAME
-        ]:
+        for name in all_functionsֿ:
             func = self.project.get_function(
                 key=name,
                 ignore_cache=True,
@@ -758,10 +757,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             func._get_db().get_nuclio_deploy_status(func, verbose=False)
             assert func.status.state == "building"
 
-        self.project._wait_for_functions_deployment(
-            mm_constants.MonitoringFunctionNames.list()
-            + [mm_constants.HistogramDataDriftApplicationConstants.NAME]
-        )
+        self.project._wait_for_functions_deployment(all_functions)
 
         self.project.update_model_monitoring_controller(
             image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True

@@ -42,6 +42,6 @@ def generate_api_gateway_name(project: str, name: str) -> str:
     :param project: project name
     :param name: api gateway name
 
-    :return: "{project}-{name}" if project name is given else name
+    :return: the resolved api gateway name
     """
     return f"{project}-{name}" if project else name

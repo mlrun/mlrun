@@ -2319,18 +2319,19 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv",
             path=path,
         )
+        folder_path = f"v3io:///projects/{self.project_name}/purge_test_{uuid.uuid4()}"
         targets = [
             CSVTarget(),
-            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
+            CSVTarget(name="specified-path", path=f"{folder_path}/csv-purge-test.csv"),
             ParquetTarget(
                 name="parquets_dir_target",
                 partitioned=True,
                 partition_cols=["timestamp"],
-                path=f"v3io:///bigdata/parquet_folder_target_{uuid.uuid4()}",
+                path=f"{folder_path}/parquet_folder_target",
             ),
             ParquetTarget(
                 name="parquet_file_target",
-                path=f"v3io:///bigdata/parquet.{uuid.uuid4()}",
+                path=f"{folder_path}/file.parquet",
             ),
             NoSqlTarget(),
         ]

@@ -217,6 +217,16 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ):
+        pass
+
+    @abstractmethod
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
     ):

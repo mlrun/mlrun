@@ -19,8 +19,10 @@ from datetime import datetime, timezone
 
 import orjson
 from sqlalchemy import (
+    BLOB,
     BOOLEAN,
     JSON,
+    TIMESTAMP,
     Column,
     ForeignKey,
     Index,
@@ -34,29 +36,12 @@ from sqlalchemy.orm import relationship
 
 import mlrun.common.schemas
 import mlrun.utils.db
-from server.api.utils.db.sql_types import SQLTypesUtil
+from server.api.utils.db.sql_collation import SQLCollationUtil
+
+from .common import post_table_definitions
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-
-
-_tagged = None
-_labeled = None
-_with_notifications = None
-_classes = None
-
-
-def post_table_definitions(base_cls):
-    global _tagged
-    global _labeled
-    global _with_notifications
-    global _classes
-    _tagged = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Tag")]
-    _labeled = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Label")]
-    _with_notifications = [
-        cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
-    ]
-    _classes = [cls for cls in base_cls.__subclasses__()]
 
 
 def make_label(table):
@@ -68,8 +53,8 @@ def make_label(table):
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        value = Column(String(255, collation=SQLCollationUtil.collation()))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
 
         def get_identifier_string(self) -> str:
@@ -86,8 +71,8 @@ def make_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
 
     return Tag
@@ -103,10 +88,10 @@ def make_tag_v2(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -115,11 +100,6 @@ def make_tag_v2(table):
 
 
 def make_artifact_tag(table):
-    """
-    For artifacts, we cannot use tag_v2 because different artifacts with the same key can have the same tag.
-    therefore we need to use the obj_id as the unique constraint.
-    """
-
     class ArtifactTag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
@@ -127,10 +107,10 @@ def make_artifact_tag(table):
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(String(255, collation=SQLTypesUtil.collation()))
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -142,38 +122,46 @@ def make_notification(table):
     class Notification(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_notifications"
         __table_args__ = (
-            UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
+            UniqueConstraint(
+                "name",
+                "parent_id",
+                name=f"_{table}_notifications_uc",
+            ),
         )
 
         id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        kind = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         message = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
         severity = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
-        when = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         condition = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
         secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
-
-        # TODO: Separate table for notification state.
-        #   Currently, we are only supporting one notification being sent per DB row (either on completion or on error).
-        #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
-        #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
-        #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
         sent_time = Column(
-            SQLTypesUtil.timestamp(),
+            TIMESTAMP(),
             nullable=True,
         )
-        status = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        reason = Column(String(255, collation=SQLTypesUtil.collation()), nullable=True)
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        reason = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=True
+        )
 
     return Notification
 
@@ -196,15 +184,13 @@ with warnings.catch_warnings():
         Tag = make_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        updated = Column(SQLTypesUtil.timestamp())
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        updated = Column(TIMESTAMP)
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        body = Column(BLOB)
+        labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
@@ -212,7 +198,7 @@ with warnings.catch_warnings():
     class ArtifactV2(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "artifacts_v2"
         __table_args__ = (
-            UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
             Index(
                 "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
@@ -225,22 +211,16 @@ with warnings.catch_warnings():
         Tag = make_artifact_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        key = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        kind = Column(String(255, collation=SQLTypesUtil.collation()), index=True)
-        producer_id = Column(String(255, collation=SQLTypesUtil.collation()))
+        key = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        _full_object = Column("object", SQLTypesUtil.blob())
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        _full_object = Column("object", BLOB)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
@@ -267,15 +247,13 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-        updated = Column(SQLTypesUtil.timestamp())
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        body = Column(BLOB)
+        updated = Column(TIMESTAMP)
+        labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -284,10 +262,10 @@ with warnings.catch_warnings():
         __tablename__ = "logs"
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
+        body = Column(BLOB)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
@@ -296,7 +274,7 @@ with warnings.catch_warnings():
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
-            Index("idx_runs_project_id", "id", "project", unique=True),
+            Index("idx_runs_project_id", "id", "project"),
         )
 
         Label = make_label(__tablename__)
@@ -304,25 +282,23 @@ with warnings.catch_warnings():
         Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
         name = Column(
-            String(255, collation=SQLTypesUtil.collation()), default="no-name"
+            String(255, collation=SQLCollationUtil.collation()), default="no-name"
         )
         iteration = Column(Integer)
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        body = Column(SQLTypesUtil.blob())
-        start_time = Column(SQLTypesUtil.timestamp())
-        updated = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
+        body = Column(BLOB)
+        start_time = Column(TIMESTAMP)
         # requested logs column indicates whether logs were requested for this run
         # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
         # False - logs were not requested for this run
         # True - logs were requested for this run
-        requested_logs = Column(BOOLEAN, default=False, index=True)
-
-        labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
+        requested_logs = Column(BOOLEAN)
+        updated = Column(TIMESTAMP, default=datetime.utcnow)
+        labels = relationship(Label)
         notifications = relationship(Notification, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
@@ -335,20 +311,16 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        error = Column(String(255, collation=SQLTypesUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        error = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
         def get_identifier_string(self) -> str:
@@ -362,20 +334,22 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        kind = Column(String(255, collation=SQLTypesUtil.collation()))
-        desired_state = Column(String(255, collation=SQLTypesUtil.collation()))
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        creation_time = Column(SQLTypesUtil.timestamp())
-        cron_trigger_str = Column(String(255, collation=SQLTypesUtil.collation()))
-        last_run_uri = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        desired_state = Column(String(255, collation=SQLCollationUtil.collation()))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        creation_time = Column(TIMESTAMP)
+        cron_trigger_str = Column(String(255, collation=SQLCollationUtil.collation()))
+        last_run_uri = Column(String(255, collation=SQLCollationUtil.collation()))
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        struct = Column(SQLTypesUtil.blob())
+        struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
-        next_run_time = Column(SQLTypesUtil.timestamp())
+        next_run_time = Column(TIMESTAMP)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"
@@ -409,7 +383,7 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_users_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"
@@ -420,17 +394,16 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_projects_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        description = Column(String(255, collation=SQLTypesUtil.collation()))
-        owner = Column(String(255, collation=SQLTypesUtil.collation()))
-        source = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        description = Column(String(255, collation=SQLCollationUtil.collation()))
+        owner = Column(String(255, collation=SQLCollationUtil.collation()))
+        source = Column(String(255, collation=SQLCollationUtil.collation()))
         # the attribute name used to be _spec which is just a wrong naming, the attribute was renamed to _full_object
         # leaving the column as is to prevent redundant migration
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
-        _full_object = Column("spec", SQLTypesUtil.blob())
-        created = Column(SQLTypesUtil.timestamp(), default=datetime.utcnow)
-        default_function_node_selector = Column("default_function_node_selector", JSON)
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
+        _full_object = Column("spec", BLOB)
+        created = Column(TIMESTAMP, default=datetime.utcnow)
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
         users = relationship(User, secondary=project_users)
 
         Label = make_label(__tablename__)
@@ -454,8 +427,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value_type = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        value_type = Column(String(255, collation=SQLCollationUtil.collation()))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -468,8 +441,8 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         feature_set_id = Column(Integer, ForeignKey("feature_sets.id"))
 
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        value_type = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        value_type = Column(String(255, collation=SQLCollationUtil.collation()))
 
         Label = make_label(__tablename__)
         labels = relationship(Label, cascade="all, delete-orphan")
@@ -484,18 +457,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
 
         _full_object = Column("object", JSON)
 
@@ -503,7 +470,6 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
 
         features = relationship(Feature, cascade="all, delete-orphan")
         entities = relationship(Entity, cascade="all, delete-orphan")
@@ -518,7 +484,6 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
     class FeatureVector(Base, mlrun.utils.db.BaseModel):
@@ -528,18 +493,12 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        state = Column(String(255, collation=SQLTypesUtil.collation()))
-        uid = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
 
         _full_object = Column("object", JSON)
 
@@ -547,7 +506,6 @@ with warnings.catch_warnings():
         Tag = make_tag_v2(__tablename__)
 
         labels = relationship(Label, cascade="all, delete-orphan")
-        tags = relationship(Tag, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -559,7 +517,6 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
     class HubSource(Base, mlrun.utils.db.BaseModel):
@@ -567,16 +524,10 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("name", name="_hub_sources_uc"),)
 
         id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
         index = Column(Integer)
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
         _full_object = Column("object", JSON)
 
@@ -590,7 +541,6 @@ with warnings.catch_warnings():
 
         @full_object.setter
         def full_object(self, value):
-            # TODO - convert to pickle, to avoid issues with non-json serializable fields such as datetime
             self._full_object = json.dumps(value, default=str)
 
     class DataVersion(Base, mlrun.utils.db.BaseModel):
@@ -598,11 +548,8 @@ with warnings.catch_warnings():
         __table_args__ = (UniqueConstraint("version", name="_versions_uc"),)
 
         id = Column(Integer, primary_key=True)
-        version = Column(String(255, collation=SQLTypesUtil.collation()))
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
+        version = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
         def get_identifier_string(self) -> str:
             return f"{self.version}"
@@ -613,106 +560,12 @@ with warnings.catch_warnings():
             UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
         )
 
-        id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()))
-        project = Column(String(255, collation=SQLTypesUtil.collation()))
-        type = Column(String(255, collation=SQLTypesUtil.collation()))
-        _full_object = Column("object", JSON)
-
-        @property
-        def full_object(self):
-            if self._full_object:
-                return json.loads(self._full_object)
-
-        @full_object.setter
-        def full_object(self, value):
-            self._full_object = json.dumps(value, default=str)
-
-    class PaginationCache(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "pagination_cache"
-
-        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
-        user = Column(String(255, collation=SQLTypesUtil.collation()))
-        function = Column(String(255, collation=SQLTypesUtil.collation()))
-        current_page = Column(Integer)
-        page_size = Column(Integer)
-        kwargs = Column(JSON)
-        last_accessed = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-
-    class AlertState(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("id", "parent_id", name="alert_states_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        count = Column(Integer)
-        created = Column(
-            SQLTypesUtil.timestamp(),
-            default=datetime.now(timezone.utc),
-        )
-        last_updated = Column(
-            SQLTypesUtil.timestamp(),
-            default=None,
-        )
-        active = Column(BOOLEAN, default=False)
-
-        parent_id = Column(Integer, ForeignKey("alert_configs.id"))
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        type = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
 
         _full_object = Column("object", JSON)
-
-        @property
-        def full_object(self):
-            if self._full_object:
-                return json.loads(self._full_object)
-
-        @full_object.setter
-        def full_object(self, value):
-            self._full_object = json.dumps(value, default=str)
-
-    class AlertConfig(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_configs"
-        __table_args__ = (
-            UniqueConstraint("project", "name", name="_alert_configs_uc"),
-        )
-
-        Notification = make_notification(__tablename__)
-
-        id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-        project = Column(
-            String(255, collation=SQLTypesUtil.collation()), nullable=False
-        )
-
-        notifications = relationship(Notification, cascade="all, delete-orphan")
-        alerts = relationship(AlertState, cascade="all, delete-orphan")
-
-        _full_object = Column("object", JSON)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.name}"
-
-        @property
-        def full_object(self):
-            if self._full_object:
-                return json.loads(self._full_object)
-
-        @full_object.setter
-        def full_object(self, value):
-            self._full_object = json.dumps(value, default=str)
-
-    class AlertTemplate(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "alert_templates"
-        __table_args__ = (UniqueConstraint("name", name="_alert_templates_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        name = Column(String(255, collation=SQLTypesUtil.collation()), nullable=False)
-
-        _full_object = Column("object", JSON)
-
-        def get_identifier_string(self) -> str:
-            return f"{self.name}"
 
         @property
         def full_object(self):

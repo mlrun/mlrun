@@ -322,8 +322,8 @@ class ServingRuntime(RemoteRuntime):
         :param batch:               Micro batch size (send micro batches of N records at a time).
         :param sample:              Sample size (send only one of N records).
         :param stream_args:         Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param enable_tracking:     Enabled/ Disable tracking on current serving runtime.
-                                    Default True (enabling tracking).
+        :param enable_tracking:     Enabled/Disable model-monitoring tracking.
+                                    Default True (tracking enabled).
 
                                 example::
 

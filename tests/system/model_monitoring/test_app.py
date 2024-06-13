@@ -1009,7 +1009,7 @@ class TestAllKindOfServing(TestMLRunSystem):
 class TestTracking(TestAllKindOfServing):
     project_name = "test-tracking"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

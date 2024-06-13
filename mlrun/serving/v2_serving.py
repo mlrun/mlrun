@@ -543,15 +543,15 @@ def _init_endpoint_record(
     ).uid
 
     model_ep = None
-    # If model endpoint object was found in DB, skip the creation process.
+
     try:
         model_ep = mlrun.get_run_db().get_model_endpoint(
             project=project, endpoint_id=uid
         )
     except mlrun.errors.MLRunNotFoundError:
-        logger.info("Creating a new model endpoint record", endpoint_id=uid)
         try:
             if model.context.server.track_models:
+                logger.debug("Creating a new model endpoint record", endpoint_id=uid)
                 model_endpoint = mlrun.common.schemas.ModelEndpoint(
                     metadata=mlrun.common.schemas.ModelEndpointMetadata(
                         project=project, labels=model.labels, uid=uid
@@ -594,15 +594,20 @@ def _init_endpoint_record(
         )
         != model.context.server.track_models
     ):
+        monitoring_mode = (
+            mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+            if model.context.server.track_models
+            else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
         db = mlrun.get_run_db()
         db.patch_model_endpoint(
             project=project,
             endpoint_id=uid,
-            attributes={
-                "monitoring_mode": mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                if model.context.server.track_models
-                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
-            },
+            attributes={"monitoring_mode": monitoring_mode},
+        )
+        logger.debug(
+            f"Updating model endpoint monitoring_mode to {monitoring_mode}",
+            endpoint_id=uid,
         )
 
     return uid

@@ -2109,7 +2109,7 @@ class SQLDB(DBInterface):
         project: str,
         names: typing.Union[str, list[str]],
     ):
-        for cls in related_tables + [main_table]:
+        for cls in related_tables:
             logger.debug(f"Removing from {cls}", project=project, name=names)
 
             # The select is mandatory for sqlalchemy 1.4 because
@@ -2144,7 +2144,24 @@ class SQLDB(DBInterface):
                 project=project,
                 name=names,
             )
+        if project != "*":
+            query = session.query(main_table).filter(
+                and_(
+                    main_table.project == project,
+                    or_(main_table.name == name for name in names),
+                )
+            )
+        else:
+            query = session.query(main_table).filter(
+                or_(main_table.name == name for name in names),
+            )
 
+        count = query.delete(synchronize_session=False)
+        logger.debug(
+            f"Removed {count} rows from {main_table} table",
+            project=project,
+            name=names,
+        )
         session.commit()
 
     def _get_schedule_record(

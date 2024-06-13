@@ -3320,7 +3320,7 @@ class HTTPRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        overwrite: bool = False,
+        rebuild_images: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -3330,14 +3330,14 @@ class HTTPRunDB(RunDBInterface):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param project:     Project name.
-        :param base_period: The time period in minutes in which the model monitoring controller function
-                            triggers. By default, the base period is 10 minutes.
-        :param image:       The image of the model monitoring controller, writer & monitoring
-                            stream functions, which are real time nuclio functions.
-                            By default, the image is mlrun/mlrun.
+        :param project:                         Project name.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function triggers. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer & monitoring
+                                                stream functions, which are real time nuclio functions.
+                                                By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param overwrite:   If True, it would overwrite the existing model monitoring functions.
+        :param rebuild_images:                  If True, it would overwrite the existing model monitoring functions.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
@@ -3346,7 +3346,7 @@ class HTTPRunDB(RunDBInterface):
                 "base_period": base_period,
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "overwrite": overwrite,
+                "rebuild_images": rebuild_images,
             },
         )
 

@@ -731,10 +731,10 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=False,
-            overwrite=False,
+            rebuild_images=False,
         )
         # check that all the function are still deployed
-        for name in mall_functions:
+        for name in all_functions:
             func = self.project.get_function(
                 key=name,
                 ignore_cache=True,
@@ -745,11 +745,11 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=False,
-            overwrite=True,
+            rebuild_images=True,
         )
 
         # check that all the function are in building state
-        for name in all_functionsֿ:
+        for name in all_functions:
             func = self.project.get_function(
                 key=name,
                 ignore_cache=True,

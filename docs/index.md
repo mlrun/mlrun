@@ -1,6 +1,5 @@
 (using-mlrun)=
-# Using MLRun 
-
+# Using MLRun
 
 MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
@@ -8,11 +7,99 @@ With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun 
 Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, 
 
 
-This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
+This page explains how MLRun addresses the [**GenAI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
-<a id="mlops-tasks"></a>
+
+## GenAI tasks
+
+`````{div} 
+
+````{grid} 4 
+:gutter: 2
+
+
+```{grid-item-card} Data management
+:text-align: center
+:link: .html
+```
+
+```{grid-item-card} Development 
+:text-align: center
+:link: .html
+```
+
+```{grid-item-card} Deployment
+:text-align: center
+:link: .html
+```
+
+```{grid-item-card} Live Ops
+:text-align: center
+:link: .html
+```
+
+````
+
+`````
+
+
+The [**GenAI development workflow**](./genai/genai-flow.html) section describes the different tasks and stages in detail.
+
+### Data management
+
+
+MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+Removing inapropriate data at an early stage saves resources that would otherwise be required later on.
+
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Name <.html>`
+
+### Development
+Use MLRun to build an automated ML pipeline to: collect data, 
+preprocess (prepare) the data, run the training pipeline, and evaluate the model.
+
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Name <.html>`
+
+### Deployment
+MLRun serving can produce managed ML application pipelines using real-time auto-scaling Nuclio serverless functions. 
+The application pipeline includes all the steps from accepting events or data, preparing the required model features, 
+inferring results using one or more models, and driving actions. 
+
+Take an existing model operationalize it through all of its life cycle phases: 
+data collection, data preparation, training and evaluation, producing a fully automated pipeline.
+Take base model, add layers for your data, results in tuned model
+Evaluate model to make sure it's doing the right thing
+extensive testing
+Deploy using automated deployment
+
+productize the newly trained LLM as a serverless function
+receives data from API/bot
+contextualizes it with a state, possible vectors, doc to examine etc
+prompt engineering - tuning the question to the model so it behaves exactly as you want
+Feed it into the foundation model which gives result. The result is not necessarily the final result. Need to clean, format, check for toxic material, intellectual property
+
+
+
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Name <.html>`
+
+### Live Ops
+Monitor all resources, data, model and application metrics to ensure performance. Then identify risks, control costs, and measure business KPIs.
+Collect production data, metadata, and metrics to tune the model and application further, and to enable governance and explainability.
+
+
+
+
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Name <.html>`
+
+
+
+
+
 ## MLOps tasks
 
 `````{div} 
@@ -36,7 +123,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 :link: ./development/index.html
 ```
 
-```{grid-item-card} Deploy models and apps
+```{grid-item-card} Deploy models and app
 :text-align: center
 :link: ./deployment/index.html
 ```
@@ -71,6 +158,8 @@ Project access can be restricted to a set of users and roles.
 {bdg-link-warning}`Quick start <https://youtu.be/xI8KVGLlj7Q>`
 `````
 
+
+
 ### Ingest and process data
 
 MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
@@ -79,22 +168,25 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Ingest and process data <./data-prep/index.html>`
-{bdg-link-info}`Feature store <./feature-store/feature-store.html>`
+{bdg-link-info}`Ingest and process data <ingesting-process-data>`
 {bdg-link-info}`Data and artifacts <./concepts/data.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
-{bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
+{bdg-link-primary}`NAME <./tutorials/FILENAME>`
+
 `````
 
 ### Develop and train models
 
-MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, track each experiment, and register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services that integrate with any framework and can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
+MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, 
+train models at scale with multiple parameters, test models, track each experiment, and register, version and deploy 
+models, etc. MLRun provides scalable built-in or custom model training services that integrate with any framework and 
+can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
+
 {bdg-link-primary-line}`more... <./development/index.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Develop and train models <./development/index.html>`
+{bdg-link-info}`Develop and train models <development>`
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -106,12 +198,13 @@ MLRun allows you to easily build ML pipelines that take data from various source
 
 ### Deploy models and applications
 
+
 MLRun rapidly deploys and manages production-grade real-time or batch application pipelines using elastic and resilient serverless functions. MLRun addresses the entire ML application: intercepting application/user requests, running data processing tasks, inferencing using one or more models, driving actions, and integrating with the application logic.
 {bdg-link-primary-line}`more... <./deployment/index.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Deploy models and applications <./deployment/index.html>`
+{bdg-link-info}`Deploy models and applications <deployment>`
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
 {bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
 <br> {octicon}`code-square` **Tutorials:**
@@ -129,10 +222,10 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Monitor and alert <.//monitoring/model-monitoring.html>`
-{bdg-link-info}`Model monitoring overview <./monitoring/index.html>`
+{bdg-link-info}`Monitor and alert <monitoring>`
+{bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Realtime monitoring and drift detection <./tutorials/05-model-monitoring.html>`
+{bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
 <a id="core-components"></a>
@@ -191,11 +284,11 @@ MLRun includes the following major components:
 
 **{ref}`Serverless functions <Functions>`:** An automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
-**{ref}`Data and artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
+**{ref}`Data & artifacts <data-feature-store>`:** Glueless connectivity to various data sources, metadata management, catalog, and versioning for structured/unstructured artifacts.
 
 **{ref}`Feature store <feature-store>`:** Automatically collects, prepares, catalogs, and serves production data features for development (offline) and real-time (online) deployment using minimal engineering effort.
 
-**{ref}`Batch Runs and workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
+**{ref}`Batch Runs & workflows <workflows>`:** Execute one or more functions with specific parameters and collect, track, and compare all their results and artifacts.
 
 **{ref}`Real-time serving pipeline <serving-graph>`:** Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 
@@ -203,10 +296,10 @@ MLRun includes the following major components:
 
 
 
-```{toctree}
-:hidden:
-:maxdepth: 1
 
+```{toctree}
+:maxdepth: 1
+:hidden:
 architecture
 ecosystem
 ```

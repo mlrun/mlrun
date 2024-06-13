@@ -27,8 +27,8 @@ OPTIONS:
   --dry-run   -  Show files to update but don't execute the update.
   --no-backup -  Don't back up the existing tutorials directory before the update.
                  Default: Back up the existing tutorials directory to --path parent directory.
-  --path      -  tutorials folder download path.
-                 Default: HOME/tutorials directory"
+  --path      -  tutorials folder download path e.g. --path=./tutorials.
+                 Default: PWD/tutorials directory"
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Function for exit due to fatal program error
@@ -160,7 +160,7 @@ fi
 # --------------------------------------------------------------------------------------------------------------------------------
 # Detecting tutorials_dir and dest_dir
 # if --path is provided (tutorials_dir):
-#    use it to create detination directory (parent directory)
+#    use it to create destination directory (parent directory)
 # else:
 #    if --user or V3IO_USERNAME is provided:
 #        use it to create tutorials_dir and dest_dir
@@ -176,17 +176,11 @@ cd
 if [ "${tutorials_dir}" ]; then # means --path is specified
     dest_dir=${tutorials_dir%/*} # taking parent dir
 fi
-# Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
-# if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
-#     echo "--user and --path argument are empty, using local path"
-#     tutorials_dir="${current_dir}/tutorials"
-#     dest_dir="${current_dir}"
-# fi
 
 # Case username isn't provided via command and `V3IO_USERNAME` env variable isn't declared
 if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
     echo "--user and --path argument are empty, using local path"
-    # To support when running inside tutorials folder or arbitrary folder - add /tutorials
+    # To support when running from inside tutorials folder. for arbitrary folder add - /tutorials
     if [[ "${folder_name}" == "tutorials" ]]; then
         tutorials_dir="${current_dir}"
         dest_dir="${parent_dir}"

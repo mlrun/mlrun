@@ -190,11 +190,9 @@ if [[ -z "${user}" && -z "${tutorials_dir}" ]]; then
     if [[ "${folder_name}" == "tutorials" ]]; then
         tutorials_dir="${current_dir}"
         dest_dir="${parent_dir}"
-        echo "A"
     else
         tutorials_dir="${current_dir}/tutorials"
         dest_dir="${current_dir}"
-        echo "B"
     fi
 fi
 

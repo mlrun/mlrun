@@ -91,6 +91,7 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
+    rebuild_images: bool = False,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -100,13 +101,15 @@ async def enable_model_monitoring(
     And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
     is detected. It processes the new events into statistics that are then written to statistics databases.
 
-    :param commons:     The common parameters of the request.
-    :param base_period: The time period in minutes in which the model monitoring controller function
-                        triggers. By default, the base period is 10 minutes.
-    :param image:       The image of the model monitoring controller, writer & monitoring
-                        stream functions, which are real time nuclio functions.
-                        By default, the image is mlrun/mlrun.
+    :param commons:                         The common parameters of the request.
+    :param base_period:                     The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+    :param image:                           The image of the model monitoring controller, writer & monitoring
+                                            stream functions, which are real time nuclio functions.
+                                            By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+    :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images
+                                            (controller, writer & stream).
     """
     MonitoringDeployment(
         project=commons.project,
@@ -117,6 +120,7 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        rebuild_images=rebuild_images,
     )
 
 

@@ -67,9 +67,6 @@ do
         --user=?*)
             user=${1#*=} # Delete everything up to "=" and assign the remainder.
             ;;
-        # --user=)         # Handle the case of an empty --user=
-            # error_usage "$1: Missing username."
-            # ;;
         --mlrun-ver)
             if [ "$2" ]; then
                 mlrun_version=$2
@@ -99,6 +96,7 @@ do
     esac
     shift
 done
+
 # --------------------------------------------------------------------------------------------------------------------------------
 # Backup old demos and removing demos directory
 # --------------------------------------------------------------------------------------------------------------------------------
@@ -182,7 +180,6 @@ if [ -z "${demos_dir}" ]; then
     dest_dir="/v3io/users/${user}"
     demos_dir="${dest_dir}/demos"
 fi
-
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Function to get GitHub repository release index.

@@ -222,9 +222,7 @@ class Client:
 
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
-        raise mlrun.errors.STATUS_ERRORS[response.status](
-            error_message, response=response
-        )
+        mlrun.errors.raise_for_status(response, error_message)
 
     def _enrich_nuclio_api_gateway(
         self,

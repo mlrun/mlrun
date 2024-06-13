@@ -46,8 +46,8 @@
 |-------|---------------------------------------------------------------------------|
 |ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
 ML-6397|`list runs`  API does not return artifacts in the run body. Instead you get a dictionary of artifact_uris with store path to the artifacts which can be retrieved via `mlrun.store_manager`. You can get the artifacts in the run status, only if you use the `get run`API (i.e. when getting a single run). If an artifact is deleted, it will not be returned in the run body.|
-###  Closed issues
 
+###  Closed issues
 | ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-4149|Workflows are now listed from newest to oldest.|

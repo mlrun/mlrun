@@ -42,6 +42,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.utils import logger, now_date
+from server.api.constants import LogSources
 from server.api.db.base import DBInterface
 
 
@@ -1564,7 +1565,16 @@ class BaseRuntimeHandler(ABC):
     ):
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
-            logger.warning("Run logs were not collected", project=project, uid=uid)
+            # this stays for now for backwards compatibility in case we would not use the log collector but rather
+            # the legacy method to pull logs
+            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
+                db_session, project, uid, source=LogSources.K8S, run=run
+            )
+            if logs_from_k8s:
+                logger.info("Storing run logs", project=project, uid=uid)
+                server.api.crud.Logs().store_log(
+                    logs_from_k8s, project, uid, append=False
+                )
 
     def _ensure_run_state(
         self,

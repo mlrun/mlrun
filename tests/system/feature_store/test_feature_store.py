@@ -17,6 +17,7 @@ import math
 import os
 import pathlib
 import random
+import shutil
 import string
 import tempfile
 import uuid
@@ -2309,45 +2310,61 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
-    def test_purge_v3io(self):
-        key = "patient_id"
-        fset = fstore.FeatureSet(
-            "purge", entities=[Entity(key)], timestamp_key="timestamp"
-        )
-        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource(
-            "mycsv",
-            path=path,
-        )
-        folder_path = f"v3io:///projects/{self.project_name}/purge_test_{uuid.uuid4()}"
-        targets = [
-            CSVTarget(),
-            CSVTarget(name="specified-path", path=f"{folder_path}/csv-purge-test.csv"),
-            ParquetTarget(
-                name="parquets_dir_target",
-                partitioned=True,
-                partition_cols=["timestamp"],
-                path=f"{folder_path}/parquet_folder_target",
-            ),
-            ParquetTarget(
-                name="parquet_file_target",
-                path=f"{folder_path}/file.parquet",
-            ),
-            NoSqlTarget(),
-        ]
-        fset.set_targets(
-            targets=targets,
-            with_defaults=False,
-        )
-        fset.ingest(source)
+    @pytest.mark.parametrize("schema", ["v3io", "file"])
+    def test_purge_v3io(self, schema):
+        folder_url = ""
+        try:
+            if schema == "v3io":
+                folder_url = (
+                    f"v3io:///projects/{self.project_name}/purge_test_{uuid.uuid4()}"
+                )
+            else:
+                temp_dir = tempfile.TemporaryDirectory().name
+                folder_url = f"file://{temp_dir}"
+            key = "patient_id"
+            fset = fstore.FeatureSet(
+                "purge", entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+            source = CSVSource(
+                "mycsv",
+                path=path,
+            )
 
-        verify_purge(fset, targets)
+            targets = [
+                CSVTarget(),
+                CSVTarget(
+                    name="specified-path", path=f"{folder_url}/csv-purge-test.csv"
+                ),
+                ParquetTarget(
+                    name="parquets_dir_target",
+                    partitioned=True,
+                    partition_cols=["timestamp"],
+                    path=f"{folder_url}/parquet_folder_target",
+                ),
+                ParquetTarget(
+                    name="parquet_file_target",
+                    path=f"{folder_url}/file.parquet",
+                ),
+                NoSqlTarget(),
+            ]
+            fset.set_targets(
+                targets=targets,
+                with_defaults=False,
+            )
+            fset.ingest(source)
 
-        fset.ingest(source)
+            verify_purge(fset, targets)
 
-        targets_to_purge = targets[:-1]
+            fset.ingest(source)
 
-        verify_purge(fset, targets_to_purge)
+            targets_to_purge = targets[:-1]
+
+            verify_purge(fset, targets_to_purge)
+        finally:
+            if schema == "file" and folder_url:
+                path_only = folder_url.replace("file://", "")
+                shutil.rmtree(path_only)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise

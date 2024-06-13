@@ -27,7 +27,7 @@ OPTIONS:
   --dry-run   -  Show files to update but don't execute the update.
   --no-backup -  Don't back up the existing demos directory before the update.
                  Default: Back up the existing demos directory to --path parent directory.
-  --path      -  demos folder download path.
+  --path      -  demos folder download path e.g. --path=./demos.
                  Default: HOME/demos directory"
 
 # --------------------------------------------------------------------------------------------------------------------------------

@@ -2322,7 +2322,16 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
-            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            ParquetTarget(
+                name="parquets_dir_target",
+                partitioned=True,
+                partition_cols=["timestamp"],
+                path=f"v3io:///bigdata/parquet_folder_target_{uuid.uuid4()}",
+            ),
+            ParquetTarget(
+                name="parquet_file_target",
+                path=f"v3io:///bigdata/parquet.{uuid.uuid4()}",
+            ),
             NoSqlTarget(),
         ]
         fset.set_targets(

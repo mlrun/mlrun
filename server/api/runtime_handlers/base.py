@@ -33,7 +33,6 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
-import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
@@ -1129,7 +1128,6 @@ class BaseRuntimeHandler(ABC):
         _, _, run = self._ensure_run_state(
             db, db_session, project, uid, name, run_state
         )
-        self._check_run_logs_collected(project=project, uid=uid)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1276,9 +1274,6 @@ class BaseRuntimeHandler(ABC):
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
-
-        if updated_run_state in RunStates.terminal_states():
-            self._check_run_logs_collected(project=project, uid=uid)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1542,12 +1537,6 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
         return f"mlrun/project={project},mlrun/uid={run_uid}"
-
-    @staticmethod
-    def _check_run_logs_collected(project: str, uid: str):
-        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
-        if not log_file_exists:
-            logger.warning("Run logs were not collected", project=project, uid=uid)
 
     def _ensure_run_state(
         self,

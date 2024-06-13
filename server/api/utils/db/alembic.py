@@ -47,13 +47,6 @@ class AlembicUtil(object):
             return True
         return current_revision == self._initial_revision
 
-    def is_artifacts_v2_index_migration_complete(self):
-        # Determine if the artifact v2 index migration was already applied
-        return any(
-            revision in self._revision_history[1:]
-            for revision in ["aa28cdc5bb17", "ebf6f5af763d"]
-        )
-
     def _get_current_revision(self) -> typing.Optional[str]:
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)

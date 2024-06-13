@@ -949,6 +949,24 @@ async def test_format_as_leader_project(
     )
 
 
+@pytest.mark.parametrize(
+    "error_message,result_message,final_error_message",
+    [
+        ("dummy error", "dummy result", "dummy error: dummy result"),
+        ("dummy error", "", "dummy error"),
+        ("", "dummy result", "dummy result"),
+        ("", "", ""),
+    ],
+)
+def test_resolve_final_error_message(
+    error_message, result_message, final_error_message
+):
+    message = server.api.utils.clients.iguazio.Client._resolve_final_error_message(
+        error_message, result_message
+    )
+    assert message == final_error_message
+
+
 def _generate_session_verification_response_headers(
     username="some-user",
     session="some-access-key",

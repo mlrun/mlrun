@@ -969,15 +969,12 @@ class Client(
             raise
 
     @staticmethod
-    def _resolve_final_error_message(error_message, result_message):
-        if error_message and result_message:  # If both are not empty
-            return f"{error_message}: {result_message}"
-        if not result_message:  # If result_message is empty
-            return error_message
-        if not error_message:  # If error_message is empty
-            return result_message
-        # If both are empty
-        return ""
+    def _resolve_final_error_message(error_message: str = "", result_message: str = ""):
+        return (
+            f"{error_message}: {result_message}"
+            if error_message and result_message
+            else error_message or result_message or ""
+        )
 
 
 class AsyncClient(Client):

@@ -404,7 +404,7 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
 
 
 def test_delete_functions(db: DBInterface, db_session: Session):
-    names = ["some_name", "some_name2"]
+    names = ["some_name", "some_name2", "some_name3"]
     labels = {
         "key": "value",
     }
@@ -445,15 +445,15 @@ def test_delete_functions(db: DBInterface, db_session: Session):
     assert db_session.query(Function.Tag).count() != 0
     assert db_session.query(Function).count() != 0
 
-    db.delete_functions(db_session, "*", names=names)
+    db.delete_functions(db_session, "*", names=names[:2])
     functions = db.list_functions(db_session, project="project1")
-    assert len(functions) == 0
+    assert len(functions) == 2
     functions = db.list_functions(db_session, project="project2")
-    assert len(functions) == 0
+    assert len(functions) == 2
 
-    assert db_session.query(Function.Label).count() == 0
-    assert db_session.query(Function.Tag).count() == 0
-    assert db_session.query(Function).count() == 0
+    assert db_session.query(Function.Label).count() == 2
+    assert db_session.query(Function.Tag).count() == 4
+    assert db_session.query(Function).count() == 2
 
     db.store_function(
         db_session,
@@ -463,11 +463,11 @@ def test_delete_functions(db: DBInterface, db_session: Session):
         tag="latest",
         versioned=True,
     )
-    db.delete_functions(db_session, "*", names=names)
+    db.delete_functions(db_session, "*", names=names[:2])
 
-    assert db_session.query(Function.Label).count() != 0
-    assert db_session.query(Function.Tag).count() != 0
-    assert db_session.query(Function).count() != 0
+    assert db_session.query(Function.Label).count() == 3
+    assert db_session.query(Function.Tag).count() == 5
+    assert db_session.query(Function).count() == 3
 
 
 def _generate_function(

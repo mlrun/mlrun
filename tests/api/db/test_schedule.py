@@ -20,7 +20,7 @@ from server.api.db.sqldb.models import Schedule
 
 
 def test_delete_schedules(db: DBInterface, db_session: Session):
-    names = ["some_name", "some_name2"]
+    names = ["some_name", "some_name2", "some_name3"]
     labels = {
         "key": "value",
     }
@@ -50,14 +50,14 @@ def test_delete_schedules(db: DBInterface, db_session: Session):
     assert db_session.query(Schedule.Label).count() != 0
     assert db_session.query(Schedule).count() != 0
 
-    db.delete_schedules(db_session, "*", names=names)
+    db.delete_schedules(db_session, "*", names=names[:2])
     schedules = db.list_schedules(db_session, project="project1")
-    assert len(schedules) == 0
+    assert len(schedules) == 1
     schedules = db.list_schedules(db_session, project="project2")
-    assert len(schedules) == 0
+    assert len(schedules) == 1
 
-    assert db_session.query(Schedule.Label).count() == 0
-    assert db_session.query(Schedule).count() == 0
+    assert db_session.query(Schedule.Label).count() == 2
+    assert db_session.query(Schedule).count() == 2
 
     db.store_schedule(
         db_session,
@@ -67,7 +67,7 @@ def test_delete_schedules(db: DBInterface, db_session: Session):
         kind=mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(minute=10),
     )
-    db.delete_functions(db_session, "*", names=names)
+    db.delete_schedules(db_session, "*", names=names[:2])
 
-    assert db_session.query(Schedule.Label).count() != 0
-    assert db_session.query(Schedule).count() != 0
+    assert db_session.query(Schedule.Label).count() == 3
+    assert db_session.query(Schedule).count() == 3

@@ -2104,8 +2104,8 @@ class SQLDB(DBInterface):
     @staticmethod
     def _delete_multi_objects(
         session: Session,
-        main_table: mlrun.utils.db.BaseModel,
-        related_tables: list[mlrun.utils.db.BaseModel],
+        main_table: Any,
+        related_tables: list[Any],
         project: str,
         names: typing.Union[str, list[str]],
     ):
@@ -2117,6 +2117,7 @@ class SQLDB(DBInterface):
             if project != "*":
                 subquery = (
                     select(cls.id)
+                    .join(main_table)
                     .where(
                         and_(
                             main_table.project == project,
@@ -2128,6 +2129,7 @@ class SQLDB(DBInterface):
             else:
                 subquery = (
                     select(cls.id)
+                    .join(main_table)
                     .where(or_(main_table.name == name for name in names))
                     .scalar_subquery()
                 )

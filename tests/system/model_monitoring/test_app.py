@@ -899,7 +899,12 @@ class TestAllKindOfServing(TestMLRunSystem):
 
     @classmethod
     def _deploy_model_serving(
-        cls, name: str, model_name: str, class_name: str, **kwargs
+        cls,
+        name: str,
+        model_name: str,
+        class_name: str,
+        enable_tracking: bool = True,
+        **kwargs,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.code_to_function(
             project=cls.project_name,
@@ -912,7 +917,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             model_path=f"store://models/{cls.project_name}/{model_name}:latest",
             class_name=class_name,
         )
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(enable_tracking=enable_tracking)
         if cls.image is not None:
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
@@ -999,3 +1004,85 @@ class TestAllKindOfServing(TestMLRunSystem):
             assert res_dict[
                 "has_all_the_events"
             ], f"For {res_dict['model_name']} Not all the events were saved"
+
+
+class TestTracking(TestAllKindOfServing):
+    project_name = "test-tracking"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.models = {
+            "int_one_to_one": {
+                "name": "serving_1",
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+        }
+
+    def test_tracking(self) -> None:
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            deploy_histogram_data_drift_app=False,
+        )
+
+        for model_name, model_dict in self.models.items():
+            self._log_model(
+                model_name,
+                training_set=model_dict.get("training_set"),
+                label_column=model_dict.get("label_column"),
+            )
+            self._deploy_model_serving(**model_dict, enable_tracking=False)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 0
+
+        for model_name, model_dict in self.models.items():
+            self._deploy_model_serving(**model_dict, enable_tracking=True)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 1
+        endpoint = endpoints[0]
+        assert (
+            endpoint["monitoring_mode"]
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        )
+
+        res_dict = self._test_endpoint(
+            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
+            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+        )
+        assert res_dict[
+            "is_schema_saved"
+        ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
+
+        assert res_dict[
+            "has_all_the_events"
+        ], f"For {res_dict['model_name']} Not all the events were saved"
+
+        for model_name, model_dict in self.models.items():
+            self._deploy_model_serving(**model_dict, enable_tracking=False)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 1
+        endpoint = endpoints[0]
+        assert (
+            endpoint["monitoring_mode"]
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
+
+        res_dict = self._test_endpoint(
+            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
+            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+        )
+
+        assert res_dict[
+            "has_all_the_events"
+        ], f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."

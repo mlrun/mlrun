@@ -2136,7 +2136,7 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
                                                 Otherwise, deploy the model monitoring infrastructure on the
                                                 background, including the histogram data drift app if selected.
-        :param rebuild_images:                  If true, overwrite the existing model monitoring infrastructure images.
+        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0

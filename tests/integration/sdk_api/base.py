@@ -99,7 +99,7 @@ class TestMLRunIntegration:
 
     @property
     def base_url(self):
-        return mlrun.mlconf.dbpath + "/api/v1/"
+        return mlrun.mlconf.dbpath + "/api/"
 
     def _setup_env(self, env: dict):
         self._logger.debug("Setting up test environment")

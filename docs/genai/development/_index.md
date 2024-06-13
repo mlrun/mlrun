@@ -6,5 +6,7 @@
 ```{toctree}
 :maxdepth: 1
 
-
+01-working-with-rag
+02-evaluating-llms
+03-fine-tuning-llms
 ```

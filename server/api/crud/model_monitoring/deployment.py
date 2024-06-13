@@ -98,7 +98,7 @@ class MonitoringDeployment:
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
-        overwrite: bool = False,
+        rebuild_images: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -109,19 +109,20 @@ class MonitoringDeployment:
                             stream functions, which are real time nuclio functino.
                             By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param overwrite:   If true, overwrite the existing model monitoring controller, writer & stream functions.
+        :param rebuild_images:   If true, force rebuild of model monitoring infrastructure images
+                                 (controller, writer & stream).
         """
         self.deploy_model_monitoring_controller(
-            controller_image=image, base_period=base_period, overwrite=overwrite
+            controller_image=image, base_period=base_period, overwrite=rebuild_images
         )
         self.deploy_model_monitoring_writer_application(
-            writer_image=image, overwrite=overwrite
+            writer_image=image, overwrite=rebuild_images
         )
         self.deploy_model_monitoring_stream_processing(
-            stream_image=image, overwrite=overwrite
+            stream_image=image, overwrite=rebuild_images
         )
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image, overwrite=overwrite)
+            self.deploy_histogram_data_drift_app(image=image, overwrite=rebuild_images)
         # Create tsdb tables that will be used for storing the model monitoring data
         self._create_tsdb_tables()
 

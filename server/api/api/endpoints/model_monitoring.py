@@ -108,7 +108,8 @@ async def enable_model_monitoring(
                                             stream functions, which are real time nuclio functions.
                                             By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-    :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images (controller, writer & stream).
+    :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images
+                                            (controller, writer & stream).
     """
     MonitoringDeployment(
         project=commons.project,
@@ -119,7 +120,7 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
-        overwrite=rebuild_images,
+        rebuild_images=rebuild_images,
     )
 
 

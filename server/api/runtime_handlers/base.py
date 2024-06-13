@@ -1136,7 +1136,7 @@ class BaseRuntimeHandler(ABC):
         _, _, run = self._ensure_run_state(
             db, db_session, project, uid, name, run_state
         )
-        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
+        self._check_run_logs_collected(project=project, uid=uid)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1285,7 +1285,7 @@ class BaseRuntimeHandler(ABC):
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
         if updated_run_state in RunStates.terminal_states():
-            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
+            self._check_run_logs_collected(project=project, uid=uid)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1560,21 +1560,10 @@ class BaseRuntimeHandler(ABC):
         )
 
     @staticmethod
-    def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
-    ):
+    def _check_run_logs_collected(project: str, uid: str):
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
-            # this stays for now for backwards compatibility in case we would not use the log collector but rather
-            # the legacy method to pull logs
-            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S, run=run
-            )
-            if logs_from_k8s:
-                logger.info("Storing run logs", project=project, uid=uid)
-                server.api.crud.Logs().store_log(
-                    logs_from_k8s, project, uid, append=False
-                )
+            logger.warning("Run logs were not collected", project=project, uid=uid)
 
     def _ensure_run_state(
         self,

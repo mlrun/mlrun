@@ -20,6 +20,7 @@ import pydantic
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.types
 from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
+from mlrun.common.helpers import generate_api_gateway_name
 
 
 class APIGatewayAuthenticationMode(mlrun.common.types.StrEnum):
@@ -113,6 +114,8 @@ class APIGateway(_APIGatewayBaseModel):
 
     def _replace_nuclio_function_names_with_mlrun_names(self):
         # replace function names from nuclio names to mlrun names
+        # and adds mlrun function URI's to an api gateway annotations
+        # so when we then get api gateway entity from nuclio, we are able to get mlrun function names
         mlrun_functions = self.metadata.annotations.get(MLRUN_FUNCTIONS_ANNOTATION)
         if mlrun_functions:
             mlrun_function_uris = (
@@ -177,7 +180,7 @@ class APIGateway(_APIGatewayBaseModel):
             mlrun_constants.MLRunInternalLabels.nuclio_project_name
         )
         if project_name:
-            self.spec.name = f"{project_name}-{self.spec.name}"
+            self.spec.name = generate_api_gateway_name(project_name, self.spec.name)
             self.metadata.name = self.spec.name
         return self
 

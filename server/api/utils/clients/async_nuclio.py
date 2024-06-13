@@ -22,6 +22,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
@@ -70,8 +71,7 @@ class Client:
 
     async def api_gateway_exists(self, name: str, project_name: str = None):
         # enrich api gateway name with project prefix
-        if project_name:
-            name = f"{project_name}-{name}"
+        name = generate_api_gateway_name(project_name, name)
 
         return name in await self.list_api_gateways(project_name=project_name)
 
@@ -79,8 +79,7 @@ class Client:
         headers = {}
 
         # enrich api gateway name with project prefix
-        if project_name:
-            name = f"{project_name}-{name}"
+        name = generate_api_gateway_name(project_name, name)
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -130,8 +129,7 @@ class Client:
         headers = {}
 
         # enrich api gateway name with project prefix
-        if project_name:
-            name = f"{project_name}-{name}"
+        name = generate_api_gateway_name(project_name, name)
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name

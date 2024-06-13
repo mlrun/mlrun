@@ -137,7 +137,9 @@ backup_old_tutorials(){
 
 verify_align_tutorials(){
     local tutorials_dir="$1"
-    if [ ! -f "${tutorials_dir}/align_tutorials.sh" ]; then
+    local branch="$2"
+    if [[ ! -f "${tutorials_dir}/align_tutorials.sh" || ${branch}<"v1.7" ]]; then
+        echo "align_tutorials.sh is missing or old, downloading .."
         wget -O "${tutorials_dir}/align_tutorials.sh" https://raw.githubusercontent.com/mlrun/mlrun/development/docs/tutorials/align_tutorials.sh
     fi
     }
@@ -300,12 +302,6 @@ download_tar_to_temp_dir() {
     tar -xf mlrun-tutorials.tar -C "${temp_dir}" --strip-components 1
     rm -rf mlrun-tutorials.tar
     }
-download_tar_gz_to_temp_dir() {
-    local tar_file="$1"
-    local temp_dir="$2"
-    echo "Downloading : $tar_url ..."
-    wget -qO- "${tar_url}" | tar xz -C "${temp_dir}" --strip-components 1
-    }
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Main script.
@@ -337,8 +333,8 @@ if [ "$branch" ]; then
     if [ -z "${dry_run}" ]; then
         cp -rf "${temp_dir}/docs/tutorials/." "${new_temp_dir}/tutorials"
         temp_dir="${new_temp_dir}/tutorials"
-        verify_align_tutorials "${new_temp_dir}/tutorials"
-        cp -rf "${new_temp_dir}/tutorials/." "$tutorials_dir"
+        verify_align_tutorials "${temp_dir}" "${branch}"
+        cp -rf "${temp_dir}/." "$tutorials_dir"
     else
         echo "dry run, not copying from branch ${branch}"
         echo "Identified the following files to copy to '${dest_dir}':"
@@ -386,7 +382,7 @@ else
 fi
 echo "Using tar_url ${tar_url} branch: ${branch}"
 download_tar_to_temp_dir "$tar_url" "$temp_dir"
-verify_align_tutorials "${temp_dir}/${folder_name}"
+verify_align_tutorials "${temp_dir}/${folder_name}" "${branch}"
 if [ -z "${dry_run}" ]; then
     echo "copy files from ${temp_dir}/tutorials to ${tutorials_dir}"
     cp -rf "$temp_dir/$folder_name/." "$tutorials_dir"

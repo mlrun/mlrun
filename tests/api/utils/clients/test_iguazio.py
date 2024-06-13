@@ -956,6 +956,9 @@ async def test_format_as_leader_project(
         ("dummy error", "", "dummy error"),
         ("", "dummy result", "dummy result"),
         ("", "", ""),
+        ("dummy error", None, "dummy error"),
+        (None, "dummy result", "dummy result"),
+        (None, None, ""),
     ],
 )
 def test_resolve_final_error_message(

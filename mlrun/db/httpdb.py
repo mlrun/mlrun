@@ -3337,7 +3337,7 @@ class HTTPRunDB(RunDBInterface):
                                                 stream functions, which are real time nuclio functions.
                                                 By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:                  If True, it would overwrite the existing model monitoring functions.
+        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,

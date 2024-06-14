@@ -636,6 +636,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             project=project,
         )
 
+        # Expect only the 2 artifacts to be restored
         self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
 
     @staticmethod

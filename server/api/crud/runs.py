@@ -551,9 +551,10 @@ class Runs(
             key_tag_iteration_pairs,
         )
 
-        if len(artifacts) != len(artifact_uris):
+        # DB artifacts result may contain more artifacts if the job is still running
+        if len(artifacts) < len(artifact_uris):
             missing_artifacts = set(artifact_uris.keys()) - {
-                artifact.key for artifact in artifacts
+                artifact["metadata"]["key"] for artifact in artifacts
             }
             logger.warning(
                 "Some artifacts are missing from final run response, they may have been deleted",

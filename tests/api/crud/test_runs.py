@@ -463,7 +463,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
     @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
-    def test_get_workflow_run_iteration_restore_artifacts_metadata(
+    def test_get_run_iteration_restore_artifacts_metadata(
         self, db: sqlalchemy.orm.Session, workflow_id
     ):
         project = "project-name"
@@ -594,6 +594,49 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         self._validate_run_artifacts(
             best_iteration_artifacts + parent_run_arts, db, project, run_uid
         )
+
+    @pytest.mark.parametrize("workflow_uid", [None, str(uuid.uuid4())])
+    def test_get_run_restore_artifacts_metadata_with_missing_artifact(
+        self, db: sqlalchemy.orm.Session, workflow_uid
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(
+            project, run_uid, workflow_uid, artifacts_len=3
+        )
+
+        # Create only 2 artifacts
+        for artifact in artifacts[:2]:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=artifact["metadata"]["iter"],
+                project=project,
+                producer_id=workflow_uid or run_uid,
+            )
+
+        labels = {"kind": "job"}
+        if workflow_uid:
+            labels["workflow"] = workflow_uid
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": labels,
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
 
     @staticmethod
     def _generate_artifacts(

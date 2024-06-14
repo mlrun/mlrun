@@ -491,7 +491,7 @@ class Runs(
             key_tag_iteration_pairs,
         )
 
-        # Artifact result may contain more artifacts than the ones in the run status, if the job is still running
+        # DB artifacts result may contain more artifacts if the job is still running
         if len(artifacts) < len(artifact_uris):
             missing_artifacts = set(artifact_uris.keys()) - {
                 artifact["metadata"]["key"] for artifact in artifacts

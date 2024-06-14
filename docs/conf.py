@@ -62,6 +62,7 @@ extensions = [
     "sphinx_design",
     "sphinx_reredirects",
     "versionwarning.extension",
+    "sphinxcontrib.mermaid",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -172,8 +173,8 @@ autodoc_mock_imports = [
 redirects = {
     "runtimes/functions-architecture": "runtimes/functions.html",
     "monitoring/initial-setup-configuration": "monitoring/model-monitoring-deployment.html",
-    "tutorials/05-batch-infer.ipynb": "tutorials/06-batch-infer.ipynb",
-    "tutorials/06-model-monitoring.ipynb": "tutorials/05-model-monitoring.ipynb",
+    "tutorials/05-batch-infer": "tutorials/06-batch-infer.html",
+    "tutorials/06-model-monitoring": "tutorials/05-model-monitoring.html",
 }
 
 smartquotes = False

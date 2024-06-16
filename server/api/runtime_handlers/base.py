@@ -230,7 +230,7 @@ class BaseRuntimeHandler(ABC):
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
-        if label_selector:
+        if label_selector and default_label_selector not in label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector

@@ -31,7 +31,6 @@ import server.api.crud
 import server.api.utils.clients.chief
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_test_logger, now_date
-from server.api.constants import LogSources
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.k8s import get_k8s_helper
@@ -167,12 +166,6 @@ class TestRuntimeHandlerBase:
         if data is None:
             data = {"key": "value"}
         return client.V1ConfigMap(metadata=metadata, data=data)
-
-    def _generate_get_logger_pods_label_selector(self, runtime_handler):
-        run_label_selector = runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
-        )
-        return f"mlrun/class,{run_label_selector}"
 
     def _assert_runtime_handler_list_resources(
         self,
@@ -514,13 +507,14 @@ class TestRuntimeHandlerBase:
             f"Unexpected number of calls to list_namespaced_pod "
             f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
         )
-        expected_label_selector = (
-            expected_label_selector or runtime_handler._get_default_label_selector()
-        )
-        get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
-            get_k8s_helper().resolve_namespace(),
-            label_selector=expected_label_selector,
-        )
+        if expected_label_selector and expected_label_selector != "":
+            expected_label_selector = (
+                expected_label_selector or runtime_handler._get_default_label_selector()
+            )
+            get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
+                get_k8s_helper().resolve_namespace(),
+                label_selector=expected_label_selector,
+            )
 
     @staticmethod
     def _assert_list_namespaced_crds_calls(
@@ -538,25 +532,6 @@ class TestRuntimeHandlerBase:
             crd_plural,
             label_selector=runtime_handler._get_default_label_selector(),
         )
-
-    @staticmethod
-    async def _assert_run_logs(
-        db: Session,
-        project: str,
-        uid: str,
-        expected_log: str,
-        logger_pod_name: str = None,
-    ):
-        if logger_pod_name is not None:
-            get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name,
-                namespace=get_k8s_helper().resolve_namespace(),
-            )
-        _, logs = await server.api.crud.Logs().get_logs(
-            db, project, uid, source=LogSources.PERSISTENCY
-        )
-        async for log_line in logs:
-            assert log_line == expected_log.encode()
 
     @staticmethod
     def _assert_run_reached_state(

@@ -639,6 +639,51 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         # Expect only the 2 artifacts to be restored
         self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
 
+    @pytest.mark.parametrize(
+        "run_format",
+        [
+            mlrun.common.schemas.RunsFormat.enriched,
+            mlrun.common.schemas.RunsFormat.full,
+        ],
+    )
+    def test_run_formats(
+        self, db: sqlalchemy.orm.Session, run_format: mlrun.common.schemas.RunsFormat
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {"kind": "job"},
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        expected_artifacts = artifacts
+        if run_format == mlrun.common.schemas.RunsFormat.full:
+            expected_artifacts = []
+        self._validate_run_artifacts(
+            expected_artifacts, db, project, run_uid, run_format=run_format
+        )
+
     @staticmethod
     def _generate_artifacts(
         project,
@@ -678,10 +723,26 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         return artifacts
 
     @staticmethod
-    def _validate_run_artifacts(artifacts, db, project, run_uid, iter=0):
-        run = server.api.crud.Runs().get_run(db, run_uid, iter, project)
-        assert "artifacts" in run["status"]
-        enriched_artifacts = list(run["status"]["artifacts"])
+    def _validate_run_artifacts(
+        artifacts,
+        db,
+        project,
+        run_uid,
+        iter=0,
+        run_format: mlrun.common.schemas.RunsFormat = None,
+    ):
+        run = server.api.crud.Runs().get_run(
+            db,
+            run_uid,
+            iter,
+            project,
+            format_=run_format or mlrun.common.schemas.RunsFormat.enriched,
+        )
+
+        enriched_artifacts = []
+        if artifacts:
+            assert "artifacts" in run["status"]
+            enriched_artifacts = list(run["status"]["artifacts"])
 
         def sort_by_key(e):
             return e["metadata"]["key"]

@@ -142,31 +142,15 @@ class Runs(
         uid: str,
         iter: int,
         project: str = None,
+        format_: mlrun.common.schemas.RunsFormat = mlrun.common.schemas.RunsFormat.enriched,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
 
-        # Since we don't store the artifacts in the run body, we need to fetch them separately
-        # The client may be using them as in pipeline as input for the next step
-        workflow_id = run["metadata"].get("labels", {}).get("workflow")
-        if not workflow_id:
-            artifacts = self._list_run_artifacts(
-                db_session, iter, producer_id=uid, project=project
-            )
-
-        else:
-            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
-            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
-            # filters by producer URI in memory.
-            artifacts = self._get_artifacts_from_uris(
-                db_session, project=project, producer_id=workflow_id, run=run
-            )
-
-        if artifacts or "artifacts" in run.get("status", {}):
-            run.setdefault("status", {})
-            run["status"]["artifacts"] = artifacts
+        if format_ == mlrun.common.schemas.RunsFormat.enriched:
+            self._enrich_run(db_session, iter, project, run, uid)
 
         return run
 
@@ -504,6 +488,33 @@ class Runs(
                 missing_artifacts=missing_artifacts,
             )
         return artifacts
+
+    def _enrich_run(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        iteration: int,
+        project: str,
+        run: dict,
+        uid: str,
+    ):
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        workflow_id = run["metadata"].get("labels", {}).get("workflow")
+        if not workflow_id:
+            artifacts = self._list_run_artifacts(
+                db_session, iteration, producer_id=uid, project=project
+            )
+
+        else:
+            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
+            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
+            # filters by producer URI in memory.
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
 
     @staticmethod
     def _list_run_artifacts(

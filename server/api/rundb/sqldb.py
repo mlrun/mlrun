@@ -96,13 +96,20 @@ class SQLRunDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
-    def read_run(self, uid, project=None, iter=None):
+    def read_run(
+        self,
+        uid: str,
+        project: str = None,
+        iter: int = None,
+        format_: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.enriched,
+    ):
         return self._transform_db_error(
             server.api.crud.Runs().get_run,
             self.session,
             uid,
             iter,
             project,
+            format_,
         )
 
     def list_runs(

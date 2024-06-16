@@ -178,7 +178,7 @@ from .project import (
     ProjectSummary,
 )
 from .regex import RegexMatchModes
-from .runs import RunIdentifier
+from .runs import RunIdentifier, RunsFormat
 from .runtime_resource import (
     GroupedByJobRuntimeResourcesOutput,
     GroupedByProjectRuntimeResourcesOutput,

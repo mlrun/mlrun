@@ -16,7 +16,7 @@ import datetime
 import time
 
 
-def handler(context, time_to_sleep=100):
+def handler(context, time_to_sleep=1):
     print("started", str(datetime.datetime.now()))
     print(f"Sleeping for {time_to_sleep} seconds")
     context.log_result("started", str(datetime.datetime.now()))

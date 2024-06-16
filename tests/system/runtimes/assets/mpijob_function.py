@@ -41,7 +41,7 @@ def handler():
     # Make rank 0 sleep for some time to make sure all the other ranks will finish before it to test the run state
     # completion race case:
     if rank == 0:
-        time.sleep(30)
+        time.sleep(1)
 
     # Return the accumulated value and a per rank value. Notice: only values returned from root rank (#0) should be
     # logged (see `mlrun.execution.MLClientCtx.is_logging_worker`):

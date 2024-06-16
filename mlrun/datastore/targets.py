@@ -736,7 +736,7 @@ class BaseStoreTarget(DataTargetBase):
         if path_in_store not in ["", "/"]:
             store.rm(path_in_store, recursive=True)
         else:
-            logger.warning(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unable to delete target. Please Use purge_targets from FeatureSet object."
             )
 

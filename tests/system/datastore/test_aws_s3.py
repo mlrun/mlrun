@@ -213,5 +213,9 @@ class TestAwsS3(TestMLRunSystem):
 
         # check our user protection against direct target.purge call in the
         # case of default target + ds (it could delete the whole bucket).
-        target.purge()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Unable to delete target. Please Use purge_targets from FeatureSet object.",
+        ):
+            target.purge()
         assert s3_fs.ls(f"{self._bucket_name}")

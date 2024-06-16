@@ -25,6 +25,7 @@ from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
 )
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
+    ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
     _compose_full_name,
 )
@@ -96,7 +97,7 @@ def get_monitoring_parquet_path(
     return parquet_path
 
 
-def get_connection_string(secret_provider: typing.Callable = None) -> str:
+def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 
@@ -116,7 +117,7 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
 
 
 def get_tsdb_connection_string(
-    secret_provider: typing.Optional[typing.Callable] = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
 ) -> str:
     """Get TSDB connection string from the project secret. If wasn't set, take it from the system
     configurations.
@@ -277,9 +278,13 @@ def calculate_inputs_statistics(
     return inputs_statistics
 
 
-def get_endpoint_record(project: str, endpoint_id: str):
+def get_endpoint_record(
+    project: str,
+    endpoint_id: str,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+) -> dict[str, typing.Any]:
     model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
+        project=project, secret_provider=secret_provider
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 
@@ -304,4 +309,20 @@ def get_invocations_fqn(project: str) -> str:
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
         type=ModelEndpointMonitoringMetricType.METRIC,
+    )
+
+
+def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
+    """
+    Return the invocations metric of any model endpoint in the given project.
+
+    :param project: The project name.
+    :returns:       The model monitoring metric object.
+    """
+    return ModelEndpointMonitoringMetric(
+        project=project,
+        app=mm_constants.SpecialApps.MLRUN_INFRA,
+        type=ModelEndpointMonitoringMetricType.METRIC,
+        name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
+        full_name=get_invocations_fqn(project),
     )

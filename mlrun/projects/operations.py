@@ -77,6 +77,7 @@ def run_function(
     notifications: list[mlrun.model.Notification] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
+    reset_on_run: Optional[bool] = None,
 ) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -167,6 +168,9 @@ def run_function(
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+    :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                            This ensures latest code changes are executed. This argument must be used in
+                            conjunction with the local=True argument.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -215,6 +219,7 @@ def run_function(
             schedule=schedule,
             notifications=notifications,
             builder_env=builder_env,
+            reset_on_run=reset_on_run,
         )
         if run_result:
             run_result._notified = False

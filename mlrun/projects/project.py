@@ -3192,7 +3192,8 @@ class MlrunProject(ModelObj):
         tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
-        infrastructure functions.
+        infrastructure functions. Important to note that you have to set the credentials before deploying any
+        model monitoring or serving function.
 
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
@@ -3258,6 +3259,7 @@ class MlrunProject(ModelObj):
         notifications: list[mlrun.model.Notification] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         builder_env: Optional[dict] = None,
+        reset_on_run: bool = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -3314,6 +3316,10 @@ class MlrunProject(ModelObj):
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                                This ensures latest code changes are executed. This argument must be used in
+                                conjunction with the local=True argument.
+
         :return: MLRun RunObject or PipelineNodeWrapper
         """
         return run_function(
@@ -3339,6 +3345,7 @@ class MlrunProject(ModelObj):
             notifications=notifications,
             returns=returns,
             builder_env=builder_env,
+            reset_on_run=reset_on_run,
         )
 
     def build_function(

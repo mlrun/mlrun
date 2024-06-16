@@ -548,10 +548,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
         self._test_predictions_table(ep_id)
 
-        if with_training_set:
-            self._test_api(ep_id=ep_id)
-            if _DefaultDataDriftAppData in self.apps_data:
-                self._test_model_endpoint_stats(ep_id=ep_id)
+        self._test_api(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
+            self._test_model_endpoint_stats(ep_id=ep_id)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

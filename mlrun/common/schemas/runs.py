@@ -27,6 +27,7 @@ class RunIdentifier(pydantic.BaseModel):
 
 # In 1.7 should be moved to mlrun.common.formatters.run.py
 class RunsFormat(mlrun.common.types.StrEnum):
+    # No enrichment, data is pulled as-is from the database.
     standard = "standard"
 
     # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.

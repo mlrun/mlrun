@@ -150,7 +150,7 @@ class Runs(
         )
 
         if format_ == mlrun.common.schemas.RunsFormat.full:
-            self._enrich_run(db_session, iter, project, run, uid)
+            self._enrich_run_artifacts(db_session, iter, project, run, uid)
 
         return run
 
@@ -489,7 +489,7 @@ class Runs(
             )
         return artifacts
 
-    def _enrich_run(
+    def _enrich_run_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
         iteration: int,

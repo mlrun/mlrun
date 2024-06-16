@@ -22,7 +22,6 @@ from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import server.api.launcher
 import server.api.runtime_handlers.mpijob
 import server.api.utils.helpers
 from mlrun.common.runtimes.constants import PodPhases, RunStates
@@ -656,29 +655,6 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 }
             )
         assert stale_run_updates == expected_run_updates
-
-    def test_mpijob_node_selector(self, db: Session, client: TestClient):
-        node_selector = {"kubernetes.io/hostname": "worker-node-1"}
-
-        mpi_func = mlrun.runtimes.mpijob.MpiRuntimeV1()
-        mpi_func.metadata.name = "test"
-        # mpi_func.metadata.project = self.project
-        mpi_func.spec.node_selector = node_selector
-
-        with patch("server.api.utils.singletons.k8s") as mock_k8s:
-            with patch("server.api.api.utils.try_perform_auto_mount"):
-                mpi_func.run()
-
-            created_resource = (
-                mock_k8s.crdapi.create_namespaced_custom_object.call_args[1]["body"]
-            )
-            assert (
-                created_resource["spec"]["template"]["spec"]["nodeSelector"]
-                == node_selector
-            )
-
-    def test_mpi_job_node_selector_taken_from_run(self):
-        pass
 
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(

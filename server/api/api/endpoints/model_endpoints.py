@@ -234,7 +234,6 @@ async def list_model_endpoints(
 
     endpoints = await run_in_threadpool(
         server.api.crud.ModelEndpoints().list_model_endpoints,
-        auth_info=auth_info,
         project=project,
         model=model,
         function=function,
@@ -315,7 +314,6 @@ async def get_model_endpoint(
 
     return await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         metrics=metrics,
@@ -348,9 +346,11 @@ async def get_model_endpoint_monitoring_metrics(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
 
-    get_model_endpoint_metrics = mlrun.model_monitoring.get_store_object(
-        project=project
-    ).get_model_endpoint_metrics
+    get_model_endpoint_metrics = (
+        server.api.crud.model_monitoring.helpers.get_store_object(
+            project=project
+        ).get_model_endpoint_metrics
+    )
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     tasks: list[asyncio.Task] = []
     if type == "results" or type == "all":

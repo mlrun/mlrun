@@ -2116,6 +2116,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
+        rebuild_images: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2135,6 +2136,7 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
                                                 Otherwise, deploy the model monitoring infrastructure on the
                                                 background, including the histogram data drift app if selected.
+        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2150,6 +2152,7 @@ class MlrunProject(ModelObj):
             image=image,
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            rebuild_images=rebuild_images,
         )
 
         if wait_for_deployment:
@@ -3192,7 +3195,8 @@ class MlrunProject(ModelObj):
         tsdb_connection: Optional[str] = None,
     ):
         """Set the credentials that will be used by the project's model monitoring
-        infrastructure functions.
+        infrastructure functions. Important to note that you have to set the credentials before deploying any
+        model monitoring or serving function.
 
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string

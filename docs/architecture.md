@@ -31,7 +31,7 @@ MLRun has two main components, the service and the client (SDK):
 ## MLRun: an integrated and open approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
-they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams 
+they cannot be managed in silos. This is where MLRun AI orchestration comes in. ML, data, and DevOps/MLOps teams 
 collaborate using the same set of tools, practices, APIs, metadata, and version control.
 
 MLRun provides an open architecture that supports your existing development tools, services, and practices through an open API/SDK and pluggable architecture. 

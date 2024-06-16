@@ -30,7 +30,7 @@ import pytz
 from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -2139,18 +2139,18 @@ class SQLDB(DBInterface):
                             or_(main_table.name == name for name in names),
                         )
                     )
-                    .scalar_subquery()
+                    .subquery()
                 )
             else:
                 subquery = (
                     select(cls.id)
                     .join(main_table)
                     .where(or_(main_table.name == name for name in names))
-                    .scalar_subquery()
+                    .subquery()
                 )
             stmt = (
                 delete(cls)
-                .where(cls.id.in_(subquery))
+                .where(cls.id.in_(aliased(subquery)))
                 .execution_options(synchronize_session=False)
             )
 

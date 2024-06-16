@@ -1811,8 +1811,9 @@ class SQLDB(DBInterface):
             return tag_function_uid
 
     def _delete_project_functions(self, session: Session, project: str):
-        for function_name in self._list_project_function_names(session, project):
-            self.delete_function(session, project, function_name)
+        self.delete_functions(
+            session, project, self._list_project_function_names(session, project)
+        )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
         return [
@@ -2087,8 +2088,14 @@ class SQLDB(DBInterface):
 
     def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
-        for schedule in self.list_schedules(session, project=project):
-            self.delete_schedule(session, project, schedule.name)
+        self.delete_schedules(
+            session,
+            project,
+            names=[
+                schedule.name
+                for schedule in self.list_schedules(session, project=project)
+            ],
+        )
 
     def delete_schedules(
         self, session: Session, project: str, names: typing.Union[str, list[str]]
@@ -2105,11 +2112,13 @@ class SQLDB(DBInterface):
     @staticmethod
     def _delete_multi_objects(
         session: Session,
-        main_table: Any,
-        related_tables: list[Any],
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
         project: str,
         names: typing.Union[str, list[str]],
     ):
+        if not names:
+            raise mlrun.errors.MLRunInvalidArgumentError("names must be provided")
         for cls in related_tables:
             logger.debug(f"Removing from {cls}", project=project, name=names)
 
@@ -2145,7 +2154,8 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Removed {execution_obj.rowcount} rows from {cls} table",
                 project=project,
-                name=names,
+                names=names,
+                names_count=len(names),
             )
         if project != "*":
             query = session.query(main_table).filter(
@@ -2163,7 +2173,8 @@ class SQLDB(DBInterface):
         logger.debug(
             f"Removed {count} rows from {main_table} table",
             project=project,
-            name=names,
+            names=names,
+            names_count=len(names),
         )
         session.commit()
 

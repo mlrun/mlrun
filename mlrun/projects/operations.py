@@ -189,6 +189,7 @@ def run_function(
         project = project_object or pipeline_context.project
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
+        project_name = project.metadata.name
         if pipeline_context.workflow_id:
             task.metadata.labels["workflow"] = pipeline_context.workflow_id
         if function.kind == "local":
@@ -198,6 +199,7 @@ def run_function(
             workdir = workdir or project.spec.get_code_path()
         run_result = function.run(
             name=name,
+            project=project_name,
             runspec=task,
             workdir=workdir,
             verbose=verbose,

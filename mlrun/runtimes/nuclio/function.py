@@ -689,6 +689,35 @@ class RemoteRuntime(KubeResource):
         self.spec.service_type = service_type
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 
+    def enrich_runtime_spec(
+        self,
+        project_node_selector: dict[str, str],
+    ):
+        """
+        Enriches the runtime spec with the project-level node selector.
+        Note: In MLRun, this feature is typically applied to the runtime object.
+        However, for Nuclio functions, there is no separate runtime object.
+        Thus, the feature is applied directly to the function object to accommodate Nuclio's serverless architecture.
+
+        This method merges the project-level node selector with the existing function node_selector.
+        The merge logic used here combines the two dictionaries, giving precedence to
+        the keys in the runtime node_selector. If there are conflicting keys between the
+        two dictionaries, the values from self.spec.node_selector will overwrite the
+        values from project_node_selector.
+
+        Example:
+        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
+        and project_node_selector = {"type": "cpu", "environment": "production"}.
+        After the merge, the resulting node_selector will be:
+        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
+
+        Note:
+        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
+          combining key-value pairs from each dictionary. Later dictionaries take precedence
+          when there are conflicting keys.
+        """
+        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
+
     def set_state_thresholds(
         self,
         state_thresholds: dict[str, int],

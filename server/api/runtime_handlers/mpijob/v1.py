@@ -104,7 +104,11 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             update_in(pod_template, "metadata.labels", pod_labels)
             update_in(pod_template, "spec.volumes", runtime.spec.volumes)
             update_in(pod_template, "spec.nodeName", runtime.spec.node_name)
-            update_in(pod_template, "spec.nodeSelector", runtime.spec.node_selector)
+            update_in(
+                pod_template,
+                "spec.nodeSelector",
+                mlrun.utils.helpers.select_non_empty_fields(run.spec.node_selector),
+            )
             update_in(
                 pod_template,
                 "spec.affinity",

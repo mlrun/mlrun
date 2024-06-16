@@ -1239,6 +1239,11 @@ def _fill_project_path_template(artifact_path, project):
     return artifact_path
 
 
+def select_non_empty_fields(input_dict: dict) -> dict:
+    non_empty_fields = {key: value for key, value in input_dict.items() if value}
+    return non_empty_fields
+
+
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
 

@@ -1143,15 +1143,21 @@ class TestProject(TestMLRunSystem):
             handler="handler",
         )
         func.spec.node_selector = {function_label_name: function_label_val}
+        # func.spec.node_selector = {function_label_name: function_label_val, "kubernetes.io/arch": ""}
 
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
-        project.run_function(function_name)
+        job = project.run_function(function_name)
 
-        # Verify that the node selector is correctly enriched
+        # Verify that the node selector is correctly enriched on job object
+        assert job.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_label_name: function_label_val,
+        }
+
+        # Verify that the node selector is not enriched on function object
         result_func = project.get_function(function_name)
         assert result_func.spec.node_selector == {
-            **project.spec.default_function_node_selector,
             function_label_name: function_label_val,
         }
 

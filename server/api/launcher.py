@@ -122,6 +122,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
             store_run=False,
         )
 
+        mlrun.utils.logger.info("mlrun execution result!!!!: ", run_dict=run.to_dict())
+
         # create task generator (for child runs) from spec
         task_generator = mlrun.runtimes.generators.get_generator(
             run.spec, execution, param_file_secrets=param_file_secrets
@@ -133,6 +135,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 self._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
+        mlrun.utils.logger.info("Before storing runnnnn!!!!", ns=execution.to_dict())
         execution.store_run()
         runtime._pre_run(run, execution)  # hook for runtime specific prep
 
@@ -169,6 +172,64 @@ class ServerSideLauncher(launcher.BaseLauncher):
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
+
+    def _enrich_run(
+        self,
+        runtime,
+        run,
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: list[mlrun.model.Notification] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+    ):
+        run = super()._enrich_run(
+            runtime=runtime,
+            run=run,
+            handler=handler,
+            project_name=project_name,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+            state_thresholds=state_thresholds,
+        )
+        if runtime._get_db():
+            project = runtime._get_db().get_project(run.metadata.project)
+            mlrun.utils.logger.info(
+                "In query project!!!",
+                project_name=run.metadata.project,
+                ns=project.spec.default_function_node_selector,
+            )
+            mlrun.utils.logger.info("Before merge", ns=runtime.spec.node_selector)
+            if project.spec.default_function_node_selector:
+                run.spec.node_selector = {
+                    **project.spec.default_function_node_selector,
+                    **runtime.spec.node_selector,
+                }
+            mlrun.utils.logger.info(
+                "New node selector isssss", node_selector=run.spec.node_selector
+            )
+
+        return run
 
     def enrich_runtime(
         self,

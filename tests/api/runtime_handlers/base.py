@@ -84,6 +84,7 @@ class TestRuntimeHandlerBase:
             },
             "spec": {
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+                "node_selector": {"test/host": "node1"},
             },
         }
         if start_time:

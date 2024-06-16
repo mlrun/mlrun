@@ -312,15 +312,18 @@ class ServingRuntime(RemoteRuntime):
         sample: Optional[int] = None,
         stream_args: Optional[dict] = None,
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
+        enable_tracking: bool = True,
     ) -> None:
         """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
            and analyze performance.
 
-        :param stream_path:     Path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                                you can use the "dummy://" path for test/simulation.
-        :param batch:           Micro batch size (send micro batches of N records at a time).
-        :param sample:          Sample size (send only one of N records).
-        :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                    you can use the "dummy://" path for test/simulation.
+        :param batch:               Micro batch size (send micro batches of N records at a time).
+        :param sample:              Sample size (send only one of N records).
+        :param stream_args:         Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param enable_tracking:     Enabled/Disable model-monitoring tracking.
+                                    Default True (tracking enabled).
 
                                 example::
 
@@ -331,7 +334,7 @@ class ServingRuntime(RemoteRuntime):
 
         """
         # Applying model monitoring configurations
-        self.spec.track_models = True
+        self.spec.track_models = enable_tracking
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path

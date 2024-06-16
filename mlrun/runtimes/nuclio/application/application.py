@@ -263,7 +263,6 @@ class ApplicationRuntime(RemoteRuntime):
         is_kfp=False,
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
-        skip_access_key_auth: bool = False,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
@@ -283,7 +282,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                  Deploy as part of a kfp pipeline
         :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param show_on_failure:         Show logs only in case of build failure
-        :param skip_access_key_auth:    Skip adding access key auth to the API Gateway
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)

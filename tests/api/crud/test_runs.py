@@ -642,8 +642,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
         "run_format",
         [
-            mlrun.common.schemas.RunsFormat.enriched,
             mlrun.common.schemas.RunsFormat.full,
+            mlrun.common.schemas.RunsFormat.standard,
         ],
     )
     def test_run_formats(
@@ -678,7 +678,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         )
 
         expected_artifacts = artifacts
-        if run_format == mlrun.common.schemas.RunsFormat.full:
+        if run_format == mlrun.common.schemas.RunsFormat.standard:
             expected_artifacts = []
         self._validate_run_artifacts(
             expected_artifacts, db, project, run_uid, run_format=run_format
@@ -736,7 +736,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             run_uid,
             iter,
             project,
-            format_=run_format or mlrun.common.schemas.RunsFormat.enriched,
+            format_=run_format or mlrun.common.schemas.RunsFormat.full,
         )
 
         enriched_artifacts = []

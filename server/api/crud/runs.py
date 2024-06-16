@@ -142,14 +142,14 @@ class Runs(
         uid: str,
         iter: int,
         project: str = None,
-        format_: mlrun.common.schemas.RunsFormat = mlrun.common.schemas.RunsFormat.enriched,
+        format_: mlrun.common.schemas.RunsFormat = mlrun.common.schemas.RunsFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
 
-        if format_ == mlrun.common.schemas.RunsFormat.enriched:
+        if format_ == mlrun.common.schemas.RunsFormat.full:
             self._enrich_run(db_session, iter, project, run, uid)
 
         return run

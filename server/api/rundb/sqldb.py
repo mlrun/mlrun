@@ -101,7 +101,7 @@ class SQLRunDB(RunDBInterface):
         uid: str,
         project: str = None,
         iter: int = None,
-        format_: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.enriched,
+        format_: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
     ):
         return self._transform_db_error(
             server.api.crud.Runs().get_run,

@@ -25,9 +25,9 @@ class RunIdentifier(pydantic.BaseModel):
     iter: typing.Optional[int]
 
 
-# In 1.7 should be moved ro mlrun.common.formatters.run.py
+# In 1.7 should be moved to mlrun.common.formatters.run.py
 class RunsFormat(mlrun.common.types.StrEnum):
-    full = "full"
+    standard = "standard"
 
     # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.
-    enriched = "enriched"
+    full = "full"

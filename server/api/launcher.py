@@ -165,7 +165,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 result = runtime._update_run_state(
                     task=run,
                     err=last_err,
-                    run_format=mlrun.common.schemas.RunsFormat.full,
+                    run_format=mlrun.common.schemas.RunsFormat.standard,
                 )
 
         self._save_notifications(run)

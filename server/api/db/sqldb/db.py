@@ -2118,7 +2118,12 @@ class SQLDB(DBInterface):
         names: typing.Union[str, list[str]],
     ):
         if not names:
-            raise mlrun.errors.MLRunInvalidArgumentError("names must be provided")
+            logger.debug(
+                "No names provided, skipping deletion",
+                project=project,
+                tables=[main_table] + related_tables,
+            )
+            return
         for cls in related_tables:
             logger.debug(f"Removing from {cls}", project=project, name=names)
 

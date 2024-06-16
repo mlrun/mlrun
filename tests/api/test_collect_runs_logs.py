@@ -65,6 +65,9 @@ class TestCollectRunSLogs:
         server.api.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
+        server.api.utils.singletons.db.get_db().list_runs = unittest.mock.Mock(
+            return_value=runs
+        )
 
         await server.api.main._initiate_logs_collection(self.start_log_limit)
 
@@ -378,6 +381,12 @@ class TestCollectRunSLogs:
             server.api.utils.singletons.db.get_db(),
             "update_runs_requested_logs",
             update_runs_requested_logs_mock,
+        )
+        list_runs_mock = unittest.mock.Mock(return_value=runs)
+        monkeypatch.setattr(
+            server.api.utils.singletons.db.get_db(),
+            "list_runs",
+            list_runs_mock,
         )
 
         for i in range(3):

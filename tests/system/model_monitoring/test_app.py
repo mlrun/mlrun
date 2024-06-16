@@ -70,8 +70,8 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    results: typing.Optional[set[str]] = None  # only for testing
-    metrics: typing.Optional[set[str]] = None  # only for testing (future use)
+    results: set[str] = field(default_factory=set)  # only for testing
+    metrics: set[str] = field(default_factory=set)  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -263,7 +263,6 @@ class _V3IORecordsChecker:
     def _test_api_get_metrics(
         cls,
         ep_id: str,
-        app_data: _AppData,
         run_db: mlrun.db.httpdb.HTTPRunDB,
         type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
@@ -278,22 +277,23 @@ class _V3IORecordsChecker:
         parsed_response = json.loads(response.content.decode())
 
         if type == "metrics":
-            assert {
-                "project": cls.project_name,
-                "app": "mlrun-infra",
-                "type": "metric",
-                "name": "invocations",
-                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
-            } in parsed_response
+            assert (
+                mlrun.model_monitoring.helpers.get_invocations_metric(
+                    cls.project_name
+                ).dict()
+                in parsed_response
+            ), "The invocations metric is missing"
 
         for result in parsed_response:
-            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
-                get_app_results.add(result["name"])
-                app_results_full_names.append(result["full_name"])
+            get_app_results.add(result["name"])
+            app_results_full_names.append(result["full_name"])
 
-        expected_results = getattr(app_data, type)
+        expected_results = set().union(
+            *[getattr(app_data, type) for app_data in cls.apps_data]
+        )
+
         if type == "metrics":
-            expected_results.add("invocations")
+            expected_results.add(mm_constants.PredictionsQueryConstants.INVOCATIONS)
 
         assert get_app_results == expected_results
         assert app_results_full_names, f"No {type}"
@@ -321,14 +321,14 @@ class _V3IORecordsChecker:
             ], f"The values list is empty for result {result_values['full_name']}"
 
     @classmethod
-    def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
+    def _test_api(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
         metrics_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
+            ep_id=ep_id, run_db=run_db, type="metrics"
         )
         results_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
+            ep_id=ep_id, run_db=run_db, type="results"
         )
 
         cls._test_api_get_values(
@@ -442,8 +442,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_model_serving(
         cls, with_training_set: bool
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            mlrun.import_function(
+                "hub://v2_model_server",
+                project=cls.project_name,
+                new_name="model-serving",
+            ),
         )
         serving_fn.add_model(
             f"{cls.model_name}_{with_training_set}",
@@ -454,7 +459,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+        return serving_fn
 
     @classmethod
     def _infer(
@@ -543,8 +548,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
         self._test_predictions_table(ep_id)
 
-        if with_training_set:
-            self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+        self._test_api(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
 
 

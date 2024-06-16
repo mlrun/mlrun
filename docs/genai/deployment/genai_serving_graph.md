@@ -1,11 +1,11 @@
 (genai-serving-graph)=
-# GenAI Realtime Serving Graph
+# Gen AI realtime serving graph
 
-During inference, it is common to serve a GenAI model as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This can be done with MLRun using the real-time serving pipeline feature. Prior to model inference, the context is typically enriched using a vector database, then the input is transformed to input tokens, and finally the model is executed. Pre-processing and post-processing may also include guardrails to ensure the input is valid (for example, prevent the user from asking questions that attempt to exploit the model) as well as output processing, to verify the model does not hallucinate or includes data that may not be shared.
+During inference, it is common to serve a gen AI model as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This can be done with MLRun using the real-time serving pipeline feature. Prior to model inference, the context is typically enriched using a vector database, then the input is transformed to input tokens, and finally the model is executed. Pre-processing and post-processing may also include guardrails to ensure the input is valid (for example, prevent the user from asking questions that attempt to exploit the model) as well as output processing, to verify the model does not hallucinate or include data that must not be shared.
 
 ## A basic graph
 
-To run a model as part of a larger pipeline, you can use the `set_topology` method of the serving function. The following code shows how to set up a simple pipeline that includes a single step, this example is taken from the [Interactive bot demo using LLMs and MLRun](https://github.com/mlrun/demo-llm-bot) which calls OpenAI ChatGPT model:
+To run a model as part of a larger pipeline, you can use the `set_topology` method of the serving function. The following code shows how to set up a simple pipeline that includes a single step. This example is taken from the [Interactive bot demo using LLMs and MLRun](https://github.com/mlrun/demo-llm-bot) which calls OpenAI ChatGPT model:
 
 ```python
 class QueryLLM:
@@ -32,7 +32,7 @@ class QueryLLM:
         return event
 ```
 
-Store the code above to `src/serve-llm.py`, then to create the serving function, run the following code:
+Store the code above to `src/serve-llm.py`. Then to create the serving function, run the following code:
 
 ```python
 
@@ -50,9 +50,9 @@ graph.add_step(
 ).respond()
 ```
 
-We can now use a similar approach to add more steps to the pipeline.
+You can now use a similar approach to add more steps to the pipeline.
 
-## Setting up a Multi-step Inference Pipeline
+## Setting up a multi-step inference pipeline
 
 The following code shows how to set up an multi-step inference pipeline using MLRun. This code is available in the [MLRun fine-tuning demo](https://github.com/mlrun/demo-llm-tuning):
 
@@ -88,10 +88,10 @@ This flow is illustrated as follows:
       D --> E(toxicity-classifier)
 ```
 
-Generally, each step can be a python function, a serving class, or a class that implements the `do` method. In this case we have `LLMModelServer` and `ToxicityClassifierModelServer` which are serving classes while `preprocess` and `postprocess` are python functions.
+Generally, each step can be a python function, a serving class, or a class that implements the `do` method. This example uses `LLMModelServer` and `ToxicityClassifierModelServer`, which are serving classes, while `preprocess` and `postprocess` are python functions.
 
 ```{admonition} Note
-Unlike the example of {ref}`GenAI serving class<genai-serving>` which showed a simplistic case of deploying a single model, with realtime serving pipelines, one can run a more realistic scenario of having an end-to-end inference pipeline which can retrieve any data, run multiple models and filter any data or results.
+Unlike the example of {ref}`gen AI serving class<genai-serving>`, which showed a simplistic case of deploying a single model with realtime serving pipelines, you can run a more realistic scenario of an end-to-end inference pipeline that can retrieve any data, run multiple models, and filter any data or results.
 ```
 
 Once you have the serving pipeline, it behaves just like any other serving function, including the use of `serving_function.to_mock_server()` to test the pipeline and `project.deploy_function(serving_function)` to deploy the pipeline.
@@ -106,4 +106,4 @@ print(response["outputs"])
 
 ## Distributed pipelines
 
-By default, all steps of the serving graph will run on the same pod in sequence. It is possible to run different steps on different pods using {ref}`distributed pipelines<distributed-graph>` which would typically run steps that require CPU on one pod, and steps that require a GPU on a different pod.
+By default, all steps of the serving graph run on the same pod in sequence. It is possible to run different steps on different pods using {ref}`distributed pipelines<distributed-graph>`.Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod.

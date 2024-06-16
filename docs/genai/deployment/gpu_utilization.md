@@ -1,9 +1,9 @@
 (gpu-utilization)=
-# GPU Utilization
+# GPU utilization
 
-GenAI models require GPU in order to run and they are usually large and thus require a lot of memory to run. However, GPU memory is limited and can be a bottleneck for running large models. In this section, we will discuss techniques to improve GPU utilization during inference and how to optimize it. The list here provides some important considerations, but this is not an exhaustive list.
+Gen AI models require GPUs in order to run. And since they are usually large, they require a lot of memory to run. However, GPU memory is limited and can be a bottleneck for running large models. This section discusses techniques to improve GPU utilization during inference and how to optimize it. The list here provides some important considerations, but this is not an exhaustive list.
 
-## Optimization Techniques
+## Optimization techniques
 
 ### Reduce model size
 
@@ -19,13 +19,13 @@ MLRun provides the ability to automate the quantization process, which can help 
 
 ### Attention
 
-In deep learning models, attention mechanisms are used to focus on different parts of the input sequence. Attention mechanisms can be computationally expensive and can be a bottleneck for running large models. One way to improve GPU utilization is to use [FlashAttention](https://github.com/Dao-AILab/flash-attention), which is a more efficient attention mechanism that can lead to a significant speedup and memory reduction.  Standard attention has memory quadratic in sequence length, whereas FlashAttention has memory linear in sequence length. This translates to a 10X memory savings at sequence length 2K, and 20X at 4K. As a result, FlashAttention can scale to much longer sequence lengths. FlashAttention-2 offer faster attention with better parallelism and work partition.
+In deep learning models, attention mechanisms are used to focus on different parts of the input sequence. Attention mechanisms can be computationally expensive and can be a bottleneck for running large models. One way to improve GPU utilization is to use [FlashAttention](https://github.com/Dao-AILab/flash-attention), which is a more efficient attention mechanism that can lead to a significant speedup and memory reduction.  Standard attention has memory quadratic in sequence length, whereas FlashAttention has memory linear in sequence length. This translates to a 10X memory savings at sequence length 2K, and 20X at 4K. As a result, FlashAttention can scale to much longer sequence lengths. FlashAttention-2 offers faster attention with better parallelism and work partition.
 
-## Inference Optimization
+## Inference optimization
 
 ### Batch Size
 
-Batch size is an important hyperparameter that can have a significant impact on GPU utilization. Increasing the batch size can lead to better GPU utilization and can lead to a speedup in inference time. However, increasing the batch size leads to higher latency. Static batching is not as optimal as dynamic batching for LLMs as not all inputs produce completion tokens at the same time, leading to the longest input to halt the rest. However, the big improvement here comes not just from GPU utilization but by increasing throughput.
+Batch size is an important hyperparameter that can have a significant impact on GPU utilization. Increasing the batch size can lead to better GPU utilization and can lead to a speedup in inference time. However, increasing the batch size leads to higher latency. Static batching is not as optimal as dynamic batching for LLMs since not all inputs produce completion tokens at the same time, leading to the longest input to halt the rest. However, the big improvement here comes not just from GPU utilization but by increasing throughput.
 
 ### GPU allocation
 
@@ -33,10 +33,10 @@ When running multiple models, it is important to allocate the GPUs dynamically p
 
 ### Using CPUs
 
-There are tasks related to GenAI that are better suited for CPUs, such as data preprocessing, loading the model, and processing the outputs. By offloading these tasks to CPUs, you can free up the GPU for running the model, which can lead to better GPU utilization. Therefore, rather than running the entire pipeline on the GPU, you can run the CPU tasks on the CPU and the model on the GPU. This usually means that the inference pipeline will run on different nodes, and MLRun can automatically distribute the pipeline across different nodes.
+There are tasks related to gen AI that are better suited for CPUs, such as data preprocessing, loading the model, and processing the outputs. By offloading these tasks to CPUs, you can free up the GPU for running the model, which can lead to better GPU utilization. Therefore, rather than running the entire pipeline on the GPU, you can run the CPU tasks on the CPU and the model on the GPU. This usually means that the inference pipeline runs on different nodes, and MLRun can automatically distribute the pipeline across different nodes.
 
 
 ### Multiple GPUs
 
-When multiple GPUs are available, you can use multiple workers to run the model in parallel. This can lead to better GPU utilization and can lead to a speedup in inference time. Typically, orchestrating multiple GPUs requires significant engineering effort. MLRun provides the ability to run multiple workers in parallel. It uses automatically distribute the function code across multiple GPUs, but from the user's point of view, it is as simple as setting the number of workers to run in parallel.
+When multiple GPUs are available, you can use multiple workers to run the model in parallel. This can lead to better GPU utilization and can lead to a speedup in inference time. Typically, orchestrating multiple GPUs requires significant engineering effort. MLRun, however, provides the ability to run multiple workers in parallel. It automatically distributes the function code across multiple GPUs, but from the user's point of view, it is as simple as setting the number of workers to run in parallel.
 

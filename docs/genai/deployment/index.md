@@ -1,7 +1,7 @@
 (genai-deployment)=
 # Deploying gen AI 
 
-*In this section**
+**In this section**
 
 ```{toctree}
 :maxdepth: 1

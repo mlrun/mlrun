@@ -15,23 +15,12 @@ Table of Contents
    :caption: Gen AI tasks
    
    genai/genai-flow
-   genai/setup-genai-project
-   genai/process-data   
-   genai/embedding
-   genai/vector-db
-   genai/guardrails-data
-   genai/hugging-face
-   genai/rag
-   genai/fine-tune
-   genai/evaluate
-   genai/serving-genai
-   genai/gpu-util
-   genai/workflow
-   genai/rt-serving-graph
-   genai/guardrails-deploy
-   genai/monitoring
-   genai/model-judge
-   
+   genai/data-mgmt/index
+   genai/development/index
+   genai/deployment/index	  
+   genai/live-ops/index
+	  
+	
 	   
 .. toctree::
    :maxdepth: 1

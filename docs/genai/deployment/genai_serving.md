@@ -1,20 +1,20 @@
 (genai-serving)=
-# Serving GenAI Models
+# Serving gen AI models
 
-Serving a GenAI model is in essence the same as serving any other model. The main differences are with the inputs and outputs, which are usually unstructured (text or images) and the model is usually a transformer model. With MLRun you can serve any model, including pretrained models from the Hugging Face model hub as well as models fine-tuned with MLRun.
+Serving a gen AI model is, in essence, the same as serving any other model. The main differences are with the inputs and outputs, which are usually unstructured (text or images), and the model is usually a transformer model. With MLRun you can serve any model, including pretrained models from the [Hugging Face model hub](https://huggingface.co/docs/hub/en/models-the-hub) as well as models that are fine-tuned with MLRun.
 
-Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`GenAI serving graph section <genai-serving-graph>`.
+Another common use case is to serve the model as part of an inference pipeline, where the model is used as part of a larger pipeline that includes data preprocessing, model execution, and post-processing. This is covered in the {ref}`gen AI serving graph section <genai-serving-graph>`.
 
 
 ## Serving using the function hub
 
-The function hub has a serving class called `hugging_face_serving` to run Hugging Face models. The following code shows how to import the function to your project
+The function hub has a serving class called [`hugging_face_serving`](https://www.mlrun.org/hub/functions/master/hugging_face_serving/) to run Hugging Face models. The following code shows how to import the function to your project:
 
 ```python
 hugging_face_serving = project.set_function("hub://hugging_face_serving")
 ```
 
-Next, you can add a model to the function using the following code:
+Next, you can add a model to the function using this code:
 
 ```python
 
@@ -31,7 +31,7 @@ hugging_face_serving.add_model(
 )
 ```
 
-And test the model
+And test the model:
 ```python
 hugging_face_mock_server = hugging_face_serving.to_mock_server()
 result = hugging_face_mock_server.test(
@@ -47,9 +47,9 @@ The following code shows how to build a simple model serving function using MLRu
 
 ```{admonition} Note
 
-This example uses the [ONNX runtime](https://onnxruntime.ai/docs/) in this example, but it's here for illustrative purposes, you can use any other runtime within your model serving class.
+This example uses the [ONNX runtime](https://onnxruntime.ai/docs/) but it's here for illustrative purposes. You can use any other runtime within your model serving class.
 
-To run this code, make sure to run `pip install huggingface_hub onnxruntime_genai` in your python environment
+To run this code, make sure to run `pip install huggingface_hub onnxruntime_genai` in your python environment.
 ```
 
 
@@ -129,11 +129,11 @@ class OnnxGenaiModelServer(mlrun.serving.v2_serving.V2ModelServer):
         return response
 ```
 
-During load, the code above downloads a model from Hugging Face hub creates a model object and a tokenizer.
+During load, the code above downloads a model from the Hugging Face hub and creates a model object and a tokenizer.
 
-During prediction, the code collects all prompts, tokenizes the prompts, generates the response tokens and decodes the output tokens to text.
+During prediction, the code collects all prompts, tokenizes the prompts, generates the response tokens, and decodes the output tokens to text.
 
-If we save the code above to `src/onnx_genai_serving.ay` we can create a model serving functions with the following code:
+Save the code above to `src/onnx_genai_serving.ay` and then create a model serving functions with the following code:
 
 ``` python
 import os
@@ -155,9 +155,9 @@ genai_serving.add_model("mymodel",
 
 ```
 
-The code loads a Phi-3 model. We use the CPU version here so it's easy to test and run, but you can just as easily provide a GPU-based model.
+The code loads a Phi-3 model. This example uses the CPU version so it's easy to test and run, but you can just as easily provide a GPU-based model.
 
-We can test the model with the following code:
+Test the model with the following code:
 
 ```python
 mock_server = genai_serving.to_mock_server()
@@ -169,19 +169,19 @@ result = mock_server.test(
 print(f"Output: {result['outputs']}")
 ```
 
-A typical output would be
+A typical output would be:
 ```
 Output: [{'prediction': '\nWhat is 1+1? \n1+1 equals 2. This is a basic arithmetic addition problem where you add one unit to another unit.', 'prompt': '<|user|>\nWhat is 1+1? <|end|>\n<|assistant|>'}]
 ```
 
-To deploy the model we run
+To deploy the model. run:
 ```python
 project.deploy_function(genai_serving)
 ```
 
-This build a docker images with the required dependencies and deploys a nuclio function.
+This builds a docker images with the required dependencies and deploys a Nuclio function.
 
-To test the model we can use the HTTP trigger as follows
+To test the model, use the HTTP trigger:
 ```python
 genai_serving.invoke(
     "/v2/models/mymodel",

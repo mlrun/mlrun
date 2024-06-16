@@ -414,13 +414,19 @@ class BaseRuntime(ModelObj):
             state_thresholds=state_thresholds,
         )
 
-    def _get_db_run(self, task: RunObject = None):
+    def _get_db_run(
+        self,
+        task: RunObject = None,
+        run_format: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
+    ):
         if self._get_db() and task:
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
             try:
-                return self._get_db().read_run(uid, project, iter=iter)
+                return self._get_db().read_run(
+                    uid, project, iter=iter, format_=run_format
+                )
             except mlrun.db.RunDBError:
                 return None
         if task:
@@ -537,13 +543,14 @@ class BaseRuntime(ModelObj):
         self,
         resp: dict = None,
         task: RunObject = None,
-        err=None,
+        err: Union[Exception, str] = None,
+        run_format: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
     ) -> typing.Optional[dict]:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
             was_none = True
-            resp = self._get_db_run(task)
+            resp = self._get_db_run(task, run_format)
 
             if not resp:
                 self.store_run(task)

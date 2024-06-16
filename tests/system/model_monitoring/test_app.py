@@ -357,6 +357,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.model_name = "classification"
         cls.num_features = 4
 
+        # The main inference task event count
+        cls.num_events = 10_000
+
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
 
@@ -466,7 +469,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls,
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
-        num_events: int = 10_000,
+        num_events: int,
         with_training_set: bool = True,
     ) -> None:
         result = serving_fn.invoke(
@@ -507,6 +510,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ep.spec.feature_names
         ), "The feature names are not as expected"
 
+        assert (
+            ep.status.current_stats["sepal_length_cm"]["count"] == cls.num_events
+        ), "Different number of events than expected"
+
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
@@ -533,7 +540,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn = future.result()
 
         time.sleep(5)
-        self._infer(serving_fn, with_training_set=with_training_set)
+        self._infer(
+            serving_fn, num_events=self.num_events, with_training_set=with_training_set
+        )
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds

@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.3](#v1-6-3-4-june-2024) | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -12,7 +12,52 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
  
+## v1.6.3 (4 June 2024)
 
+### Workflows
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3521,5482|Remote/scheduled workflows can now be performed by a project with a source that is contained on the image. See [Scheduling a workflow](../concepts/scheduled-jobs.html#scheduling-a-workflow). Tech Preview. |
+
+### Infrastructure
+
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5739|MLRun now supports email-like username.|
+
+### Documentation
+| ID    |Description                                                               |
+|-------|---------------------------------------------------------------------------|
+|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
+|NA     | New page describing {ref}`log-artifacts`.                                 |
+|NA     | New page describing {ref}`parallel-workflows`.                                 |
+|NA     | New page describing {ref}`conditional-workflow`.                                 |
+|NA     | New page describing {ref}`exithandler-workflow`.                                 |
+
+### Breaking change
+| ID          |Description                                                               |
+|-------|---------------------------------------------------------------------------|
+|ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
+ML-6397|`list runs`  API does not return artifacts in the run body. Instead you get a dictionary of artifact_uris with store path to the artifacts which can be retrieved via `mlrun.store_manager`. You can get the artifacts in the run status, only if you use the `get run`API (i.e. when getting a single run). If an artifact is deleted, it will not be returned in the run body.|
+
+###  Closed issues
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-4149|Workflows are now listed from newest to oldest.|
+|ML-5763|The log formatter options can now be changed by an env var.|
+|ML-5772|Resolved: "Projects" screen/counters may show "N/A" or "MySQL server has gone away" transient error.|
+|ML-5776|Concurrent request to project deletion now do not fail.|
+|ML-6000|Improved MLRun startup time on system with large number of runs.|
+|ML-6026|Remote workflows using a large image no longer time-out.|
+|ML-6045|UI: User-filters return all of the matching users.|
+|ML-6048|UI: An admin user can now change its role in the project. |  
+|ML-6051|UI: After an admin user deletes itself from a project, the user is redirected.|
+|ML-6188|If a workflow runner pod fails due to an application error, an immediate response returns the error (and not that the workflow does not exist).|
+|ML-6194|When running workflows with a remote engine, functions files are not synced instead they are loaded dynamically during runtime.|
+|ML-6317|Reduced MLRun memory consumption.|
+|ML-6384|Improved resource consumption of list runs with partitioning query |
+|ML-6397|Artifacts are no longer stored in the run body in the DB, instead a map of artifact keys to URIs is maintained.|
+|ML-6489|Resolved jobs transient failures with error 'ClientOSError(104, 'Connection reset by peer')'.|
 
 ## v1.6.2 (29 March 2024)
 
@@ -23,8 +68,6 @@
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
 |ML-5977|The 'Members' tab in Project settings is now shown for groups with admin privileges.|
-
-
 
 ## v1.6.1 (29 February 2024)
 
@@ -50,7 +93,7 @@
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|New Grafana Model Monitoring Applications dashboard that includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 
@@ -866,7 +909,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
-|ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
 |ML-3526|Aggregation column order is not always respected (storey engine).| NA | v1.3.0|
 |ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. |NA | v1.3.0|
 |ML-3627|The feature store allows ingestion of string type for the timestamp key resulting in errors when trying to query the offline store with time filtration.|Use only timestamp type.| v1.2.1    |
@@ -902,9 +944,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
-|ML-6048|UI: An admin user cannot change its role in the project. | NA |v1.6.2|
-|ML-6045|UI: If a user-filter has a large number of matches, it may not display all the matching users. |Narrow your search to be sure you get all the matches.|v1.6.2|
-|ML-6051|UI: After an admin user deletes itself from a project, the user stays in the Projects Members page even though it has no permissions and cannot view any aspects of the project.|  NA |v1.6.2|
+|ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
 
 
 ## Limitations
@@ -941,6 +981,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|

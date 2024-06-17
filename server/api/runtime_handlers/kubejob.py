@@ -230,7 +230,6 @@ def func_to_pod(
         volume_mounts=runtime.spec.volume_mounts,
         resources=runtime.spec.resources,
         lifecycle=lifecycle,
-        node_selector=None,
     )
 
     pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(

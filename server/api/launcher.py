@@ -214,20 +214,16 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
-            mlrun.utils.logger.info(
-                "In query project!!!",
-                project_name=run.metadata.project,
-                ns=project.spec.default_function_node_selector,
-            )
-            mlrun.utils.logger.info("Before merge", ns=runtime.spec.node_selector)
             if project.spec.default_function_node_selector:
+                mlrun.utils.logger.info(
+                    "Enriching node selector from project",
+                    project_name=run.metadata.project,
+                    project_node_selector=project.spec.default_function_node_selector,
+                )
                 run.spec.node_selector = {
                     **project.spec.default_function_node_selector,
                     **runtime.spec.node_selector,
                 }
-            mlrun.utils.logger.info(
-                "New node selector isssss", node_selector=run.spec.node_selector
-            )
 
         return run
 

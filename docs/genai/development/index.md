@@ -1,5 +1,6 @@
 (genai-development)=
 # Developing a gen AI pipeline
+Model development includes: Prompt library, experiment tracking, automatic distribution, fine-tuning, RLHF, fine parameter tuning.
 
 **In this section**
 

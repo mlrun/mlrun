@@ -63,6 +63,17 @@ class WebhookNotification(NotificationBase):
             request_body["custom_html"] = custom_html
 
         if override_body:
+            if isinstance(override_body,dict):
+                for key,value in override_body.items():
+                    if "{{ runs }}" in value:
+                        override_body[key]=value.replace("{{ runs }}",runs)
+                    elif "{{runs}}" in value:
+                        override_body[key]=value.replace("{{runs}}",runs)
+            elif isinstance(override_body,str):
+                if "{{ runs }}" in override_body:
+                    override_body.replace("{{ runs }}", runs)
+                elif "{{runs}}" in override_body:
+                    override_body.replace("{{runs}}", runs)
             request_body = override_body
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.

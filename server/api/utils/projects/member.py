@@ -40,13 +40,14 @@ class Member(abc.ABC):
         wait_for_completion: bool = True,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        project_names = self.list_projects(
+        project = self.get_project(
             db_session,
             format_=mlrun.common.formatters.ProjectFormat.name_only,
             leader_session=auth_info.session,
-            names=[name],
+            from_leader=False,
+            name=name,
         )
-        if name not in project_names.projects:
+        if not project:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
 
     @abc.abstractmethod

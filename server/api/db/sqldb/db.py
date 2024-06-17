@@ -1812,9 +1812,8 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         computed_tag = tag or "latest"
 
-        obj, tag_function_uid = self._get_function_db_object(
-            session, name, project, tag, hash_key
-        )
+        obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
+        tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
 

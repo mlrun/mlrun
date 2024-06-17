@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-:'       _\|/_
+: '
+         _\|/_
          (o o)
  +----oOO-{_}-OOo----------------------------------------------------------------------------------------------------+
  |                                                                                                                   |
@@ -21,7 +22,7 @@
  |   the API process and for zombie processes reaping.                                                               |
  |                                                                                                                   |
  +-------------------------------------------------------------------------------------------------------------------+
- '
+'
 
 # Lower case the MLRUN_MEMRAY env var
 MLRUN_MEMRAY_LOWER=$(echo "$MLRUN_MEMRAY" | tr '[:upper:]' '[:lower:]')

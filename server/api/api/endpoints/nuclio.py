@@ -103,13 +103,13 @@ async def get_api_gateway(
 
 
 @router.put(
-    "/projects/{project}/api-gateways/{gateway}",
+    "/projects/{project}/api-gateways/{name}",
     response_model=mlrun.common.schemas.APIGateway,
     response_model_exclude_none=True,
 )
 async def store_api_gateway(
     project: str,
-    gateway: str,
+    name: str,
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
@@ -121,7 +121,7 @@ async def store_api_gateway(
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
-        gateway,
+        name,
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
@@ -129,7 +129,7 @@ async def store_api_gateway(
         create = False
         try:
             existing_api_gateway = await client.get_api_gateway(
-                project_name=project, name=gateway
+                project_name=project, name=name
             )
             # check if any functions were removed from the api gateway
             unused_functions = [
@@ -149,13 +149,10 @@ async def store_api_gateway(
             create = True
 
         await client.store_api_gateway(
-            project_name=project,
-            api_gateway_name=gateway,
-            api_gateway=api_gateway,
-            create=create,
+            project_name=project, api_gateway=api_gateway, create=create
         )
         api_gateway = await client.get_api_gateway(
-            name=gateway,
+            name=name,
             project_name=project,
         )
     if api_gateway:
@@ -168,11 +165,11 @@ async def store_api_gateway(
 
 
 @router.delete(
-    "/projects/{project}/api-gateways/{gateway}",
+    "/projects/{project}/api-gateways/{name}",
 )
 async def delete_api_gateway(
     project: str,
-    gateway: str,
+    name: str,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -183,7 +180,7 @@ async def delete_api_gateway(
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         project,
-        gateway,
+        name,
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
@@ -197,6 +194,7 @@ async def delete_api_gateway(
                 function_names=api_gateway.get_function_names(),
             )
             return await client.delete_api_gateway(project_name=project, name=gateway)
+        return await client.delete_api_gateway(project_name=project, name=name)
 
 
 @router.post("/projects/{project}/nuclio/{name}/deploy")

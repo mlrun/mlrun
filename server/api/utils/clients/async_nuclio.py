@@ -22,6 +22,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
@@ -65,14 +66,20 @@ class Client:
         for name, gw in api_gateways.items():
             parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(
                 gw
-            ).replace_nuclio_names_with_mlrun_uri()
+            ).replace_nuclio_names_with_mlrun_names()
         return parsed_api_gateways
 
     async def api_gateway_exists(self, name: str, project_name: str = None):
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
+
         return name in await self.list_api_gateways(project_name=project_name)
 
     async def get_api_gateway(self, name: str, project_name: str = None):
         headers = {}
+
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -84,12 +91,11 @@ class Client:
         )
         return mlrun.common.schemas.APIGateway.parse_obj(
             api_gateway
-        ).replace_nuclio_names_with_mlrun_uri()
+        ).replace_nuclio_names_with_mlrun_names()
 
     async def store_api_gateway(
         self,
         project_name: str,
-        api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
         create: bool = False,
     ):
@@ -105,7 +111,9 @@ class Client:
         body = api_gateway.dict(exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
-            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway_name)
+            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(
+                api_gateway=api_gateway.spec.name
+            )
             if method == "PUT"
             else NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway="")
         )
@@ -119,6 +127,9 @@ class Client:
 
     async def delete_api_gateway(self, name: str, project_name: str = None):
         headers = {}
+
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -222,9 +233,7 @@ class Client:
 
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
-        raise mlrun.errors.STATUS_ERRORS[response.status](
-            error_message, response=response
-        )
+        mlrun.errors.raise_for_status(response, error_message)
 
     def _enrich_nuclio_api_gateway(
         self,
@@ -232,5 +241,5 @@ class Client:
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
-        api_gateway.enrich_mlrun_function_names()
+        api_gateway.enrich_mlrun_names()
         return api_gateway

@@ -152,13 +152,20 @@ class MLRunPatcher:
 
     def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
+        mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
+        mlrun_docker_repo = self._config.get("DOCKER_REPO", "")
+
+        if not mlrun_docker_registry.endswith("/"):
+            mlrun_docker_registry += "/"
+
         env = {
             "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REPO": self._config["DOCKER_REGISTRY"],
+            "MLRUN_DOCKER_REGISTRY": mlrun_docker_registry,
+            "MLRUN_DOCKER_REPO": mlrun_docker_repo,
         }
         cmd = ["make", target]
         self._exec_local(cmd, live=True, env=env)
-        return f"{self._config['DOCKER_REGISTRY']}/{image_name}:{image_tag}"
+        return f"{mlrun_docker_registry}{mlrun_docker_repo}/{image_name}:{image_tag}"
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")
@@ -219,9 +226,10 @@ class MLRunPatcher:
     def _replace_deployment_images(self, container, built_image):
         logger.info("Replace mlrun-api-chief")
         if self._config.get("OVERWRITE_IMAGE_REGISTRY"):
+            docker_registry, overwrite_registry = self._resolve_overwrite_registry()
             built_image = built_image.replace(
-                self._config["DOCKER_REGISTRY"],
-                self._config["OVERWRITE_IMAGE_REGISTRY"],
+                docker_registry,
+                overwrite_registry,
             )
 
         self._exec_remote(
@@ -500,6 +508,16 @@ class MLRunPatcher:
             )
 
         return stdout
+
+    def _resolve_overwrite_registry(self):
+        docker_registry = self._config["DOCKER_REGISTRY"]
+        overwrite_registry = self._config["OVERWRITE_IMAGE_REGISTRY"]
+        if docker_registry.endswith("/"):
+            docker_registry = docker_registry[:-1]
+        if overwrite_registry.endswith("/"):
+            overwrite_registry = overwrite_registry[:-1]
+
+        return docker_registry, overwrite_registry
 
 
 @click.command(help="mlrun-api deployer to remote system")

@@ -22,6 +22,8 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
+import mlrun.model_monitoring
+import mlrun.model_monitoring.db.stores
 import server.api.crud.secrets
 
 
@@ -140,3 +142,13 @@ def get_stream_path(
             stream_uri=stream_uri, project=project, function_name=function_name
         )
     ]
+
+
+def get_store_object(project: str) -> mlrun.model_monitoring.db.stores.StoreBase:
+    """Handle the get store object function for the server side, using the project secret provider."""
+    return mlrun.model_monitoring.get_store_object(
+        project=project,
+        secret_provider=server.api.crud.secrets.get_project_secret_provider(
+            project=project
+        ),
+    )

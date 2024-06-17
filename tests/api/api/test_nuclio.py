@@ -196,9 +196,7 @@ def test_mlrun_function_translation_to_nuclio(
             functions=functions, project=project_name
         ),
     )
-    api_gateway_server_side = (
-        api_gateway_client_side.to_scheme().enrich_mlrun_function_names()
-    )
+    api_gateway_server_side = api_gateway_client_side.to_scheme().enrich_mlrun_names()
     assert (
         api_gateway_server_side.get_function_names() == expected_nuclio_function_names
     )
@@ -208,7 +206,7 @@ def test_mlrun_function_translation_to_nuclio(
         == expected_mlrun_functions_label
     )
     api_gateway_with_replaced_nuclio_names_to_mlrun = (
-        api_gateway_server_side.replace_nuclio_names_with_mlrun_uri()
+        api_gateway_server_side.replace_nuclio_names_with_mlrun_names()
     )
     assert (
         api_gateway_with_replaced_nuclio_names_to_mlrun.get_function_names()

@@ -13,8 +13,14 @@
 # limitations under the License.
 #
 
-from .artifact import ArtifactFormat  # noqa
-from .function import FunctionFormat  # noqa
-from .pipeline import PipelineFormat  # noqa
-from .project import ProjectFormat  # noqa
-from .run import RunFormat  # noqa
+
+import mlrun.common.types
+from mlrun.common.formatters.base import ObjectFormat
+
+
+class RunFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    # No enrichment, data is pulled as-is from the database.
+    standard = "standard"
+
+    # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.
+    full = "full"

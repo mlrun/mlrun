@@ -30,6 +30,7 @@ import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
+import server.api.common.formatters
 import server.api.constants
 import server.api.db.session
 import server.api.runtime_handlers
@@ -129,7 +130,7 @@ class Runs(
         )
 
         if format_ == mlrun.common.schemas.RunsFormat.full:
-            self._enrich_run_artifacts(db_session, iter, project, run, uid)
+            self._enrich_run_artifacts(db_session, run, iter, project, uid)
 
         return run
 
@@ -455,6 +456,37 @@ class Runs(
             db_session, run_updates, uid, project, iter
         )
 
+    def _enrich_run_artifacts(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run: dict,
+        iteration: int,
+        project: str,
+        uid: str,
+    ):
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        workflow_id = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.workflow)
+        )
+        if not workflow_id:
+            artifacts = self._list_run_artifacts(
+                db_session, iteration, producer_id=uid, project=project
+            )
+
+        else:
+            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
+            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
+            # filters by producer URI in memory.
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
+
     @staticmethod
     async def _post_delete_run(project, uid):
         if (
@@ -544,33 +576,6 @@ class Runs(
                 missing_artifacts=missing_artifacts,
             )
         return artifacts
-
-    def _enrich_run_artifacts(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        iteration: int,
-        project: str,
-        run: dict,
-        uid: str,
-    ):
-        # Since we don't store the artifacts in the run body, we need to fetch them separately
-        # The client may be using them as in pipeline as input for the next step
-        workflow_id = run["metadata"].get("labels", {}).get(mlrun_constants.MLRunInternalLabels.workflow)
-        if not workflow_id:
-            artifacts = self._list_run_artifacts(
-                db_session, iteration, producer_id=uid, project=project
-            )
-
-        else:
-            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
-            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
-            # filters by producer URI in memory.
-            artifacts = self._get_artifacts_from_uris(
-                db_session, project=project, producer_id=workflow_id, run=run
-            )
-        if artifacts or "artifacts" in run.get("status", {}):
-            run.setdefault("status", {})
-            run["status"]["artifacts"] = artifacts
 
     @staticmethod
     def _list_run_artifacts(

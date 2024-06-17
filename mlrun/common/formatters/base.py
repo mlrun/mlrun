@@ -45,6 +45,7 @@ class ObjectFormat:
         obj: typing.Any,
         _format: str,
         exclude_formats: typing.Optional[list[str]] = None,
+        **kwargs,
     ) -> typing.Any:
         """
         Format the provided object based on the provided format.
@@ -52,6 +53,7 @@ class ObjectFormat:
         :param _format: The format as a string representation.
         :param exclude_formats: A list of formats to exclude from the formatting process. If the provided format is in
                                 this list, an invalid format exception will be raised.
+        :param kwargs: Additional keyword arguments to pass to the formatting method.
         """
         exclude_formats = exclude_formats or []
         _format = _format or cls.full
@@ -70,7 +72,7 @@ class ObjectFormat:
         if not format_method:
             return obj
 
-        return format_method(obj)
+        return format_method(obj, **kwargs)
 
     @staticmethod
     def filter_obj_method(_filter: list[str]) -> typing.Callable:

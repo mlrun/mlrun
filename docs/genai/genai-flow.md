@@ -25,7 +25,7 @@ apportion your resources appropriately. (See {ref}`mlops-dev-flow` for more deta
 
 The implementation of a GenAI workflow is illustrated in the following figure:
 
-<img src="../_static/images/genai-flow.png" width="800" >
+<img src="../_static/images/genai-flow.png" width="600" >
 
 
 [MLRun's Function hub](https://www.mlrun.org/hub/functions) provides a collection of reusable functions 

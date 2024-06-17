@@ -53,21 +53,16 @@ The [**gen AI development workflow**](./genai/genai-flow.html) section describes
 MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 Removing inapropriate data at an early stage saves resources that would otherwise be required later on.
 
+
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Projects and automation <./projects/ci-cd-automate.html>`
-{bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
-<br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
-{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
-<br> {octicon}`video` **Videos:**
-{bdg-link-warning}`Quick start `
+{bdg-link-info}`Using LLMs to process unstructured data <./genai/data-mgmt/unstructured-data.html>`
+{bdg-link-info}`Vector databases <./genai/data-mgmt/vector-databases.html>`
+{bdg-link-info}`Guardrails for data management<./genai/data-mgmt/guardrails-data.html>`
+<br> {octicon}`code-square` **Demo:**
+{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
 `````
 
-
-
-<br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Name <.html>`
 
 ### Development
 Use MLRun to build an automated ML pipeline to: collect data, 
@@ -79,10 +74,8 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Working with RAG <./genai/working-with-rag.html>`
 {bdg-link-info}`Evalating LLMs <./genai/evaluating-llms.html>`
 {bdg-link-info}`Fine tuning LLMS <./genai/fine-tuning-llms.html>`
-<br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}``
-<br> {octicon}`video` **Videos:**
-{bdg-link-warning}``
+<br> {octicon}`code-square` **Demo:**
+{bdg-link-primary}`Fine tune an LLM and build a BOT <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
 
 ### Deployment
@@ -109,23 +102,15 @@ Feed it into the foundation model which gives result. The result is not necessar
 {bdg-link-info}`GPU utilization <./genai/gpu-utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/genai-serving-graph.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}``
-<br> {octicon}`video` **Videos:**
-{bdg-link-warning}``
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/g01-llm.html>`
+<br> {octicon}`code-square` **Demo:**
+{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
+
 `````
 
 ### Live Ops
 Monitor all resources, data, model and application metrics to ensure performance. Then identify risks, control costs, and measure business KPIs.
 Collect production data, metadata, and metrics to tune the model and application further, and to enable governance and explainability.
-
-
-
-
-<br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Name <.html>`
-
-
-
 
 
 ## MLOps tasks

@@ -126,13 +126,12 @@ async def store_api_gateway(
         auth_info,
     )
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        # get if api gateway exists
         create = False
         try:
             existing_api_gateway = await client.get_api_gateway(
                 project_name=project, name=gateway
             )
-            # check if there are any functions that are not used in api gateway anymore
+            # check if any functions were removed from the api gateway
             unused_functions = [
                 func
                 for func in existing_api_gateway.get_function_names()
@@ -140,7 +139,7 @@ async def store_api_gateway(
             ]
             if unused_functions:
                 # delete api gateway url from those functions which are not used in api gateway anymore
-                await delete_functions_external_invocation_url(
+                await _delete_functions_external_invocation_url(
                     project=project,
                     url=existing_api_gateway.spec.host,
                     function_names=unused_functions,
@@ -160,7 +159,7 @@ async def store_api_gateway(
             project_name=project,
         )
     if api_gateway:
-        await add_functions_external_invocation_url(
+        await _add_functions_external_invocation_url(
             project=project,
             url=api_gateway.spec.host,
             function_names=api_gateway.get_function_names(),
@@ -192,7 +191,7 @@ async def delete_api_gateway(
         api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
 
         if api_gateway:
-            await delete_functions_external_invocation_url(
+            await _delete_functions_external_invocation_url(
                 project=project,
                 url=api_gateway.spec.host,
                 function_names=api_gateway.get_function_names(),
@@ -324,42 +323,6 @@ async def deploy_status(
         verbose,
         api_gateways_urls,
     )
-
-
-async def delete_functions_external_invocation_url(
-    project: str, url: str, function_names: list[str]
-) -> None:
-    tasks = [
-        asyncio.create_task(
-            run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                server.api.crud.Functions().delete_function_external_invocation_url,
-                function_uri=function,
-                project=project,
-                invocation_url=url,
-            )
-        )
-        for function in function_names
-    ]
-    await asyncio.gather(*tasks)
-
-
-async def add_functions_external_invocation_url(
-    project: str, url: str, function_names: list[str]
-) -> None:
-    tasks = [
-        asyncio.create_task(
-            run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                server.api.crud.Functions().add_function_external_invocation_url,
-                function_uri=function,
-                project=project,
-                invocation_url=url,
-            )
-        )
-        for function in function_names
-    ]
-    await asyncio.gather(*tasks)
 
 
 def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
@@ -714,3 +677,39 @@ def _is_nuclio_deploy_status_changed(
         or previous_status.get("address", "") != address
     )
     return has_changed
+
+
+async def _delete_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
+    tasks = [
+        asyncio.create_task(
+            run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().delete_function_external_invocation_url,
+                function_uri=function,
+                project=project,
+                invocation_url=url,
+            )
+        )
+        for function in function_names
+    ]
+    await asyncio.gather(*tasks)
+
+
+async def _add_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
+    tasks = [
+        asyncio.create_task(
+            run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().add_function_external_invocation_url,
+                function_uri=function,
+                project=project,
+                invocation_url=url,
+            )
+        )
+        for function in function_names
+    ]
+    await asyncio.gather(*tasks)

@@ -849,7 +849,7 @@ class QueueStep(BaseStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"step '{name}' must specify a function, because it follows a queue step"
             )
-        super().to(
+        return super().to(
             class_name,
             name,
             handler,

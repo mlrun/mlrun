@@ -1811,8 +1811,11 @@ class SQLDB(DBInterface):
             return tag_function_uid
 
     def _delete_project_functions(self, session: Session, project: str):
+        function_names = self._list_project_function_names(session, project)
         self.delete_functions(
-            session, project, self._list_project_function_names(session, project)
+            session,
+            project,
+            names=function_names,
         )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
@@ -2088,13 +2091,13 @@ class SQLDB(DBInterface):
 
     def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
+        function_names = [
+            schedule.name for schedule in self.list_schedules(session, project=project)
+        ]
         self.delete_schedules(
             session,
             project,
-            names=[
-                schedule.name
-                for schedule in self.list_schedules(session, project=project)
-            ],
+            names=function_names,
         )
 
     def delete_schedules(

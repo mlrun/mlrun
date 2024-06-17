@@ -15,7 +15,7 @@
 """add default function node selector to project
 
 Revision ID: 68dadc9d9bc8
-Revises: c0e342d73bd0
+Revises: 311d8cbc42a9
 Create Date: 2024-03-18 17:57:10.264336
 
 """
@@ -25,7 +25,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "68dadc9d9bc8"
-down_revision = "c0e342d73bd0"
+down_revision = "311d8cbc42a9"
 branch_labels = None
 depends_on = None
 

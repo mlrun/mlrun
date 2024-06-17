@@ -697,7 +697,9 @@ class RemoteRuntime(KubeResource):
           combining key-value pairs from each dictionary. Later dictionaries take precedence
           when there are conflicting keys.
         """
-        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
+        self.spec.node_selector = mlrun.utils.helpers.select_non_empty_fields(
+            {**project_node_selector, **self.spec.node_selector}
+        )
 
     def set_state_thresholds(
         self,

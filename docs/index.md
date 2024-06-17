@@ -7,12 +7,12 @@ With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun 
 Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, 
 
 
-This page explains how MLRun addresses the [**GenAI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
+This page explains how MLRun addresses the [**gen AI tasks**](#genai-tasks), [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
 
-## GenAI tasks
+## Gen AI tasks
 
 `````{div} 
 
@@ -45,13 +45,26 @@ See the supported data stores, development tools, services, platforms, etc., sup
 `````
 
 
-The [**GenAI development workflow**](./genai/genai-flow.html) section describes the different tasks and stages in detail.
+The [**gen AI development workflow**](./genai/genai-flow.html) section describes the different tasks and stages in detail.
 
 ### Data management
 
 
 MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 Removing inapropriate data at an early stage saves resources that would otherwise be required later on.
+
+`````{div} full-width
+{octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Projects and automation <./projects/ci-cd-automate.html>`
+{bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Quick start <./tutorials/01-mlrun-basics.html>`
+{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}`Quick start `
+`````
+
+
 
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Name <.html>`
@@ -60,8 +73,17 @@ Removing inapropriate data at an early stage saves resources that would otherwis
 Use MLRun to build an automated ML pipeline to: collect data, 
 preprocess (prepare) the data, run the training pipeline, and evaluate the model.
 
+
+`````{div} full-width
+{octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Working with RAG <./genai/working-with-rag.html>`
+{bdg-link-info}`Evalating LLMs <./genai/evaluating-llms.html>`
+{bdg-link-info}`Fine tuning LLMS <./genai/fine-tuning-llms.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Name <.html>`
+{bdg-link-primary}``
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}``
+`````
 
 ### Deployment
 MLRun serving can produce managed ML application pipelines using real-time auto-scaling Nuclio serverless functions. 
@@ -81,10 +103,16 @@ contextualizes it with a state, possible vectors, doc to examine etc
 prompt engineering - tuning the question to the model so it behaves exactly as you want
 Feed it into the foundation model which gives result. The result is not necessarily the final result. Need to clean, format, check for toxic material, intellectual property
 
-
-
+`````{div} full-width
+{octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Serving gen AI models <./genai/genai-serving.html>`
+{bdg-link-info}`GPU utilization <./genai/gpu-utilization.html>`
+{bdg-link-info}`Gen AI realtime serving graph <./genai/genai-serving-graph.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Name <.html>`
+{bdg-link-primary}``
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}``
+`````
 
 ### Live Ops
 Monitor all resources, data, model and application metrics to ensure performance. Then identify risks, control costs, and measure business KPIs.

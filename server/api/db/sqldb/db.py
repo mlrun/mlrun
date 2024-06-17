@@ -1815,7 +1815,7 @@ class SQLDB(DBInterface):
         self.delete_functions(
             session,
             project,
-            names=function_names,
+            function_names,
         )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:

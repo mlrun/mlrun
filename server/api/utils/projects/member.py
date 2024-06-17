@@ -44,6 +44,7 @@ class Member(abc.ABC):
             db_session,
             format_=mlrun.common.formatters.ProjectFormat.name_only,
             leader_session=auth_info.session,
+            names=[name],
         )
         if name not in project_names.projects:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")

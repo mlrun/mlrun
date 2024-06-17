@@ -185,7 +185,7 @@ async def delete_api_gateway(
         auth_info,
     )
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        api_gateway = await client.get_api_gateway(project_name=project, name=gateway)
+        api_gateway = await client.get_api_gateway(project_name=project, name=name)
 
         if api_gateway:
             await _delete_functions_external_invocation_url(
@@ -193,7 +193,7 @@ async def delete_api_gateway(
                 url=api_gateway.spec.host,
                 function_names=api_gateway.get_function_names(),
             )
-            return await client.delete_api_gateway(project_name=project, name=gateway)
+            return await client.delete_api_gateway(project_name=project, name=name)
         return await client.delete_api_gateway(project_name=project, name=name)
 
 

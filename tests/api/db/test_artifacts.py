@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import copy
+import datetime
 import tempfile
 
 import deepdiff
@@ -1416,6 +1417,29 @@ class TestArtifacts:
         assert new_artifact.key == db_key
         artifact = new_artifact.full_object
         assert artifact["metadata"]["key"] == db_key
+
+    def test_migrate_invalid_artifact(self, db: DBInterface, db_session: Session):
+        # create an artifact with an invalid struct
+        artifact = server.api.db.sqldb.models.Artifact(
+            project="my-project",
+            key="my-key",
+            updated=datetime.datetime.now(),
+            uid="something",
+        )
+        artifact.struct = {"something": "blabla"}
+
+        db_session.add(artifact)
+        db_session.commit()
+
+        self._run_artifacts_v2_migration(db, db_session)
+
+        query_all = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        )
+        new_artifacts = query_all.all()
+
+        assert len(new_artifacts) == 1
 
     def test_update_model_spec(self, db: DBInterface, db_session: Session):
         artifact_key = "model1"

@@ -170,7 +170,8 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
-
+        vector = fstore.FeatureVector("feature_vector_snowflake", ["snowflake_feature_set.*"])
+        vector.get_offline_features(engine="spark")
     def test_source(self):
         from pyspark.sql import SparkSession
 

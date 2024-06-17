@@ -4,7 +4,8 @@
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
 - [**Quick-start Tutorial**](./01-mlrun-basics.html) 
-- [**Targeted Tutorials**](#other-tutorial)
+- [Gen AI tutorials](#gen--ai-tutorials)
+- [**Machine learning tutorials**](#other-tutorial)
 - [**End to End Demos**](#e2e-demos)
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/xI8KVGLlj7Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><br><br>
@@ -25,22 +26,32 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 :maxdepth: 1
 :hidden:
 01-mlrun-basics
-02-model-training
-03-model-serving
-04-pipeline
-05-model-monitoring
-06-batch-infer
-07-add-mlops-to-code
-../feature-store/basic-demo
-mlflow
+g01-llm
+ml-index
 demos
 /cheat-sheet
 ```
 
-(other-tutorial)=
-## Targeted tutorials
+## Gen AI tutorials
 
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
+
+`````{div}
+
+````{grid} 3
+:gutter: 2
+
+```{grid-item-card} Deploy LLM using MLRun
+:link: ./g01-llm.html
+How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
+```
+
+````
+`````
+
+(other-tutorial)=
+## Machine learning tutorials
+
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
 
 
 `````{div}

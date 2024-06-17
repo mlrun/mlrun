@@ -996,7 +996,6 @@ class HTTPRunDB(RunDBInterface):
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
-        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
             "format": format_,
             "tag": tag,

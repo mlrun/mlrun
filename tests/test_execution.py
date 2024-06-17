@@ -15,9 +15,11 @@ import datetime
 import unittest.mock
 
 import pytest
+from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 from tests.conftest import out_path
 
@@ -49,8 +51,8 @@ def test_local_context(rundb_mock):
 
     run = db.read_run(context._uid, project=project_name)
 
-    # run state should not be updated by the context
-    assert run["status"]["state"] == "running", "run status was updated in db"
+    # run state should be updated by the context for local run
+    assert run["status"]["state"] == "completed", "run status was not updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
     ), "artifact not updated in db"
@@ -92,7 +94,7 @@ def test_context_from_run_dict(is_api):
 
         # create run object from dict and dict again to mock the run serialization
         run = mlrun.run.RunObject.from_dict(run_dict)
-        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        context = mlrun.MLClientCtx.from_dict(PipelineRun(run.to_dict()), is_api=is_api)
 
         assert context.name == run_dict["metadata"]["name"]
         assert context._project == run_dict["metadata"]["project"]
@@ -145,7 +147,7 @@ def test_context_inputs(rundb_mock, is_api):
 
         # create run object from dict and dict again to mock the run serialization
         run = mlrun.run.RunObject.from_dict(run_dict)
-        context = mlrun.MLClientCtx.from_dict(run.to_dict(), is_api=is_api)
+        context = mlrun.MLClientCtx.from_dict(PipelineRun(run.to_dict()), is_api=is_api)
         assert (
             context.get_input("input-key").artifact_url
             == run_dict["spec"]["inputs"]["input-key"]
@@ -180,8 +182,8 @@ def test_is_logging_worker(host: str, is_logging_worker: bool):
     :param is_logging_worker: The expected result.
     """
     context = mlrun.execution.MLClientCtx()
-    context.set_label("kind", "mpijob")
-    context.set_label("host", host)
+    context.set_label(mlrun_constants.MLRunInternalLabels.kind, "mpijob")
+    context.set_label(mlrun_constants.MLRunInternalLabels.host, host)
     assert context.is_logging_worker() is is_logging_worker
 
 

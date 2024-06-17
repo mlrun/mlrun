@@ -120,9 +120,21 @@ async def list_alerts(
         auth_info,
     )
 
-    return await run_in_threadpool(
+    alerts = await run_in_threadpool(
         server.api.crud.Alerts().list_alerts, db_session, project
     )
+
+    alerts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.alert,
+        alerts,
+        lambda alert: (
+            alert.project,
+            alert.name,
+        ),
+        auth_info,
+    )
+
+    return alerts
 
 
 @router.delete(
@@ -159,6 +171,8 @@ async def delete_alert(
         return await chief_client.delete_alert(
             project=project, name=name, request=request
         )
+
+    logger.debug("Deleting alert", project=project, name=name)
 
     await run_in_threadpool(
         server.api.crud.Alerts().delete_alert, db_session, project, name

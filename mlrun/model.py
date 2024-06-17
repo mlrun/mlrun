@@ -27,7 +27,9 @@ from typing import Any, Optional, Union
 import pydantic.error_wrappers
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.notification
+import mlrun.utils.regex
 
 from .utils import (
     dict_to_json,
@@ -681,10 +683,14 @@ class Notification(ModelObj):
 
     def __init__(
         self,
-        kind=None,
+        kind: mlrun.common.schemas.notification.NotificationKind = (
+            mlrun.common.schemas.notification.NotificationKind.slack
+        ),
         name=None,
         message=None,
-        severity=None,
+        severity: mlrun.common.schemas.notification.NotificationSeverity = (
+            mlrun.common.schemas.notification.NotificationSeverity.INFO
+        ),
         when=None,
         condition=None,
         secret_params=None,
@@ -693,12 +699,10 @@ class Notification(ModelObj):
         sent_time=None,
         reason=None,
     ):
-        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.kind = kind
         self.name = name or ""
         self.message = message or ""
-        self.severity = (
-            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
-        )
+        self.severity = severity
         self.when = when or ["completed"]
         self.condition = condition or ""
         self.secret_params = secret_params or {}
@@ -768,7 +772,10 @@ class RunMetadata(ModelObj):
     def is_workflow_runner(self):
         if not self.labels:
             return False
-        return self.labels.get("job-type", "") == "workflow-runner"
+        return (
+            self.labels.get(mlrun_constants.MLRunInternalLabels.job_type, "")
+            == "workflow-runner"
+        )
 
 
 class HyperParamStrategies:
@@ -865,6 +872,7 @@ class RunSpec(ModelObj):
         returns=None,
         notifications=None,
         state_thresholds=None,
+        reset_on_run=None,
         node_selector=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
@@ -902,6 +910,7 @@ class RunSpec(ModelObj):
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
+        self.reset_on_run = reset_on_run
         self.node_selector = node_selector or {}
 
     def _serialize_field(
@@ -1209,6 +1218,7 @@ class RunStatus(ModelObj):
         ui_url=None,
         reason: str = None,
         notifications: dict[str, Notification] = None,
+        artifact_uris: dict[str, str] = None,
     ):
         self.state = state or "created"
         self.status_text = status_text
@@ -1223,6 +1233,8 @@ class RunStatus(ModelObj):
         self.ui_url = ui_url
         self.reason = reason
         self.notifications = notifications or {}
+        # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
+        self.artifact_uris = artifact_uris or {}
 
     def is_failed(self) -> Optional[bool]:
         """
@@ -1541,8 +1553,10 @@ class RunObject(RunTemplate):
             iter=self.metadata.iteration,
         )
         if run:
-            self.status = RunStatus.from_dict(run.get("status", {}))
-            self.status.from_dict(run.get("status", {}))
+            run_status = run.get("status", {})
+            # Artifacts are not stored in the DB, so we need to preserve them here
+            run_status["artifacts"] = self.status.artifacts
+            self.status = RunStatus.from_dict(run_status)
             return self
 
     def show(self):
@@ -1640,9 +1654,12 @@ class RunObject(RunTemplate):
 
     @staticmethod
     def parse_uri(uri: str) -> tuple[str, str, str, str]:
-        uri_pattern = (
-            r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
-        )
+        """Parse the run's uri
+
+        :param uri: run uri in the format of <project>@<uid>#<iteration>[:tag]
+        :return: project, uid, iteration, tag
+        """
+        uri_pattern = mlrun.utils.regex.run_uri_pattern
         match = re.match(uri_pattern, uri)
         if not match:
             raise ValueError(

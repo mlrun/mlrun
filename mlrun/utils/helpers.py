@@ -26,7 +26,7 @@ import sys
 import typing
 import warnings
 from datetime import datetime, timezone
-from importlib import import_module
+from importlib import import_module, reload
 from os import path
 from types import ModuleType
 from typing import Any, Optional
@@ -39,6 +39,7 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
+from mlrun_pipelines.models import PipelineRun
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -180,8 +181,12 @@ def verify_field_regex(
             )
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
+                    if len(field_name) > max_chars:
+                        field_name = field_name[:max_chars] + "...truncated"
+                    if len(field_value) > max_chars:
+                        field_value = field_value[:max_chars] + "...truncated"
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"Field '{field_name}' is malformed. '{field_value}' "
                         f"does not match required pattern: {pattern}"
                     )
                 return False
@@ -654,7 +659,7 @@ def parse_artifact_uri(uri, default_project=""):
         [3] = tag
         [4] = tree
     """
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+    uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
@@ -784,34 +789,6 @@ def gen_html_table(header, rows=None):
     for r in rows:
         out += "<tr>" + gen_list(r, "td") + "</tr>\n"
     return style + '<table class="tg">\n' + out + "</table>\n\n"
-
-
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
-):
-    from kfp.dsl import PipelineConf
-
-    def _set_artifact_path(task):
-        from kubernetes import client as k8s_client
-
-        task.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
-        )
-        return task
-
-    conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
-
-    if cleanup_ttl:
-        conf.set_ttl_seconds_after_finished(cleanup_ttl)
-    if artifact_path:
-        conf.add_op_transformer(_set_artifact_path)
-    if op_transformers:
-        for op_transformer in op_transformers:
-            conf.add_op_transformer(op_transformer)
-    return conf
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
@@ -1000,6 +977,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_model_endpoint_url(project, model_name, model_endpoint_id):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/models"
+        if model_name:
+            url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
+    return url
+
+
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
@@ -1011,7 +997,7 @@ def get_workflow_url(project, id=None):
 
 
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=list[str]
+    exception: Exception, strings_list: list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1033,16 +1019,35 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: str):
+def create_function(pkg_func: str, reload_modules: bool = False):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
+    :param reload_modules: reload the function again.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
+
+    if reload_modules:
+        # Even though the function appears in the modules list, we need to reload
+        # the code again because it may have changed
+        try:
+            logger.debug("Reloading module", module=pkg_func)
+            _reload(
+                pkg_module,
+                max_recursion_depth=mlrun.mlconf.function.spec.reload_max_recursion_depth,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to reload module. Not all associated modules can be reloaded, import them manually."
+                "Or, with Jupyter, restart the Python kernel.",
+                module=pkg_func,
+                err=mlrun.errors.err_to_str(exc),
+            )
+
     function_ = getattr(pkg_module, cb_fname)
     return function_
 
@@ -1100,8 +1105,14 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def get_function(function, namespace):
-    """return function callable object from function name string"""
+def get_function(function, namespaces, reload_modules: bool = False):
+    """Return function callable object from function name string
+
+    :param function: path to the function ([class_name::]function)
+    :param namespaces: one or list of namespaces/modules to search the function in
+    :param reload_modules: reload the function again
+    :return: function handler (callable)
+    """
     if callable(function):
         return function
 
@@ -1110,12 +1121,12 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    function_object = _search_in_namespaces(function, namespace)
+    function_object = _search_in_namespaces(function, namespaces)
     if function_object is not None:
         return function_object
 
     try:
-        function_object = create_function(function)
+        function_object = create_function(function, reload_modules)
     except (ImportError, ValueError) as exc:
         raise ImportError(
             f"state/function init failed, handler '{function}' not found"
@@ -1124,18 +1135,24 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str,
+    context=None,
+    class_args: dict = None,
+    namespaces=None,
+    reload_modules: bool = False,
 ):
-    """get function handler from [class_name::]handler string
+    """Get function handler from [class_name::]handler string
 
     :param handler_path:  path to the function ([class_name::]handler)
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
+    :param reload_modules: reload the function again
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
-        return get_function(handler_path, namespaces)
+        return get_function(handler_path, namespaces, reload_modules)
 
     splitted = handler_path.split("::")
     class_path = splitted[0].strip()
@@ -1210,7 +1227,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def template_artifact_path(artifact_path, project, run_uid="project"):
+def template_artifact_path(artifact_path, project, run_uid=None):
     """
     Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
     If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
@@ -1218,6 +1235,7 @@ def template_artifact_path(artifact_path, project, run_uid="project"):
     """
     if not artifact_path:
         return artifact_path
+    run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
     return artifact_path
@@ -1291,7 +1309,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1328,7 +1346,7 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
+    if run.get("status", None) is None:
         run["status"] = inflection.titleize(
             mlrun.common.runtimes.constants.RunStates.unknown
         )
@@ -1588,3 +1606,72 @@ def additional_filters_warning(additional_filters, class_name):
             f"additional_filters parameter is not supported in {class_name},"
             f" parameter has been ignored."
         )
+
+
+def validate_component_version_compatibility(
+    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+):
+    """
+    :param component_name: Name of the component to validate compatibility for.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    parsed_current_version = None
+    component_current_version = None
+    try:
+        if component_name == "iguazio":
+            component_current_version = mlrun.mlconf.igz_version
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+
+            if parsed_current_version:
+                # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+                # major, minor, and patch versions
+                parsed_current_version = semver.VersionInfo.parse(
+                    f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+                )
+        if component_name == "nuclio":
+            component_current_version = mlrun.mlconf.nuclio_version
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
+        if not parsed_current_version:
+            return True
+    except ValueError:
+        # only log when version is set but invalid
+        if component_current_version:
+            logger.warning(
+                "Unable to parse current version, assuming compatibility",
+                component_name=component_name,
+                current_version=component_current_version,
+                min_versions=min_versions,
+            )
+        return True
+
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if parsed_current_version < parsed_min_version:
+            return False
+    return True
+
+
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
+    result = alert.summary.replace("{{project}}", alert.project)
+    result = result.replace("{{name}}", alert.name)
+    result = result.replace("{{entity}}", event_data.entity.ids[0])
+    return result
+
+
+def _reload(module, max_recursion_depth):
+    """Recursively reload modules."""
+    if max_recursion_depth <= 0:
+        return
+
+    reload(module)
+    for attribute_name in dir(module):
+        attribute = getattr(module, attribute_name)
+        if type(attribute) is ModuleType:
+            _reload(attribute, max_recursion_depth - 1)

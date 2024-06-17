@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import tempfile
+import warnings
 from os import path
 from typing import Any, Optional
 
@@ -148,6 +149,12 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
+        if key or body or format or target_path:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
@@ -502,7 +509,7 @@ def _get_extra(target, extra_data, is_dir=False):
 def _remove_tag_from_spec_yaml(model_spec):
     spec_dict = model_spec.to_dict()
     spec_dict["metadata"].pop("tag", None)
-    return yaml.dump(spec_dict)
+    return yaml.safe_dump(spec_dict)
 
 
 def update_model(

@@ -18,7 +18,11 @@ from typing import Optional, Union
 from dependency_injector import containers, providers
 from sqlalchemy.exc import SQLAlchemyError
 
+import mlrun.alerts
+import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.artifact
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 import server.api.crud
@@ -111,7 +115,8 @@ class SQLRunDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -135,7 +140,9 @@ class SQLRunDB(RunDBInterface):
             uid=uid,
             project=project,
             labels=labels,
-            states=mlrun.utils.helpers.as_list(state) if state is not None else None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -233,13 +240,26 @@ class SQLRunDB(RunDBInterface):
             producer_id=tree,
         )
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
             self.session,
             key,
             tag,
             project,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -435,7 +455,7 @@ class SQLRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -764,8 +784,8 @@ class SQLRunDB(RunDBInterface):
         namespace: str = None,
         timeout: int = 30,
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.summary,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         raise NotImplementedError()
@@ -778,8 +798,8 @@ class SQLRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         raise NotImplementedError()
@@ -797,7 +817,10 @@ class SQLRunDB(RunDBInterface):
     def store_api_gateway(
         self,
         project: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
     ):
         raise NotImplementedError()
 
@@ -1049,7 +1072,24 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
     ) -> None:
+        raise NotImplementedError
+
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        raise NotImplementedError
+
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
         raise NotImplementedError
 
     def deploy_histogram_data_drift_app(
@@ -1078,7 +1118,7 @@ class SQLRunDB(RunDBInterface):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass
@@ -1093,6 +1133,12 @@ class SQLRunDB(RunDBInterface):
         pass
 
     def reset_alert_config(self, alert_name, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
         pass
 
 

@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -87,7 +88,7 @@ default_config = {
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
     "log_level": "INFO",
-    # log formatter (options: human | json)
+    # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
@@ -228,9 +229,16 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
+            # function is used to prevent infinite loop
+            "reload_max_recursion_depth": 100,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
+        },
+        "application": {
+            "default_sidecar_internal_port": 8050,
+            "default_authentication_mode": "accessKey",
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -366,7 +374,7 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
             # size of serving spec to move to config maps
-            "serving_spec_env_cutoff": 4096,
+            "serving_spec_env_cutoff": 0,
         },
         "logs": {
             "decode": {
@@ -503,6 +511,7 @@ default_config = {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
             "stream": "",
+            "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
@@ -516,6 +525,9 @@ default_config = {
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
+        # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
+        "tsdb_connector_type": "v3io-tsdb",
+        "tsdb_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -692,7 +704,10 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "enabled"
+        "mode": "enabled",
+        # maximum number of alerts we allow to be configured.
+        # user will get an error when exceeding this
+        "max_allowed": 1000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -797,6 +812,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
+
         :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
@@ -960,6 +976,10 @@ class Config:
         return self.httpdb.clusterization.chief.url
 
     @staticmethod
+    def internal_labels():
+        return mlrun.common.constants.MLRunInternalLabels.all()
+
+    @staticmethod
     def get_storage_auto_mount_params():
         auto_mount_params = {}
         if config.storage.auto_mount_params:
@@ -1088,6 +1108,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1114,7 +1135,7 @@ class Config:
             )
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project)
+                return store_prefix_dict[kind].format(project=project, **kwargs)
 
             if (
                 function_name
@@ -1399,14 +1420,14 @@ def read_env(env=None, prefix=env_prefix):
     if log_formatter_name := config.get("log_formatter"):
         import mlrun.utils.logger
 
-        log_formatter = mlrun.utils.create_formatter_instance(
+        log_formatter = mlrun.utils.resolve_formatter_by_kind(
             mlrun.utils.FormatterKinds(log_formatter_name)
         )
         current_handler = mlrun.utils.logger.get_handler("default")
         current_formatter_name = current_handler.formatter.__class__.__name__
-        desired_formatter_name = log_formatter.__class__.__name__
+        desired_formatter_name = log_formatter.__name__
         if current_formatter_name != desired_formatter_name:
-            current_handler.setFormatter(log_formatter)
+            current_handler.setFormatter(log_formatter())
 
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.

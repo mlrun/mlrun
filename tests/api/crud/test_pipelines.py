@@ -14,8 +14,10 @@
 #
 import json
 
+import mlrun_pipelines
+import mlrun_pipelines.common.helpers
+
 import mlrun.errors
-import mlrun.kfpops
 import mlrun.run
 import mlrun.utils.helpers
 import server.api.crud
@@ -248,7 +250,7 @@ def test_resolve_pipeline_project():
             "template": {
                 "metadata": {
                     "annotations": {
-                        mlrun.kfpops.project_annotation: "project-from-annotation"
+                        mlrun_pipelines.common.helpers.PROJECT_ANNOTATION: "project-from-annotation"
                     }
                 }
             },
@@ -259,5 +261,7 @@ def test_resolve_pipeline_project():
         pipeline = {
             "pipeline_spec": {"workflow_manifest": json.dumps(workflow_manifest)}
         }
-        project = server.api.crud.Pipelines().resolve_project_from_pipeline(pipeline)
+        project = server.api.crud.Pipelines().resolve_project_from_pipeline(
+            mlrun_pipelines.models.PipelineRun(pipeline)
+        )
         assert project == case["expected_project"]

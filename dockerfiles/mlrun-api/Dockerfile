@@ -74,7 +74,9 @@ ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIV
 
 COPY . .
 
-RUN python -m pip install .[complete-api]
+RUN python -m pip install .[complete-api] &&\
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 VOLUME /mlrun/db
 
@@ -82,10 +84,4 @@ VOLUME /mlrun/db
 # and avoid zombie processes
 ENTRYPOINT ["tini", "--"]
 
-CMD [ \
-    "uvicorn", \
-    "server.api.main:app", \
-    "--proxy-headers", \
-    "--host", "0.0.0.0", \
-    "--log-config", "server/api/uvicorn_log_config.yaml" \
-]
+CMD ["bash", "./dockerfiles/mlrun-api/start_api.sh"]

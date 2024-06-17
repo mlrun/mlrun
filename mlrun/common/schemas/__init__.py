@@ -14,7 +14,13 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .alert import AlertActiveState, AlertConfig, Event
+from .alert import (
+    AlertActiveState,
+    AlertConfig,
+    AlertNotification,
+    AlertTemplate,
+    Event,
+)
 from .api_gateway import (
     APIGateway,
     APIGatewayAuthenticationMode,
@@ -31,7 +37,6 @@ from .artifact import (
     ArtifactCategories,
     ArtifactIdentifier,
     ArtifactMetadata,
-    ArtifactsFormat,
     ArtifactSpec,
 )
 from .auth import (
@@ -77,6 +82,7 @@ from .events import (
 )
 from .feature_store import (
     EntitiesOutput,
+    EntitiesOutputV2,
     Entity,
     EntityListOutput,
     EntityRecord,
@@ -93,6 +99,7 @@ from .feature_store import (
     FeatureSetSpec,
     FeatureSetsTagsOutput,
     FeaturesOutput,
+    FeaturesOutputV2,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,
@@ -143,7 +150,8 @@ from .model_monitoring import (
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     PrometheusEndpoints,
-    TimeSeriesTarget,
+    TSDBTarget,
+    V3IOTSDBTables,
 )
 from .notification import (
     Notification,
@@ -154,7 +162,7 @@ from .notification import (
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pagination import PaginationInfo
-from .pipeline import PipelinesFormat, PipelinesOutput, PipelinesPagination
+from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
     Project,
@@ -162,7 +170,6 @@ from .project import (
     ProjectMetadata,
     ProjectOutput,
     ProjectOwner,
-    ProjectsFormat,
     ProjectsOutput,
     ProjectSpec,
     ProjectState,

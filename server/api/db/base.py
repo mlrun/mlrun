@@ -17,6 +17,8 @@ from typing import Any, Optional, Union
 
 from deprecated import deprecated
 
+import mlrun.alerts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
@@ -50,7 +52,7 @@ class DBInterface(ABC):
     def store_run(
         self,
         session,
-        struct,
+        run_data,
         uid,
         project="",
         iter=0,
@@ -208,8 +210,9 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
     ):
         pass
 
@@ -288,7 +291,15 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = None,
+    ):
         pass
 
     @abstractmethod
@@ -304,8 +315,21 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        _format: str = None,
         page: int = None,
         page_size: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
     ):
         pass
 
@@ -402,7 +426,7 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: Optional[list[str]] = None,
@@ -422,6 +446,8 @@ class DBInterface(ABC):
     async def get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -696,7 +722,35 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def delete_alert_template(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        pass
+
+    @abstractmethod
     def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_num_configured_alerts(self, session) -> int:
         pass
 
     @abstractmethod
@@ -827,7 +881,7 @@ class DBInterface(ABC):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass

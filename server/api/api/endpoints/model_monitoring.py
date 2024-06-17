@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import http
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+import fastapi
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -89,6 +91,7 @@ async def enable_model_monitoring(
     base_period: int = 10,
     image: str = "mlrun/mlrun",
     deploy_histogram_data_drift_app: bool = True,
+    rebuild_images: bool = False,
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -98,13 +101,15 @@ async def enable_model_monitoring(
     And the stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
     is detected. It processes the new events into statistics that are then written to statistics databases.
 
-    :param commons:     The common parameters of the request.
-    :param base_period: The time period in minutes in which the model monitoring controller function
-                        triggers. By default, the base period is 10 minutes.
-    :param image:       The image of the model monitoring controller, writer & monitoring
-                        stream functions, which are real time nuclio functions.
-                        By default, the image is mlrun/mlrun.
+    :param commons:                         The common parameters of the request.
+    :param base_period:                     The time period in minutes in which the model monitoring controller function
+                                            triggers. By default, the base period is 10 minutes.
+    :param image:                           The image of the model monitoring controller, writer & monitoring
+                                            stream functions, which are real time nuclio functions.
+                                            By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+    :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images
+                                            (controller, writer & stream).
     """
     MonitoringDeployment(
         project=commons.project,
@@ -115,6 +120,7 @@ async def enable_model_monitoring(
         image=image,
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+        rebuild_images=rebuild_images,
     )
 
 
@@ -179,3 +185,101 @@ def deploy_histogram_data_drift_app(
         db_session=commons.db_session,
         model_monitoring_access_key=commons.model_monitoring_access_key,
     ).deploy_histogram_data_drift_app(image=image)
+
+
+@router.delete(
+    "/disable-model-monitoring",
+    responses={
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
+    },
+)
+async def disable_model_monitoring(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+    delete_resources: bool = True,
+    delete_stream_function: bool = False,
+    delete_histogram_data_drift_app: bool = True,
+    delete_user_applications: bool = False,
+    user_application_list: list[str] = None,
+):
+    """
+    Disable model monitoring application controller, writer, stream, histogram data drift application
+    and the user's applications functions, according to the given params.
+
+    :param commons:                             The common parameters of the request.
+    :param background_tasks:                    Background tasks.
+    :param response:                            The response.
+    :param delete_resources:                    If True, it would delete the model monitoring controller & writer
+                                                functions. Default True
+    :param delete_stream_function:              If True, it would delete model monitoring stream function,
+                                                need to use wisely because if you're deleting this function
+                                                this can cause data loss in case you will want to
+                                                enable the model monitoring capability to the project.
+                                                Default False.
+    :param delete_histogram_data_drift_app:     If True, it would delete the default histogram-based data drift
+                                                application. Default False.
+    :param delete_user_applications:            If True, it would delete the user's model monitoring
+                                                application according to user_application_list, Default False.
+    :param user_application_list:               List of the user's model monitoring application to disable.
+                                                Default all the applications.
+                                                Note: you have to set delete_user_applications to True
+                                                in order to delete the desired application.
+
+    """
+    tasks = await MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
+    ).disable_model_monitoring(
+        delete_resources=delete_resources,
+        delete_stream_function=delete_stream_function,
+        delete_histogram_data_drift_app=delete_histogram_data_drift_app,
+        delete_user_applications=delete_user_applications,
+        user_application_list=user_application_list,
+        background_tasks=background_tasks,
+    )
+    response.status_code = http.HTTPStatus.ACCEPTED.value
+    return tasks
+
+
+@router.delete(
+    "/functions",
+    responses={
+        http.HTTPStatus.ACCEPTED.value: {
+            "model": mlrun.common.schemas.BackgroundTaskList
+        },
+    },
+)
+async def delete_model_monitoring_function(
+    commons: Annotated[_CommonParams, Depends(_common_parameters)],
+    background_tasks: fastapi.BackgroundTasks,
+    response: fastapi.Response,
+    functions: list[str] = Query([], alias="function"),
+):
+    """
+    Delete model monitoring functions.
+
+    :param commons:                             The common parameters of the request.
+    :param background_tasks:                    Background tasks.
+    :param response:                            The response.
+    :param functions:                           List of the user's model monitoring application to delete.
+    """
+    tasks = await MonitoringDeployment(
+        project=commons.project,
+        auth_info=commons.auth_info,
+        db_session=commons.db_session,
+        model_monitoring_access_key=commons.model_monitoring_access_key,
+    ).disable_model_monitoring(
+        delete_resources=False,
+        delete_stream_function=False,
+        delete_histogram_data_drift_app=False,
+        delete_user_applications=True,
+        user_application_list=functions,
+        background_tasks=background_tasks,
+    )
+    response.status_code = http.HTTPStatus.ACCEPTED.value
+    return tasks

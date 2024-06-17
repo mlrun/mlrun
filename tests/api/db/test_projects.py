@@ -18,6 +18,7 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -160,7 +161,7 @@ def test_list_project_minimal(
             ),
         )
     projects_output = db.list_projects(
-        db_session, format_=mlrun.common.schemas.ProjectsFormat.minimal
+        db_session, format_=mlrun.common.formatters.ProjectFormat.minimal
     )
     for index, project in enumerate(projects_output.projects):
         assert project.metadata.name == expected_projects[index]
@@ -191,7 +192,7 @@ def test_list_project_names_filter(
     filter_names = [project_names[0], project_names[3], project_names[4]]
     projects_output = db.list_projects(
         db_session,
-        format_=mlrun.common.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.formatters.ProjectFormat.name_only,
         names=filter_names,
     )
 
@@ -206,7 +207,7 @@ def test_list_project_names_filter(
 
     projects_output = db.list_projects(
         db_session,
-        format_=mlrun.common.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.formatters.ProjectFormat.name_only,
         names=[],
     )
 

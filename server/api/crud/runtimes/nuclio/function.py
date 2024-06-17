@@ -19,9 +19,11 @@ import shlex
 import nuclio
 import nuclio.utils
 import requests
+import semver
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
@@ -212,20 +214,29 @@ def _compile_function_config(
     serving_spec_volume = None
     serving_spec = function._get_serving_spec()
     if serving_spec is not None:
+        # To keep backward comatability, allow passing service spec
+        # via Config Map only for client version higher then 1.7.0
+        # TODO: remove in 1.9.0.
+        can_pass_via_cm = not client_version or (
+            semver.Version.parse(client_version) >= semver.Version.parse("1.7.0")
+        )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
-        if len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+        if (
+            can_pass_via_cm
+            and len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+        ):
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )
             k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
             confmap_name = k8s_helper.ensure_configmap(
-                mlrun.common.constants.MLRUN_MODEL_CONF,
+                mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
-                labels={mlrun.common.constants.MLRUN_CREATED_LABEL: "true"},
+                labels={mlrun_constants.MLRunInternalLabels.created: "true"},
             )
-            volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
+            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
             volume_mount = {
                 "name": volume_name,
                 "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
@@ -320,7 +331,7 @@ def _compile_function_config(
 
 def _set_function_labels(function):
     labels = function.metadata.labels or {}
-    labels.update({"mlrun/class": function.kind})
+    labels.update({mlrun_constants.MLRunInternalLabels.mlrun_class: function.kind})
     for key, value in labels.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
         function.set_config(f"metadata.labels.\\{key}\\", value)

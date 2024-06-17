@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 
-import pydantic.error_wrappers
 import pytest
 
 import mlrun
+import mlrun.alerts
 import mlrun.common.schemas
-import mlrun.common.schemas.alert as alert_constants
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.utils
+import server.api.constants
 import tests.integration.sdk_api.base
 from mlrun.utils import logger
 
@@ -32,24 +33,24 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert1 = {
             "name": "drift",
             "entity": {
-                "kind": alert_constants.EventEntityKind.MODEL,
+                "kind": alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 "project": project_name,
             },
-            "summary": "Model {{ $project }}/{{ $entity }} is drifting.",
-            "event_name": alert_constants.EventKind.DRIFT_DETECTED,
-            "state": alert_constants.AlertActiveState.INACTIVE,
+            "summary": "Model {{project}}/{{entity}} is drifting.",
+            "event_name": alert_objects.EventKind.DATA_DRIFT_DETECTED,
+            "state": alert_objects.AlertActiveState.INACTIVE,
         }
 
         # Define parameters for alert 2
         alert2 = {
             "name": "jobs",
             "entity": {
-                "kind": alert_constants.EventEntityKind.JOB,
+                "kind": alert_objects.EventEntityKind.JOB,
                 "project": project_name,
             },
-            "summary": "Job {{ $project }}/{{ $entity }} failed.",
-            "event_name": alert_constants.EventKind.FAILED,
-            "state": alert_constants.AlertActiveState.INACTIVE,
+            "summary": "Job {{project}}/{{entity}} failed.",
+            "event_name": alert_objects.EventKind.FAILED,
+            "state": alert_objects.AlertActiveState.INACTIVE,
             "count": 3,
         }
 
@@ -95,11 +96,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # since the reset_policy of the alert is "auto", the state now should be inactive
         alert = self._get_alerts(project_name, created_alert2.name)
-        self._validate_alert(
-            alert, alert_state=alert_constants.AlertActiveState.INACTIVE
-        )
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
 
-        new_event_name = alert_constants.EventKind.DRIFT_SUSPECTED
+        new_event_name = alert_objects.EventKind.DATA_DRIFT_SUSPECTED
         modified_alert = self._modify_alert_test(
             project_name, alert1, created_alert.name, new_event_name
         )
@@ -108,23 +107,19 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(project_name, new_event_name, alert1["entity"]["kind"])
 
         alert = self._get_alerts(project_name, modified_alert.name)
-        self._validate_alert(alert, alert_state=alert_constants.AlertActiveState.ACTIVE)
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.ACTIVE)
 
         # reset alert
         self._reset_alert(project_name, created_alert.name)
 
         alert = self._get_alerts(project_name, created_alert.name)
-        self._validate_alert(
-            alert, alert_state=alert_constants.AlertActiveState.INACTIVE
-        )
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
 
         # reset the alert again, and validate that the state is still inactive
         self._reset_alert(project_name, created_alert.name)
 
         alert = self._get_alerts(project_name, created_alert.name)
-        self._validate_alert(
-            alert, alert_state=alert_constants.AlertActiveState.INACTIVE
-        )
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
 
         # delete alert
         self._delete_alert(project_name, created_alert.name)
@@ -148,10 +143,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # with the same alert and event names
 
         project_name = "my-new-project"
-        event_name = alert_constants.EventKind.DRIFT_DETECTED
+        event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
         alert_name = "drift"
-        alert_summary = "Model {{ $project }}/{{ $entity }} is drifting."
-        alert_entity_kind = alert_constants.EventEntityKind.MODEL
+        alert_summary = "Model {{project}}/{{entity}} is drifting."
+        alert_entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
         alert_entity_project = project_name
 
         mlrun.new_project(alert_entity_project)
@@ -176,46 +171,134 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         self._post_event(alert_entity_project, event_name, alert_entity_kind)
 
+    def test_alert_templates(self):
+        project_name = "my-project"
+        project = mlrun.new_project(project_name)
+
+        # one of the pre-defined system templates
+        drift_system_template = self._get_template_by_name(
+            server.api.constants.pre_defined_templates, "DataDriftDetected"
+        )
+
+        drift_template = project.get_alert_template("DataDriftDetected")
+        assert not drift_template.templates_differ(
+            drift_system_template
+        ), "Templates are different"
+
+        all_system_templates = project.list_alert_templates()
+        assert len(all_system_templates) == 3
+        assert all_system_templates[0].template_name == "JobFailed"
+        assert all_system_templates[1].template_name == "DataDriftDetected"
+        assert all_system_templates[2].template_name == "DataDriftSuspected"
+
+        # generate an alert from a template
+        alert_name = "new_alert"
+        alert_from_template = mlrun.alerts.alert.AlertConfig(
+            project=project_name,
+            name=alert_name,
+            template=drift_template,
+        )
+
+        # test modifiers on the alert config
+        entities = alert_objects.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project=project_name,
+            ids=[1234],
+        )
+        alert_from_template.with_entities(entities=entities)
+
+        notification = mlrun.common.schemas.Notification(
+            kind="slack",
+            name="slack_drift",
+            message="Ay caramba!",
+            severity="warning",
+            when=["now"],
+            secret_params={
+                "webhook": "https://hooks.slack.com/services/",
+            },
+            condition="oops",
+        )
+        notifications = [alert_objects.AlertNotification(notification=notification)]
+
+        alert_from_template.with_notifications(notifications=notifications)
+
+        self._validate_alert(
+            alert_from_template,
+            project_name=project_name,
+            alert_name=alert_name,
+            alert_summary=drift_template.summary,
+            alert_severity=drift_template.severity,
+            alert_trigger=drift_template.trigger,
+            alert_reset_policy=drift_template.reset_policy,
+            alert_entity=entities,
+            alert_notifications=notifications,
+        )
+
+        project.store_alert_config(alert_from_template)
+        alerts = project.list_alerts_configs()
+        assert len(alerts) == 1
+        self._validate_alert(
+            alerts[0], project_name=project_name, alert_name=alert_name
+        )
+
     def _create_alerts_test(self, project_name, alert1, alert2):
         invalid_notification = [
             {
-                "kind": "invalid",
-                "name": "invalid_notification",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "invalid",
+                    "name": "invalid_notification",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
-            },
+            }
         ]
         duplicated_names_notifications = [
             {
-                "kind": "slack",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "slack",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
             },
             {
-                "kind": "git",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
+                "notification": {
+                    "kind": "git",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
                 },
             },
         ]
 
         expectations = [
+            {
+                "param_name": "project_name",
+                "param_value": "",
+                "exception": mlrun.errors.MLRunBadRequestError,
+                "case": "testing create alert without passing project",
+            },
+            {
+                "param_name": "alert_name",
+                "param_value": "",
+                "exception": mlrun.errors.MLRunBadRequestError,
+                "case": "testing create alert without passing alert name",
+            },
             {
                 "param_name": "project_name",
                 "param_value": "no_such_project",
@@ -225,7 +308,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "alert_entity_kind",
                 "param_value": "endpoint",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid entity kind",
             },
             {
@@ -237,7 +320,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "severity",
                 "param_value": "critical",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid severity",
             },
             {
@@ -249,19 +332,19 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             {
                 "param_name": "reset_policy",
                 "param_value": "scheduled",
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid reset policy",
             },
             {
                 "param_name": "notifications",
                 "param_value": invalid_notification,
-                "exception": pydantic.error_wrappers.ValidationError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with invalid notification kind",
             },
             {
                 "param_name": "notifications",
                 "param_value": duplicated_names_notifications,
-                "exception": mlrun.errors.MLRunBadRequestError,
+                "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with two notifications with the same name",
             },
         ]
@@ -272,10 +355,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             "alert_entity_project": alert1["entity"]["project"],
             "alert_summary": alert1["summary"],
             "event_name": alert1["event_name"],
-            "severity": alert_constants.AlertSeverity.LOW,
+            "severity": alert_objects.AlertSeverity.LOW,
             "criteria": None,
             "notifications": None,
-            "reset_policy": alert_constants.ResetPolicy.MANUAL,
+            "reset_policy": alert_objects.ResetPolicy.MANUAL,
         }
         for expectation in expectations:
             name = expectation["param_name"]
@@ -308,26 +391,30 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # create another alert with no errors
         notifications = [
             {
-                "kind": "slack",
-                "name": "slack_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
-                },
+                "notification": {
+                    "kind": "slack",
+                    "name": "slack_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
+                }
             },
             {
-                "kind": "git",
-                "name": "git_jobs",
-                "message": "Ay ay ay!",
-                "severity": "warning",
-                "when": ["now"],
-                "condition": "failed",
-                "secret_params": {
-                    "webhook": "https://hooks.slack.com/services/",
-                },
+                "notification": {
+                    "kind": "git",
+                    "name": "git_jobs",
+                    "message": "Ay ay ay!",
+                    "severity": "warning",
+                    "when": ["now"],
+                    "condition": "failed",
+                    "secret_params": {
+                        "webhook": "https://hooks.slack.com/services/",
+                    },
+                }
             },
         ]
 
@@ -339,7 +426,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert2["summary"],
             alert2["event_name"],
             criteria={"period": "1h", "count": alert2["count"]},
-            reset_policy=alert_constants.ResetPolicy.AUTO,
+            reset_policy=alert_objects.ResetPolicy.AUTO,
             notifications=notifications,
         )
         self._validate_alert(
@@ -356,7 +443,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
     def _modify_alert_test(self, project_name, alert1, alert_name, new_event_name):
         # modify alert with invalid data
         invalid_event_name = "not_permitted_event"
-        with pytest.raises(pydantic.error_wrappers.ValidationError):
+        with pytest.raises(mlrun.errors.MLRunHTTPError):
             self._modify_alert(
                 project_name,
                 alert_name,
@@ -367,7 +454,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             )
 
         # modify alert with no errors
-        new_summary = "Aye ya yay {{ $project }}"
+        new_summary = "Aye ya yay {{project}}"
         modified_alert = self._modify_alert(
             project_name,
             alert_name,
@@ -398,10 +485,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_entity_project,
         alert_summary,
         event_name,
-        severity=alert_constants.AlertSeverity.LOW,
+        severity=alert_objects.AlertSeverity.LOW,
         criteria=None,
         notifications=None,
-        reset_policy=alert_constants.ResetPolicy.MANUAL,
+        reset_policy=alert_objects.ResetPolicy.MANUAL,
     ):
         alert_data = self._generate_alert_create_request(
             project_name,
@@ -427,10 +514,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_entity_project,
         alert_summary,
         event_name,
-        severity=alert_constants.AlertSeverity.LOW,
+        severity=alert_objects.AlertSeverity.LOW,
         criteria=None,
         notifications=None,
-        reset_policy=alert_constants.ResetPolicy.MANUAL,
+        reset_policy=alert_objects.ResetPolicy.MANUAL,
     ):
         alert_data = self._generate_alert_create_request(
             project_name,
@@ -478,6 +565,13 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         alert_summary=None,
         alert_state=None,
         alert_event_name=None,
+        alert_description=None,
+        alert_severity=None,
+        alert_trigger=None,
+        alert_criteria=None,
+        alert_reset_policy=None,
+        alert_entity=None,
+        alert_notifications=None,
     ):
         if project_name:
             assert alert.project == project_name
@@ -489,12 +583,26 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             assert alert.state == alert_state
         if alert_event_name:
             assert alert.trigger.events == [alert_event_name]
+        if alert_description:
+            assert alert.description == alert_description
+        if alert_severity:
+            assert alert.severity == alert_severity
+        if alert_trigger:
+            assert alert.trigger == alert_trigger
+        if alert_criteria:
+            assert alert.criteria == alert_criteria
+        if alert_reset_policy:
+            assert alert.reset_policy == alert_reset_policy
+        if alert_entity:
+            assert alert.entities == alert_entity
+        if alert_notifications:
+            assert alert.notifications == alert_notifications
 
     @staticmethod
     def _generate_event_request(project, event_kind, entity_kind):
         return mlrun.common.schemas.Event(
             kind=event_kind,
-            entity={"kind": entity_kind, "project": project, "id": 1234},
+            entity={"kind": entity_kind, "project": project, "ids": [1234]},
             value_dict={"value": 0.2},
         )
 
@@ -514,25 +622,34 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if notifications is None:
             notifications = [
                 {
-                    "kind": "slack",
-                    "name": "slack_drift",
-                    "message": "Ay caramba!",
-                    "severity": "warning",
-                    "when": ["now"],
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
-                    },
-                    "condition": "oops",
-                },
+                    "notification": {
+                        "kind": "slack",
+                        "name": "slack_drift",
+                        "message": "Ay caramba!",
+                        "severity": "warning",
+                        "when": ["now"],
+                        "secret_params": {
+                            "webhook": "https://hooks.slack.com/services/",
+                        },
+                        "condition": "oops",
+                    }
+                }
             ]
-        return mlrun.common.schemas.AlertConfig(
+        return mlrun.alerts.alert.AlertConfig(
             project=project,
             name=name,
             summary=summary,
             severity=severity,
-            entity={"kind": entity_kind, "project": entity_project, "id": "*"},
+            entities={"kind": entity_kind, "project": entity_project, "ids": [1234]},
             trigger={"events": [event_name]},
             criteria=criteria,
             notifications=notifications,
             reset_policy=reset_policy,
         )
+
+    @staticmethod
+    def _get_template_by_name(templates, name):
+        for template in templates:
+            if template.template_name == name:
+                return template
+        return None

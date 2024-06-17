@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -36,6 +37,7 @@ from storey import MapClass
 from storey.dtypes import V3ioError
 
 import mlrun
+import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
@@ -69,6 +71,7 @@ from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotE
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
+from tests.system.feature_store.utils import sort_df
 
 from .data_sample import quotes, stocks, trades
 
@@ -1700,7 +1703,9 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set.ingest(
             source,
             overwrite=True,
-            run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
+            run_config=fstore.RunConfig(local=False).apply(
+                mlrun_pipelines.mounts.mount_v3io()
+            ),
             targets=targets,
         )
 
@@ -2558,7 +2563,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
@@ -2875,7 +2880,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         function.spec.default_content_type = "application/json"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=v3io_source,
@@ -3094,7 +3099,7 @@ class TestFeatureStore(TestMLRunSystem):
         function.spec.default_content_type = "application/json"
         function.spec.image_pull_policy = "Always"
         run_config = fstore.RunConfig(function=function, local=False).apply(
-            mlrun.mount_v3io()
+            mlrun_pipelines.mounts.mount_v3io()
         )
         fset.deploy_ingestion_service(
             source=source, run_config=run_config, targets=targets
@@ -3154,7 +3159,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -3727,7 +3732,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4084,7 +4089,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4206,7 +4211,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_scheduler_requests(mem="2G")
             dask_cluster.save()
@@ -4332,7 +4337,7 @@ class TestFeatureStore(TestMLRunSystem):
             orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
         parquet_path = f"v3io:///projects/{self.project_name}/trfsinojud.parquet"
         orig_df.to_parquet(parquet_path)
-        gnrxRnIYSr = ParquetSource(path=parquet_path)
+        source = ParquetSource(path=parquet_path)
 
         if with_indexes:
             fset = fstore.FeatureSet(
@@ -4342,7 +4347,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
         else:
             fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
-        df = fset.ingest(source=gnrxRnIYSr)
+        df = fset.ingest(source=source)
         assert df.equals(orig_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -4504,7 +4509,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4570,7 +4575,7 @@ class TestFeatureStore(TestMLRunSystem):
                 kind="dask",
                 image="mlrun/ml-base",
             )
-            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.apply(mlrun_pipelines.mounts.mount_v3io())
             dask_cluster.spec.remote = True
             dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
@@ -4813,16 +4818,16 @@ class TestFeatureStore(TestMLRunSystem):
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
-    @staticmethod
-    def _sort_df(df: pd.DataFrame, sort_column: str):
-        return (
-            df.reindex(sorted(df.columns), axis=1)
-            .sort_values(by=sort_column)
-            .reset_index(drop=True)
-        )
-
+    @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_parquet_filters(self, engine):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_parquet_filters(self, engine, local, passthrough):
+        if passthrough and engine == "dask":
+            pytest.skip(
+                "Dask engine with passthrough=True is not supported. Open issue ML-6684"
+            )
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
         parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
         df = pd.read_parquet(parquet_path)
         filtered_df = df.query('department == "01e9fe31-76de-45f0-9aed-0f94cc97bca0"')
@@ -4843,7 +4848,9 @@ class TestFeatureStore(TestMLRunSystem):
             filtered_df.sort_values(by="patient_id").reset_index(drop=True),
         )
         feature_set = fstore.FeatureSet(
-            "parquet-filters-fs", entities=[fstore.Entity("patient_id")]
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+            passthrough=passthrough,
         )
 
         target = ParquetTarget(
@@ -4852,16 +4859,25 @@ class TestFeatureStore(TestMLRunSystem):
             partitioned=True,
             partition_cols=["department"],
         )
-        feature_set.ingest(source=parquet_source, targets=[target])
-        result = target.as_df(additional_filters=("room", "=", 1)).reset_index()
-        # We want to include patient_id in the comparison,
-        # sort the columns alphabetically, and sort the rows by patient_id values.
-        result = self._sort_df(result, "patient_id")
-        expected = self._sort_df(filtered_df.query("room == 1"), "patient_id")
-        # the content of category column is still checked:
-        assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+        feature_set.ingest(
+            source=parquet_source, targets=[target], run_config=run_config
+        )
+        if not passthrough:
+            result = target.as_df(additional_filters=[("room", "=", 1)]).reset_index()
+            # We want to include patient_id in the comparison,
+            # sort the columns alphabetically, and sort the rows by patient_id values.
+            result = sort_df(result, "patient_id")
+            expected = sort_df(filtered_df.query("room == 1"), "patient_id")
+            # the content of category column is still checked:
+            assert_frame_equal(
+                result, expected, check_dtype=False, check_categorical=False
+            )
         vec = fstore.FeatureVector(
             name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        vec.save()
+        target = ParquetTarget(
+            path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
         )
         result = (
             fstore.get_offline_features(
@@ -4869,12 +4885,15 @@ class TestFeatureStore(TestMLRunSystem):
                 additional_filters=[("bad", "=", 95)],
                 with_indexes=True,
                 engine=engine,
+                run_config=run_config,
+                target=target,
             )
             .to_dataframe()
             .reset_index()
         )
-        expected = self._sort_df(filtered_df.query("bad == 95"), "patient_id")
-        result = self._sort_df(result, "patient_id")
+        expected = df if passthrough else filtered_df
+        expected = sort_df(expected.query("bad == 95"), "patient_id")
+        result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
 
 

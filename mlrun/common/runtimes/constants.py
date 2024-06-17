@@ -15,6 +15,10 @@
 import enum
 import typing
 
+import mlrun_pipelines.common.models
+
+import mlrun.common.constants as mlrun_constants
+
 
 class PodPhases:
     """
@@ -122,8 +126,8 @@ class MPIJobCRDVersions:
     @staticmethod
     def role_label_by_version(version):
         return {
-            MPIJobCRDVersions.v1alpha1: "mpi_role_type",
-            MPIJobCRDVersions.v1: "mpi-job-role",
+            MPIJobCRDVersions.v1alpha1: mlrun_constants.MLRunInternalLabels.mpi_role_type,
+            MPIJobCRDVersions.v1: mlrun_constants.MLRunInternalLabels.mpi_job_role,
         }[version]
 
 
@@ -136,6 +140,7 @@ class RunStates:
     unknown = "unknown"
     aborted = "aborted"
     aborting = "aborting"
+    skipped = "skipped"
 
     @staticmethod
     def all():
@@ -148,6 +153,7 @@ class RunStates:
             RunStates.unknown,
             RunStates.aborted,
             RunStates.aborting,
+            RunStates.skipped,
         ]
 
     @staticmethod
@@ -156,6 +162,7 @@ class RunStates:
             RunStates.completed,
             RunStates.error,
             RunStates.aborted,
+            RunStates.skipped,
         ]
 
     @staticmethod
@@ -188,10 +195,31 @@ class RunStates:
             # TODO: add aborting state once we have it
         ]
 
+    @staticmethod
+    def run_state_to_pipeline_run_status(run_state: str):
+        if not run_state:
+            return mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified
 
+        if run_state not in RunStates.all():
+            raise ValueError(f"Invalid run state: {run_state}")
+
+        return {
+            RunStates.completed: mlrun_pipelines.common.models.RunStatuses.succeeded,
+            RunStates.error: mlrun_pipelines.common.models.RunStatuses.failed,
+            RunStates.running: mlrun_pipelines.common.models.RunStatuses.running,
+            RunStates.created: mlrun_pipelines.common.models.RunStatuses.pending,
+            RunStates.pending: mlrun_pipelines.common.models.RunStatuses.pending,
+            RunStates.unknown: mlrun_pipelines.common.models.RunStatuses.runtime_state_unspecified,
+            RunStates.aborted: mlrun_pipelines.common.models.RunStatuses.canceled,
+            RunStates.aborting: mlrun_pipelines.common.models.RunStatuses.canceling,
+            RunStates.skipped: mlrun_pipelines.common.models.RunStatuses.skipped,
+        }[run_state]
+
+
+# TODO: remove this class in 1.9.0 - use only MlrunInternalLabels
 class RunLabels(enum.Enum):
-    owner = "owner"
-    v3io_user = "v3io_user"
+    owner = mlrun_constants.MLRunInternalLabels.owner
+    v3io_user = mlrun_constants.MLRunInternalLabels.v3io_user
 
     @staticmethod
     def all():

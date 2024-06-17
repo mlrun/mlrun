@@ -528,7 +528,11 @@ def _init_endpoint_record(
         return None
 
     # Generating version model value based on the model name and model version
-    if model.version:
+    if model.model_path and model.model_path.startswith("store://"):
+        # Enrich the model server with the model artifact metadata
+        model.get_model()
+        model.version = model.model_spec.tag
+        model.labels = model.model_spec.labels
         versioned_model_name = f"{model.name}:{model.version}"
     else:
         versioned_model_name = f"{model.name}:latest"
@@ -538,48 +542,64 @@ def _init_endpoint_record(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
-    # If model endpoint object was found in DB, skip the creation process.
     try:
-        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=uid)
-
+        model_ep = mlrun.get_run_db().get_model_endpoint(
+            project=project, endpoint_id=uid
+        )
     except mlrun.errors.MLRunNotFoundError:
-        logger.info("Creating a new model endpoint record", endpoint_id=uid)
+        model_ep = None
 
-        try:
-            model_endpoint = mlrun.common.schemas.ModelEndpoint(
-                metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                    project=project, labels=model.labels, uid=uid
+    if model.context.server.track_models and not model_ep:
+        logger.debug("Creating a new model endpoint record", endpoint_id=uid)
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project, labels=model.labels, uid=uid
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=model.__class__.__name__,
+                model_uri=model.model_path,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
                 ),
-                spec=mlrun.common.schemas.ModelEndpointSpec(
-                    function_uri=graph_server.function_uri,
-                    model=versioned_model_name,
-                    model_class=model.__class__.__name__,
-                    model_uri=model.model_path,
-                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project, kind="stream"
-                    ),
-                    active=True,
-                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                    if model.context.server.track_models
-                    else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
-                ),
-                status=mlrun.common.schemas.ModelEndpointStatus(
-                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
-                ),
-            )
+                active=True,
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
+            ),
+        )
 
-            db = mlrun.get_run_db()
+        db = mlrun.get_run_db()
+        db.create_model_endpoint(
+            project=project,
+            endpoint_id=uid,
+            model_endpoint=model_endpoint.dict(),
+        )
 
-            db.create_model_endpoint(
-                project=project,
-                endpoint_id=uid,
-                model_endpoint=model_endpoint.dict(),
-            )
-
-        except Exception as e:
-            logger.error("Failed to create endpoint record", exc=err_to_str(e))
-
-    except Exception as e:
-        logger.error("Failed to retrieve model endpoint object", exc=err_to_str(e))
+    elif (
+        model_ep
+        and (
+            model_ep.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        )
+        != model.context.server.track_models
+    ):
+        monitoring_mode = (
+            mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+            if model.context.server.track_models
+            else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
+        db = mlrun.get_run_db()
+        db.patch_model_endpoint(
+            project=project,
+            endpoint_id=uid,
+            attributes={"monitoring_mode": monitoring_mode},
+        )
+        logger.debug(
+            f"Updating model endpoint monitoring_mode to {monitoring_mode}",
+            endpoint_id=uid,
+        )
 
     return uid

@@ -81,6 +81,8 @@ class EventFieldType:
     DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
     POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    TIME = "time"
+    TABLE_COLUMN = "table_column"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
@@ -156,10 +158,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesTarget:
-    TSDB = "tsdb"
-
-
 class ModelEndpointTarget:
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
@@ -171,6 +169,7 @@ class ProjectSecretKeys:
     PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
     KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
+    TSDB_CONNECTION = "TSDB_CONNECTION"
 
 
 class ModelMonitoringStoreKinds:
@@ -188,12 +187,15 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+    PREDICTIONS = "predictions"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
+    APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
+    MONITORING_APPLICATION = "monitoring_application"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -226,6 +228,18 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     WRITER = "model-monitoring-writer"
+
+
+class V3IOTSDBTables(MonitoringStrEnum):
+    APP_RESULTS = "app-results"
+    METRICS = "metrics"
+    EVENTS = "events"
+
+
+class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
 
 
 @dataclass
@@ -304,6 +318,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
+    custom = 4
 
 
 class ResultStatusApp(IntEnum):
@@ -329,6 +344,21 @@ class ControllerPolicy:
     BASE_PERIOD = "base_period"
 
 
+class TSDBTarget:
+    V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
+    PROMETHEUS = "prometheus"
+
+
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"

@@ -19,7 +19,7 @@ See {ref}`build-function-image`.
 ## MLRun runtime images  
 
 All images are published to 
-[dockerhub](https://hub.docker.com/u/mlrun) and [quay.iohttps://quay.io/organization/mlrun](https://quay.io/organization/mlrun]).
+[dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
 The images are:
 

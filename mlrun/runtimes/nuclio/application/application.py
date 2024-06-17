@@ -12,14 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 
 import nuclio
 
+import mlrun.common.schemas as schemas
 import mlrun.errors
-from mlrun.common.schemas import AuthInfo
+from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
+from mlrun.runtimes.nuclio.api_gateway import (
+    APIGateway,
+    APIGatewayMetadata,
+    APIGatewaySpec,
+)
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
+from mlrun.utils import logger
 
 
 class ApplicationSpec(NuclioSpec):
@@ -113,7 +121,10 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
-        self.internal_application_port = internal_application_port or 8080
+        self.internal_application_port = (
+            internal_application_port
+            or mlrun.mlconf.function.application.default_sidecar_internal_port
+        )
 
     @property
     def internal_application_port(self):
@@ -139,6 +150,9 @@ class ApplicationStatus(NuclioStatus):
         container_image=None,
         application_image=None,
         sidecar_name=None,
+        api_gateway_name=None,
+        api_gateway=None,
+        url=None,
     ):
         super().__init__(
             state=state,
@@ -151,12 +165,15 @@ class ApplicationStatus(NuclioStatus):
         )
         self.application_image = application_image or None
         self.sidecar_name = sidecar_name or None
+        self.api_gateway_name = api_gateway_name or None
+        self.api_gateway = api_gateway or None
+        self.url = url or None
 
 
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
 
-    @min_nuclio_versions("1.12.7")
+    @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -175,6 +192,24 @@ class ApplicationRuntime(RemoteRuntime):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", ApplicationStatus)
+
+    @property
+    def api_gateway(self):
+        return self.status.api_gateway
+
+    @api_gateway.setter
+    def api_gateway(self, api_gateway: APIGateway):
+        self.status.api_gateway = api_gateway
+
+    @property
+    def url(self):
+        if not self.status.api_gateway:
+            self._sync_api_gateway()
+        return self.status.api_gateway.invoke_url
+
+    @url.setter
+    def url(self, url):
+        self.status.url = url
 
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
@@ -220,7 +255,7 @@ class ApplicationRuntime(RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        auth_info: AuthInfo = None,
+        auth_info: schemas.AuthInfo = None,
         builder_env: dict = None,
         force_build: bool = False,
         with_mlrun=None,
@@ -228,6 +263,9 @@ class ApplicationRuntime(RemoteRuntime):
         is_kfp=False,
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
+        direct_port_access: bool = False,
+        authentication_mode: schemas.APIGatewayAuthenticationMode = None,
+        authentication_creds: tuple[str] = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -244,6 +282,9 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                  Deploy as part of a kfp pipeline
         :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param show_on_failure:         Show logs only in case of build failure
+        :param direct_port_access:      Set True to allow direct port access to the application sidecar
+        :param authentication_mode:     API Gateway authentication mode
+        :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -261,12 +302,30 @@ class ApplicationRuntime(RemoteRuntime):
 
         self._ensure_reverse_proxy_configurations()
         self._configure_application_sidecar()
+
+        # we only allow accessing the application via the API Gateway
+        name_tag = tag or self.metadata.tag
+        self.status.api_gateway_name = (
+            f"{self.metadata.name}-{name_tag}" if name_tag else self.metadata.name
+        )
+        self.spec.add_templated_ingress_host_mode = (
+            NuclioIngressAddTemplatedIngressModes.never
+        )
+
         super().deploy(
             project,
             tag,
             verbose,
             auth_info,
             builder_env,
+        )
+
+        ports = self.spec.internal_application_port if direct_port_access else []
+        self.create_api_gateway(
+            name=self.status.api_gateway_name,
+            ports=ports,
+            authentication_mode=authentication_mode,
+            authentication_creds=authentication_creds,
         )
 
     def with_source_archive(
@@ -290,6 +349,92 @@ class ApplicationRuntime(RemoteRuntime):
             target_dir=target_dir,
         )
 
+    @classmethod
+    def get_filename_and_handler(cls) -> (str, str):
+        reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
+        return str(reverse_proxy_file_path), "Handler"
+
+    def create_api_gateway(
+        self,
+        name: str = None,
+        path: str = None,
+        ports: list[int] = None,
+        authentication_mode: schemas.APIGatewayAuthenticationMode = None,
+        authentication_creds: tuple[str] = None,
+    ):
+        api_gateway = APIGateway(
+            APIGatewayMetadata(
+                name=name,
+                namespace=self.metadata.namespace,
+                labels=self.metadata.labels,
+                annotations=self.metadata.annotations,
+            ),
+            APIGatewaySpec(
+                functions=[self],
+                project=self.metadata.project,
+                path=path,
+                ports=mlrun.utils.helpers.as_list(ports) if ports else None,
+            ),
+        )
+
+        authentication_mode = (
+            authentication_mode
+            or mlrun.mlconf.function.application.default_authentication_mode
+        )
+        if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
+            api_gateway.with_access_key_auth()
+        elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
+            api_gateway.with_basic_auth(*authentication_creds)
+
+        db = self._get_db()
+        api_gateway_scheme = db.store_api_gateway(
+            api_gateway=api_gateway.to_scheme(), project=self.metadata.project
+        )
+        if not self.status.api_gateway_name:
+            self.status.api_gateway_name = api_gateway_scheme.metadata.name
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway.wait_for_readiness()
+        self.url = self.status.api_gateway.invoke_url
+
+    def invoke(
+        self,
+        path: str,
+        body: typing.Union[str, bytes, dict] = None,
+        method: str = None,
+        headers: dict = None,
+        dashboard: str = "",
+        force_external_address: bool = False,
+        auth_info: schemas.AuthInfo = None,
+        mock: bool = None,
+        **http_client_kwargs,
+    ):
+        self._sync_api_gateway()
+        # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
+        if not self.status.api_gateway:
+            super().invoke(
+                path,
+                body,
+                method,
+                headers,
+                dashboard,
+                force_external_address,
+                auth_info,
+                mock,
+                **http_client_kwargs,
+            )
+
+        credentials = (auth_info.username, auth_info.password) if auth_info else None
+
+        if not method:
+            method = "POST" if body else "GET"
+        return self.status.api_gateway.invoke(
+            method=method,
+            headers=headers,
+            credentials=credentials,
+            path=path,
+            **http_client_kwargs,
+        )
+
     def _build_application_image(
         self,
         builder_env: dict = None,
@@ -301,6 +446,14 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
+        if not self.spec.command:
+            logger.warning(
+                "Building the application image without a command. "
+                "Use spec.command and spec.args to specify the application entrypoint",
+                command=self.spec.command,
+                args=self.spec.args,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
         return self._build_image(
             builder_env=builder_env,
@@ -355,7 +508,14 @@ class ApplicationRuntime(RemoteRuntime):
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
 
-    @classmethod
-    def get_filename_and_handler(cls) -> (str, str):
-        reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
-        return str(reverse_proxy_file_path), "Handler"
+    def _sync_api_gateway(self):
+        if not self.status.api_gateway_name:
+            return
+
+        db = self._get_db()
+        api_gateway_scheme = db.get_api_gateway(
+            name=self.status.api_gateway_name, project=self.metadata.project
+        )
+        self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
+        self.status.api_gateway.wait_for_readiness()
+        self.url = self.status.api_gateway.invoke_url

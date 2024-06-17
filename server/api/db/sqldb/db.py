@@ -1845,7 +1845,7 @@ class SQLDB(DBInterface):
         query = self._query(session, Function, name=name, project=project)
         uid = self._get_function_uid(
             session=session,
-            name=normalized_function_name,
+            name=name,
             tag=tag,
             hash_key=hash_key,
             project=project,

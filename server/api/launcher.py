@@ -123,8 +123,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
             store_run=False,
         )
 
-        mlrun.utils.logger.info("mlrun execution result!!!!: ", run_dict=run.to_dict())
-
         # create task generator (for child runs) from spec
         task_generator = mlrun.runtimes.generators.get_generator(
             run.spec, execution, param_file_secrets=param_file_secrets
@@ -136,7 +134,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 self._validate_run_params(task.spec.parameters)
 
         # post verifications, store execution in db and run pre run hooks
-        mlrun.utils.logger.info("Before storing runnnnn!!!!", ns=execution.to_dict())
         execution.store_run()
         runtime._pre_run(run, execution)  # hook for runtime specific prep
 

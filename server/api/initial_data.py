@@ -577,7 +577,7 @@ def _migrate_artifacts_batch(
             link_artifact_ids.append(artifact.id)
             continue
 
-        artifact_metadata = artifact_dict.get("metadata", {})
+        artifact_metadata = artifact_dict.get("metadata", None) or {}
 
         # producer_id - the current uid value
         # uid can be in the metadata or in the artifact itself, or in the tree field

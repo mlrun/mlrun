@@ -1760,19 +1760,13 @@ class SQLDB(DBInterface):
         """
         project = project or config.default_project
         normalized_function_name = mlrun.utils.normalize_name(name)
-        query = self._query(
-            session, Function, name=normalized_function_name, project=project
-        )
-        uid = self._get_function_uid(
-            session=session,
-            name=normalized_function_name,
+        function, _ = self._get_function_db_object(
+            session,
+            normalized_function_name,
+            project,
             tag=tag or "latest",
             hash_key=hash_key,
-            project=project,
         )
-        if uid:
-            query = query.filter(Function.uid == uid)
-        function = query.one_or_none()
         if not function:
             logger.debug(
                 "Function is not found, skipping external invocation urls update",
@@ -1816,15 +1810,11 @@ class SQLDB(DBInterface):
         _format: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        uid = self._get_function_uid(
-            session=session, name=name, tag=tag, hash_key=hash_key, project=project
+
+        obj, tag_function_uid = self._get_function_db_object(
+            session, name, project, tag, hash_key
         )
-        tag_function_uid = None if not tag and hash_key else uid
-        if uid:
-            query = query.filter(Function.uid == uid)
-        obj = query.one_or_none()
         if obj:
             function = obj.struct
 
@@ -1843,6 +1833,26 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def _get_function_db_object(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session,
+            name=normalized_function_name,
+            tag=tag,
+            hash_key=hash_key,
+            project=project,
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        return query.one_or_none(), uid
 
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str

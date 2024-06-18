@@ -1,29 +1,50 @@
-import pandas as pd
-import mlrun
-from mlrun.execution import MLClientCtx
-from mlrun.datastore import DataItem
-import numpy as np
-import chromadb
+import uuid
 
-def handler_chroma(context:MLClientCtx, vector_db_data: DataItem, cache_dir: str):
-    
-    df = vector_db_data.as_df().head(1000)
+import chromadb
+import mlrun
+import pandas as pd
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from mlrun.execution import MLClientCtx
+
+
+@mlrun.handler()
+def handler_chroma(
+    context: MLClientCtx,
+    df: pd.DataFrame,
+    cache_dir: str,
+    chunk_size: int = 500,
+    chunk_overlap: int = 0,
+):
 
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
-    # Add data to the collection
+    # Get or create collection
     collection_name = "my_news"
     print(f"Creating collection: '{collection_name}'")
-    
-    if len(chroma_client.list_collections()) > 0 and collection_name in [chroma_client.list_collections()[0].name]:
+
+    if len(chroma_client.list_collections()) > 0 and collection_name in [
+        chroma_client.list_collections()[0].name
+    ]:
         chroma_client.delete_collection(name=collection_name)
-    
+
     collection = chroma_client.create_collection(name=collection_name)
 
+    # Format and split docunments
+    documents = df.pop("page_content").to_list()
+    metadatas = df.to_dict(orient="records")
+    docs = [Document(page_content=d, metadata=m) for d, m in zip(documents, metadatas)]
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
+    splits = text_splitter.split_documents(docs)
+
+    # Add to vector store
     collection.add(
-        documents=df["title"][:100].tolist(),
-        metadatas=[{"topic": topic} for topic in df["topic"][:100].tolist()],
-        ids=[f"id{x}" for x in range(100)])
-    
+        ids=[str(uuid.uuid4()) for d in splits],
+        metadatas=[d.metadata for d in splits],
+        documents=[d.page_content for d in splits]
+    )
+
     context.logger.info("Vector DB was created")

@@ -685,6 +685,87 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             expected_artifacts, db, project, run_uid, run_format=run_format
         )
 
+    def test_get_workflow_run_no_artifacts(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid_1 = str(uuid.uuid4())
+        run_uid_2 = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        iter = 0
+
+        # Create some artifacts with different producer id
+        artifacts = self._generate_artifacts(
+            project, str(uuid.uuid4()), str(uuid.uuid4()), artifacts_len=3
+        )
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=artifact["metadata"]["iter"],
+                project=project,
+                producer_id=str(uuid.uuid4()),
+            )
+
+        # run_uid_1 should not list artifacts as it has none
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid_1,
+                    "iter": iter,
+                    "labels": {"kind": "job", "workflow": workflow_uid},
+                },
+                "status": {},
+            },
+            run_uid_1,
+            project=project,
+        )
+
+        # run_uid_2 should not list artifacts as the artifacts has different producer id
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid_1,
+                    "iter": iter,
+                    "labels": {"kind": "job", "workflow": workflow_uid},
+                },
+                "status": {"artifacts": artifacts},
+            },
+            run_uid_2,
+            project=project,
+        )
+
+        with unittest.mock.patch(
+            "server.api.crud.Artifacts.list_artifacts_for_producer_id",
+            side_effect=Exception("Should not be called"),
+        ):
+            run_1 = server.api.crud.Runs().get_run(
+                db,
+                run_uid_1,
+                iter,
+                project,
+                format_=mlrun.common.schemas.RunsFormat.full,
+            )
+
+            assert "artifacts" not in run_1["status"]
+            assert "artifact_uris" not in run_1["status"]
+
+            run_2 = server.api.crud.Runs().get_run(
+                db,
+                run_uid_2,
+                iter,
+                project,
+                format_=mlrun.common.schemas.RunsFormat.full,
+            )
+
+            assert "artifacts" not in run_2["status"]
+            # run 2 should still have artifact uris even if the producer id is different
+            assert "artifact_uris" in run_2["status"]
+
     @staticmethod
     def _generate_artifacts(
         project,

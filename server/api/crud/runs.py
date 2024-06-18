@@ -556,6 +556,9 @@ class Runs(
 
             key_tag_iteration_pairs.append((key, tag, iteration))
 
+        if not key_tag_iteration_pairs:
+            return []
+
         artifacts = server.api.crud.Artifacts().list_artifacts_for_producer_id(
             db_session,
             producer_id,

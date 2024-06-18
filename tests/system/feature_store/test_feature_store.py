@@ -62,6 +62,7 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     RedisNoSqlTarget,
     TargetTypes,
+    get_offline_target,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
@@ -4817,6 +4818,24 @@ class TestFeatureStore(TestMLRunSystem):
             vector, entity_rows=basic_account_df
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
+
+    def test_attributes_in_offline_target(self):
+        run_config = fstore.RunConfig(local=True)
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+        feature_set = fstore.FeatureSet(
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+        )
+
+        target = ParquetTarget(
+            name="test_target",
+            partition_cols=["department"],
+            attributes={"test_key": "test_value"},
+        )
+        feature_set.ingest(source=df, targets=[target], run_config=run_config)
+        result_target = get_offline_target(feature_set)
+        assert result_target.attributes == target.attributes
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

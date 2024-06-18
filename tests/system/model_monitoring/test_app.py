@@ -70,8 +70,8 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
-    results: typing.Optional[set[str]] = None  # only for testing
-    metrics: typing.Optional[set[str]] = None  # only for testing (future use)
+    results: set[str] = field(default_factory=set)  # only for testing
+    metrics: set[str] = field(default_factory=set)  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -207,7 +207,7 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
     @classmethod
-    def _test_predictions_table(cls, ep_id: str) -> None:
+    def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
             predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
                 table=mm_constants.FileTargetKind.PREDICTIONS, start="0", end="now"
@@ -219,10 +219,13 @@ class _V3IORecordsChecker:
                 start=datetime.min,
                 end=datetime.now().astimezone(),
             )
-        assert not predictions_df.empty, "No TSDB predictions data"
-        assert (
-            predictions_df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
+        if should_be_empty:
+            assert predictions_df.empty, "Predictions should be empty"
+        else:
+            assert not predictions_df.empty, "No TSDB predictions data"
+            assert (
+                predictions_df.endpoint_id == ep_id
+            ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
     def _test_apps_parquet(
@@ -255,13 +258,11 @@ class _V3IORecordsChecker:
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
-        cls._test_predictions_table(ep_id)
 
     @classmethod
     def _test_api_get_metrics(
         cls,
         ep_id: str,
-        app_data: _AppData,
         run_db: mlrun.db.httpdb.HTTPRunDB,
         type: typing.Literal["metrics", "results"] = "results",
     ) -> list[str]:
@@ -276,22 +277,23 @@ class _V3IORecordsChecker:
         parsed_response = json.loads(response.content.decode())
 
         if type == "metrics":
-            assert {
-                "project": cls.project_name,
-                "app": "mlrun-infra",
-                "type": "metric",
-                "name": "invocations",
-                "full_name": f"{cls.project_name}.mlrun-infra.metric.invocations",
-            } in parsed_response
+            assert (
+                mlrun.model_monitoring.helpers.get_invocations_metric(
+                    cls.project_name
+                ).dict()
+                in parsed_response
+            ), "The invocations metric is missing"
 
         for result in parsed_response:
-            if result["app"] in [app_data.class_.NAME, "mlrun-infra"]:
-                get_app_results.add(result["name"])
-                app_results_full_names.append(result["full_name"])
+            get_app_results.add(result["name"])
+            app_results_full_names.append(result["full_name"])
 
-        expected_results = getattr(app_data, type)
+        expected_results = set().union(
+            *[getattr(app_data, type) for app_data in cls.apps_data]
+        )
+
         if type == "metrics":
-            expected_results.add("invocations")
+            expected_results.add(mm_constants.PredictionsQueryConstants.INVOCATIONS)
 
         assert get_app_results == expected_results
         assert app_results_full_names, f"No {type}"
@@ -319,14 +321,14 @@ class _V3IORecordsChecker:
             ], f"The values list is empty for result {result_values['full_name']}"
 
     @classmethod
-    def _test_api(cls, ep_id: str, app_data: _AppData) -> None:
+    def _test_api(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint monitoring APIs")
         run_db = mlrun.db.httpdb.HTTPRunDB(mlrun.mlconf.dbpath)
         metrics_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="metrics"
+            ep_id=ep_id, run_db=run_db, type="metrics"
         )
         results_full_names = cls._test_api_get_metrics(
-            ep_id=ep_id, app_data=app_data, run_db=run_db, type="results"
+            ep_id=ep_id, run_db=run_db, type="results"
         )
 
         cls._test_api_get_values(
@@ -440,8 +442,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_model_serving(
         cls, with_training_set: bool
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=cls.project_name, new_name="model-serving"
+        serving_fn = typing.cast(
+            mlrun.runtimes.nuclio.serving.ServingRuntime,
+            mlrun.import_function(
+                "hub://v2_model_server",
+                project=cls.project_name,
+                new_name="model-serving",
+            ),
         )
         serving_fn.add_model(
             f"{cls.model_name}_{with_training_set}",
@@ -452,7 +459,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+        return serving_fn
 
     @classmethod
     def _infer(
@@ -539,9 +546,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         ep_id = self._get_model_endpoint_id()
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
+        self._test_predictions_table(ep_id)
 
-        if with_training_set:
-            self._test_api(ep_id=ep_id, app_data=_DefaultDataDriftAppData)
+        self._test_api(ep_id=ep_id)
+        if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
 
 
@@ -690,6 +698,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(
             self.endpoint_id, inputs=set(self.columns), outputs=set(self.y_name)
         )
+        self._test_predictions_table(self.endpoint_id, should_be_empty=True)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -699,7 +708,12 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
-    def test_enable_model_monitoring(self) -> None:
+    def test_model_monitoring_crud(self) -> None:
+        import v3io.dataplane
+
+        all_functions = mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
@@ -710,7 +724,8 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         controller = self.project.get_function(
-            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
         )
         assert (
             controller.spec.config["spec.triggers.cron_interval"]["attributes"][
@@ -718,6 +733,36 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             ]
             == "10m"
         )
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=False,
+            rebuild_images=False,
+        )
+        # check that all the function are still deployed
+        for name in all_functions:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "ready"
+
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=False,
+            rebuild_images=True,
+        )
+
+        # check that all the function are in building state
+        for name in all_functions:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "building"
+
+        self.project._wait_for_functions_deployment(all_functions)
 
         self.project.update_model_monitoring_controller(
             image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
@@ -732,6 +777,78 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             ]
             == "1m"
         )
+
+        self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
+        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+
+        # controller and writer(with hus stream) should be deleted
+        for name in mm_constants.MonitoringFunctionNames.list():
+            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                project=self.project.name, function_name=name
+            )
+            _, container, stream_path = (
+                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                    stream_path
+                )
+            )
+            if name != mm_constants.MonitoringFunctionNames.STREAM:
+                with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                    self.project.get_function(
+                        key=name,
+                        ignore_cache=True,
+                    )
+                with pytest.raises(v3io.dataplane.response.HttpResponseError):
+                    v3io_client.stream.describe(container, stream_path)
+            else:
+                self.project.get_function(
+                    key=name,
+                    ignore_cache=True,
+                )
+                v3io_client.stream.describe(container, stream_path)
+
+        self.project.disable_model_monitoring(
+            delete_histogram_data_drift_app=False, delete_stream_function=True
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.MonitoringFunctionNames.STREAM,
+                ignore_cache=True,
+            )
+
+        # check that the stream of the stream pod is not deleted
+        stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+            project=self.project.name,
+            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+        )
+        _, container, stream_path = (
+            mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                stream_path
+            )
+        )
+        v3io_client.stream.describe(container, stream_path)
+
+        self.project.delete_model_monitoring_function(
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        )
+        # check that the histogram data drift app and it's stream is deleted
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                ignore_cache=True,
+            )
+
+        with pytest.raises(v3io.dataplane.response.HttpResponseError):
+            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                project=self.project.name,
+                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            )
+            _, container, stream_path = (
+                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                    stream_path
+                )
+            )
+            v3io_client.stream.describe(container, stream_path)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -820,7 +937,12 @@ class TestAllKindOfServing(TestMLRunSystem):
 
     @classmethod
     def _deploy_model_serving(
-        cls, name: str, model_name: str, class_name: str, **kwargs
+        cls,
+        name: str,
+        model_name: str,
+        class_name: str,
+        enable_tracking: bool = True,
+        **kwargs,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.code_to_function(
             project=cls.project_name,
@@ -833,7 +955,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             model_path=f"store://models/{cls.project_name}/{model_name}:latest",
             class_name=class_name,
         )
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(enable_tracking=enable_tracking)
         if cls.image is not None:
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
@@ -920,3 +1042,85 @@ class TestAllKindOfServing(TestMLRunSystem):
             assert res_dict[
                 "has_all_the_events"
             ], f"For {res_dict['model_name']} Not all the events were saved"
+
+
+class TestTracking(TestAllKindOfServing):
+    project_name = "test-tracking"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.models = {
+            "int_one_to_one": {
+                "name": "serving_1",
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+        }
+
+    def test_tracking(self) -> None:
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            deploy_histogram_data_drift_app=False,
+        )
+
+        for model_name, model_dict in self.models.items():
+            self._log_model(
+                model_name,
+                training_set=model_dict.get("training_set"),
+                label_column=model_dict.get("label_column"),
+            )
+            self._deploy_model_serving(**model_dict, enable_tracking=False)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 0
+
+        for model_name, model_dict in self.models.items():
+            self._deploy_model_serving(**model_dict, enable_tracking=True)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 1
+        endpoint = endpoints[0]
+        assert (
+            endpoint["monitoring_mode"]
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        )
+
+        res_dict = self._test_endpoint(
+            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
+            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+        )
+        assert res_dict[
+            "is_schema_saved"
+        ], f"For {res_dict['model_name']} the schema of parquet is missing columns"
+
+        assert res_dict[
+            "has_all_the_events"
+        ], f"For {res_dict['model_name']} Not all the events were saved"
+
+        for model_name, model_dict in self.models.items():
+            self._deploy_model_serving(**model_dict, enable_tracking=False)
+
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+        endpoints = self.db.list_model_endpoints()
+        assert len(endpoints) == 1
+        endpoint = endpoints[0]
+        assert (
+            endpoint["monitoring_mode"]
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
+
+        res_dict = self._test_endpoint(
+            model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
+            feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+        )
+
+        assert res_dict[
+            "has_all_the_events"
+        ], f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."

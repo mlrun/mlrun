@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,20 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-from server.api.utils.db.mysql import MySQLUtil
 
-# fmt: off
-mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
-if mysql_dsn_data:
-    from .models_mysql import *  # noqa
+import mlrun.model_monitoring.applications as mm_applications
 
-    # importing private variables as well
-    from .common import _classes, _labeled, _tagged, _with_notifications  # noqa # isort:skip
-else:
-    from .models_sqlite import *  # noqa
 
-    # importing private variables as well
-    from .common import _classes, _labeled, _tagged, _with_notifications  # noqa # isort:skip
+class DemoMonitoringAppV2(mm_applications.ModelMonitoringApplicationBaseV2):
+    _dict_fields = ["param_1", "param_2"]
 
-# fmt: on
+    def __init__(self, param_1, **kwargs) -> None:
+        self.param_1 = param_1
+        self.param_2 = kwargs["param_2"]
+
+    def do_tracking(
+        self,
+        monitoring_context,
+    ):
+        pass

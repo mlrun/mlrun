@@ -774,6 +774,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        attributes: dict[str, object] = None,
         time_field: str = None,
         schedule: str = None,
         start_time=None,
@@ -786,18 +787,21 @@ class SnowflakeSource(BaseSourceDriver):
         warehouse: str = None,
         **kwargs,
     ):
-        attrs = {
-            "query": query,
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": schema,
-            "warehouse": warehouse,
-        }
+        if url:
+            attributes = attributes or {}
+            attrs = {
+                "query": query,
+                "url": url,
+                "user": user,
+                "database": database,
+                "schema": schema,
+                "warehouse": warehouse,
+            }
+            attributes["essentials_attributes"] = attrs
 
         super().__init__(
             name,
-            attributes=attrs,
+            attributes=attributes,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -808,7 +812,14 @@ class SnowflakeSource(BaseSourceDriver):
 
     def get_spark_options(self):
         spark_options = get_snowflake_spark_options(self.attributes)
-        spark_options["query"] = self.attributes.get("query")
+        if query := self.attributes.get("essentials_attributes", {}).get("query"):
+            spark_options["query"] = query
+        elif table_name := self.attributes.get("essentials_attributes", {}).get("table"):
+            spark_options["query"] = f"SELECT * FROM {table_name}"
+        else:
+            mlrun.errors.MLRunInvalidArgumentError(
+                "mlrun failed to find query or table arguments."
+            )
         return spark_options
 
 

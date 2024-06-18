@@ -393,7 +393,7 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, [str, object]] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
@@ -801,7 +801,7 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, [str, object]] = None,
         after_step=None,
         columns=None,
         partitioned: bool = None,
@@ -1178,7 +1178,7 @@ class SnowflakeTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, [str, object]] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
@@ -1197,19 +1197,23 @@ class SnowflakeTarget(BaseStoreTarget):
         warehouse: str = None,
         table_name: str = None,
     ):
-        attrs = {
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": db_schema,
-            "warehouse": warehouse,
-            "table": table_name,
-        }
-        extended_attrs = {
-            key: value for key, value in attrs.items() if value is not None
-        }
-        attributes = {} if not attributes else attributes
-        attributes.update(extended_attrs)
+        if url:
+            attributes = attributes or {}
+            attrs = {
+                "url": url,
+                "user": user,
+                "database": database,
+                "schema": db_schema,
+                "warehouse": warehouse,
+                "table": table_name,
+            }
+            attributes["essentials_attributes"] = attrs
+
+        # extended_attrs = {
+        #     key: value for key, value in attrs.items() if value is not None
+        # }
+        # attributes = {} if not attributes else attributes
+        # attributes.update(extended_attrs)
         super().__init__(
             name,
             path,
@@ -1229,7 +1233,7 @@ class SnowflakeTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = get_snowflake_spark_options(self.attributes)
-        spark_options["dbtable"] = self.attributes.get("table")
+        spark_options["dbtable"] = self.attributes.get("essentials_attributes", {}).get("table")
         return spark_options
 
     def purge(self):
@@ -1880,7 +1884,7 @@ class SQLTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, [str, object]] = None,
         after_step=None,
         partitioned: bool = False,
         key_bucketing_number: Optional[int] = None,

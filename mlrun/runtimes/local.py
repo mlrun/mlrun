@@ -391,7 +391,13 @@ def load_module(file_name, handler, context):
     if context:
         class_args = copy(context._parameters.get("_init_args", {}))
 
-    return get_handler_extended(handler, context, class_args, namespaces=module)
+    return get_handler_extended(
+        handler,
+        context,
+        class_args,
+        namespaces=module,
+        reload_modules=context._reset_on_run,
+    )
 
 
 def run_exec(cmd, args, env=None, cwd=None):

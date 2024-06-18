@@ -92,3 +92,12 @@ artifact_key = [r"[^\/\\]+$"]
 # must be alphanumeric or _
 # max 256 length
 v3io_stream_consumer_group = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]
+
+# URI patterns
+run_uri_pattern = r"^(?P<project>.*)@(?P<uid>.*)\#(?P<iteration>.*?)(:(?P<tag>.*))?$"
+
+artifact_uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+
+artifact_producer_uri_pattern = (
+    r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"
+)

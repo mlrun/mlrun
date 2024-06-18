@@ -449,7 +449,6 @@ class Runs(
     ):
         """Fetch run artifacts by their artifact URIs in the run status"""
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
-
         key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)

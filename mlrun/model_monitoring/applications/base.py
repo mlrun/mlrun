@@ -21,16 +21,16 @@ import pandas as pd
 import mlrun
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.results as mm_results
-from mlrun.serving.utils import StepToDict
+from mlrun.serving.utils import MonitoringApplicationToDict
 
 
-class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
+class ModelMonitoringApplicationBaseV2(MonitoringApplicationToDict, ABC):
     """
     A base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
-        # mlrun: start-code
+
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
@@ -49,7 +49,6 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
                 )
 
 
-        # mlrun: end-code
     """
 
     kind = "monitoring_application"
@@ -113,13 +112,13 @@ class ModelMonitoringApplicationBaseV2(StepToDict, ABC):
         raise NotImplementedError
 
 
-class ModelMonitoringApplicationBase(StepToDict, ABC):
+class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     """
     A base class for a model monitoring application.
     Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
-        # mlrun: start-code
+
         class MyApp(ApplicationBase):
             def do_tracking(
                 self,
@@ -145,7 +144,6 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 )
 
 
-        # mlrun: end-code
     """
 
     kind = "monitoring_application"

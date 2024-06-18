@@ -48,7 +48,7 @@ def test_build_kv_cursor_filter_expression():
     store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
 
     endpoint_store: KVmodelType = store_type_object.to_object_store(
-        project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+        project=TEST_PROJECT,
     )
 
     with pytest.raises(MLRunInvalidArgumentError):
@@ -281,7 +281,7 @@ def test_generating_tsdb_paths():
     # Initialize endpoint store target object
     store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="v3io-nosql")
     endpoint_store: KVmodelType = store_type_object.to_object_store(
-        project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+        project=TEST_PROJECT,
     )
 
     # Generating the required tsdb paths

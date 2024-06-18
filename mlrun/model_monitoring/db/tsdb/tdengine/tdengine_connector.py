@@ -11,18 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import typing
+from datetime import datetime
 
 import pandas as pd
 import taosws
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring.db
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
 
@@ -184,37 +184,59 @@ class TDEngineConnector(TSDBConnector):
         # Not implemented, use get_records() instead
         pass
 
-    def get_records(
+    def _get_records(
         self,
         table: str,
-        start: str,
-        end: str,
+        start: datetime,
+        end: datetime,
         columns: typing.Optional[list[str]] = None,
-        filter_query: str = "",
+        filter_query: typing.Optional[str] = None,
+        interval: typing.Optional[str] = None,
+        agg_funcs: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
+        sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
-        :param table:            Either a supertable or a subtable name.
-        :param columns:          Columns to include in the result.
-        :param filter_query:     Optional filter expression as a string. The filter structure depends on the TSDB
-                                 connector type.
-        :param start:            The start time of the metrics.
-        :param end:              The end time of the metrics.
-        :param timestamp_column: The column name that holds the timestamp.
+        :param table:                 Either a supertable or a subtable name.
+        :param start:                 The start time of the metrics.
+        :param end:                   The end time of the metrics.
+        :param columns:               Columns to include in the result.
+        :param filter_query:          Optional filter expression as a string. TDengine supports SQL-like syntax.
+        :param interval:              The interval to aggregate the data by. Note that if interval is provided,
+                                      `agg_funcs` must bg provided as well. Provided as a string in the format of '1m',
+                                      '1h', etc.
+        :param agg_funcs:             The aggregation functions to apply on the columns. Note that if `agg_funcs` is
+                                      provided, `interval` must bg provided as well. Provided as a list of strings in
+                                      the format of ['sum', 'avg', 'count', ...].
+        :param limit:                 The maximum number of records to return.
+        :param sliding_window_step:   The time step for which the time window moves forward. Note that if
+                                      `sliding_window_step` is provided, interval must be provided as well. Provided
+                                      as a string in the format of '1m', '1h', etc.
+        :param timestamp_column:      The column name that holds the timestamp index.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
         """
 
-        filter_query += f" project = '{self.project}'"
+        project_condition = f"project = '{self.project}'"
+        filter_query = (
+            f"{filter_query} AND {project_condition}"
+            if filter_query
+            else project_condition
+        )
 
         full_query = tdengine_schemas.TDEngineSchema._get_records_query(
             table=table,
-            columns_to_filter=columns,
-            filter_query=filter_query,
             start=start,
             end=end,
+            columns_to_filter=columns,
+            filter_query=filter_query,
+            interval=interval,
+            limit=limit,
+            agg_funcs=agg_funcs,
+            sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
         )
@@ -229,3 +251,151 @@ class TDEngineConnector(TSDBConnector):
             columns.append(column.name())
 
         return pd.DataFrame(query_result, columns=columns)
+
+    def read_metrics_data(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric],
+        type: typing.Literal["metrics", "results"],
+    ) -> typing.Union[
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringResultValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+        list[
+            typing.Union[
+                mm_schemas.ModelEndpointMonitoringMetricValues,
+                mm_schemas.ModelEndpointMonitoringMetricNoData,
+            ],
+        ],
+    ]:
+        if type == "metrics":
+            table = mm_schemas.TDEngineSuperTables.METRICS
+            name = mm_schemas.MetricData.METRIC_NAME
+            df_handler = self.df_to_metrics_values
+        elif type == "results":
+            table = mm_schemas.TDEngineSuperTables.APP_RESULTS
+            name = mm_schemas.ResultData.RESULT_NAME
+            df_handler = self.df_to_results_values
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid type {type}, must be either 'metrics' or 'results'."
+            )
+
+        metrics_condition = " OR ".join(
+            [
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+                for metric in metrics
+            ]
+        )
+        filter_query = f"endpoint_id='{endpoint_id}' AND ({metrics_condition})"
+
+        df = self._get_records(
+            table=table,
+            start=start,
+            end=end,
+            filter_query=filter_query,
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+        )
+
+        df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(
+            df[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        df.set_index(mm_schemas.WriterEvent.END_INFER_TIME, inplace=True)
+
+        logger.debug(
+            "Converting a DataFrame to a list of metrics or results values",
+            table=table,
+            project=self.project,
+            endpoint_id=endpoint_id,
+            is_empty=df.empty,
+        )
+
+        return df_handler(df=df, metrics=metrics, project=self.project)
+
+    def read_predictions(
+        self,
+        *,
+        endpoint_id: str,
+        start: datetime,
+        end: datetime,
+        aggregation_window: typing.Optional[str] = None,
+        agg_funcs: typing.Optional[list] = None,
+        limit: typing.Optional[int] = None,
+    ) -> typing.Union[
+        mm_schemas.ModelEndpointMonitoringMetricValues,
+        mm_schemas.ModelEndpointMonitoringMetricNoData,
+    ]:
+        if (agg_funcs and not aggregation_window) or (
+            aggregation_window and not agg_funcs
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "both or neither of `aggregation_window` and `agg_funcs` must be provided"
+            )
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.EventFieldType.LATENCY],
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            agg_funcs=agg_funcs,
+            interval=aggregation_window,
+            limit=limit,
+        )
+
+        full_name = get_invocations_fqn(self.project)
+
+        if df.empty:
+            return mm_schemas.ModelEndpointMonitoringMetricNoData(
+                full_name=full_name,
+                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
+            )
+
+        if aggregation_window:
+            # _wend column, which represents the end time of each window, will be used as the time index
+            df["_wend"] = pd.to_datetime(df["_wend"])
+            df.set_index("_wend", inplace=True)
+
+        latency_column = (
+            f"{agg_funcs[0]}({mm_schemas.EventFieldType.LATENCY})"
+            if agg_funcs
+            else mm_schemas.EventFieldType.LATENCY
+        )
+
+        return mm_schemas.ModelEndpointMonitoringMetricValues(
+            full_name=full_name,
+            values=list(
+                zip(
+                    df.index,
+                    df[latency_column],
+                )
+            ),  # pyright: ignore[reportArgumentType]
+        )
+
+    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
+    #
+    # def read_prediction_metric_for_endpoint_if_exists(
+    #     self, endpoint_id: str
+    # ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    #     """
+    #     Read the "invocations" metric for the provided model endpoint, and return the metric object
+    #     if it exists.
+    #
+    #     :param endpoint_id: The model endpoint identifier.
+    #     :return:            `None` if the invocations metric does not exist, otherwise return the
+    #                         corresponding metric object.
+    #     """
+    #     # Read just one record, because we just want to check if there is any data for this endpoint_id
+    #     predictions = self.read_predictions(
+    #         endpoint_id=endpoint_id,
+    #         start=datetime.min,
+    #         end=mlrun.utils.now_date(),
+    #         limit=1,
+    #     )
+    #     if predictions:
+    #         return get_invocations_metric(self.project)

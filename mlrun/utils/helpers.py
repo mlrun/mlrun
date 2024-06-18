@@ -26,7 +26,7 @@ import sys
 import typing
 import warnings
 from datetime import datetime, timezone
-from importlib import import_module
+from importlib import import_module, reload
 from os import path
 from types import ModuleType
 from typing import Any, Optional
@@ -181,8 +181,12 @@ def verify_field_regex(
             )
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
+                    if len(field_name) > max_chars:
+                        field_name = field_name[:max_chars] + "...truncated"
+                    if len(field_value) > max_chars:
+                        field_value = field_value[:max_chars] + "...truncated"
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"Field '{field_name}' is malformed. '{field_value}' "
                         f"does not match required pattern: {pattern}"
                     )
                 return False
@@ -655,7 +659,7 @@ def parse_artifact_uri(uri, default_project=""):
         [3] = tag
         [4] = tree
     """
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+    uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
@@ -1015,16 +1019,35 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: str):
+def create_function(pkg_func: str, reload_modules: bool = False):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
+    :param reload_modules: reload the function again.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
+
+    if reload_modules:
+        # Even though the function appears in the modules list, we need to reload
+        # the code again because it may have changed
+        try:
+            logger.debug("Reloading module", module=pkg_func)
+            _reload(
+                pkg_module,
+                max_recursion_depth=mlrun.mlconf.function.spec.reload_max_recursion_depth,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to reload module. Not all associated modules can be reloaded, import them manually."
+                "Or, with Jupyter, restart the Python kernel.",
+                module=pkg_func,
+                err=mlrun.errors.err_to_str(exc),
+            )
+
     function_ = getattr(pkg_module, cb_fname)
     return function_
 
@@ -1082,8 +1105,14 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def get_function(function, namespace):
-    """return function callable object from function name string"""
+def get_function(function, namespaces, reload_modules: bool = False):
+    """Return function callable object from function name string
+
+    :param function: path to the function ([class_name::]function)
+    :param namespaces: one or list of namespaces/modules to search the function in
+    :param reload_modules: reload the function again
+    :return: function handler (callable)
+    """
     if callable(function):
         return function
 
@@ -1092,12 +1121,12 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    function_object = _search_in_namespaces(function, namespace)
+    function_object = _search_in_namespaces(function, namespaces)
     if function_object is not None:
         return function_object
 
     try:
-        function_object = create_function(function)
+        function_object = create_function(function, reload_modules)
     except (ImportError, ValueError) as exc:
         raise ImportError(
             f"state/function init failed, handler '{function}' not found"
@@ -1106,18 +1135,24 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str,
+    context=None,
+    class_args: dict = None,
+    namespaces=None,
+    reload_modules: bool = False,
 ):
-    """get function handler from [class_name::]handler string
+    """Get function handler from [class_name::]handler string
 
     :param handler_path:  path to the function ([class_name::]handler)
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
+    :param reload_modules: reload the function again
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
-        return get_function(handler_path, namespaces)
+        return get_function(handler_path, namespaces, reload_modules)
 
     splitted = handler_path.split("::")
     class_path = splitted[0].strip()
@@ -1585,11 +1620,12 @@ def validate_component_version_compatibility(
             component_current_version = mlrun.mlconf.igz_version
             parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
 
-            # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
-            # major, minor, and patch versions
-            parsed_current_version = semver.VersionInfo.parse(
-                f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
-            )
+            if parsed_current_version:
+                # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+                # major, minor, and patch versions
+                parsed_current_version = semver.VersionInfo.parse(
+                    f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+                )
         if component_name == "nuclio":
             component_current_version = mlrun.mlconf.nuclio_version
             parsed_current_version = semver.VersionInfo.parse(
@@ -1622,3 +1658,15 @@ def format_alert_summary(
     result = result.replace("{{name}}", alert.name)
     result = result.replace("{{entity}}", event_data.entity.ids[0])
     return result
+
+
+def _reload(module, max_recursion_depth):
+    """Recursively reload modules."""
+    if max_recursion_depth <= 0:
+        return
+
+    reload(module)
+    for attribute_name in dir(module):
+        attribute = getattr(module, attribute_name)
+        if type(attribute) is ModuleType:
+            _reload(attribute, max_recursion_depth - 1)

@@ -65,7 +65,7 @@ class ObjectTSDBFactory(enum.Enum):
 def get_tsdb_connector(
     project: str,
     tsdb_connector_type: str = "",
-    secret_provider: typing.Callable = None,
+    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     **kwargs,
 ) -> TSDBConnector:
     """

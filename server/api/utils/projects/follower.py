@@ -21,6 +21,7 @@ import mergedeep
 import pytz
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -216,7 +217,7 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.Project:
         # by default, get project will use mlrun db to get/list the project.
         # from leader is relevant for cases where we want to get the project from the leader
@@ -242,7 +243,7 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
@@ -251,7 +252,7 @@ class Member(
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
-            format_ == mlrun.common.schemas.ProjectsFormat.leader
+            format_ == mlrun.common.formatters.ProjectFormat.leader
             and not server.api.utils.helpers.is_request_from_leader(
                 projects_role, leader_name=self._leader_name
             )
@@ -263,7 +264,7 @@ class Member(
         projects_output = server.api.crud.Projects().list_projects(
             db_session, owner, format_, labels, state, names
         )
-        if format_ == mlrun.common.schemas.ProjectsFormat.leader:
+        if format_ == mlrun.common.formatters.ProjectFormat.leader:
             leader_projects = [
                 self._leader_client.format_as_leader_project(project)
                 for project in projects_output.projects

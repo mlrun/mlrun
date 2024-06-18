@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -87,7 +88,7 @@ default_config = {
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
     "ipython_widget": True,
     "log_level": "INFO",
-    # log formatter (options: human | json)
+    # log formatter (options: human | human_extended | json)
     "log_formatter": "human",
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
@@ -228,6 +229,9 @@ default_config = {
                     "executing": "24h",
                 }
             },
+            # When the module is reloaded, the maximum depth recursion configuration for the recursive reload
+            # function is used to prevent infinite loop
+            "reload_max_recursion_depth": 100,
         },
         "databricks": {
             "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
@@ -370,7 +374,7 @@ default_config = {
             "add_templated_ingress_host_mode": "never",
             "explicit_ack": "enabled",
             # size of serving spec to move to config maps
-            "serving_spec_env_cutoff": 4096,
+            "serving_spec_env_cutoff": 0,
         },
         "logs": {
             "decode": {
@@ -700,7 +704,10 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "enabled"
+        "mode": "enabled",
+        # maximum number of alerts we allow to be configured.
+        # user will get an error when exceeding this
+        "max_allowed": 1000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -805,6 +812,7 @@ class Config:
     ):
         """
         decodes and loads the config attribute to expected type
+
         :param attribute_path: the path in the default_config e.g. preemptible_nodes.node_selector
         :param expected_type: the object type valid values are : `dict`, `list` etc...
         :return: the expected type instance
@@ -966,6 +974,10 @@ class Config:
 
         self.httpdb.clusterization.chief.url = chief_api_url
         return self.httpdb.clusterization.chief.url
+
+    @staticmethod
+    def internal_labels():
+        return mlrun.common.constants.MLRunInternalLabels.all()
 
     @staticmethod
     def get_storage_auto_mount_params():

@@ -19,6 +19,7 @@ import warnings
 from datetime import datetime
 from time import sleep
 
+import inflection
 import nuclio
 import nuclio.utils
 import requests
@@ -65,9 +66,13 @@ def min_nuclio_versions(*versions):
             if validate_nuclio_version_compatibility(*versions):
                 return function(*args, **kwargs)
 
+            if function.__name__ == "__init__":
+                name = inflection.titleize(function.__qualname__.split(".")[0])
+            else:
+                name = function.__qualname__
+
             message = (
-                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
-                f"nuclio {mlconf.nuclio_version}, please upgrade."
+                f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
@@ -266,7 +271,8 @@ class RemoteRuntime(KubeResource):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
     def pre_deploy_validation(self):
-        pass
+        if self.metadata.tag:
+            mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -986,6 +992,10 @@ class RemoteRuntime(KubeResource):
 
         if args and sidecar["command"]:
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
+
+        # populate the sidecar resources from the function spec
+        if self.spec.resources:
+            sidecar["resources"] = self.spec.resources
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])

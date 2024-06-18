@@ -158,10 +158,6 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesConnector:
-    TSDB = "tsdb"
-
-
 class ModelEndpointTarget:
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
@@ -197,6 +193,7 @@ class FileTargetKind:
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
+    APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
     MONITORING_APPLICATION = "monitoring_application"
 
@@ -321,6 +318,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
+    custom = 4
 
 
 class ResultStatusApp(IntEnum):
@@ -350,9 +348,6 @@ class TSDBTarget:
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
     PROMETHEUS = "prometheus"
-    APP_RESULTS_TABLE = "app-results"
-    V3IO_BE = "tsdb"
-    V3IO_RATE = "1/s"
 
 
 class HistogramDataDriftApplicationConstants:

@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 from deprecated import deprecated
 
 import mlrun.alerts
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.lists
 import mlrun.model
@@ -290,11 +292,25 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = None,
+    ):
         pass
 
     @abstractmethod
     def delete_function(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def delete_functions(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -306,6 +322,7 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        _format: str = None,
         page: int = None,
         page_size: int = None,
     ):
@@ -390,7 +407,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_schedules(self, session, project: str):
+    def delete_project_schedules(self, session, project: str):
+        pass
+
+    @abstractmethod
+    def delete_schedules(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -416,7 +439,7 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: Optional[list[str]] = None,
@@ -733,6 +756,14 @@ class DBInterface(ABC):
 
     @abstractmethod
     def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_num_configured_alerts(self, session) -> int:
         pass
 
     @abstractmethod

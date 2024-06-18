@@ -25,6 +25,7 @@ import urllib.parse
 
 import aiohttp
 import fastapi
+import httpx
 import humanfriendly
 import igz_mgmt.schemas.manual_events
 import requests.adapters
@@ -139,11 +140,22 @@ class Client(
 ):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        retry_on_exception = (
+            mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+        )
         self._session = mlrun.utils.HTTPSessionWithRetry(
-            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            retry_on_exception=retry_on_exception,
             verbose=True,
         )
+        self._retry_on_post_session = None
+        if retry_on_exception:
+            self._retry_on_post_session = mlrun.utils.HTTPSessionWithRetry(
+                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+                retry_on_post=True,
+                verbose=True,
+            )
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
@@ -172,6 +184,7 @@ class Client(
                 "authorization": request.headers.get("authorization"),
                 "cookie": request.headers.get("cookie"),
             },
+            retry_on_post=True,
         )
         return self._generate_auth_info_from_session_verification_response(
             response.headers, response.json()
@@ -198,11 +211,17 @@ class Client(
             for plane in planes
             if plane in igz_mgmt.constants.SessionPlanes.all()
         ]
-        access_key = igz_mgmt.AccessKey.get_or_create(
-            self._get_igz_client(session),
-            planes=planes,
-            label="MLRun",
-        )
+        try:
+            access_key = igz_mgmt.AccessKey.get_or_create(
+                self._get_igz_client(session),
+                planes=planes,
+                label="MLRun",
+            )
+        except httpx.HTTPStatusError as exc:
+            # igz mgmt client might raise httpx.HTTPStatusError, but we want to raise mlrun.errors.MLRunError
+            raise mlrun.errors.err_for_status_code(
+                exc.response.status_code, message=mlrun.errors.err_to_str(exc)
+            ) from exc
         return access_key.id
 
     def create_project(
@@ -271,9 +290,7 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._wait_for_job_completion(
-                session, job_id, "Project deletion job failed"
-            )
+            self._wait_for_job_completion(session, job_id)
             self._logger.debug(
                 "Successfully deleted project in Iguazio",
                 name=name,
@@ -581,7 +598,9 @@ class Client(
         response = self._get_project_from_iguazio_without_parsing(session, name)
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
-    def _wait_for_job_completion(self, session: str, job_id: str, error_message: str):
+    def _wait_for_job_completion(
+        self, session: str, job_id: str, error_message: str = ""
+    ):
         def _verify_job_in_terminal_state():
             job_response_body = self._get_job_from_iguazio(session, job_id)
             _job_state = job_response_body["data"]["attributes"]["state"]
@@ -598,17 +617,22 @@ class Client(
         )
         if job_state != JobStates.completed:
             status_code = None
+            final_error_message = ""
             try:
                 parsed_result = json.loads(job_result)
-                error_message = f"{error_message} {parsed_result['message']}"
+                result_message = parsed_result["message"]
+                final_error_message = self._resolve_final_error_message(
+                    error_message, result_message
+                )
+
                 # status is optional
                 if "status" in parsed_result:
                     status_code = int(parsed_result["status"])
             except Exception:
                 pass
             if not status_code:
-                raise mlrun.errors.MLRunRuntimeError(error_message)
-            raise mlrun.errors.err_for_status_code(status_code, error_message)
+                raise mlrun.errors.MLRunRuntimeError(final_error_message)
+            raise mlrun.errors.err_for_status_code(status_code, final_error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
 
     def _get_job_from_iguazio(self, session: str, job_id: str) -> dict:
@@ -618,11 +642,20 @@ class Client(
         return response.json()
 
     def _send_request_to_api(
-        self, method, path, error_message: str, session=None, **kwargs
+        self,
+        method,
+        path,
+        error_message: str,
+        session=None,
+        retry_on_post=False,
+        **kwargs,
     ):
         url = f"{self._api_url}/api/{path}"
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
-        response = self._session.request(
+        http_session = self._session
+        if retry_on_post and self._retry_on_post_session:
+            http_session = self._retry_on_post_session
+        response = http_session.request(
             method, url, verify=mlrun.mlconf.httpdb.http.verify, **kwargs
         )
         if not response.ok:
@@ -752,11 +785,25 @@ class Client(
             body["data"]["attributes"]["owner_username"] = project.spec.owner
 
         if project.spec.default_function_node_selector is not None:
-            body["data"]["attributes"]["default_function_node_selector"] = (
-                Client._transform_mlrun_labels_to_iguazio_labels(
-                    project.spec.default_function_node_selector
+            # This feature requires support for project-level default_function_node_selector,
+            # which is available starting from version 3.5.5.
+            # We are adding this validation to maintain backward compatibility with older versions of Iguazio.
+            if mlrun.utils.helpers.validate_component_version_compatibility(
+                "iguazio", "3.5.5"
+            ):
+                body["data"]["attributes"]["default_function_node_selector"] = (
+                    Client._transform_mlrun_labels_to_iguazio_labels(
+                        project.spec.default_function_node_selector
+                    )
                 )
-            )
+            else:
+                logger.debug(
+                    "Omitting project-level default function node selector from Iguazio project, "
+                    "as Iguazio version is insufficient",
+                    igz_version=mlrun.mlconf.get_parsed_igz_version(),
+                    project_name=project.metadata.name,
+                )
+
         return body
 
     @staticmethod
@@ -920,6 +967,14 @@ class Client(
                     f"Job {job_id} not found in Iguazio"
                 )
             raise
+
+    @staticmethod
+    def _resolve_final_error_message(error_message: str = "", result_message: str = ""):
+        return (
+            f"{error_message}: {result_message}"
+            if error_message and result_message
+            else error_message or result_message or ""
+        )
 
 
 class AsyncClient(Client):

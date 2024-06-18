@@ -255,6 +255,39 @@ def test_list_functions_filtering_unversioned_untagged(
     assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
 
+def test_list_functions_with_format(db: DBInterface, db_session: Session):
+    name = "function_name_1"
+    tag = "some_tag"
+    function_body = {
+        "metadata": {"name": name},
+        "kind": "remote",
+        "status": {"state": "online"},
+        "spec": {
+            "description": "some_description",
+            "command": "some_command",
+            "image": "some_image",
+            "default_handler": "some_handler",
+            "default_class": "some_class",
+            "graph": "some_graph",
+            "preemption_mode": "some_preemption_mode",
+            "node_selector": "some_node_selector",
+            "priority_class_name": "some_priority_class_name",
+            "extra_field": "extra_field",
+        },
+    }
+    db.store_function(db_session, function_body, name, tag=tag, versioned=True)
+    functions = db.list_functions(db_session, tag=tag, _format="full")
+    assert len(functions) == 1
+    function = functions[0]
+    assert function["spec"] == function_body["spec"]
+
+    functions = db.list_functions(db_session, tag=tag, _format="minimal")
+    assert len(functions) == 1
+    function = functions[0]
+    del function_body["spec"]["extra_field"]
+    assert function["spec"] == function_body["spec"]
+
+
 def test_delete_function(db: DBInterface, db_session: Session):
     labels = {
         "name": "value",
@@ -368,6 +401,73 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     assert (
         len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
     )
+
+
+def test_delete_functions(db: DBInterface, db_session: Session):
+    names = ["some_name", "some_name2", "some_name3"]
+    labels = {
+        "key": "value",
+    }
+    function = {
+        "bla": "blabla",
+        "metadata": {"labels": labels},
+        "status": {"bla": "blabla"},
+    }
+    for name in names:
+        db.store_function(
+            db_session, function, name, project="project1", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project1",
+            tag="latest_2",
+            versioned=True,
+        )
+        db.store_function(
+            db_session, function, name, project="project2", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project2",
+            tag="latest_2",
+            versioned=True,
+        )
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == len(names) * 2
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == len(names) * 2
+
+    assert db_session.query(Function.Label).count() != 0
+    assert db_session.query(Function.Tag).count() != 0
+    assert db_session.query(Function).count() != 0
+
+    db.delete_functions(db_session, "*", names=names[:2])
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == 2
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == 2
+
+    assert db_session.query(Function.Label).count() == 2
+    assert db_session.query(Function.Tag).count() == 4
+    assert db_session.query(Function).count() == 2
+
+    db.store_function(
+        db_session,
+        function,
+        "no_delete",
+        project="project1",
+        tag="latest",
+        versioned=True,
+    )
+    db.delete_functions(db_session, "*", names=names[:2])
+
+    assert db_session.query(Function.Label).count() == 3
+    assert db_session.query(Function.Tag).count() == 5
+    assert db_session.query(Function).count() == 3
 
 
 def _generate_function(

@@ -33,6 +33,7 @@ from sys import executable
 from nuclio import Event
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -257,7 +258,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels.get("kind") == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get(mlrun_constants.MLRunInternalLabels.kind)
+            == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
@@ -382,13 +384,20 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
+        sys.modules[mod_name] = module
         spec.loader.exec_module(module)
 
     class_args = {}
     if context:
         class_args = copy(context._parameters.get("_init_args", {}))
 
-    return get_handler_extended(handler, context, class_args, namespaces=module)
+    return get_handler_extended(
+        handler,
+        context,
+        class_args,
+        namespaces=module,
+        reload_modules=context._reset_on_run,
+    )
 
 
 def run_exec(cmd, args, env=None, cwd=None):

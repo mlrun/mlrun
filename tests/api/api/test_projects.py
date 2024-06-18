@@ -32,6 +32,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -652,7 +654,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_functions = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -664,9 +666,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
-        distinct_function_names
-    )
+    assert len(
+        server.api.utils.singletons.db.get_db().delete_functions.call_args.args[2]
+    ) == len(distinct_function_names)
     assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )
@@ -777,7 +779,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.common.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.common.formatters.ProjectFormat.leader},
         headers={
             mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -878,7 +880,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.common.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.common.formatters.ProjectFormat.full}
     )
     projects_output = mlrun.common.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -1287,7 +1289,7 @@ def _create_resources_of_all_kinds(
 
     # Create several feature sets with several tags
     labels = {
-        "owner": "nobody",
+        mlrun_constants.MLRunInternalLabels.owner: "nobody",
     }
     feature_set = mlrun.common.schemas.FeatureSet(
         metadata=mlrun.common.schemas.ObjectMetadata(
@@ -1562,7 +1564,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.common.formatters.ProjectFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",
@@ -1757,7 +1759,7 @@ def _create_schedules(client: TestClient, project_name):
             client,
             project_name,
             mlrun.common.schemas.ScheduleCronTrigger(minute=10),
-            {"workflow": "workflow"},
+            {mlrun_constants.MLRunInternalLabels.workflow: "workflow"},
         )
     return (
         schedules_count

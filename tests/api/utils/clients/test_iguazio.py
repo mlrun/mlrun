@@ -19,6 +19,7 @@ import functools
 import http
 import json
 import typing
+import unittest.mock
 
 import deepdiff
 import fastapi
@@ -926,9 +927,14 @@ async def test_format_as_leader_project(
     iguazio_client: server.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
-    iguazio_project = await maybe_coroutine(
-        iguazio_client.format_as_leader_project(project)
-    )
+    with unittest.mock.patch(
+        "mlrun.utils.helpers.validate_component_version_compatibility",
+        return_value=True,
+    ):
+        iguazio_project = await maybe_coroutine(
+            iguazio_client.format_as_leader_project(project)
+        )
+
     assert (
         deepdiff.DeepDiff(
             _build_project_response(iguazio_client, project, with_mlrun_project=True),
@@ -941,6 +947,27 @@ async def test_format_as_leader_project(
         )
         == {}
     )
+
+
+@pytest.mark.parametrize(
+    "error_message,result_message,final_error_message",
+    [
+        ("dummy error", "dummy result", "dummy error: dummy result"),
+        ("dummy error", "", "dummy error"),
+        ("", "dummy result", "dummy result"),
+        ("", "", ""),
+        ("dummy error", None, "dummy error"),
+        (None, "dummy result", "dummy result"),
+        (None, None, ""),
+    ],
+)
+def test_resolve_final_error_message(
+    error_message, result_message, final_error_message
+):
+    message = server.api.utils.clients.iguazio.Client._resolve_final_error_message(
+        error_message, result_message
+    )
+    assert message == final_error_message
 
 
 def _generate_session_verification_response_headers(

@@ -27,6 +27,7 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
+from mlrun.utils import logger
 
 
 class ApplicationSpec(NuclioSpec):
@@ -172,7 +173,7 @@ class ApplicationStatus(NuclioStatus):
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
 
-    @min_nuclio_versions("1.12.7")
+    @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
         super().__init__(spec=spec, metadata=metadata)
 
@@ -262,7 +263,6 @@ class ApplicationRuntime(RemoteRuntime):
         is_kfp=False,
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
-        skip_access_key_auth: bool = False,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
@@ -282,7 +282,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                  Deploy as part of a kfp pipeline
         :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param show_on_failure:         Show logs only in case of build failure
-        :param skip_access_key_auth:    Skip adding access key auth to the API Gateway
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
@@ -387,7 +386,7 @@ class ApplicationRuntime(RemoteRuntime):
         elif authentication_mode == schemas.APIGatewayAuthenticationMode.basic:
             api_gateway.with_basic_auth(*authentication_creds)
 
-        db = mlrun.get_run_db()
+        db = self._get_db()
         api_gateway_scheme = db.store_api_gateway(
             api_gateway=api_gateway.to_scheme(), project=self.metadata.project
         )
@@ -447,6 +446,14 @@ class ApplicationRuntime(RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
     ):
+        if not self.spec.command:
+            logger.warning(
+                "Building the application image without a command. "
+                "Use spec.command and spec.args to specify the application entrypoint",
+                command=self.spec.command,
+                args=self.spec.args,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
         return self._build_image(
             builder_env=builder_env,
@@ -505,7 +512,7 @@ class ApplicationRuntime(RemoteRuntime):
         if not self.status.api_gateway_name:
             return
 
-        db = mlrun.get_run_db()
+        db = self._get_db()
         api_gateway_scheme = db.get_api_gateway(
             name=self.status.api_gateway_name, project=self.metadata.project
         )

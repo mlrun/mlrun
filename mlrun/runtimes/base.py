@@ -25,6 +25,7 @@ from mlrun_pipelines.common.ops import mlrun_op
 from nuclio.build import mlrun_footer
 
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
@@ -67,6 +68,7 @@ spec_fields = [
     "disable_auto_mount",
     "allow_empty_resources",
     "clone_target_dir",
+    "reset_on_run",
 ]
 
 
@@ -335,6 +337,7 @@ class BaseRuntime(ModelObj):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -389,6 +392,9 @@ class BaseRuntime(ModelObj):
                 standards and is at least 1 minute (-1 for infinite).
                 If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
+        :param reset_on_run: When True, function python modules would reload prior to code execution.
+                             This ensures latest code changes are executed. This argument must be used in
+                             conjunction with the local=True argument.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -417,6 +423,7 @@ class BaseRuntime(ModelObj):
             notifications=notifications,
             returns=returns,
             state_thresholds=state_thresholds,
+            reset_on_run=reset_on_run,
         )
 
     def _get_db_run(self, task: RunObject = None):
@@ -473,7 +480,7 @@ class BaseRuntime(ModelObj):
         )
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels["owner"]
+                "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
             )
 
         if db and self.kind != "handler":

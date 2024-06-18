@@ -25,6 +25,7 @@ import pytest
 import v3io.dataplane.kv
 import v3io.dataplane.output
 import v3io.dataplane.response
+import v3io_frames
 
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.utils.v3io_clients
@@ -36,10 +37,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
-from mlrun.model_monitoring.db.v3io_tsdb_reader import (
-    _get_sql_query,
-    read_metrics_data,
-    read_predictions,
+from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
+    V3IOTSDBConnector,
+    _is_no_schema_error,
 )
 
 
@@ -176,6 +176,25 @@ def test_extract_metrics_from_items(
     expected_metrics: list[ModelEndpointMonitoringMetric],
 ) -> None:
     assert store._extract_metrics_from_items(items) == expected_metrics
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected_is_no_schema"),
+    [
+        (v3io_frames.ReadError("Another read error"), False),
+        (
+            v3io_frames.ReadError(
+                "can't query: failed to create adapter: No TSDB schema file found at "
+                "'v3io-webapi:8081/users/pipelines/mm-serving-no-data/model-endpoints/predictions/'."
+            ),
+            True,
+        ),
+    ],
+)
+def test_is_no_schema_error(
+    exc: v3io_frames.ReadError, expected_is_no_schema: bool
+) -> None:
+    assert _is_no_schema_error(exc) == expected_is_no_schema
 
 
 @pytest.fixture
@@ -344,20 +363,27 @@ class TestGetModelEndpointMetrics:
 
 
 @pytest.mark.parametrize(
-    ("endpoint_id", "names", "expected_query"),
+    ("endpoint_id", "names", "table_path", "expected_query"),
     [
-        ("ddw2lke", [], "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';"),
+        (
+            "ddw2lke",
+            [],
+            "app-results",
+            "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
+        ),
         (
             "ep123",
             [("app1", "res1")],
+            "path/to/app-results",
             (
-                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' "
+                "SELECT * FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
                 "AND ((application_name='app1' AND result_name='res1'));"
             ),
         ),
         (
             "ep123",
             [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
+            "app-results",
             (
                 "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
@@ -368,9 +394,25 @@ class TestGetModelEndpointMetrics:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: str, names: list[tuple[str, str]], expected_query: str
+    endpoint_id: str, names: list[tuple[str, str]], table_path: str, expected_query: str
 ) -> None:
-    assert _get_sql_query(endpoint_id, names) == expected_query
+    assert (
+        V3IOTSDBConnector._get_sql_query(
+            endpoint_id=endpoint_id, metric_and_app_names=names, table_path=table_path
+        )
+        == expected_query
+    )
+
+
+def test_tsdb_predictions_existence_query() -> None:
+    assert V3IOTSDBConnector._get_sql_query(
+        columns=["count(latency)"],
+        table_path="pipelines/metrics-data-v2/model-endpoints/predictions/",
+        endpoint_id="d4b50a7727d65c7f73c33590f6fe87a40d93af2a",
+    ) == (
+        "SELECT count(latency) FROM 'pipelines/metrics-data-v2/model-endpoints/predictions/' "
+        "WHERE endpoint_id='d4b50a7727d65c7f73c33590f6fe87a40d93af2a';"
+    )
 
 
 @pytest.fixture
@@ -454,8 +496,7 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
-    data = read_metrics_data(
-        project="fictitious-one",
+    data = V3IOTSDBConnector(project="fictitious-one").read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
@@ -491,12 +532,22 @@ def test_read_results_data() -> None:
 
 @pytest.mark.usefixtures("_mock_frames_client_predictions")
 def test_read_predictions() -> None:
-    result = read_predictions(
-        project="fictitious-one",
-        endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
-        start=datetime.fromtimestamp(0),
-        end=datetime.now(),
-        aggregation_window="1m",
+    predictions_args = {
+        "endpoint_id": "70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
+        "start": datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
+        "end": datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
+        "aggregation_window": "1m",
+    }
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
+        V3IOTSDBConnector(project="fictitious-one").read_predictions(**predictions_args)
+        assert (
+            str(err.value)
+            == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
+        )
+    predictions_args["agg_funcs"] = ["count"]
+    result = V3IOTSDBConnector(project="fictitious-one").read_predictions(
+        **predictions_args
     )
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [

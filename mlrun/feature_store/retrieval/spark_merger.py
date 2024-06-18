@@ -17,7 +17,9 @@ import pandas as pd
 import semver
 
 import mlrun
+from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import get_offline_target
+from mlrun.utils.helpers import additional_filters_warning
 
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
@@ -241,6 +243,7 @@ class SparkFeatureMerger(BaseMerger):
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
             source_kwargs.update(feature_set.spec.source.attributes)
+            source_kwargs.pop("additional_filters", None)
         else:
             target = get_offline_target(feature_set)
             if not target:
@@ -253,13 +256,20 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
+
+        if source_driver != ParquetSource:
+            additional_filters_warning(additional_filters, source_driver)
+            additional_filters = None
+        additional_filters_dict = (
+            {"additional_filters": additional_filters} if additional_filters else {}
+        )
         source = source_driver(
             name=self.vector.metadata.name,
             path=source_path,
             time_field=time_column,
             start_time=start_time,
             end_time=end_time,
-            additional_filters=additional_filters,
+            **additional_filters_dict,
             **source_kwargs,
         )
 

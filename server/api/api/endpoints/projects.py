@@ -19,6 +19,7 @@ import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.api.deps
 import server.api.api.utils
@@ -140,8 +141,8 @@ def patch_project(
 @router.get("/projects/{name}", response_model=mlrun.common.schemas.ProjectOutput)
 async def get_project(
     name: str,
-    format_: mlrun.common.schemas.ProjectsFormat = fastapi.Query(
-        mlrun.common.schemas.ProjectsFormat.full, alias="format"
+    format_: mlrun.common.formatters.ProjectFormat = fastapi.Query(
+        mlrun.common.formatters.ProjectFormat.full, alias="format"
     ),
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         server.api.api.deps.get_db_session
@@ -301,8 +302,8 @@ async def delete_project(
 
 @router.get("/projects", response_model=mlrun.common.schemas.ProjectsOutput)
 async def list_projects(
-    format_: mlrun.common.schemas.ProjectsFormat = fastapi.Query(
-        mlrun.common.schemas.ProjectsFormat.full, alias="format"
+    format_: mlrun.common.formatters.ProjectFormat = fastapi.Query(
+        mlrun.common.formatters.ProjectFormat.full, alias="format"
     ),
     owner: str = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
@@ -321,7 +322,7 @@ async def list_projects(
             get_project_member().list_projects,
             db_session,
             owner,
-            mlrun.common.schemas.ProjectsFormat.name_only,
+            mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
             auth_info.projects_role,
@@ -362,7 +363,7 @@ async def list_project_summaries(
         get_project_member().list_projects,
         db_session,
         owner,
-        mlrun.common.schemas.ProjectsFormat.name_only,
+        mlrun.common.formatters.ProjectFormat.name_only,
         labels,
         state,
         auth_info.projects_role,

@@ -383,11 +383,15 @@ def v2_serving_handler(context, event, get_body=False):
         if event.body == b"":
             event.body = None
 
+    # ML-6065 – workaround for NUC-178
+    if hasattr(event, "trigger") and event.trigger.kind in ("kafka", "kafka-cluster"):
+        event.path = "/"
+
     return context._server.run(event, context, get_body)
 
 
 def create_graph_server(
-    parameters={},
+    parameters=None,
     load_mode=None,
     graph=None,
     verbose=False,
@@ -403,6 +407,7 @@ def create_graph_server(
         server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
         print(server.test("/v2/models/my/infer", testdata))
     """
+    parameters = parameters or {}
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(
         current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")

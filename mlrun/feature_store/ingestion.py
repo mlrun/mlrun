@@ -17,6 +17,7 @@ import uuid
 import pandas as pd
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
     add_target_steps,
@@ -263,13 +264,13 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
         out_path=featureset.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
-    task.set_label("job-type", "feature-ingest").set_label(
-        "feature-set", featureset.uri
-    )
+    task.set_label(
+        mlrun_constants.MLRunInternalLabels.job_type, "feature-ingest"
+    ).set_label("feature-set", featureset.uri)
     if run_config.owner:
-        task.set_label("owner", run_config.owner).set_label(
-            "v3io_user", run_config.owner
-        )
+        task.set_label(
+            mlrun_constants.MLRunInternalLabels.owner, run_config.owner
+        ).set_label(mlrun_constants.MLRunInternalLabels.v3io_user, run_config.owner)
 
     # set run UID and save in the feature set status (linking the features et to the job)
     task.metadata.uid = uuid.uuid4().hex

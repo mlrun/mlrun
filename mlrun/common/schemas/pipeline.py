@@ -16,15 +16,6 @@ import typing
 
 import pydantic
 
-import mlrun.common.types
-
-
-class PipelinesFormat(mlrun.common.types.StrEnum):
-    full = "full"
-    metadata_only = "metadata_only"
-    summary = "summary"
-    name_only = "name_only"
-
 
 class PipelinesPagination(str):
     default_page_size = 20

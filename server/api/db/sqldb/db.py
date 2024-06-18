@@ -27,11 +27,14 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.inspection import inspect
+from sqlalchemy.orm import Session, aliased
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -57,6 +60,7 @@ from mlrun.utils import (
 )
 from server.api.db.base import DBInterface
 from server.api.db.sqldb.helpers import (
+    MemoizationCache,
     generate_query_predicate_for_name,
     label_set,
     run_labels,
@@ -86,8 +90,10 @@ from server.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
+    _labeled,
+    _tagged,
+    _with_notifications,
 )
-from server.api.db.sqldb.models.common import _labeled, _tagged, _with_notifications
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
@@ -660,6 +666,7 @@ class SQLDB(DBInterface):
         uid: str = None,
         producer_id: str = None,
         producer_uri: str = None,
+        most_recent: bool = False,
     ):
         project = project or config.default_project
 
@@ -682,20 +689,33 @@ class SQLDB(DBInterface):
             uid=uid,
             producer_id=producer_id,
             best_iteration=best_iteration,
-            producer_uri=producer_uri,
+            most_recent=most_recent,
+            attach_tags=not as_records,
         )
         if as_records:
             return artifact_records
 
         artifacts = ArtifactList()
-        for artifact in artifact_records:
+        for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
 
-            # set the tags in the artifact struct
-            artifacts_with_tag = self._add_tags_to_artifact_struct(
-                session, artifact_struct, artifact.id, cls=ArtifactV2, tag=tag
-            )
-            artifacts.extend(artifacts_with_tag)
+            # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
+            # When the artifact was produced by a workflow, the producer id is a workflow id.
+            if producer_uri:
+                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
+                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
+                    "uri", None
+                )
+                # We check if the producer uri is a substring of the artifact producer uri because it
+                # may contain additional information (like the run iteration) that we don't want to filter by.
+                if (
+                    artifact_producer_uri is not None
+                    and producer_uri not in artifact_producer_uri
+                ):
+                    continue
+
+            self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            artifacts.append(artifact_struct)
 
         return artifacts
 
@@ -835,24 +855,28 @@ class SQLDB(DBInterface):
 
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
-    ) -> list[tuple[str, str, str]]:
+    ) -> list[str]:
         """
-        :return: a list of Tuple of (project, artifact.key, tag)
-        """
-        artifacts = self.list_artifacts(session, project=project, category=category)
-        results = []
-        for artifact in artifacts:
-            # we want to return only artifacts that have tags when listing tags
-            if artifact["metadata"].get("tag"):
-                results.append(
-                    (
-                        project,
-                        artifact["spec"].get("db_key"),
-                        artifact["metadata"].get("tag"),
-                    )
-                )
+        List all tags for artifacts in the DB
 
-        return results
+        :param session: DB session
+        :param project: Project name
+        :param category: Artifact category to filter by
+
+        :return: a list of distinct tags
+        """
+        query = (
+            self._query(session, ArtifactV2.Tag.name)
+            .select_from(ArtifactV2)
+            .join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            .filter(ArtifactV2.project == project)
+            .group_by(ArtifactV2.Tag.name)
+        )
+        if category:
+            query = self._add_artifact_category_query(category, query)
+
+        # the query returns a list of tuples, we need to extract the tag from each tuple
+        return [tag for (tag,) in query]
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
@@ -1164,23 +1188,6 @@ class SQLDB(DBInterface):
 
         return artifacts
 
-    def _add_tags_to_artifact_struct(
-        self, session, artifact_struct, artifact_id, cls=Artifact, tag=None
-    ):
-        artifacts = []
-        if tag and tag != "*":
-            self._set_tag_in_artifact_struct(artifact_struct, tag)
-            artifacts.append(artifact_struct)
-        else:
-            tag_results = self._query(session, cls.Tag, obj_id=artifact_id).all()
-            if not tag_results:
-                return [artifact_struct]
-            for tag_object in tag_results:
-                artifact_with_tag = deepcopy(artifact_struct)
-                self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
-                artifacts.append(artifact_with_tag)
-        return artifacts
-
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
         artifact["metadata"]["tag"] = tag
@@ -1218,56 +1225,71 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _add_artifact_name_query(self, query, name=None):
-        if not name:
-            return query
-
-        if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query.
-            exact_name = self._escape_characters_for_like_query(name)
-            # Use Like query to find substring matches
-            return query.filter(
-                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
-            )
-
-        return query.filter(ArtifactV2.key == name)
-
     def _find_artifacts(
         self,
-        session,
-        project,
-        ids=None,
-        tag=None,
-        labels=None,
-        since=None,
-        until=None,
-        name=None,
-        kind=None,
+        session: Session,
+        project: str,
+        ids: typing.Union[list[str], str] = None,
+        tag: str = None,
+        labels: typing.Union[list[str], str] = None,
+        since: datetime = None,
+        until: datetime = None,
+        name: str = None,
+        kind: mlrun.common.schemas.ArtifactCategories = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
-        iter=None,
-        uid=None,
-        producer_id=None,
-        best_iteration=False,
-        most_recent=False,
-        producer_uri=None,
-    ):
+        iter: int = None,
+        uid: str = None,
+        producer_id: str = None,
+        best_iteration: bool = False,
+        most_recent: bool = False,
+        attach_tags: bool = False,
+    ) -> typing.Union[
+        list[tuple[ArtifactV2, str]],
+        list[ArtifactV2],
+    ]:
+        """
+        Find artifacts by the given filters.
+
+        :param session: DB session
+        :param project: Project name
+        :param ids: Artifact IDs to filter by
+        :param tag: Tag to filter by
+        :param labels: Labels to filter by
+        :param since: Filter artifacts that were updated after this time
+        :param until: Filter artifacts that were updated before this time
+        :param name: Artifact name to filter by
+        :param kind: Artifact kind to filter by
+        :param category: Artifact category to filter by (if kind is not given)
+        :param iter: Artifact iteration to filter by
+        :param uid: Artifact UID to filter by
+        :param producer_id: Artifact producer ID to filter by
+        :param best_iteration: Filter by best iteration artifacts
+        :param most_recent: Filter by most recent artifacts
+        :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
+
+        :return: a list of tuples of (ArtifactV2, tag_name) or a list of ArtifactV2 (if attach_tags is False)
+        """
         if category and kind:
             message = "Category and Kind filters can't be given together"
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
-        query = self._query(session, ArtifactV2, project=project)
+        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
 
+        # join on tags
+        if tag and tag != "*":
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == tag)
+        else:
+            # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
+            query = query.outerjoin(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            )
+        if project:
+            query = query.filter(ArtifactV2.project == project)
         if ids and ids != "*":
             query = query.filter(ArtifactV2.id.in_(ids))
-        if tag and tag != "*":
-            obj_name = name or None
-            object_tag_uids = self._resolve_class_tag_uids(
-                session, ArtifactV2, project, tag, obj_name
-            )
-            if not object_tag_uids:
-                return []
-            query = query.filter(ArtifactV2.uid.in_(object_tag_uids))
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if name:
@@ -1290,35 +1312,40 @@ class SQLDB(DBInterface):
         if kind:
             query = query.filter(ArtifactV2.kind == kind)
         elif category:
-            kinds, exclude = category.to_kinds_filter()
-            if exclude:
-                query = query.filter(ArtifactV2.kind.notin_(kinds))
-            else:
-                query = query.filter(ArtifactV2.kind.in_(kinds))
+            query = self._add_artifact_category_query(category, query)
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
-        # Producer URI usually points to a run and is used to filter artifacts by the run that produced them when
-        # the artifact producer id is a workflow id (artifact was created as part of a workflow).
-        if producer_uri:
-            artifacts = []
-            for artifact in query:
-                artifact_struct = artifact.full_object
-                artifact_struct.setdefault("spec", {}).setdefault("producer", {})
-                artifact_producer_uri = artifact_struct["spec"]["producer"].get(
-                    "uri", None
-                )
-                # We check if the producer uri is a substring of the artifact producer uri because the producer uri
-                # may contain additional information (like the run iteration) that we don't want to filter by.
-                if (
-                    artifact_producer_uri is not None
-                    and producer_uri in artifact_producer_uri
-                ):
-                    artifacts.append(artifact)
+        artifacts_and_tags = query.all()
 
-            return artifacts
+        if not attach_tags:
+            # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
+            return list({artifact for artifact, _ in artifacts_and_tags})
 
-        return query.all()
+        return artifacts_and_tags
+
+    def _add_artifact_name_query(self, query, name=None):
+        if not name:
+            return query
+
+        if name.startswith("~"):
+            # Escape special chars (_,%) since we still need to do a like query.
+            exact_name = self._escape_characters_for_like_query(name)
+            # Use Like query to find substring matches
+            return query.filter(
+                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            )
+
+        return query.filter(ArtifactV2.key == name)
+
+    @staticmethod
+    def _add_artifact_category_query(category, query):
+        kinds, exclude = category.to_kinds_filter()
+        if exclude:
+            query = query.filter(ArtifactV2.kind.notin_(kinds))
+        else:
+            query = query.filter(ArtifactV2.kind.in_(kinds))
+        return query
 
     def _get_existing_artifact(
         self,
@@ -1605,54 +1632,56 @@ class SQLDB(DBInterface):
     def list_functions(
         self,
         session: Session,
+        name: typing.Optional[str] = None,
+        project: typing.Optional[str] = None,
+        tag: typing.Optional[str] = None,
+        labels: list[str] = None,
+        hash_key: typing.Optional[str] = None,
+        _format: str = mlrun.common.formatters.FunctionFormat.full,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> list[dict]:
+        project = project or config.default_project
+        functions = []
+        for function, function_tag in self._find_functions(
+            session,
+            name,
+            project,
+            labels,
+            tag,
+            hash_key,
+            page=page,
+            page_size=page_size,
+        ):
+            function_dict = function.struct
+            if not function_tag:
+                # function status should be added only to tagged functions
+                function_dict["status"] = None
+
+                # the unversioned uid is only a placeholder for tagged instances that are versioned.
+                # if another instance "took" the tag, we're left with an unversioned untagged instance
+                # don't list it
+                if function.uid.startswith(unversioned_tagged_object_uid_prefix):
+                    continue
+            else:
+                function_dict["metadata"]["tag"] = function_tag
+
+            functions.append(
+                mlrun.common.formatters.FunctionFormat.format_obj(
+                    function_dict, _format
+                )
+            )
+        return functions
+
+    def get_function(
+        self,
+        session,
         name: str = None,
         project: str = None,
         tag: str = None,
-        labels: list[str] = None,
         hash_key: str = None,
-        page: int = None,
-        page_size: int = None,
-    ) -> list[dict]:
-        project = project or config.default_project
-        uids = None
-        if tag:
-            uids = self._resolve_class_tag_uids(session, Function, project, tag, name)
-            if hash_key:
-                uids = [uid for uid in uids if uid == hash_key] or None
-        if not tag and hash_key:
-            uids = [hash_key]
-        functions = []
-        for function in self._find_functions(
-            session, name, project, uids, labels, page=page, page_size=page_size
-        ):
-            function_dict = function.struct
-            if not tag:
-                function_tags = self._list_function_tags(session, project, function.id)
-                if len(function_tags) == 0:
-                    # function status should be added only to tagged functions
-                    function_dict["status"] = None
-
-                    # the unversioned uid is only a place holder for tagged instance that are is versioned
-                    # if another instance "took" the tag, we're left with an unversioned untagged instance
-                    # don't list it
-                    if function.uid.startswith(unversioned_tagged_object_uid_prefix):
-                        continue
-
-                    functions.append(function_dict)
-                elif len(function_tags) == 1:
-                    function_dict["metadata"]["tag"] = function_tags[0]
-                    functions.append(function_dict)
-                else:
-                    for function_tag in function_tags:
-                        function_dict_copy = deepcopy(function_dict)
-                        function_dict_copy["metadata"]["tag"] = function_tag
-                        functions.append(function_dict_copy)
-            else:
-                function_dict["metadata"]["tag"] = tag
-                functions.append(function_dict)
-        return functions
-
-    def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
+        _format: str = None,
+    ) -> dict:
         """
         In version 1.4.0 we added a normalization to the function name before storing.
         To be backwards compatible and allow users to query old non-normalized functions,
@@ -1664,7 +1693,7 @@ class SQLDB(DBInterface):
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
-                session, normalized_function_name, project, tag, hash_key
+                session, normalized_function_name, project, tag, hash_key, _format
             )
         except mlrun.errors.MLRunNotFoundError as exc:
             if "_" in name:
@@ -1672,7 +1701,9 @@ class SQLDB(DBInterface):
                     "Failed to get underscore-named function, trying without normalization",
                     function_name=name,
                 )
-                return self._get_function(session, name, project, tag, hash_key)
+                return self._get_function(
+                    session, name, project, tag, hash_key, _format
+                )
             else:
                 raise exc
 
@@ -1685,6 +1716,19 @@ class SQLDB(DBInterface):
             session, Function, project=project, name=name, commit=False
         )
         self._delete(session, Function, project=project, name=name)
+
+    def delete_functions(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing functions from db", project=project, name=names)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=Function,
+            related_tables=[Function.Tag, Function.Label],
+            project=project,
+            names=names,
+        )
 
     def update_function(
         self,
@@ -1711,7 +1755,15 @@ class SQLDB(DBInterface):
             self._upsert(session, [function])
             return function.struct
 
-    def _get_function(self, session, name, project="", tag="", hash_key=""):
+    def _get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        _format: str = mlrun.common.formatters.FunctionFormat.full,
+    ):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1736,7 +1788,7 @@ class SQLDB(DBInterface):
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
-            return function
+            return mlrun.common.formatters.FunctionFormat.format_obj(function, _format)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
@@ -1758,9 +1810,13 @@ class SQLDB(DBInterface):
                 )
             return tag_function_uid
 
-    def _delete_functions(self, session: Session, project: str):
-        for function_name in self._list_project_function_names(session, project):
-            self.delete_function(session, project, function_name)
+    def _delete_project_functions(self, session: Session, project: str):
+        function_names = self._list_project_function_names(session, project)
+        self.delete_functions(
+            session,
+            project,
+            function_names,
+        )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
         return [
@@ -2033,10 +2089,102 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
-        for schedule in self.list_schedules(session, project=project):
-            self.delete_schedule(session, project, schedule.name)
+        function_names = [
+            schedule.name for schedule in self.list_schedules(session, project=project)
+        ]
+        self.delete_schedules(
+            session,
+            project,
+            names=function_names,
+        )
+
+    def delete_schedules(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing schedules from db", project=project, name=names)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Schedule,
+            related_tables=[Schedule.Label],
+            project=project,
+            names=names,
+        )
+
+    @staticmethod
+    def _delete_multi_objects(
+        session: Session,
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
+        project: str,
+        names: typing.Union[str, list[str]],
+    ):
+        if not names:
+            logger.debug(
+                "No names provided, skipping deletion",
+                project=project,
+                tables=[main_table] + related_tables,
+            )
+            return
+        for cls in related_tables:
+            logger.debug(f"Removing from {cls}", project=project, name=names)
+
+            # The select is mandatory for sqlalchemy 1.4 because
+            # query.delete does not support multiple-table criteria within DELETE
+            if project != "*":
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(
+                        and_(
+                            main_table.project == project,
+                            or_(main_table.name == name for name in names),
+                        )
+                    )
+                    .subquery()
+                )
+            else:
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(or_(main_table.name == name for name in names))
+                    .subquery()
+                )
+            stmt = (
+                delete(cls)
+                .where(cls.id.in_(aliased(subquery)))
+                .execution_options(synchronize_session=False)
+            )
+
+            # Execute the delete statement
+            execution_obj = session.execute(stmt)
+            logger.debug(
+                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                project=project,
+                names=names,
+                names_count=len(names),
+            )
+        if project != "*":
+            query = session.query(main_table).filter(
+                and_(
+                    main_table.project == project,
+                    or_(main_table.name == name for name in names),
+                )
+            )
+        else:
+            query = session.query(main_table).filter(
+                or_(main_table.name == name for name in names),
+            )
+
+        count = query.delete(synchronize_session=False)
+        logger.debug(
+            f"Removed {count} rows from {main_table} table",
+            project=project,
+            names=names,
+            names_count=len(names),
+        )
+        session.commit()
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -2185,7 +2333,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
@@ -2194,7 +2342,7 @@ class SQLDB(DBInterface):
 
         # if format is name_only, we don't need to query the full project object, we can just query the name
         # and return it as a list of strings
-        if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+        if format_ == mlrun.common.formatters.ProjectFormat.name_only:
             query = self._query(session, Project.name, owner=owner, state=state)
 
         # attach filters to the query
@@ -2208,29 +2356,17 @@ class SQLDB(DBInterface):
         # format the projects according to the requested format
         projects = []
         for project_record in project_records:
-            if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
+            if format_ == mlrun.common.formatters.ProjectFormat.name_only:
+                # can't use formatter as we haven't queried the entire object anyway
                 projects.append(project_record.name)
-
-            elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
+            else:
                 projects.append(
-                    server.api.utils.helpers.minimize_project_schema(
+                    mlrun.common.formatters.ProjectFormat.format_obj(
                         self._transform_project_record_to_schema(
                             session, project_record
-                        )
+                        ),
+                        format_,
                     )
-                )
-
-            # leader format is only for follower mode which will format the projects returned from here
-            elif format_ in [
-                mlrun.common.schemas.ProjectsFormat.full,
-                mlrun.common.schemas.ProjectsFormat.leader,
-            ]:
-                projects.append(
-                    self._transform_project_record_to_schema(session, project_record)
-                )
-            else:
-                raise NotImplementedError(
-                    f"Provided format is not supported. format={format_}"
                 )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
@@ -2326,7 +2462,11 @@ class SQLDB(DBInterface):
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
-            .filter(Schedule.Label.name.in_(["workflow", "kind"]))
+            .filter(
+                Schedule.Label.name.in_(
+                    [mlrun_constants.MLRunInternalLabels.workflow, "kind"]
+                )
+            )
             .all()
         )
 
@@ -2334,7 +2474,10 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if result[2].to_dict()["name"] == "workflow":
+            if (
+                result[2].to_dict()["name"]
+                == mlrun_constants.MLRunInternalLabels.workflow
+            ):
                 project_to_schedule_pending_workflows_count[result[0]] += 1
             elif result[2].to_dict()["value"] == "job":
                 project_to_schedule_pending_jobs_count[result[0]] += 1
@@ -2357,16 +2500,12 @@ class SQLDB(DBInterface):
         return project_to_feature_set_count
 
     def _calculate_models_counters(self, session) -> dict[str, int]:
-        import mlrun.artifacts
-
-        # The kind filter is applied post the query to the DB (manually in python code), so counting should be that
-        # way as well, therefore we're doing it here, and can't do it with sql as the above
         # We're using the "most_recent" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         model_artifacts = self._find_artifacts(
             session,
             None,
-            kind=mlrun.artifacts.model.ModelArtifact.kind,
+            kind=mlrun.common.schemas.ArtifactCategories.model,
             most_recent=True,
         )
         project_to_models_count = collections.defaultdict(int)
@@ -2375,8 +2514,6 @@ class SQLDB(DBInterface):
         return project_to_models_count
 
     def _calculate_files_counters(self, session) -> dict[str, int]:
-        # The category filter is applied post the query to the DB (manually in python code), so counting should be that
-        # way as well, therefore we're doing it here, and can't do it with sql as the above
         # We're using the "most_recent" flag which gives us only one version of each artifact key, which is what we
         # want to count (artifact count, not artifact versions count)
         file_artifacts = self._find_artifacts(
@@ -2597,8 +2734,8 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
-        self.delete_schedules(session, name)
-        self._delete_functions(session, name)
+        self.delete_project_schedules(session, name)
+        self._delete_project_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
@@ -2844,13 +2981,20 @@ class SQLDB(DBInterface):
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
         features_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2871,12 +3015,12 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 features_results.append(
                     mlrun.common.schemas.FeatureListOutput(
                         feature=feature,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)
@@ -2898,13 +3042,20 @@ class SQLDB(DBInterface):
         )
 
         entities_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
             entity_name = entity_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2925,14 +3076,15 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 entities_results.append(
                     mlrun.common.schemas.EntityListOutput(
                         entity=entity,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
+
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod
@@ -3755,6 +3907,9 @@ class SQLDB(DBInterface):
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
+    def _get_count(self, session, cls):
+        return session.query(func.count(inspect(cls).primary_key[0])).scalar()
+
     def _find_or_create_users(self, session, user_names):
         users = list(self._query(session, User).filter(User.name.in_(user_names)))
         new = set(user_names) - {user.name for user in users}
@@ -3884,13 +4039,32 @@ class SQLDB(DBInterface):
         )
 
     def _find_functions(
-        self, session, name, project, uids=None, labels=None, page=None, page_size=None
-    ):
-        query = self._query(session, Function, project=project)
+        self,
+        session: Session,
+        name: str,
+        project: str,
+        labels: typing.Union[str, list[str], None] = None,
+        tag: typing.Optional[str] = None,
+        hash_key: typing.Optional[str] = None,
+        page: typing.Optional[int] = None,
+        page_size: typing.Optional[int] = None,
+    ) -> list[tuple[Function, str]]:
+        query = session.query(Function, Function.Tag.name)
+        query = query.filter(Function.project == project)
+
         if name:
             query = query.filter(generate_query_predicate_for_name(Function.name, name))
-        if uids is not None:
-            query = query.filter(Function.uid.in_(uids))
+
+        if hash_key is not None:
+            query = query.filter(Function.uid == hash_key)
+
+        if not tag:
+            # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
+            query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
+        else:
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
+            query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
@@ -4344,6 +4518,13 @@ class SQLDB(DBInterface):
         return self._transform_alert_template_record_to_schema(
             self._get_alert_template_record(session, name)
         )
+
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        query = self._query(session, AlertConfig)
+        return list(map(self._transform_alert_config_record_to_schema, query.all()))
+
+    def get_num_configured_alerts(self, session) -> int:
+        return self._get_count(session, AlertConfig)
 
     def store_alert(
         self, session, alert: mlrun.common.schemas.AlertConfig

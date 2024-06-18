@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import mlrun.common.constants as mlrun_constants
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 import server.api.utils.singletons.k8s
@@ -60,7 +61,10 @@ def _resolve_mpijob_crd_version_best_effort():
     namespace = k8s_helper.resolve_namespace()
 
     # try resolving according to mpi-operator that's running
-    res = k8s_helper.list_pods(namespace=namespace, selector="component=mpi-operator")
+    res = k8s_helper.list_pods(
+        namespace=namespace,
+        selector=f"{mlrun_constants.MLRunInternalLabels.component}=mpi-operator",
+    )
 
     if len(res) == 0:
         return None

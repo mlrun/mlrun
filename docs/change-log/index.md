@@ -29,6 +29,8 @@
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
 |ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
+|NA     | New {ref}`ai_01-basic-llm` tutorial.|
+|NA     | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.
 |NA     | New page describing {ref}`log-artifacts`.                                 |
 |NA     | New page describing {ref}`parallel-workflows`.                                 |
 |NA     | New page describing {ref}`conditional-workflow`.                                 |
@@ -38,12 +40,13 @@
 | ID          |Description                                                               |
 |-------|---------------------------------------------------------------------------|
 |ML-6098|The `prediction` and `named_predictions` columns (list of all predictions) were removed from the model monitoring parquet files. Each prediction is still available in a column of its own.|
-ML-6397|`list runs`  API does not return artifacts in the run body. Instead you get a dictionary of artifact_uris with store path to the artifacts which can be retrieved via `mlrun.store_manager`. You can get the artifacts in the run status, only if you use the `get run`API (i.e. when getting a single run). If an artifact is deleted, it will not be returned in the run body.|
+|ML-6397|`list runs`  API does not return artifacts in the run body. Instead you get a dictionary of artifact_uris with store path to the artifacts which can be retrieved via `mlrun.store_manager`. You can get the artifacts in the run status, only if you use the `get run`API (i.e. when getting a single run). If an artifact is deleted, it will not be returned in the run body.|
 
 ###  Closed issues
+
 | ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-4149|Workflows are now listed from newest to oldest.|
+|ML-4149|UI: Workflows are now listed from newest to oldest.|
 |ML-5763|The log formatter options can now be changed by an env var.|
 |ML-5772|Resolved: "Projects" screen/counters may show "N/A" or "MySQL server has gone away" transient error.|
 |ML-5776|Concurrent request to project deletion now do not fail.|
@@ -56,7 +59,6 @@ ML-6397|`list runs`  API does not return artifacts in the run body. Instead you 
 |ML-6194|When running workflows with a remote engine, functions files are not synced instead they are loaded dynamically during runtime.|
 |ML-6317|Reduced MLRun memory consumption.|
 |ML-6384|Improved resource consumption of list runs with partitioning query |
-|ML-6397|Artifacts are no longer stored in the run body in the DB, instead a map of artifact keys to URIs is maintained.|
 |ML-6489|Resolved jobs transient failures with error 'ClientOSError(104, 'Connection reset by peer')'.|
 
 ## v1.6.2 (29 March 2024)
@@ -945,7 +947,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
-
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

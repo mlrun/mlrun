@@ -184,7 +184,6 @@ def context_to_ingestion_params(context):
     overwrite = context.get_param("overwrite", None)
 
     targets = context.get_param("targets", None)
-    print(f"context_to_ingestion_params targets: {type(targets)}, {targets}")
     if not targets:
         targets = featureset.spec.targets
     targets = [get_target_driver(target, featureset) for target in targets]

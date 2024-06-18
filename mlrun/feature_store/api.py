@@ -594,7 +594,6 @@ def _ingest(
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
-        print("in mlrun context")
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when running ingest remotely"

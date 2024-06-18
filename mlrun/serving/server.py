@@ -383,6 +383,10 @@ def v2_serving_handler(context, event, get_body=False):
         if event.body == b"":
             event.body = None
 
+    # ML-6065 – workaround for NUC-178
+    if hasattr(event, "trigger") and event.trigger.kind in ("kafka", "kafka-cluster"):
+        event.path = "/"
+
     return context._server.run(event, context, get_body)
 
 

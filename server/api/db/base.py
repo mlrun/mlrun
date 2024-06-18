@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
@@ -307,6 +308,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_functions(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        pass
+
+    @abstractmethod
     def list_functions(
         self,
         session,
@@ -400,7 +407,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_schedules(self, session, project: str):
+    def delete_project_schedules(self, session, project: str):
+        pass
+
+    @abstractmethod
+    def delete_schedules(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod

@@ -109,6 +109,9 @@ def make_artifact_tag(table):
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
         )
+        Index(
+            f"idx_{__tablename__}_project_name_obj_name", "project", "name", "obj_name"
+        )
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLCollationUtil.collation()))

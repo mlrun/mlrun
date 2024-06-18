@@ -654,7 +654,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_functions = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -666,9 +666,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
-        distinct_function_names
-    )
+    assert len(
+        server.api.utils.singletons.db.get_db().delete_functions.call_args.args[2]
+    ) == len(distinct_function_names)
     assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )

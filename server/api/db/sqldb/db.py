@@ -27,10 +27,10 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -60,6 +60,7 @@ from mlrun.utils import (
 )
 from server.api.db.base import DBInterface
 from server.api.db.sqldb.helpers import (
+    MemoizationCache,
     generate_query_predicate_for_name,
     label_set,
     run_labels,
@@ -1716,6 +1717,19 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def delete_functions(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing functions from db", project=project, name=names)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=Function,
+            related_tables=[Function.Tag, Function.Label],
+            project=project,
+            names=names,
+        )
+
     def update_function(
         self,
         session,
@@ -1796,9 +1810,13 @@ class SQLDB(DBInterface):
                 )
             return tag_function_uid
 
-    def _delete_functions(self, session: Session, project: str):
-        for function_name in self._list_project_function_names(session, project):
-            self.delete_function(session, project, function_name)
+    def _delete_project_functions(self, session: Session, project: str):
+        function_names = self._list_project_function_names(session, project)
+        self.delete_functions(
+            session,
+            project,
+            function_names,
+        )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
         return [
@@ -2071,10 +2089,102 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
-        for schedule in self.list_schedules(session, project=project):
-            self.delete_schedule(session, project, schedule.name)
+        function_names = [
+            schedule.name for schedule in self.list_schedules(session, project=project)
+        ]
+        self.delete_schedules(
+            session,
+            project,
+            names=function_names,
+        )
+
+    def delete_schedules(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing schedules from db", project=project, name=names)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Schedule,
+            related_tables=[Schedule.Label],
+            project=project,
+            names=names,
+        )
+
+    @staticmethod
+    def _delete_multi_objects(
+        session: Session,
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
+        project: str,
+        names: typing.Union[str, list[str]],
+    ):
+        if not names:
+            logger.debug(
+                "No names provided, skipping deletion",
+                project=project,
+                tables=[main_table] + related_tables,
+            )
+            return
+        for cls in related_tables:
+            logger.debug(f"Removing from {cls}", project=project, name=names)
+
+            # The select is mandatory for sqlalchemy 1.4 because
+            # query.delete does not support multiple-table criteria within DELETE
+            if project != "*":
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(
+                        and_(
+                            main_table.project == project,
+                            or_(main_table.name == name for name in names),
+                        )
+                    )
+                    .subquery()
+                )
+            else:
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(or_(main_table.name == name for name in names))
+                    .subquery()
+                )
+            stmt = (
+                delete(cls)
+                .where(cls.id.in_(aliased(subquery)))
+                .execution_options(synchronize_session=False)
+            )
+
+            # Execute the delete statement
+            execution_obj = session.execute(stmt)
+            logger.debug(
+                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                project=project,
+                names=names,
+                names_count=len(names),
+            )
+        if project != "*":
+            query = session.query(main_table).filter(
+                and_(
+                    main_table.project == project,
+                    or_(main_table.name == name for name in names),
+                )
+            )
+        else:
+            query = session.query(main_table).filter(
+                or_(main_table.name == name for name in names),
+            )
+
+        count = query.delete(synchronize_session=False)
+        logger.debug(
+            f"Removed {count} rows from {main_table} table",
+            project=project,
+            names=names,
+            names_count=len(names),
+        )
+        session.commit()
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -2624,8 +2734,8 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
-        self.delete_schedules(session, name)
-        self._delete_functions(session, name)
+        self.delete_project_schedules(session, name)
+        self._delete_project_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
@@ -2871,13 +2981,20 @@ class SQLDB(DBInterface):
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
         features_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2898,12 +3015,12 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 features_results.append(
                     mlrun.common.schemas.FeatureListOutput(
                         feature=feature,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)
@@ -2925,13 +3042,20 @@ class SQLDB(DBInterface):
         )
 
         entities_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
             entity_name = entity_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2952,14 +3076,15 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 entities_results.append(
                     mlrun.common.schemas.EntityListOutput(
                         entity=entity,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
+
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
 
     @staticmethod

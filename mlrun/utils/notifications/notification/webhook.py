@@ -21,7 +21,7 @@ import mlrun.lists
 import mlrun.utils.helpers
 
 from .base import NotificationBase
-import mlrun.common.constants as mlrun_constants
+
 
 class WebhookNotification(NotificationBase):
     """
@@ -65,20 +65,27 @@ class WebhookNotification(NotificationBase):
         if override_body:
             list_edit_runs = []
             for run in runs:
-                r = {"project": run["metadata"]["project"],
-                     "name": run["metadata"]["name"], "host": run["metadata"]["labels"]["host"],
-                     "status": {"state": run["status"]["state"]}}
+                r = {
+                    "project": run["metadata"]["project"],
+                    "name": run["metadata"]["name"],
+                    "host": run["metadata"]["labels"]["host"],
+                    "status": {"state": run["status"]["state"]},
+                }
                 if run["status"].get("error", None):
                     r["status"]["error"] = run["status"]["error"]
                 elif run["status"].get("results", None):
                     r["status"]["results"] = run["status"]["results"]
                 list_edit_runs.append(r)
-            if isinstance(override_body,dict):
-                for key,value in override_body.items():
+            if isinstance(override_body, dict):
+                for key, value in override_body.items():
                     if "{{ runs }}" in value:
-                        override_body[key]=value.replace("{{ runs }}",str(list_edit_runs))
+                        override_body[key] = value.replace(
+                            "{{ runs }}", str(list_edit_runs)
+                        )
                     elif "{{runs}}" in value:
-                        override_body[key]=value.replace("{{runs}}",str(list_edit_runs))
+                        override_body[key] = value.replace(
+                            "{{runs}}", str(list_edit_runs)
+                        )
             request_body = override_body
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.

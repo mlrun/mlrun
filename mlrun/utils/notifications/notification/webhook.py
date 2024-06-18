@@ -21,7 +21,7 @@ import mlrun.lists
 import mlrun.utils.helpers
 
 from .base import NotificationBase
-
+import mlrun.common.constants as mlrun_constants
 
 class WebhookNotification(NotificationBase):
     """
@@ -63,25 +63,22 @@ class WebhookNotification(NotificationBase):
             request_body["custom_html"] = custom_html
 
         if override_body:
-            print(1)
+            list_edit_runs = []
+            for run in runs:
+                r = {"project": run["metadata"]["project"],
+                     "name": run["metadata"]["name"], "host": run["metadata"]["labels"]["host"],
+                     "status": {"state": run["status"]["state"]}}
+                if run["status"].get("error", None):
+                    r["status"]["error"] = run["status"]["error"]
+                elif run["status"].get("results", None):
+                    r["status"]["results"] = run["status"]["results"]
+                list_edit_runs.append(r)
             if isinstance(override_body,dict):
                 for key,value in override_body.items():
-                    print(3)
                     if "{{ runs }}" in value:
-                        print(4)
-                        override_body[key]=value.replace("{{ runs }}",runs)
+                        override_body[key]=value.replace("{{ runs }}",str(list_edit_runs))
                     elif "{{runs}}" in value:
-                        print(5)
-                        override_body[key]=value.replace("{{runs}}",runs)
-            elif isinstance(override_body,str):
-                print(6)
-                if "{{ runs }}" in override_body:
-                    print(7)
-                    override_body.replace("{{ runs }}", runs)
-                elif "{{runs}}" in override_body:
-                    print(8)
-                    override_body.replace("{{runs}}", runs)
-            print(2,override_body)
+                        override_body[key]=value.replace("{{runs}}",str(list_edit_runs))
             request_body = override_body
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.

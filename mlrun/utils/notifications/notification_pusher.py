@@ -397,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
-                    labels=f"mlrun_constants.MLRunInternalLabels.runner_pod={_step.node_name}",
+                    labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
                 )[0]
             except IndexError:
                 _run = {

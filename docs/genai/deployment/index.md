@@ -13,5 +13,4 @@ inferring results using one or more models, and driving actions.
 genai_serving
 gpu_utilization
 genai_serving_graph
-guardrails-deploy
 ```

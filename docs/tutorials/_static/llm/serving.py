@@ -9,7 +9,7 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList,
     pipeline,
-    set_seed
+    set_seed,
 )
 
 PROMPT_TEMPLATE = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
@@ -41,7 +41,6 @@ class StopOnTokens(StoppingCriteria):
 
 
 def init_context(context):
-
     model_id = os.environ["MODEL_ID"]
     cache_dir = os.environ["CACHE_DIR"]
 
@@ -74,12 +73,11 @@ def init_context(context):
 
 
 def handler(context, event):
-
     # Unpack payload
     question_json = json.loads(event.body)
     question = question_json["question"]
     topic = question_json["topic"]
-    
+
     # Optional seed for deterministic responses
     seed = question_json.get("seed", None)
     if seed:

@@ -1,10 +1,11 @@
 import uuid
 
 import chromadb
-import mlrun
 import pandas as pd
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+import mlrun
 from mlrun.execution import MLClientCtx
 
 
@@ -16,7 +17,6 @@ def handler_chroma(
     chunk_size: int = 500,
     chunk_overlap: int = 0,
 ):
-
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
 
@@ -44,7 +44,7 @@ def handler_chroma(
     collection.add(
         ids=[str(uuid.uuid4()) for d in splits],
         metadatas=[d.metadata for d in splits],
-        documents=[d.page_content for d in splits]
+        documents=[d.page_content for d in splits],
     )
 
     context.logger.info("Vector DB was created")

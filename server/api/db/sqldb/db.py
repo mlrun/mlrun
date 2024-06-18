@@ -732,19 +732,12 @@ class SQLDB(DBInterface):
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
-        computed_tag = tag or "latest"
-        artifact_tag_uid = None
-        if tag and not uid:
-            artifact_tag_uid = self._resolve_class_tag_uid(
-                session, ArtifactV2, project, key, computed_tag
-            )
-            if not artifact_tag_uid:
-                artifact_uri = generate_artifact_uri(project, key, tag, iter)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Artifact {artifact_uri} not found"
-                )
-            uid = artifact_tag_uid
+        tag = tag or "latest"
 
+        if tag:
+            # If a tag is given, we can join and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
@@ -781,8 +774,8 @@ class SQLDB(DBInterface):
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
-        if artifact_tag_uid:
-            self._set_tag_in_artifact_struct(artifact, computed_tag)
+        if tag:
+            self._set_tag_in_artifact_struct(artifact, tag)
         return artifact
 
     def del_artifact(

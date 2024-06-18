@@ -617,9 +617,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 producer_id=workflow_uid or run_uid,
             )
 
-        labels = {"kind": "job"}
+        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
         if workflow_uid:
-            labels["workflow"] = workflow_uid
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_uid
 
         server.api.crud.Runs().store_run(
             db,
@@ -668,7 +668,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 "metadata": {
                     "name": "run-name",
                     "uid": run_uid,
-                    "labels": {"kind": "job"},
+                    "labels": {mlrun_constants.MLRunInternalLabels.kind: "job"},
                 },
                 "status": {
                     "artifacts": artifacts,
@@ -715,7 +715,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid_1,
                     "iter": iter,
-                    "labels": {"kind": "job", "workflow": workflow_uid},
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
                 },
                 "status": {},
             },
@@ -731,7 +734,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid_1,
                     "iter": iter,
-                    "labels": {"kind": "job", "workflow": workflow_uid},
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
                 },
                 "status": {"artifacts": artifacts},
             },

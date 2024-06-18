@@ -260,7 +260,11 @@ class Runs(
                 f"Can not delete run in {run_state} state, consider aborting the run first"
             )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = server.api.runtime_handlers.get_runtime_handler(
                 runtime_kind
@@ -407,7 +411,11 @@ class Runs(
                 "Run is already in terminal state, can not be aborted"
             )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
             raise mlrun.errors.MLRunBadRequestError(
                 f"Run of kind {runtime_kind} can not be aborted"
@@ -516,7 +524,11 @@ class Runs(
                 raise mlrun.errors.MLRunConflictError(
                     "Run is already in terminal state, can not be aborted"
                 )
-            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
+            runtime_kind = (
+                current_run.get("metadata", {})
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.kind)
+            )
             if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Run of kind {runtime_kind} can not be aborted"

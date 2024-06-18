@@ -449,6 +449,7 @@ class Runs(
     ):
         """Fetch run artifacts by their artifact URIs in the run status"""
         artifact_uris = run.get("status", {}).get("artifact_uris", {})
+
         key_tag_iteration_pairs = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
@@ -467,6 +468,9 @@ class Runs(
                 continue
 
             key_tag_iteration_pairs.append((key, tag, iteration))
+
+        if not key_tag_iteration_pairs:
+            return []
 
         artifacts = server.api.crud.Artifacts().list_artifacts_for_producer_id(
             db_session,

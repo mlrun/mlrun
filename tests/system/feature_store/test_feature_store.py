@@ -4820,8 +4820,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
     @pytest.mark.parametrize("local", [True, False])
-    @pytest.mark.parametrize("passthrough", [True, False])
-    def test_attributes_in_offline_target(self, local, passthrough):
+    def test_attributes_in_offline_target(self, local):
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
 
@@ -4830,13 +4829,14 @@ class TestFeatureStore(TestMLRunSystem):
 
         run_uuid = uuid.uuid4()
         v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_attributes_source_{run_uuid}.parquet"
-        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/df_attributes_target_{run_uuid}"
+        v3io_parquet_target_path = (
+            f"v3io:///projects/{self.project_name}/df_attributes_target_{run_uuid}"
+        )
         df.to_parquet(v3io_parquet_source_path)
 
         feature_set = fstore.FeatureSet(
             "attributes_fs",
             entities=[fstore.Entity("patient_id")],
-            passthrough=passthrough
         )
 
         target = ParquetTarget(
@@ -4844,7 +4844,8 @@ class TestFeatureStore(TestMLRunSystem):
             path=v3io_parquet_target_path,
             attributes={"test_key": "test_value"},
         )
-        feature_set.ingest(source=df, targets=[target], run_config=run_config)
+        source = ParquetSource("test_source", path=v3io_parquet_source_path)
+        feature_set.ingest(source=source, targets=[target], run_config=run_config)
         result_target = get_offline_target(feature_set)
         assert result_target.attributes == target.attributes
 

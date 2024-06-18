@@ -219,6 +219,10 @@ class _PipelineContext:
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
             force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
+            if not mlrun.mlconf.kfp_url:
+                logger.debug("Kubeflow pipeline URL is not set, running locally")
+                force_run_local = True
+
         if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local
 

@@ -170,7 +170,7 @@ def test_create_artifact(db: Session, unversioned_client: TestClient):
         "spec": {
             "db_key": "some-key",
             "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "s3://aaa/aaa",
+            "target_path": "memory://aaa/aaa",
         },
         "status": {},
     }
@@ -264,6 +264,57 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
+def test_list_artifacts_with_limits(
+    db: Session, unversioned_client: TestClient
+) -> None:
+    _create_project(unversioned_client, prefix="v1")
+
+    default_endpoint_limit = 2
+
+    # override client's default limit
+    for route in unversioned_client.app.routes:
+        if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
+            for qp in route.dependant.query_params:
+                if qp.name == "limit":
+                    qp.default = default_endpoint_limit
+                    break
+
+    for i in range(default_endpoint_limit + 1):
+        data = {
+            "kind": "artifact",
+            "metadata": {
+                "description": "",
+                "labels": {},
+                "key": KEY,
+                "project": PROJECT,
+                "tree": str(uuid.uuid4()),
+            },
+            "spec": {
+                "db_key": "some-key",
+                "producer": {"kind": "api"},
+                "target_path": "memory://aaa/aaa",
+            },
+            "status": {},
+        }
+        resp = unversioned_client.post(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+            json=data,
+        )
+        assert resp.status_code == HTTPStatus.CREATED.value
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(f"{artifact_path}?limit={default_endpoint_limit-1}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+
+    # Get all artifacts
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == default_endpoint_limit
+
+
 def test_list_artifacts_with_producer_uri(
     db: Session, unversioned_client: TestClient
 ) -> None:
@@ -284,7 +335,7 @@ def test_list_artifacts_with_producer_uri(
             "spec": {
                 "db_key": "some-key",
                 "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "s3://aaa/aaa",
+                "target_path": "memory://aaa/aaa",
             },
             "status": {},
         }

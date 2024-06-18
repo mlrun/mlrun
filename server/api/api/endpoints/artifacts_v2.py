@@ -153,6 +153,7 @@ async def list_artifacts(
     producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    limit: int = Query(1000),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -176,6 +177,7 @@ async def list_artifacts(
         format_=format_,
         producer_id=tree,
         producer_uri=producer_uri,
+        limit=limit,
     )
 
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -258,6 +260,7 @@ async def delete_artifacts(
     tag: str = "",
     tree: str = None,
     labels: List[str] = Query([], alias="label"),
+    limit: int = Query(1000),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -269,6 +272,7 @@ async def delete_artifacts(
         tag,
         labels,
         producer_id=tree,
+        limit=limit,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,

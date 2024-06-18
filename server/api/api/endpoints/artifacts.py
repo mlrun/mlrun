@@ -201,6 +201,7 @@ async def list_artifacts(
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
+    limit: int = Query(1000),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -224,6 +225,7 @@ async def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,
+        limit=limit,
     )
 
     if not artifacts and tag:

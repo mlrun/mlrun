@@ -210,6 +210,7 @@ class DBInterface(ABC):
         uid: str = None,
         producer_id: str = None,
         producer_uri: str = None,
+        limit: int = 1000,
     ):
         pass
 

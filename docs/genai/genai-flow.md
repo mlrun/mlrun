@@ -33,7 +33,7 @@ and assets that are optimized and tested to simplify and accelate the move to pr
 
 - {ref}`genai-data-mgmt`
 - {ref}`genai-development`
-- {ref}`genai-deployment
+- {ref}`genai-deployment`
 
 
 

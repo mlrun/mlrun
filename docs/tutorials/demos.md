@@ -10,4 +10,3 @@ See:
 - [Fraud Prevention - Iguazio Feature Store](https://github.com/mlrun/demos/tree/master/fraud-prevention-feature-store)
 - [Stocks Prices Prediction Demo](https://github.com/mlrun/demos/tree/master/stocks-prediction)
 - [Sagemaker demo](https://github.com/mlrun/demo-sagemaker)
-- [Call center demo](https://github.com/mlrun/demo-call-center)

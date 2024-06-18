@@ -61,6 +61,8 @@ Removing inapropriate data at an early stage saves resources that would otherwis
 {bdg-link-info}`Guardrails for data management<./genai/data-mgmt/guardrails-data.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
 
@@ -75,26 +77,18 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Evalating LLMs <./genai/evaluating-llms.html>`
 {bdg-link-info}`Fine tuning LLMS <./genai/fine-tuning-llms.html>`
 <br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Fine tune an LLM and build a BOT <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
+{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
 ### Deployment
-MLRun serving can produce managed ML application pipelines using real-time auto-scaling Nuclio serverless functions. 
-The application pipeline includes all the steps from accepting events or data, preparing the required model features, 
+MLRun serving can productize the newly trained LLM as a serverless function using real-time auto-scaling Nuclio serverless functions. 
+The application pipeline includes all the steps from accepting events or data, contextualizing it with a state  preparing the required model features, 
 inferring results using one or more models, and driving actions. 
 
-Take an existing model operationalize it through all of its life cycle phases: 
-data collection, data preparation, training and evaluation, producing a fully automated pipeline.
-Take base model, add layers for your data, results in tuned model
-Evaluate model to make sure it's doing the right thing
-extensive testing
-Deploy using automated deployment
-
-productize the newly trained LLM as a serverless function
-receives data from API/bot
-contextualizes it with a state, possible vectors, doc to examine etc
-prompt engineering - tuning the question to the model so it behaves exactly as you want
-Feed it into the foundation model which gives result. The result is not necessarily the final result. Need to clean, format, check for toxic material, intellectual property
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
@@ -105,13 +99,21 @@ Feed it into the foundation model which gives result. The result is not necessar
 {bdg-link-primary}`Deploy LLM using MLRun <./tutorials/g01-llm.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
-
+{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
+<br> {octicon}`video` **Videos:**
+{bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
 ### Live Ops
 Monitor all resources, data, model and application metrics to ensure performance. Then identify risks, control costs, and measure business KPIs.
 Collect production data, metadata, and metrics to tune the model and application further, and to enable governance and explainability.
 
+
+`````{div} full-width
+{octicon}`code-square` **Demo:**
+{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+`````
 
 ## MLOps tasks
 

@@ -7,6 +7,8 @@ Vector databases work by storing vectors that represent the context of a request
 
 In MLRun, you can use vector databases to enrich the context of a request before passing it to a model for inference. This allows you to build more sophisticated models that take into account the context of the request and provide more accurate responses.
 
+MLRun does not come with a VectorDB out-of-the-box: you need to install your choice of DB,
+
 ## Using vector databases in MLRun
 
 To use a vector database, you can create a function that stores the text data in the database. Then, typically, during the inference pipeline, you can retrieve the vectors from the database and enrich the context of the request before passing it to the model for inference.
@@ -24,10 +26,10 @@ def handler_chroma(context:MLClientCtx,
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
     
-    # Add data to the collection    
     if collection_name in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=collection_name)
     
+	# Add data to the collection 
     collection = chroma_client.create_collection(name=collection_name)
 
     collection.add(
@@ -42,6 +44,7 @@ Then, during inference, you might have a function that retrieves the documents o
 
 ```python
 collection = chroma_client.get_collection(collection_name)
+results = collection.query(query_texts=[topic], n_results=10)
 collection.query(query_texts=[topic], n_results=10)
 q_context = " ".join([f"#{str(i)}" for i in results["documents"][0]])
 prompt_template = f"Relevant context: {q_context}\n\n The user's question: {question}"

@@ -12,7 +12,7 @@ from transformers import (
     set_seed,
 )
 
-PROMPT_TEMPLATE = """Below is an instruction that describes a task. Write a response that appropriately completes the request.
+PROMPT_TEMPLATE = """The instruction below describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
 User question:

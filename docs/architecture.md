@@ -15,7 +15,7 @@ data movement, scaling, versioning, parameterization, output tracking, CI/CD int
 Those easily developed data or ML "functions" can then be published or loaded from a hub and used later to form offline or real-time 
 production pipelines with minimal engineering efforts.
 
-<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="800"/></p><br>
+<p align="center"><img src="_static/images/genai-flow.png" alt="mlrun-flow" width="800"/></p><br>
 
 
 ## MLRun deployment
@@ -38,7 +38,7 @@ MLRun provides an open architecture that supports your existing development tool
 
 <b>MLRun simplifies & accelerates the time to production !</b>
 
-<img src="_static/images/pipeline.png" alt="pipeline"/>
+<p align="center"><img src="_static/images/pipeline.png" alt="pipeline" width="400"/>
 
 <br><br>
 

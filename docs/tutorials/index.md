@@ -26,7 +26,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 :maxdepth: 1
 :hidden:
 01-mlrun-basics
-ai_01-basic-llm
+genai_01_basic_tutorial
 ml-index
 demos
 /cheat-sheet

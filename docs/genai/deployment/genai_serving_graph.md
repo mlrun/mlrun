@@ -5,7 +5,7 @@ During inference, it is common to serve a gen AI model as part of a larger pipel
 
 ## A basic graph
 
-To run a model as part of a larger pipeline, you can use the `set_topology` method of the serving function. The following code shows how to set up a simple pipeline that includes a single step. This example is taken from the [Interactive bot demo using LLMs and MLRun](https://github.com/mlrun/demo-llm-bot) which calls OpenAI ChatGPT model:
+The following code shows how to set up a simple pipeline that includes a single step. This example is taken from the [Interactive bot demo using LLMs and MLRun](https://github.com/mlrun/demo-llm-bot) which calls OpenAI ChatGPT model:
 
 ```python
 class QueryLLM:
@@ -32,7 +32,8 @@ class QueryLLM:
         return event
 ```
 
-Store the code above to `src/serve-llm.py`. Then to create the serving function, run the following code:
+To run a model as part of a larger pipeline, you can use the {py:method}`~mlrun.runtimes.ServingRuntime.set_topology` method of the serving function. 
+Store the code above to `src/serve-llm.py`. Then, to create the serving function, run the following code:
 
 ```python
 
@@ -106,4 +107,6 @@ print(response["outputs"])
 
 ## Distributed pipelines
 
-By default, all steps of the serving graph run on the same pod in sequence. It is possible to run different steps on different pods using {ref}`distributed pipelines<distributed-graph>`.Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod.
+By default, all steps of the serving graph run on the same pod in sequence. It is possible to run different steps on different pods using 
+{ref}`distributed pipelines<distributed-graph>`.Typically you run steps that require CPU on one pod, and steps that require a GPU on a 
+different pod that is running on a potentially different node that has GPU support.

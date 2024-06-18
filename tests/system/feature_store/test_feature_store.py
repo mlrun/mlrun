@@ -4830,7 +4830,6 @@ class TestFeatureStore(TestMLRunSystem):
 
         target = ParquetTarget(
             name="test_target",
-            partition_cols=["department"],
             attributes={"test_key": "test_value"},
         )
         feature_set.ingest(source=df, targets=[target], run_config=run_config)

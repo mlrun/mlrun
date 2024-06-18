@@ -30,7 +30,6 @@ import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
-import server.api.common.formatters
 import server.api.constants
 import server.api.db.session
 import server.api.runtime_handlers

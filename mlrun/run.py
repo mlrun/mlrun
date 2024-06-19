@@ -293,10 +293,14 @@ def get_or_create_ctx(
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
+
     newspec["metadata"].setdefault("labels", {})
-    newspec["metadata"]["labels"] = {
-        mlrun_constants.MLRunInternalLabels.kind: RuntimeKinds.local
-    }
+
+    # This function can also be called as a local run if it is not called within a function.
+    # It will create a local run, and the run kind must be local by default.
+    newspec["metadata"]["labels"].setdefault(
+        mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()

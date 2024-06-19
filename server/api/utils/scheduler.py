@@ -302,7 +302,7 @@ class Scheduler:
             self._remove_schedule_scheduler_resources(
                 db_session, schedule.project, schedule.name
             )
-        get_db().delete_schedules(db_session, project)
+        get_db().delete_project_schedules(db_session, project)
 
     @server.api.utils.helpers.ensure_running_on_chief
     def store_schedule(

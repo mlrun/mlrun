@@ -103,7 +103,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         pass
 
     @abstractmethod
@@ -120,6 +129,7 @@ class RunDBInterface(ABC):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 
@@ -838,6 +848,7 @@ class RunDBInterface(ABC):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
     ) -> None:
         pass
 

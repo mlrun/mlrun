@@ -34,3 +34,14 @@ def parse_versioned_object_uri(
         uri = uri[:loc]
 
     return project, uri, tag, hash_key
+
+
+def generate_api_gateway_name(project: str, name: str) -> str:
+    """
+    Generate a unique (within project) api gateway name
+    :param project: project name
+    :param name: api gateway name
+
+    :return: the resolved api gateway name
+    """
+    return f"{project}-{name}" if project else name

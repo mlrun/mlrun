@@ -99,6 +99,7 @@ from .feature_store import (
     FeatureSetSpec,
     FeatureSetsTagsOutput,
     FeaturesOutput,
+    FeaturesOutputV2,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,

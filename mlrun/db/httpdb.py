@@ -979,6 +979,7 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """Read an artifact, identified by its key, tag, tree and iteration.
 
@@ -988,15 +989,15 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.
         :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
         project = project or config.default_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
-        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "tag": tag,
             "tree": tree,
             "uid": uid,
@@ -1061,6 +1062,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1095,6 +1097,7 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
+        :param format_:         The format in which to return the artifacts. Default is 'full'.
         """
 
         project = project or config.default_project
@@ -1112,7 +1115,7 @@ class HTTPRunDB(RunDBInterface):
             "kind": kind,
             "category": category,
             "tree": tree,
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "producer_uri": producer_uri,
         }
         error = "list artifacts"
@@ -3320,6 +3323,7 @@ class HTTPRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -3329,13 +3333,14 @@ class HTTPRunDB(RunDBInterface):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param project:     Project name.
-        :param base_period: The time period in minutes in which the model monitoring controller function
-                            triggers. By default, the base period is 10 minutes.
-        :param image:       The image of the model monitoring controller, writer & monitoring
-                            stream functions, which are real time nuclio functions.
-                            By default, the image is mlrun/mlrun.
+        :param project:                         Project name.
+        :param base_period:                     The time period in minutes in which the model monitoring controller
+                                                function triggers. By default, the base period is 10 minutes.
+        :param image:                           The image of the model monitoring controller, writer & monitoring
+                                                stream functions, which are real time nuclio functions.
+                                                By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
+        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
@@ -3344,6 +3349,7 @@ class HTTPRunDB(RunDBInterface):
                 "base_period": base_period,
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+                "rebuild_images": rebuild_images,
             },
         )
 

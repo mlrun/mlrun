@@ -38,6 +38,7 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.size",
                     "spec.framework",
                     "spec.metrics",
+                    "spec.target_path",
                 ]
             ),
         }[_format]

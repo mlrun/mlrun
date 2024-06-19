@@ -707,7 +707,7 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 1000,
+        "max_allowed": 10000,
     },
     "auth_with_client_id": {
         "enabled": False,

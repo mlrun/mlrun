@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""add default function node selector to project
+"""Add default function node selector to project
 
 Revision ID: 68dadc9d9bc8
 Revises: 0cae47e3a844

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""add pagination cache
+"""Add pagination cache
 
 Revision ID: 3e81ad4e5ebf
 Revises: 68dadc9d9bc8

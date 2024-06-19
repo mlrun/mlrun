@@ -18,6 +18,7 @@ import uuid
 from http import HTTPStatus
 
 import deepdiff
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -264,23 +265,33 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
-def test_list_artifacts_with_limits(
-    db: Session, unversioned_client: TestClient
-) -> None:
-    _create_project(unversioned_client, prefix="v1")
-
-    def ensure_endpoint_limit(limit: int):
+@pytest.fixture
+def list_limit_unversioned_client(
+    unversioned_client: TestClient, request
+) -> TestClient:
+    def ensure_endpoint_limit(limit_: int = None):
         for route in unversioned_client.app.routes:
             if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
                 for qp in route.dependant.query_params:
                     if qp.name == "limit":
-                        qp.default = limit
+                        qp.default = limit_
                         break
 
-    default_endpoint_limit = 2
-    ensure_endpoint_limit(default_endpoint_limit)
+    try:
+        ensure_endpoint_limit(request.param)
+        yield request.param, unversioned_client
+    finally:
+        ensure_endpoint_limit(None)
 
-    for i in range(default_endpoint_limit + 1):
+
+@pytest.mark.parametrize("list_limit_unversioned_client", [2], indirect=True)
+def test_list_artifacts_with_limits(
+    db: Session, list_limit_unversioned_client: TestClient
+) -> None:
+    list_limit, unversioned_client = list_limit_unversioned_client
+    _create_project(unversioned_client, prefix="v1")
+
+    for i in range(list_limit + 1):
         data = {
             "kind": "artifact",
             "metadata": {
@@ -304,18 +315,16 @@ def test_list_artifacts_with_limits(
         assert resp.status_code == HTTPStatus.CREATED.value
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
-    resp = unversioned_client.get(f"{artifact_path}?limit={default_endpoint_limit-1}")
+    resp = unversioned_client.get(f"{artifact_path}?limit={list_limit-1}")
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == default_endpoint_limit - 1
+    assert len(artifacts) == list_limit - 1
 
     # Get all artifacts
     resp = unversioned_client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == default_endpoint_limit
-
-    ensure_endpoint_limit(1000)
+    assert len(artifacts) == list_limit
 
 
 def test_list_artifacts_with_producer_uri(

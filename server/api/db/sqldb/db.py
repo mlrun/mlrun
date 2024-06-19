@@ -1335,7 +1335,7 @@ class SQLDB(DBInterface):
             query = query.limit(limit)
 
         # limit operation loads all the results before performing the actual limiting,
-        # therefor, we compile the above query as a sub query only for filtering out the relevant ids,
+        # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()
         outer_query = session.query(ArtifactV2, subquery.c.name)

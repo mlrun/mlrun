@@ -2,24 +2,31 @@
 
 Tutorial, how you can develop relation to the new data source. You can see full description
 for these cases:
- - **Get data**
-   - 1. New off-line Source (such as addition new sources NoSQL, NewSQL, etc.)
-   - 2. New on-line Source (such as addition new streaming sources RabbitMQ, KQL, etc.)
- - **Write data**
-   - 3. New off-line Target
-   - 4. New on-line Target 
- - **Query data**
-   - ss
+ 
+**Get data**
+ 1. New off-line Source (such as addition new sources NoSQL, NewSQL, etc.)
+ 2. New on-line Source (such as addition new streaming sources RabbitMQ, KQL, etc.)
+
+**Write data**
+ 3. New off-line Target
+ 4. New on-line Target 
+
+**Query data**
+ 5. ss
 
 ## 1. New off-line Source
 You have to follow next steps for develop new Source:
 
 ### Create new class derived from `BaseSourceDriver` 
 1. Choose supported engines e.g. `storey`, `spark` or `pandas`, see the setting of variables
-    support_storey = True
-    support_spark = True
+    
+    `support_storey = True`
+
+    `support_spark = True`
+
 2. Define source kind e.g. `xyz`
-    kind = "xyz"
+
+    `kind = "xyz"`
 2. Implement method `to_step` (description of method/params see ...)
 3. Implement method `to_dataframe` (description of method/params see ...)
 4. Implement method `get_spark_options` in case of spark engine support (description of method/params see ...)
@@ -36,7 +43,8 @@ You have to follow next steps for develop new Source:
 
 ### Create new class derived from `OnlineSource`
 1. Define source kind e.g. `xyz`
-    kind = "xyz"
+
+    `kind = "xyz"`
 2. Implement method `add_nuclio_trigger` (description of method/params see ...)
 3. Implement method `to_dataframe` (description of method/params see ...)
 4. Implement method `to_spark_df` (description of method/params see ...)
@@ -50,14 +58,21 @@ You have to follow next steps for develop new Target:
 
 ### Create new class derived from `BaseStoreTarget`
 1. Choose supported for the setting
-    is_table = True
-    is_offline = True
-    support_spark = True
-    support_storey = True
-    support_dask = True
-    support_append = True
+
+    `is_table = True`
+
+    `is_offline = True`
+
+    `support_spark = True`
+
+    `support_storey = True`
+
+    `support_dask = True`
+
+    `support_append = True`
 2. Define source kind e.g. `xyz`
-    kind = "xyz"
+
+    `kind = "xyz"`
 3. Implement method `add_writer_step` (description of method/params see ...)
 4. Implement method `as_df` (description of method/params see ...)
 5. Implement method `is_single_file` (description of method/params see ...)

@@ -3228,40 +3228,15 @@ class MlrunProject(ModelObj):
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
         """
-
-        secrets_dict = {}
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
-
-        if endpoint_store_connection:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
-
-        if stream_path:
-            if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Custom kafka topic is not allowed"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
-
-        if tsdb_connection:
-            if not tsdb_connection.startswith("taosws://"):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
-                    "please provide a full URL (e.g. taosws://user:password@host:port)"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ] = tsdb_connection
-
-        self.set_secrets(
-            secrets=secrets_dict,
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.set_model_monitoring_credentials(
+            project=self.name,
+            credentials={
+                "access_key": access_key,
+                "endpoint_store_connection": endpoint_store_connection,
+                "stream_path": stream_path,
+                "tsdb_connection": tsdb_connection,
+            },
         )
 
     def run_function(

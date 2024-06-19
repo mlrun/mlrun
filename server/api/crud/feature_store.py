@@ -15,6 +15,7 @@
 import typing
 
 import sqlalchemy.orm
+from deprecated import deprecated
 
 import mlrun.common.schemas
 import mlrun.config
@@ -197,7 +198,7 @@ class FeatureStore(
         tag: typing.Optional[str] = None,
         entities: list[str] = None,
         labels: list[str] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_features_v2(
             db_session,
@@ -238,7 +239,7 @@ class FeatureStore(
         name: str,
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
-    ) -> mlrun.common.schemas.EntitiesOutput:
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_entities_v2(
             db_session,

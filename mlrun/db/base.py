@@ -16,6 +16,8 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
+from deprecated import deprecated
+
 import mlrun.alerts
 import mlrun.common
 import mlrun.common.formatters

@@ -463,7 +463,7 @@ async def ingest_feature_set(
     "/features",
     response_model=mlrun.common.schemas.FeaturesOutput,
     deprecated=True,
-    description="/features is deprecated in 1.7.0 and will be removed in 1.9.0",
+    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
 )
 async def list_features(
     project: str,
@@ -505,7 +505,7 @@ async def list_features(
     "/entities",
     response_model=mlrun.common.schemas.EntitiesOutput,
     deprecated=True,
-    description="/entities is deprecated in 1.7.0 and will be removed in 1.9.0",
+    description="/entities v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
 )
 async def list_entities(
     project: str,

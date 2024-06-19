@@ -1002,7 +1002,7 @@ class HTTPRunDB(RunDBInterface):
             "tree": tree,
             "uid": uid,
         }
-        if iter:
+        if iter is not None:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         return resp.json()

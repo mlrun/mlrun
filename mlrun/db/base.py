@@ -839,6 +839,7 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
 
@@ -863,5 +864,13 @@ class RunDBInterface(ABC):
     @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
     ) -> None:
         pass

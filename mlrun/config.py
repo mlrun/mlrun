@@ -510,7 +510,7 @@ default_config = {
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
-            "stream": "",
+            "stream": "",  # TODO: Delete in 1.9.0
             "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
@@ -528,6 +528,9 @@ default_config = {
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connector_type": "v3io-tsdb",
         "tsdb_connection": "",
+        # See mlrun.common.schemas.model_monitoring.constants.ModelMonitoringStreamKind for available options
+        "stream_connector_type": "",
+        "stream_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -1130,13 +1133,6 @@ class Config:
         """
 
         if target != "offline":
-            store_prefix_dict = (
-                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
-            )
-            if store_prefix_dict.get(kind):
-                # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project, **kwargs)
-
             if (
                 function_name
                 and function_name

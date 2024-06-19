@@ -676,6 +676,7 @@ class NopDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
 
@@ -698,7 +699,14 @@ class NopDB(RunDBInterface):
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
-        raise NotImplementedError
+        pass
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+    ) -> None:
+        pass
 
     def generate_event(
         self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""

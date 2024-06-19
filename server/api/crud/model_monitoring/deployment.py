@@ -99,19 +99,27 @@ class MonitoringDeployment:
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
 
-        :param base_period: The time period in minutes in which the model monitoring controller function
-                            triggers. By default, the base period is 10 minutes.
-        :param image:       The image of the model monitoring controller, writer & monitoring
-                            stream functions, which are real time nuclio functino.
-                            By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:   If true, force rebuild of model monitoring infrastructure images
-                                 (controller, writer & stream).
+        :param base_period:                       The time period in minutes in which the model monitoring controller
+                                                  function triggers. By default, the base period is 10 minutes.
+        :param image:                             The image of the model monitoring controller, writer & monitoring
+                                                  stream functions, which are real time nuclio functino.
+                                                  By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
+                                                  (controller, writer & stream).
+        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
+        # check if credentials should be fetched from the system configuration or if they are already been set.
+        if fetch_credentials_from_sys_config:
+            self.set_credentials()
+        self.check_if_credentials_are_set()
+        raise mlrun.errors.MLRunInvalidArgumentError("Test error")
+
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period, overwrite=rebuild_images
         )
@@ -874,6 +882,158 @@ class MonitoringDeployment:
                         stream_path=stream_path,
                         error=e,
                     )
+
+    def check_if_credentials_are_set(self, only_project_secrets: bool = False):
+        """
+
+        :param only_project_secrets:  set to true only when setting new credentials.
+        :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
+        """
+        # for each cred from : [store, tsdb, stream]
+        # 1. Check in project secrets.
+        # 2. Check if stream is on or if there is already part of the secrets sre set or there is MEP in the system.
+        #    a. if stream is on, set the cred in to the project secret (v3io by default/ from sys config).
+
+        credentials_dict = {
+            key: server.api.crud.Secrets().get_project_secret(
+                project=self.project,
+                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+                secret_key=key,
+                allow_secrets_from_k8s=True,
+            )
+            for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
+        }
+
+        if None not in credentials_dict.values():
+            return
+
+        if not only_project_secrets:  # for upgrade case
+            try:
+                server.api.crud.Functions().get_function(
+                    name=mm_constants.MonitoringFunctionNames.STREAM,
+                    db_session=self.db_session,
+                    project=self.project,
+                )
+                if None in credentials_dict.values():
+                    self.set_credentials(**credentials_dict, default_secrets="v3io")
+                    return
+            except mlrun.errors.MLRunNotFoundError:
+                if (
+                    any(list(credentials_dict.values()))
+                    and None in credentials_dict.values()
+                ):  # check if one of the cred is already set
+                    self.set_credentials(**credentials_dict, default_secrets="v3io")
+                    return
+                # check MEP in v3io-nosql and None in credentials_dict.values()
+                #    self.set_credentials(**credentials_dict, default_secrets="v3io")
+                #    return
+
+        raise mlrun.errors.MLRunBadRequestError(
+            "Model monitoring credentials are not set.\n"
+            "Please set them using the set_model_monitoring_credentials API/SDK "
+            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+        )
+
+    def set_credentials(
+        self,
+        access_key: typing.Optional[str] = None,
+        endpoint_store_connection: typing.Optional[str] = None,
+        stream_path: typing.Optional[str] = None,
+        tsdb_connection: typing.Optional[str] = None,
+        default_secrets: str = "",  # used only for upgrade case
+    ):
+        try:
+            self.check_if_credentials_are_set()
+            raise mlrun.errors.MLRunConflictError(
+                f"For {self.project} the credentials are already set.\n"
+                f"This API can run only once for a project."
+            )
+        except mlrun.errors.MLRunBadRequestError:
+            # the credentials are not set
+            pass
+
+        secrets_dict = {}
+        if access_key:
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+            ] = access_key
+
+        # endpoint_store_connection
+        if not endpoint_store_connection:
+            endpoint_store_connection = (
+                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or default_secrets
+            )
+        if endpoint_store_connection:
+            if not endpoint_store_connection.startswith(
+                "mysql"
+            ) and not endpoint_store_connection.startswith("sqlite"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
+                    "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
+                )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ] = endpoint_store_connection
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "You must provide a valid endpoint store connection in here or in the system config"
+            )
+
+        # stream_path
+        if not stream_path:
+            stream_path = (
+                mlrun.mlconf.model_endpoint_monitoring.stream_connection
+                or mlrun.mlconf.model_endpoint_monitoring.store_prefixes.stream  # TODO: Delete in 1.9.0
+                or default_secrets
+            )
+        if stream_path:
+            if stream_path == "v3io":
+                # TODO: Delete in 1.9.0 (for BC)
+                stream_path = ""
+            if stream_path.startswith("kafka://") and "?topic" in stream_path:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Custom kafka topic is not allowed"
+                )
+            elif not stream_path.startswith("kafka://"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Currently only Kafka connection is supported for non-v3io stream,"
+                    "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
+                )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            ] = stream_path
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "You must provide a valid stream path connection in here or in the system config"
+            )
+
+        if not tsdb_connection:
+            tsdb_connection = (
+                mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
+                or default_secrets
+            )
+        if tsdb_connection:
+            if not tsdb_connection.startswith("taosws://"):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
+                    "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
+                )
+            secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ] = tsdb_connection
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "You must provide a valid tsdb connection in here or in the system config"
+            )
+
+        server.api.crud.Secrets().store_project_secrets(
+            project=self.project,
+            secrets=mlrun.common.schemas.SecretsData(
+                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+                secrets=secrets_dict,
+            ),
+        )
 
 
 def get_endpoint_features(

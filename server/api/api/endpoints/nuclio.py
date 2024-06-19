@@ -467,6 +467,7 @@ def _deploy_nuclio_runtime(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         )
+        monitoring_deployment.check_if_credentials_are_set()
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
                 function=fn,

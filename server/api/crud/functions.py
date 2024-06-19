@@ -16,6 +16,7 @@
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
@@ -152,4 +153,44 @@ class Functions(
             hash_key=function.get("metadata", {}).get("hash"),
             project=project,
             updates=updates,
+        )
+
+    def add_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+            session=db_session,
+            name=function_name,
+            url=invocation_url,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+            operation=mlrun.common.types.Operation.ADD,
+        )
+
+    def delete_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+            session=db_session,
+            name=function_name,
+            url=invocation_url,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+            operation=mlrun.common.types.Operation.REMOVE,
         )

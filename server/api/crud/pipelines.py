@@ -123,7 +123,7 @@ class Pipelines(
         _, _, project_pipeline_runs = self.list_pipelines(
             db_session=db_session,
             project=project_name,
-            format_=mlrun.common.formatters.PipelineFormat.full,
+            format_=mlrun.common.formatters.PipelineFormat.metadata_only,
         )
         kfp_client = self.initialize_kfp_client()
 

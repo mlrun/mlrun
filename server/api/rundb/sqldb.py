@@ -195,7 +195,16 @@ class SQLRunDB(RunDBInterface):
             tree,
         )
 
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().get_artifact,
             self.session,
@@ -205,6 +214,7 @@ class SQLRunDB(RunDBInterface):
             project=project,
             producer_id=tree,
             object_uid=uid,
+            format_=format_,
         )
 
     def list_artifacts(
@@ -220,6 +230,7 @@ class SQLRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -238,6 +249,7 @@ class SQLRunDB(RunDBInterface):
             kind=kind,
             category=category,
             producer_id=tree,
+            format_=format_,
         )
 
     def del_artifact(

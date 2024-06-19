@@ -37,6 +37,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.model
 import server.api.db.session
@@ -667,6 +668,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         project = project or config.default_project
 
@@ -715,7 +717,11 @@ class SQLDB(DBInterface):
                     continue
 
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
-            artifacts.append(artifact_struct)
+            artifacts.append(
+                mlrun.common.formatters.ArtifactFormat.format_obj(
+                    artifact_struct, format_
+                )
+            )
 
         return artifacts
 
@@ -729,6 +735,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
@@ -783,7 +790,8 @@ class SQLDB(DBInterface):
         # If connected to a tag add it to metadata
         if artifact_tag_uid:
             self._set_tag_in_artifact_struct(artifact, computed_tag)
-        return artifact
+
+        return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
@@ -1755,6 +1763,63 @@ class SQLDB(DBInterface):
             self._upsert(session, [function])
             return function.struct
 
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
+    ):
+        """
+        This function updates the external invocation URLs of a function within a project.
+        It can add or remove URLs based on the specified `operation` which can be
+        either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
+        """
+        project = project or config.default_project
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        function, _ = self._get_function_db_object(
+            session,
+            normalized_function_name,
+            project,
+            tag=tag or "latest",
+            hash_key=hash_key,
+        )
+        if not function:
+            logger.debug(
+                "Function is not found, skipping external invocation urls update",
+                project=project,
+                name=name,
+                url=url,
+            )
+            return
+
+        struct = function.struct
+        existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
+        if operation == mlrun.common.types.Operation.ADD:
+            logger.debug(
+                "Adding new external invocation url to function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url not in existing_invocation_urls:
+                existing_invocation_urls.append(url)
+            struct["status"]["external_invocation_urls"] = existing_invocation_urls
+        elif operation == mlrun.common.types.Operation.REMOVE:
+            logger.debug(
+                "Removing an external invocation url from function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].remove(url)
+        function.struct = struct
+        self._upsert(session, [function])
+
     def _get_function(
         self,
         session,
@@ -1765,15 +1830,10 @@ class SQLDB(DBInterface):
         _format: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        uid = self._get_function_uid(
-            session=session, name=name, tag=tag, hash_key=hash_key, project=project
-        )
+
+        obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
-        if uid:
-            query = query.filter(Function.uid == uid)
-        obj = query.one_or_none()
         if obj:
             function = obj.struct
 
@@ -1792,6 +1852,26 @@ class SQLDB(DBInterface):
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
+
+    def _get_function_db_object(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session,
+            name=name,
+            tag=tag,
+            hash_key=hash_key,
+            project=project,
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        return query.one_or_none(), uid
 
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str

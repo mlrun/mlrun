@@ -550,7 +550,7 @@ def _init_endpoint_record(
         model_ep = None
     except mlrun.errors.MLRunBadRequestError:
         logger.debug(
-            f"Cant reach to model endpoints store",
+            "Cant reach to model endpoints store",
         )
         return
 

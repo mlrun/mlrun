@@ -902,30 +902,40 @@ class MonitoringDeployment:
             )
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
-
-        if None not in credentials_dict.values():
+        # check if all the credentials are set (stream is not mandatory for now for BC, Todo: del in 1.9.0)
+        if all([val is not None for key, val in credentials_dict.values() if key != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH]):
             return
 
         if not only_project_secrets:  # for upgrade case
+            need_to_set = False
             try:
                 server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,
                     project=self.project,
                 )
-                if None in credentials_dict.values():
-                    self.set_credentials(**credentials_dict, default_secrets="v3io")
-                    return
+                need_to_set = True
             except mlrun.errors.MLRunNotFoundError:
-                if (
-                    any(list(credentials_dict.values()))
-                    and None in credentials_dict.values()
+                if any(
+                    [val is not None for val in credentials_dict.values()]
                 ):  # check if one of the cred is already set
-                    self.set_credentials(**credentials_dict, default_secrets="v3io")
-                    return
+                    need_to_set = True
                 # check MEP in v3io-nosql and None in credentials_dict.values()
-                #    self.set_credentials(**credentials_dict, default_secrets="v3io")
-                #    return
+                #    need_to_set = True
+            finally:
+                if need_to_set and None in credentials_dict.values():
+                    self.set_credentials(
+                        endpoint_store_connection=credentials_dict.get(
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                        ),
+                        stream_path=credentials_dict.get(
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                        ),
+                        tsdb_connection=credentials_dict.get(
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                        ),
+                        default_secrets="v3io",
+                    )
 
         raise mlrun.errors.MLRunBadRequestError(
             "Model monitoring credentials are not set.\n"
@@ -942,7 +952,7 @@ class MonitoringDeployment:
         default_secrets: str = "",  # used only for upgrade case
     ):
         try:
-            self.check_if_credentials_are_set()
+            self.check_if_credentials_are_set(only_project_secrets=True)
             raise mlrun.errors.MLRunConflictError(
                 f"For {self.project} the credentials are already set.\n"
                 f"This API can run only once for a project."
@@ -964,9 +974,11 @@ class MonitoringDeployment:
                 or default_secrets
             )
         if endpoint_store_connection:
-            if not endpoint_store_connection.startswith(
-                "mysql"
-            ) and not endpoint_store_connection.startswith("sqlite"):
+            if (
+                endpoint_store_connection != "v3io"
+                and not endpoint_store_connection.startswith("mysql")
+                and not endpoint_store_connection.startswith("sqlite")
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
@@ -1013,7 +1025,9 @@ class MonitoringDeployment:
                 or default_secrets
             )
         if tsdb_connection:
-            if not tsdb_connection.startswith("taosws://"):
+            if tsdb_connection != "v3io" and not tsdb_connection.startswith(
+                "taosws://"
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"

@@ -601,13 +601,18 @@ fmt: ## Format the code using Ruff
 	python -m ruff check --fix-only
 	python -m ruff format
 
+.PHONY: fmt-docs
+fmt-docs: ## Format the code blocks in markdown files
+	@echo "Formatting the docs"
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
 	@echo "Running import linter"
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports fmt-docs ## Run lint on the code
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

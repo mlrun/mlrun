@@ -118,7 +118,6 @@ class MonitoringDeployment:
         if fetch_credentials_from_sys_config:
             self.set_credentials()
         self.check_if_credentials_are_set()
-        raise mlrun.errors.MLRunInvalidArgumentError("Test error")
 
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period, overwrite=rebuild_images

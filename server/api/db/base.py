@@ -21,6 +21,7 @@ from deprecated import deprecated
 import mlrun.alerts
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
@@ -337,6 +338,19 @@ class DBInterface(ABC):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
     ):
         pass
 

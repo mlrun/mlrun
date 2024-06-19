@@ -16,18 +16,8 @@ import typing
 
 import pydantic
 
-import mlrun.common.types
-
 
 class RunIdentifier(pydantic.BaseModel):
     kind: typing.Literal["run"] = "run"
     uid: typing.Optional[str]
     iter: typing.Optional[int]
-
-
-class RunsFormat(mlrun.common.types.StrEnum):
-    # No enrichment, data is pulled as-is from the database.
-    standard = "standard"
-
-    # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.
-    full = "full"

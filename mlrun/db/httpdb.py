@@ -730,7 +730,7 @@ class HTTPRunDB(RunDBInterface):
         uid,
         project="",
         iter=0,
-        format_: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ):
         """Read the details of a stored run from the DB.
 

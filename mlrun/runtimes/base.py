@@ -429,7 +429,7 @@ class BaseRuntime(ModelObj):
     def _get_db_run(
         self,
         task: RunObject = None,
-        run_format: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
+        run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ):
         if self._get_db() and task:
             project = task.metadata.project
@@ -556,7 +556,7 @@ class BaseRuntime(ModelObj):
         resp: dict = None,
         task: RunObject = None,
         err: Union[Exception, str] = None,
-        run_format: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
+        run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> typing.Optional[dict]:
         """update the task state in the DB"""
         was_none = False

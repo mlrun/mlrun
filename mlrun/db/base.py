@@ -61,7 +61,7 @@ class RunDBInterface(ABC):
         uid: str,
         project: str = "",
         iter: int = 0,
-        format_: mlrun.common.schemas.runs.RunsFormat = mlrun.common.schemas.runs.RunsFormat.full,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ):
         pass
 

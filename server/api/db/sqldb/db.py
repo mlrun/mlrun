@@ -1068,8 +1068,10 @@ class SQLDB(DBInterface):
         if link_key:
             key = link_key
 
-        # use no_autoflush to avoid the session flushing between the 2 select queries, which can possibly
-        # cause deadlocks
+        # We perform two consecutive SELECT queries and modify the two artifact records that are returned.
+        # Without no_autoflush, SQLAlchemy offloads the transaction data to the DB during the second SELECT query,
+        # which can result in a deadlock due to assumed conflicts between the transactions.
+        # Using no_autoflush ensures that all modifications don't arrive to the DB until the transaction is committed.
         with session.no_autoflush:
             # get the best iteration artifact record
             query = self._query(session, ArtifactV2).filter(

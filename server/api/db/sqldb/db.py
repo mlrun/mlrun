@@ -1285,7 +1285,10 @@ class SQLDB(DBInterface):
 
         # create a sub query that gets only the artifact IDs
         # apply all filters and limits
-        query = session.query(ArtifactV2).with_entities(ArtifactV2.id)
+        query = session.query(ArtifactV2).with_entities(
+            ArtifactV2.id,
+            ArtifactV2.Tag.name,
+        )
 
         if project:
             query = query.filter(ArtifactV2.project == project)
@@ -1316,29 +1319,29 @@ class SQLDB(DBInterface):
             query = self._add_artifact_category_query(category, query)
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
-        if limit:
-            query = query.limit(limit)
-
-        # compile the outer query which returns the tuple of artifact and its tag name
-        # it will join on the subquery matching the artifact IDs
-        # this way, the limit will take effect and optimized
-        subquery = query.subquery()
-        outer_query = session.query(ArtifactV2, ArtifactV2.Tag.name)
-        outer_query = outer_query.select_from(ArtifactV2)
-        outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         # join on tags
         if tag and tag != "*":
             # If a tag is given, we can just join (faster than outer join) and filter on the tag
-            outer_query = outer_query.join(
-                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            )
-            outer_query = outer_query.filter(ArtifactV2.Tag.name == tag)
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == tag)
         else:
             # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
-            outer_query = outer_query.outerjoin(
+            query = query.outerjoin(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
             )
+
+        if limit:
+            query = query.limit(limit)
+
+        # limit operation loads all the results before perform the actual limiting,
+        # will work on a slimmer data set.
+        # therefor, we compile the above query as a sub query only for filtering out the relevant ids,
+        # then join the outer query on the subquery to select the correct columns of the table.
+        subquery = query.subquery()
+        outer_query = session.query(ArtifactV2, subquery.c.name)
+        outer_query = outer_query.select_from(ArtifactV2)
+        outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         artifacts_and_tags = outer_query.all()
 

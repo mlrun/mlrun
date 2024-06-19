@@ -108,9 +108,12 @@ def make_artifact_tag(table):
         __tablename__ = f"{table}_tags"
         __table_args__ = (
             UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
-        )
-        Index(
-            f"idx_{__tablename__}_project_name_obj_name", "project", "name", "obj_name"
+            Index(
+                f"idx_{__tablename__}_project_name_obj_name",
+                "project",
+                "name",
+                "obj_name",
+            ),
         )
 
         id = Column(Integer, primary_key=True)

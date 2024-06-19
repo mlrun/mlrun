@@ -51,6 +51,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.serving
+import mlrun.utils
 import mlrun.utils.regex
 from mlrun.alerts.alert import AlertConfig
 from mlrun.common.schemas.alert import AlertTemplate
@@ -993,15 +994,24 @@ class ProjectSpec(ModelObj):
 
         artifacts_dict = {}
         for artifact in artifacts:
-            if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
+            invalid_object_type = not isinstance(artifact, dict) and not hasattr(
+                artifact, "to_dict"
+            )
+            is_artifact_model = not isinstance(artifact, dict) and hasattr(
+                artifact, "to_dict"
+            )
+
+            if invalid_object_type:
                 raise ValueError("artifacts must be a dict or class")
-            if isinstance(artifact, dict):
-                key = artifact.get("metadata", {}).get("key", "")
-                if not key:
-                    raise ValueError('artifacts "metadata.key" must be specified')
-            else:
+            elif is_artifact_model:
                 key = artifact.key
                 artifact = artifact.to_dict()
+            else:  # artifact is a dict
+                # imported artifacts don't have metadata,spec,status fields
+                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
+                key = mlrun.utils.get_in(artifact, key_field, "")
+                if not key:
+                    raise ValueError(f'artifacts "{key_field}" must be specified')
 
             artifacts_dict[key] = artifact
 

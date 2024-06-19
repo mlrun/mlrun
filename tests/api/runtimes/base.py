@@ -341,12 +341,20 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
             namespace: str,
             **kwargs,
         ):
+            resource = ""
+            name = ""
+            for label in kwargs["label_selector"].split(","):
+                key, val = label.split("=")
+                if key == mlrun_constants.MLRunInternalLabels.resource_type:
+                    resource = val
+                if key == mlrun_constants.MLRunInternalLabels.resource_name:
+                    name = val
+
+            full_name = f"{resource}-{name}"
             return k8s_client.V1ConfigMapList(
                 items=[
                     k8s_client.V1ConfigMap(
-                        metadata=k8s_client.V1ObjectMeta(
-                            name=kwargs["label_selector"].split("=")[-1]
-                        )
+                        metadata=k8s_client.V1ObjectMeta(name=full_name)
                     ),
                 ]
             )

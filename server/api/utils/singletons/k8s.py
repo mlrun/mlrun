@@ -552,7 +552,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
-        label_name = mlrun_constants.MLRunInternalLabels.resource_name
+        label_resource_name = mlrun_constants.MLRunInternalLabels.resource_name
+        label_resource_type = mlrun_constants.MLRunInternalLabels.resource_type
+        resource_name = name
         full_name = f"{resource}-{name}"
 
         configmap_with_label = self.get_configmap(name, resource, namespace)
@@ -567,9 +569,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
 
         if labels is None:
-            labels = {label_name: full_name}
+            labels = {label_resource_name: resource_name, label_resource_type: resource}
         else:
-            labels[label_name] = full_name
+            labels[label_resource_name] = resource_name
+            labels[label_resource_type] = resource
 
         body = client.V1ConfigMap(
             kind="ConfigMap",
@@ -604,14 +607,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def get_configmap(self, name: str, resource: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
-        label_name = mlrun_constants.MLRunInternalLabels.resource_name
-        full_name = f"{resource}-{name}"
+        label_resource_name = mlrun_constants.MLRunInternalLabels.resource_name
+        label_resource_type = mlrun_constants.MLRunInternalLabels.resource_type
         configmaps_with_label = self.v1api.list_namespaced_config_map(
-            namespace=namespace, label_selector=f"{label_name}={full_name}"
+            namespace=namespace,
+            label_selector=f"{label_resource_name}={name},{label_resource_type}={resource}",
         )
         if len(configmaps_with_label.items) > 1:
             raise mlrun.errors.MLRunInternalServerError(
-                f"Received more than one config map for label: {full_name}"
+                f"Received more than one config map for labels: {name}, {resource}"
             )
 
         return configmaps_with_label.items[0] if configmaps_with_label.items else None
@@ -633,6 +637,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             if raise_on_error:
                 raise exc
+
+    @staticmethod
+    def _generate_rand_string(length):
+        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
@@ -817,10 +825,6 @@ class BasePod:
 
     def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
-
-    @staticmethod
-    def _generate_rand_string(length):
-        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod

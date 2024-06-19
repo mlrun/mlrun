@@ -69,6 +69,7 @@ class MLRunInternalLabels:
     kind = "kind"
     component = "component"
     resource_name = "resource_name"
+    resource_type = "resource_type"
     created = "mlrun-created"
 
     owner = "owner"

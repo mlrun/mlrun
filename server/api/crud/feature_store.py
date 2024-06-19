@@ -164,6 +164,12 @@ class FeatureStore(
             uid,
         )
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
     def list_features(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -183,6 +189,31 @@ class FeatureStore(
             labels,
         )
 
+    def list_features_v2(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutput:
+        project = project or mlrun.mlconf.default_project
+        return server.api.utils.singletons.db.get_db().list_features_v2(
+            db_session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
     def list_entities(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -193,6 +224,23 @@ class FeatureStore(
     ) -> mlrun.common.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_entities(
+            db_session,
+            project,
+            name,
+            tag,
+            labels,
+        )
+
+    def list_entities_v2(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutput:
+        project = project or mlrun.mlconf.default_project
+        return server.api.utils.singletons.db.get_db().list_entities_v2(
             db_session,
             project,
             name,

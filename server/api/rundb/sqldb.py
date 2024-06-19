@@ -508,6 +508,24 @@ class SQLRunDB(RunDBInterface):
             labels,
         )
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_features_v2,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
     def list_entities(
         self,
         project: str,
@@ -517,6 +535,22 @@ class SQLRunDB(RunDBInterface):
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_entities,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
+        )
+
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_entities_v2,
             self.session,
             project,
             name,

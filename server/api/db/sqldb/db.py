@@ -3025,6 +3025,17 @@ class SQLDB(DBInterface):
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)
 
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
     def list_entities(
         self,
         session,
@@ -3086,6 +3097,16 @@ class SQLDB(DBInterface):
                 )
 
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
+
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
+        pass
 
     @staticmethod
     def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):

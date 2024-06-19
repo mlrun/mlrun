@@ -492,11 +492,18 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint", ep_id=ep_id)
         ep = cls.run_db.get_model_endpoint(project=cls.project_name, endpoint_id=ep_id)
-        assert (
-            ep.status.current_stats.keys()
-            == ep.status.feature_stats.keys()
-            == set(ep.spec.feature_names)
-        ), "The endpoint current stats keys are not the same as feature stats and feature names"
+        assert ep.status.feature_stats.keys() == set(
+            ep.spec.feature_names
+        ), "The endpoint's feature stats keys are not the same as the feature names"
+        assert set(ep.status.current_stats.keys()) == set(
+            ep.status.feature_stats.keys()
+        ) | {
+            "timestamp",
+            "latency",
+            "error_count",
+            "metrics",
+            "p0",
+        }, "The endpoint's current stats is different than expected"
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
 

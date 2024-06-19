@@ -468,7 +468,11 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         )
 
         graph.add_step(
-            name="other-child", class_name="Augment", after="q1", function="other-child"
+            name="other-child",
+            class_name="Augment",
+            after="q1",
+            function="other-child",
+            full_event=True,
         )
 
         graph["out"].after_step("other-child")
@@ -492,7 +496,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         expected_record = b'{"hello": "world"}'
-        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])

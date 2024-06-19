@@ -4856,8 +4856,13 @@ class TestFeatureStore(TestMLRunSystem):
         )
         result_offline_target = get_offline_target(feature_set)
         result_online_target = get_online_target(feature_set)
+
         assert result_offline_target.attributes == offline_target.attributes
         assert result_online_target.attributes == online_target.attributes
+
+        fs = self._run_db.get_feature_set("attributes_fs")
+        assert get_offline_target(fs).attributes == offline_target.attributes
+        assert get_online_target(fs).attributes == online_target.attributes
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

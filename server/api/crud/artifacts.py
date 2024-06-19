@@ -149,6 +149,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         producer_uri: str = None,
+        limit: int = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -168,6 +169,7 @@ class Artifacts(
             producer_id=producer_id,
             producer_uri=producer_uri,
             format_=format_,
+            limit=limit,
         )
         return artifacts
 

@@ -153,7 +153,7 @@ async def list_artifacts(
     producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
-    limit: int = Query(1000),
+    limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -260,7 +260,7 @@ async def delete_artifacts(
     tag: str = "",
     tree: str = None,
     labels: List[str] = Query([], alias="label"),
-    limit: int = Query(1000),
+    limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

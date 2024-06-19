@@ -3271,7 +3271,7 @@ class MlrunProject(ModelObj):
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
-        limit: int = 1000,
+        limit: int = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 

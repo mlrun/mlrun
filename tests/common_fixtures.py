@@ -279,7 +279,7 @@ class RunDBMock:
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
-        limit: int = 1000,
+        limit: int = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:

@@ -307,7 +307,7 @@ def test_list_artifacts_with_limits(
     resp = unversioned_client.get(f"{artifact_path}?limit={default_endpoint_limit-1}")
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 1
+    assert len(artifacts) == default_endpoint_limit - 1
 
     # Get all artifacts
     resp = unversioned_client.get(artifact_path)

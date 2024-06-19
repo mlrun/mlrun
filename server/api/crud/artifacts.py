@@ -151,7 +151,7 @@ class Artifacts(
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,
         producer_uri: str = None,
-        limit: int = 1000,
+        limit: int = None,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:

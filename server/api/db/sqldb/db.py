@@ -645,7 +645,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
-        limit: int = 1000,
+        limit: int = None,
     ):
         project = project or config.default_project
 
@@ -1251,7 +1251,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
-        limit: int = 1000,
+        limit: int = None,
     ) -> typing.Union[
         list[tuple[ArtifactV2, str]],
         list[ArtifactV2],
@@ -1321,7 +1321,7 @@ class SQLDB(DBInterface):
 
         # compile the outer query which returns the tuple of artifact and its tag name
         # it will join on the subquery matching the artifact IDs
-        # this way, out limit will take effect and optimized
+        # this way, the limit will take effect and optimized
         subquery = query.subquery()
         outer_query = session.query(ArtifactV2, ArtifactV2.Tag.name)
         outer_query = outer_query.select_from(ArtifactV2)

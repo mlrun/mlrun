@@ -4821,7 +4821,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
     @pytest.mark.parametrize("local", [True, False])
-    def test_attributes_in_offline_target(self, local):
+    def test_attributes_in_target(self, local):
         config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
 

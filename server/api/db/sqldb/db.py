@@ -27,16 +27,17 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.model
 import server.api.db.session
@@ -667,6 +668,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         project = project or config.default_project
 
@@ -715,7 +717,11 @@ class SQLDB(DBInterface):
                     continue
 
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
-            artifacts.append(artifact_struct)
+            artifacts.append(
+                mlrun.common.formatters.ArtifactFormat.format_obj(
+                    artifact_struct, format_
+                )
+            )
 
         return artifacts
 
@@ -729,6 +735,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
@@ -776,7 +783,8 @@ class SQLDB(DBInterface):
         # If connected to a tag add it to metadata
         if tag:
             self._set_tag_in_artifact_struct(artifact, tag)
-        return artifact
+
+        return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
@@ -1710,6 +1718,19 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def delete_functions(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing functions from db", project=project, name=names)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=Function,
+            related_tables=[Function.Tag, Function.Label],
+            project=project,
+            names=names,
+        )
+
     def update_function(
         self,
         session,
@@ -1735,6 +1756,63 @@ class SQLDB(DBInterface):
             self._upsert(session, [function])
             return function.struct
 
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
+    ):
+        """
+        This function updates the external invocation URLs of a function within a project.
+        It can add or remove URLs based on the specified `operation` which can be
+        either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
+        """
+        project = project or config.default_project
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        function, _ = self._get_function_db_object(
+            session,
+            normalized_function_name,
+            project,
+            tag=tag or "latest",
+            hash_key=hash_key,
+        )
+        if not function:
+            logger.debug(
+                "Function is not found, skipping external invocation urls update",
+                project=project,
+                name=name,
+                url=url,
+            )
+            return
+
+        struct = function.struct
+        existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
+        if operation == mlrun.common.types.Operation.ADD:
+            logger.debug(
+                "Adding new external invocation url to function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url not in existing_invocation_urls:
+                existing_invocation_urls.append(url)
+            struct["status"]["external_invocation_urls"] = existing_invocation_urls
+        elif operation == mlrun.common.types.Operation.REMOVE:
+            logger.debug(
+                "Removing an external invocation url from function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].remove(url)
+        function.struct = struct
+        self._upsert(session, [function])
+
     def _get_function(
         self,
         session,
@@ -1745,15 +1823,10 @@ class SQLDB(DBInterface):
         _format: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        uid = self._get_function_uid(
-            session=session, name=name, tag=tag, hash_key=hash_key, project=project
-        )
+
+        obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
-        if uid:
-            query = query.filter(Function.uid == uid)
-        obj = query.one_or_none()
         if obj:
             function = obj.struct
 
@@ -1773,6 +1846,26 @@ class SQLDB(DBInterface):
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
+    def _get_function_db_object(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session,
+            name=name,
+            tag=tag,
+            hash_key=hash_key,
+            project=project,
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        return query.one_or_none(), uid
+
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
@@ -1790,9 +1883,13 @@ class SQLDB(DBInterface):
                 )
             return tag_function_uid
 
-    def _delete_functions(self, session: Session, project: str):
-        for function_name in self._list_project_function_names(session, project):
-            self.delete_function(session, project, function_name)
+    def _delete_project_functions(self, session: Session, project: str):
+        function_names = self._list_project_function_names(session, project)
+        self.delete_functions(
+            session,
+            project,
+            function_names,
+        )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
         return [
@@ -2065,10 +2162,102 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
-        for schedule in self.list_schedules(session, project=project):
-            self.delete_schedule(session, project, schedule.name)
+        function_names = [
+            schedule.name for schedule in self.list_schedules(session, project=project)
+        ]
+        self.delete_schedules(
+            session,
+            project,
+            names=function_names,
+        )
+
+    def delete_schedules(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing schedules from db", project=project, name=names)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Schedule,
+            related_tables=[Schedule.Label],
+            project=project,
+            names=names,
+        )
+
+    @staticmethod
+    def _delete_multi_objects(
+        session: Session,
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
+        project: str,
+        names: typing.Union[str, list[str]],
+    ):
+        if not names:
+            logger.debug(
+                "No names provided, skipping deletion",
+                project=project,
+                tables=[main_table] + related_tables,
+            )
+            return
+        for cls in related_tables:
+            logger.debug(f"Removing from {cls}", project=project, name=names)
+
+            # The select is mandatory for sqlalchemy 1.4 because
+            # query.delete does not support multiple-table criteria within DELETE
+            if project != "*":
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(
+                        and_(
+                            main_table.project == project,
+                            or_(main_table.name == name for name in names),
+                        )
+                    )
+                    .subquery()
+                )
+            else:
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(or_(main_table.name == name for name in names))
+                    .subquery()
+                )
+            stmt = (
+                delete(cls)
+                .where(cls.id.in_(aliased(subquery)))
+                .execution_options(synchronize_session=False)
+            )
+
+            # Execute the delete statement
+            execution_obj = session.execute(stmt)
+            logger.debug(
+                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                project=project,
+                names=names,
+                names_count=len(names),
+            )
+        if project != "*":
+            query = session.query(main_table).filter(
+                and_(
+                    main_table.project == project,
+                    or_(main_table.name == name for name in names),
+                )
+            )
+        else:
+            query = session.query(main_table).filter(
+                or_(main_table.name == name for name in names),
+            )
+
+        count = query.delete(synchronize_session=False)
+        logger.debug(
+            f"Removed {count} rows from {main_table} table",
+            project=project,
+            names=names,
+            names_count=len(names),
+        )
+        session.commit()
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -2618,8 +2807,8 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
-        self.delete_schedules(session, name)
-        self._delete_functions(session, name)
+        self.delete_project_schedules(session, name)
+        self._delete_project_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)

@@ -154,16 +154,6 @@ class MonitoringDeployment:
                 )
             )
 
-            if (
-                overwrite and not self.is_monitoring_stream_has_the_new_stream_trigger()
-            ):  # in case of only adding the new stream trigger
-                prev_stream_function = server.api.crud.Functions().get_function(
-                    name=mm_constants.MonitoringFunctionNames.STREAM,
-                    db_session=self.db_session,
-                    project=self.project,
-                )
-                stream_image = prev_stream_function["spec"]["image"]
-
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )

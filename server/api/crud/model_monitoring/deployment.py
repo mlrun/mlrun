@@ -903,7 +903,15 @@ class MonitoringDeployment:
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
         # check if all the credentials are set (stream is not mandatory for now for BC, Todo: del in 1.9.0)
-        if all([val is not None for key, val in credentials_dict.values() if key != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH]):
+        if all(
+            [
+                val is not None
+                if key
+                != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                else True
+                for key, val in credentials_dict.items()
+            ]
+        ):
             return
 
         if not only_project_secrets:  # for upgrade case
@@ -1002,15 +1010,16 @@ class MonitoringDeployment:
             if stream_path == "v3io":
                 # TODO: Delete in 1.9.0 (for BC)
                 stream_path = ""
-            if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Custom kafka topic is not allowed"
-                )
-            elif not stream_path.startswith("kafka://"):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Currently only Kafka connection is supported for non-v3io stream,"
-                    "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
-                )
+            else:
+                if stream_path.startswith("kafka://") and "?topic" in stream_path:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Custom kafka topic is not allowed"
+                    )
+                elif not stream_path.startswith("kafka://") or stream_path != "v3io://":
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Currently only Kafka connection is supported for non-v3io stream,"
+                        "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
+                    )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path

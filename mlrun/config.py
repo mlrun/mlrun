@@ -523,13 +523,10 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
-        "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connector_type": "v3io-tsdb",
         "tsdb_connection": "",
         # See mlrun.common.schemas.model_monitoring.constants.ModelMonitoringStreamKind for available options
-        "stream_connector_type": "",
         "stream_connection": "",
     },
     "secret_stores": {

@@ -955,6 +955,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
+        limit: int = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -987,6 +988,7 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
+        :param limit:           Maximum number of artifacts to return.
         """
 
         project = project or config.default_project
@@ -1006,6 +1008,7 @@ class HTTPRunDB(RunDBInterface):
             "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
             "producer_uri": producer_uri,
+            "limit": limit,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"

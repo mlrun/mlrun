@@ -645,6 +645,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
+        limit: int = None,
     ):
         project = project or config.default_project
 
@@ -669,6 +670,7 @@ class SQLDB(DBInterface):
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
+            limit=limit,
         )
         if as_records:
             return artifact_records
@@ -1258,6 +1260,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        limit: int = None,
     ) -> typing.Union[
         list[tuple[ArtifactV2, str]],
         list[ArtifactV2],
@@ -1289,18 +1292,13 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
-        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        # create a sub query that gets only the artifact IDs
+        # apply all filters and limits
+        query = session.query(ArtifactV2).with_entities(
+            ArtifactV2.id,
+            ArtifactV2.Tag.name,
+        )
 
-        # join on tags
-        if tag and tag != "*":
-            # If a tag is given, we can just join (faster than outer join) and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == tag)
-        else:
-            # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
-            query = query.outerjoin(
-                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            )
         if project:
             query = query.filter(ArtifactV2.project == project)
         if ids and ids != "*":
@@ -1331,7 +1329,29 @@ class SQLDB(DBInterface):
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
-        artifacts_and_tags = query.all()
+        # join on tags
+        if tag and tag != "*":
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == tag)
+        else:
+            # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
+            query = query.outerjoin(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            )
+
+        if limit:
+            query = query.limit(limit)
+
+        # limit operation loads all the results before performing the actual limiting,
+        # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
+        # then join the outer query on the subquery to select the correct columns of the table.
+        subquery = query.subquery()
+        outer_query = session.query(ArtifactV2, subquery.c.name)
+        outer_query = outer_query.select_from(ArtifactV2)
+        outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        artifacts_and_tags = outer_query.all()
 
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate

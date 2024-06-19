@@ -48,3 +48,6 @@ mlrun_bc_*.json
 
 # used for local development.
 playground
+
+# relevant for 1.7+ only
+pipeline-adapters

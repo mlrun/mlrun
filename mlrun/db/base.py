@@ -120,6 +120,7 @@ class RunDBInterface(ABC):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ):
         pass
 

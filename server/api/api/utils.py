@@ -32,6 +32,7 @@ from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -197,7 +198,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_task(task)
+    apply_enrichment_and_validation_on_task(task, function.kind)
 
     return function, task
 
@@ -211,9 +212,12 @@ async def submit_run(
     return response
 
 
-def apply_enrichment_and_validation_on_task(task):
+def apply_enrichment_and_validation_on_task(task, kind):
     # Conceal notification config params from the task object with secrets
     mask_notification_params_on_task(task, server.api.constants.MaskOperations.CONCEAL)
+    task.setdefault("metadata", {}).setdefault("labels", {}).setdefault(
+        mlrun_constants.MLRunInternalLabels.kind, kind
+    )
 
 
 def mask_notification_params_on_task(
@@ -954,7 +958,6 @@ def submit_run_sync(
     response = None
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
-
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 

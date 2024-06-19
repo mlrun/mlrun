@@ -838,7 +838,7 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            self._stream.push({"id": event.id, "body": data, "path": event.path})
+            self._stream.push({"id": event.id, "body": data, "path": event.target_path})
             event.terminated = True
             event.body = None
         return event

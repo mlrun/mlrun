@@ -254,7 +254,7 @@ class GraphServer(ModelObj):
             if event_id_key in event.headers:
                 event.id = event.headers.get(event_id_key)
             if event_path_key in event.headers:
-                event.path = event.headers.get(event_path_key)
+                event.target_path = event.headers.get(event_path_key)
 
         if isinstance(event.body, (str, bytes)) and (
             not event.content_type or event.content_type in ["json", "application/json"]
@@ -384,8 +384,14 @@ def v2_serving_handler(context, event, get_body=False):
             event.body = None
 
     # ML-6065 – workaround for NUC-178
-    if hasattr(event, "trigger") and event.trigger.kind in ("kafka", "kafka-cluster"):
-        event.path = "/"
+    if hasattr(event, "trigger") and event.trigger.kind in (
+        "kafka",
+        "kafka-cluster",
+        "v3ioStream",
+    ):
+        event.target_path = "/"
+    else:
+        event.target_path = event.path
 
     return context._server.run(event, context, get_body)
 

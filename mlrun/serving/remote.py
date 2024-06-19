@@ -69,7 +69,7 @@ class RemoteStep(storey.SendToHttp):
 
 
         :param url:     http(s) url or function [project/]name to call
-        :param subpath: path (which follows the url), use `$path` to use the event.path
+        :param subpath: path (which follows the url), use `$path` to use the event.target_path
         :param method:  HTTP method (GET, POST, ..), default to POST
         :param headers: dictionary with http header values
         :param url_expression: an expression for getting the url from the event, e.g. "event['url']"
@@ -210,11 +210,11 @@ class RemoteStep(storey.SendToHttp):
             url = self._url_function_handler(body)
         else:
             url = self._endpoint
-            striped_path = event.path.lstrip("/")
+            striped_path = event.target_path.lstrip("/")
             if self._append_event_path:
                 url = url + "/" + striped_path
             if striped_path:
-                headers[event_path_key] = event.path
+                headers[event_path_key] = event.target_path
 
         if event.id:
             headers[event_id_key] = event.id

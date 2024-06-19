@@ -44,7 +44,7 @@ def nuclio_jobs_init(context, data):
 
 
 def nuclio_jobs_handler(context, event):
-    paths = event.path.strip("/").split("/")
+    paths = event.target_path.strip("/").split("/")
 
     if not paths or paths[0] not in context.globals:
         return context.Response(

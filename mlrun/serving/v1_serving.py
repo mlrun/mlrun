@@ -167,12 +167,15 @@ def nuclio_serving_handler(context, event):
             model_name = next(iter(context.models))
             route = "predict"
         else:
-            model_name, route = event.path.strip("/").split("/")
+            model_name, route = event.target_path.strip("/").split("/")
         route = context.router[route]
     except Exception:
         actions = "|".join(context.router.keys())
         models = "|".join(context.models.keys())
-        body = f"Got path: {event.path} \n Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
+        body = (
+            f"Got path: {event.target_path} \n "
+            f"Path must be <model-name>/<action> \nactions: {actions} \nmodels: {models}"
+        )
         return context.Response(
             body=body,
             content_type="text/plain",

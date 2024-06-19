@@ -198,7 +198,7 @@ class ModelRouter(BaseModelRouter):
         return model, self.routes[model], subpath
 
     def _handle_event(self, event):
-        name, route, subpath = self._resolve_route(event.body, event.path)
+        name, route, subpath = self._resolve_route(event.body, event.target_path)
         if not route:
             # if model wasn't specified return model list
             setattr(event, "terminated", True)
@@ -206,7 +206,7 @@ class ModelRouter(BaseModelRouter):
             return event
 
         self.context.logger.debug(f"router run model {name}, op={subpath}")
-        event.path = subpath
+        event.target_path = subpath
         response = route.run(event)
         event.body = response.body if response else None
         return event
@@ -841,9 +841,9 @@ class VotingEnsemble(ParallelRun):
             return event
 
         # Extract route information
-        name, route, subpath = self._resolve_route(event.body, event.path)
+        name, route, subpath = self._resolve_route(event.body, event.target_path)
         self.context.logger.debug(f"router run model {name}, op={subpath}")
-        event.path = subpath
+        event.target_path = subpath
 
         # Return the correct response
         # If no model name was given and no operation

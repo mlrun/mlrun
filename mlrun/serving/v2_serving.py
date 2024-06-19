@@ -231,7 +231,7 @@ class V2ModelServer(StepToDict):
         original_body = event.body
         event_body = _extract_input_data(self._input_path, event.body)
         event_id = event.id
-        op = event.path.strip("/")
+        op = event.target_path.strip("/")
         if event_body and isinstance(event_body, dict):
             op = op or event_body.get("operation")
             event_id = event_body.get("id", event_id)

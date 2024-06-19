@@ -192,7 +192,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "storey.Filter",
                 "filter_stream_event",
-                _fn=f"(event.path not in {PrometheusEndpoints.list()})",
+                _fn=f"(event.target_path not in {PrometheusEndpoints.list()})",
                 full_event=True,
             )
 
@@ -969,8 +969,8 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
 
 class EventRouting(mlrun.feature_store.steps.MapClass):
     """
-    Router the event according to the configured path under event.path. Please note that this step returns the result
-    to the caller. At the moment there are several paths:
+    Router the event according to the configured path under event.target_path. Please note that this step returns the
+    result to the caller. At the moment there are several paths:
 
     - /model-monitoring-metrics (GET): return Prometheus registry results as a text. Will be used by Prometheus client
     to scrape the results from the monitoring stream memory.
@@ -992,10 +992,10 @@ class EventRouting(mlrun.feature_store.steps.MapClass):
         self.project: str = project
 
     def do(self, event):
-        if event.path == PrometheusEndpoints.MODEL_MONITORING_METRICS:
+        if event.target_path == PrometheusEndpoints.MODEL_MONITORING_METRICS:
             # Return a parsed Prometheus registry file
             event.body = mlrun.model_monitoring.prometheus.get_registry()
-        elif event.path == PrometheusEndpoints.MONITORING_BATCH_METRICS:
+        elif event.target_path == PrometheusEndpoints.MONITORING_BATCH_METRICS:
             # Update statistical metrics
             for event_metric in event.body:
                 mlrun.model_monitoring.prometheus.write_drift_metrics(
@@ -1004,7 +1004,7 @@ class EventRouting(mlrun.feature_store.steps.MapClass):
                     metric=event_metric[EventFieldType.METRIC],
                     value=event_metric[EventFieldType.VALUE],
                 )
-        elif event.path == PrometheusEndpoints.MONITORING_DRIFT_STATUS:
+        elif event.target_path == PrometheusEndpoints.MONITORING_DRIFT_STATUS:
             # Update drift status
             mlrun.model_monitoring.prometheus.write_drift_status(
                 project=self.project,

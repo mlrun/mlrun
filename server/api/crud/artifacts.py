@@ -129,6 +129,7 @@ class Artifacts(
             producer_id,
             object_uid,
             raise_on_not_found,
+            format_=format_,
         )
         return artifact
 
@@ -166,6 +167,7 @@ class Artifacts(
             best_iteration,
             producer_id=producer_id,
             producer_uri=producer_uri,
+            format_=format_,
         )
         return artifacts
 

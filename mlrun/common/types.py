@@ -30,3 +30,8 @@ class HTTPMethod(StrEnum):
     GET = "GET"
     POST = "POST"
     DELETE = "DELETE"
+
+
+class Operation(StrEnum):
+    ADD = "add"
+    REMOVE = "remove"

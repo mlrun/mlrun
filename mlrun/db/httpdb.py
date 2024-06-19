@@ -989,6 +989,7 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """Read an artifact, identified by its key, tag, tree and iteration.
 
@@ -998,15 +999,15 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.
         :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
         project = project or config.default_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
-        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "tag": tag,
             "tree": tree,
             "uid": uid,
@@ -1071,6 +1072,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1105,6 +1107,7 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
+        :param format_:         The format in which to return the artifacts. Default is 'full'.
         """
 
         project = project or config.default_project
@@ -1122,7 +1125,7 @@ class HTTPRunDB(RunDBInterface):
             "kind": kind,
             "category": category,
             "tree": tree,
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "producer_uri": producer_uri,
         }
         error = "list artifacts"

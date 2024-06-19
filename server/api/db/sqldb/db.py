@@ -1334,8 +1334,7 @@ class SQLDB(DBInterface):
         if limit:
             query = query.limit(limit)
 
-        # limit operation loads all the results before perform the actual limiting,
-        # will work on a slimmer data set.
+        # limit operation loads all the results before performing the actual limiting,
         # therefor, we compile the above query as a sub query only for filtering out the relevant ids,
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()

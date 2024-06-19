@@ -45,6 +45,9 @@ class Alerts(
 
         self._validate_alert(alert_data, name, project)
 
+        if alert_data.criteria is None:
+            alert_data.criteria = mlrun.common.schemas.alert.AlertCriteria()
+
         if alert is not None:
             self._delete_notifications(alert)
         else:

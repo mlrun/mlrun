@@ -135,7 +135,7 @@ def client(db) -> Generator:
             yield test_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def unversioned_client(db) -> Generator:
     """
     unversioned_client is a test client that doesn't have the version prefix in the url.

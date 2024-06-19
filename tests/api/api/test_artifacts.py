@@ -269,15 +269,16 @@ def test_list_artifacts_with_limits(
 ) -> None:
     _create_project(unversioned_client, prefix="v1")
 
-    default_endpoint_limit = 2
+    def ensure_endpoint_limit(limit: int):
+        for route in unversioned_client.app.routes:
+            if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
+                for qp in route.dependant.query_params:
+                    if qp.name == "limit":
+                        qp.default = limit
+                        break
 
-    # override client's default limit
-    for route in unversioned_client.app.routes:
-        if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
-            for qp in route.dependant.query_params:
-                if qp.name == "limit":
-                    qp.default = default_endpoint_limit
-                    break
+    default_endpoint_limit = 2
+    ensure_endpoint_limit(default_endpoint_limit)
 
     for i in range(default_endpoint_limit + 1):
         data = {
@@ -313,6 +314,8 @@ def test_list_artifacts_with_limits(
     assert resp.status_code == HTTPStatus.OK.value
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == default_endpoint_limit
+
+    ensure_endpoint_limit(1000)
 
 
 def test_list_artifacts_with_producer_uri(

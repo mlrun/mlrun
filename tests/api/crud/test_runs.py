@@ -643,12 +643,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
     @pytest.mark.parametrize(
         "run_format",
         [
-            mlrun.common.schemas.RunsFormat.full,
-            mlrun.common.schemas.RunsFormat.standard,
+            mlrun.common.formatters.RunFormat.full,
+            mlrun.common.formatters.RunFormat.standard,
         ],
     )
     def test_run_formats(
-        self, db: sqlalchemy.orm.Session, run_format: mlrun.common.schemas.RunsFormat
+        self, db: sqlalchemy.orm.Session, run_format: mlrun.common.formatters.RunFormat
     ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
@@ -679,7 +679,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         )
 
         expected_artifacts = artifacts
-        if run_format == mlrun.common.schemas.RunsFormat.standard:
+        if run_format == mlrun.common.formatters.RunFormat.standard:
             expected_artifacts = []
         self._validate_run_artifacts(
             expected_artifacts, db, project, run_uid, run_format=run_format
@@ -754,7 +754,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 run_uid_1,
                 iter,
                 project,
-                format_=mlrun.common.schemas.RunsFormat.full,
+                format_=mlrun.common.formatters.RunFormat.full,
             )
 
             assert "artifacts" not in run_1["status"]
@@ -765,7 +765,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 run_uid_2,
                 iter,
                 project,
-                format_=mlrun.common.schemas.RunsFormat.full,
+                format_=mlrun.common.formatters.RunFormat.full,
             )
 
             assert "artifacts" not in run_2["status"]
@@ -817,14 +817,14 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project,
         run_uid,
         iter=0,
-        run_format: mlrun.common.schemas.RunsFormat = None,
+        run_format: mlrun.common.formatters.RunFormat = None,
     ):
         run = server.api.crud.Runs().get_run(
             db,
             run_uid,
             iter,
             project,
-            format_=run_format or mlrun.common.schemas.RunsFormat.full,
+            format_=run_format or mlrun.common.formatters.RunFormat.full,
         )
 
         enriched_artifacts = []

@@ -134,8 +134,8 @@ async def get_run(
     iter: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    format_: mlrun.common.schemas.RunsFormat = Query(
-        mlrun.common.schemas.RunsFormat.full, alias="format"
+    format_: mlrun.common.formatters.RunFormat = Query(
+        mlrun.common.formatters.RunFormat.full, alias="format"
     ),
 ):
     data = await run_in_threadpool(

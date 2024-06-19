@@ -548,6 +548,11 @@ def _init_endpoint_record(
         )
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
+    except mlrun.errors.MLRunBadRequestError:
+        logger.debug(
+            f"Cant reach to model endpoints store",
+        )
+        return
 
     if model.context.server.track_models and not model_ep:
         logger.debug("Creating a new model endpoint record", endpoint_id=uid)

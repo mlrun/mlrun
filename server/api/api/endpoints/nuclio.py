@@ -467,7 +467,19 @@ def _deploy_nuclio_runtime(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         )
-        monitoring_deployment.check_if_credentials_are_set()
+        try:
+            monitoring_deployment.check_if_credentials_are_set()
+        except mlrun.errors.MLRunBadRequestError as exc:
+            if monitoring_application:
+                err_txt = f"Can't deploy model monitoring application due to: {exc}"
+            else:
+                err_txt = (
+                    f"Can't deploy serving function with track models due to: {exc}"
+                )
+            server.api.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=err_txt,
+            )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
                 function=fn,

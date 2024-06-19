@@ -3490,7 +3490,7 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
-            params={"credentials": credentials},
+            params={**credentials},
         )
 
     def create_hub_source(

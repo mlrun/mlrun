@@ -3,29 +3,27 @@
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-- [**Quick-start Tutorial**](./01-mlrun-basics.html) 
-- [Gen AI tutorials](#gen--ai-tutorials)
+- [**Quick-start AI tutorial**](#genai_01_basic_tutorial)
 - [**Machine learning tutorials**](#other-tutorial)
-- [**End to End Demos**](#e2e-demos)
+- [**End to end demos**](#e2e-demos)
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/xI8KVGLlj7Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><br><br>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/aoP__SaAO1M" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><br><br>
 
 (quick-start-tutorial)=
 
 ````{card} Make sure you start with the Quick start tutorial to understand the basics
-```{button-link} ./01-mlrun-basics.html
+```{button-link} ./genai_01_basic_tutorial.html
 :color: primary
 :shadow:
 :expand:
 :click-parent:
-Introduction to MLRun - Use serverless functions to train and deploy models
+Introduction to MLRun - Deploy an LLM using MLRun
 ```
 ````
 
 ```{toctree}
 :maxdepth: 1
 :hidden:
-01-mlrun-basics
 genai_01_basic_tutorial
 ml-index
 demos
@@ -33,7 +31,7 @@ demos
 ```
 
 ## Gen AI tutorials
-
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
 
 `````{div}
 
@@ -41,7 +39,7 @@ demos
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun
-:link: ./g01-llm.html
+:link: ./genai_01_basic_tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
 

@@ -1,11 +1,18 @@
 (vector-databases)=
 # Vector databases
 
-Vector databases are used to enrich the context of a request before it is passed to a model for inference. This is a common practice in text processing tasks, where the context of a request can significantly impact the model's response. For example, in a conversational AI model, the context of the conversation can help the model understand the user's intent and provide a more accurate response. Another common scenario is using vector databases with RAG (Retrieval-Augmented Generation) models to retrieve relevant documents before generating a response.
+Vector databases are used to enrich the context of a request before it is passed to a model for inference. This is a common practice in 
+text processing tasks, where the context of a request can significantly impact the model's response. For example, in a 
+conversational AI model, the context of the conversation can help the model understand the user's intent and provide a more 
+accurate response. Another common scenario is using vector databases with RAG (Retrieval-Augmented Generation) models to 
+retrieve relevant documents before generating a response.
 
-Vector databases work by storing vectors that represent the context of a request. These vectors can be generated using various techniques, such as word embeddings. When a request is received, the vector database retrieves the vectors that represent the context of the request and passes them to the model for inference. This allows the model to take into account the context of the request and provide a more accurate response.
+Vector databases work by storing vectors that represent the context of a request. These vectors can be generated using 
+various techniques, such as word embeddings. When a request is received, the vector database retrieves the vectors that 
+represent the context of the request and passes them to the model for inference. This allows the model to take into 
+account the context of the request and provide a more accurate response.
 
-In MLRun, you can use vector databases to enrich the context of a request before passing it to a model for inference. This allows you to build more sophisticated models that take into account the context of the request and provide more accurate responses.
+In MLRun, you can use vector databases to enrich the context of a request before passing it to a model for inference. 
 
 MLRun does not come with a VectorDB out-of-the-box: you need to install your choice of DB,
 

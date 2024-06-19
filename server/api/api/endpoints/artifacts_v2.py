@@ -152,9 +152,7 @@ async def list_artifacts(
     tree: str = None,
     producer_uri: str = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: mlrun.common.formatters.ArtifactFormat = Query(
-        mlrun.common.formatters.ArtifactFormat.full, alias="format"
-    ),
+    format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -199,9 +197,7 @@ async def get_artifact(
     tag: str = None,
     iter: int = None,
     object_uid: str = Query(None, alias="object-uid"),
-    format_: mlrun.common.formatters.ArtifactFormat = Query(
-        mlrun.common.formatters.ArtifactFormat.full, alias="format"
-    ),
+    format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

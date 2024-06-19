@@ -194,6 +194,7 @@ class DBInterface(ABC):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 
@@ -215,6 +216,7 @@ class DBInterface(ABC):
         uid: str = None,
         producer_id: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 

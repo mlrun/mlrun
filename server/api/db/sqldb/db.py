@@ -668,6 +668,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         project = project or config.default_project
 
@@ -716,7 +717,11 @@ class SQLDB(DBInterface):
                     continue
 
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
-            artifacts.append(artifact_struct)
+            artifacts.append(
+                mlrun.common.formatters.ArtifactFormat.format_obj(
+                    artifact_struct, format_
+                )
+            )
 
         return artifacts
 
@@ -730,6 +735,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
@@ -784,7 +790,8 @@ class SQLDB(DBInterface):
         # If connected to a tag add it to metadata
         if artifact_tag_uid:
             self._set_tag_in_artifact_struct(artifact, computed_tag)
-        return artifact
+
+        return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None

@@ -1057,6 +1057,8 @@ class SQLDB(DBInterface):
         link_artifact,
         uid=None,
     ):
+        artifacts_to_commit = []
+
         # get the artifact record from the db
         link_iteration = link_artifact.get("spec", {}).get("link_iteration")
         link_tree = link_artifact.get("spec", {}).get("link_tree") or link_artifact.get(
@@ -1065,45 +1067,50 @@ class SQLDB(DBInterface):
         link_key = link_artifact.get("spec", {}).get("link_key")
         if link_key:
             key = link_key
-        query = self._query(session, ArtifactV2).filter(
-            ArtifactV2.project == project,
-            ArtifactV2.key == key,
-            ArtifactV2.iteration == link_iteration,
-        )
-        if link_tree:
-            query = query.filter(ArtifactV2.producer_id == link_tree)
-        if uid:
-            query = query.filter(ArtifactV2.uid == uid)
 
-        artifact_record = query.one_or_none()
-        if not artifact_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
+        # use no_autoflush to avoid the session flushing between the 2 select queries, which can possibly
+        # cause deadlocks
+        with session.no_autoflush:
+            # get the best iteration artifact record
+            query = self._query(session, ArtifactV2).filter(
+                ArtifactV2.project == project,
+                ArtifactV2.key == key,
+                ArtifactV2.iteration == link_iteration,
             )
+            if link_tree:
+                query = query.filter(ArtifactV2.producer_id == link_tree)
+            if uid:
+                query = query.filter(ArtifactV2.uid == uid)
 
-        # update the artifact record with best iteration
-        artifact_record.best_iteration = True
+            best_iteration_artifact_record = query.one_or_none()
+            if not best_iteration_artifact_record:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
+                )
 
-        artifacts_to_commit = [artifact_record]
+            # get the previous best iteration artifact
+            query = self._query(session, ArtifactV2).filter(
+                ArtifactV2.project == project,
+                ArtifactV2.key == key,
+                ArtifactV2.best_iteration,
+                ArtifactV2.iteration != link_iteration,
+            )
+            if link_tree:
+                query = query.filter(ArtifactV2.producer_id == link_tree)
 
-        # remove the best iteration flag from the previous best iteration artifact
-        query = self._query(session, ArtifactV2).filter(
-            ArtifactV2.project == project,
-            ArtifactV2.key == key,
-            ArtifactV2.best_iteration,
-            ArtifactV2.iteration != link_iteration,
-        )
-        if link_tree:
-            query = query.filter(ArtifactV2.producer_id == link_tree)
+            previous_best_iteration_artifacts = query.one_or_none()
+            if previous_best_iteration_artifacts:
+                # remove the previous best iteration flag
+                previous_best_iteration_artifacts.best_iteration = False
+                artifacts_to_commit.append(previous_best_iteration_artifacts)
 
-        previous_best_iteration_artifacts = query.one_or_none()
-        if previous_best_iteration_artifacts:
-            previous_best_iteration_artifacts.best_iteration = False
-            artifacts_to_commit.append(previous_best_iteration_artifacts)
+            # update the artifact record with best iteration
+            best_iteration_artifact_record.best_iteration = True
+            artifacts_to_commit.append(best_iteration_artifact_record)
 
         self._upsert(session, artifacts_to_commit)
 
-        return artifact_record.uid
+        return best_iteration_artifact_record.uid
 
     def _update_artifact_record_from_dict(
         self,

@@ -296,7 +296,8 @@ def get_or_create_ctx(
 
     newspec["metadata"].setdefault("labels", {})
 
-    # Only if kind doesn't exist in the spec, add the default runtime kind to local
+    # This function can also be called as a local run if it is not called within a function.
+    # It will create a local run, and the run kind must be local by default.
     newspec["metadata"]["labels"].setdefault(
         mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
     )

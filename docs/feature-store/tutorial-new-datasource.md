@@ -11,8 +11,8 @@ for these cases:
  3. New off-line Target
  4. New on-line Target 
 
-**Query data**
- 5. ss
+**Query data** via FeatureVector
+ 5. Support for query data ???
 
 ## 1. New off-line Source
 You have to follow next steps for develop new Source:
@@ -86,3 +86,5 @@ NOTE: Class `BaseStoreTarget` is derived from `DataTargetBase`
 ## 4. New off-line Target
 
 TBD.
+
+## 5. Support for query data ???

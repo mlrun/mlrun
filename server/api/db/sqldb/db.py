@@ -740,18 +740,13 @@ class SQLDB(DBInterface):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
         computed_tag = tag or "latest"
-        artifact_tag_uid = None
-        if tag and not uid:
-            artifact_tag_uid = self._resolve_class_tag_uid(
-                session, ArtifactV2, project, key, computed_tag
-            )
-            if not artifact_tag_uid:
-                artifact_uri = generate_artifact_uri(project, key, tag, iter)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Artifact {artifact_uri} not found"
-                )
-            uid = artifact_tag_uid
+        enrich_tag = False
 
+        if tag and not uid:
+            enrich_tag = True
+            # If a tag is given, we can join and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
@@ -759,7 +754,7 @@ class SQLDB(DBInterface):
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
-        if iter:
+        if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
 
         db_artifact = query.one_or_none()
@@ -788,7 +783,7 @@ class SQLDB(DBInterface):
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
-        if artifact_tag_uid:
+        if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, computed_tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)

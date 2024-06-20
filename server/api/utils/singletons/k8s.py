@@ -553,23 +553,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
-        full_name = f"{resource}-{name}"
+        if labels is None:
+            labels = {label_name: name}
+        else:
+            labels[label_name] = name
 
-        configmap_with_label = self.get_configmap(name, resource, namespace)
+        configmap_with_label = self.get_configmap(name, namespace)
         if configmap_with_label:
             name = configmap_with_label.metadata.name
             have_confmap = True
         else:
+            full_name = f"{resource}-{name}"
             name = (
                 full_name
                 if len(full_name) <= 63
                 else full_name[:59] + self._generate_rand_string(4)
             )
-
-        if labels is None:
-            labels = {label_name: full_name}
-        else:
-            labels[label_name] = full_name
 
         body = client.V1ConfigMap(
             kind="ConfigMap",
@@ -602,16 +601,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return name
 
     @raise_for_status_code
-    def get_configmap(self, name: str, resource: str, namespace: str = ""):
+    def get_configmap(self, name: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
-        full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
-            namespace=namespace, label_selector=f"{label_name}={full_name}"
+            namespace=namespace, label_selector=f"{label_name}={name}"
         )
         if len(configmaps_with_label.items) > 1:
             raise mlrun.errors.MLRunInternalServerError(
-                f"Received more than one config map for label: {full_name}"
+                f"Received more than one config map for label: {name}"
             )
 
         return configmaps_with_label.items[0] if configmaps_with_label.items else None
@@ -693,6 +691,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             labels[mlrun_constants.MLRunInternalLabels.username] = username
             labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
+
+    @staticmethod
+    def _generate_rand_string(length):
+        return "".join(
+            random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+        )
 
 
 class BasePod:
@@ -817,10 +821,6 @@ class BasePod:
 
     def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
-
-    @staticmethod
-    def _generate_rand_string(length):
-        return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod

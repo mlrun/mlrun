@@ -32,6 +32,7 @@ from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -989,7 +990,6 @@ def submit_run_sync(
                 mlrun.common.schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
-                schedule_labels,
             )
 
             project = task["metadata"]["project"]
@@ -1369,9 +1369,7 @@ async def _delete_nuclio_functions_in_batches(
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
 
-                config_map = k8s_helper.get_configmap(
-                    function, mlrun.common.constants.MLRUN_SERVING_CONF
-                )
+                config_map = k8s_helper.get_configmap(function)
                 if config_map:
                     k8s_helper.delete_configmap(config_map.metadata.name)
                 return None

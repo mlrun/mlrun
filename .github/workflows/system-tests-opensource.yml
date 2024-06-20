@@ -65,7 +65,7 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
       run: |

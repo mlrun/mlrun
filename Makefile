@@ -596,14 +596,17 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code using Ruff
+fmt: ## Format the code using Ruff and blacken-docs
 	@echo "Running ruff checks and fixes..."
 	python -m ruff check --fix-only
 	python -m ruff format
+	@echo "Formatting the code blocks with blacken-docs..."
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
 
-.PHONY: fmt-docs
-fmt-docs: ## Format the code blocks in markdown files
-	@echo "Formatting the docs"
+.PHONY: lint-docs
+lint-docs: ## Format the code blocks in markdown files
+# TODO: use the `--check` flag when blacken-docs 1.17 is released
+	@echo "Checking the code blocks with blacken-docs"
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
 
 .PHONY: lint-imports
@@ -612,7 +615,7 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports fmt-docs ## Run lint on the code
+lint: lint-check lint-imports lint-docs ## Run lint on the code
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

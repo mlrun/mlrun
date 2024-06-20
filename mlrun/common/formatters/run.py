@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,28 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-import typing
-
-import pydantic
-from deprecated import deprecated
 
 import mlrun.common.types
+from mlrun.common.formatters.base import ObjectFormat
 
 
-class RunIdentifier(pydantic.BaseModel):
-    kind: typing.Literal["run"] = "run"
-    uid: typing.Optional[str]
-    iter: typing.Optional[int]
-
-
-@deprecated(
-    version="1.7.0",
-    reason="mlrun.common.schemas.RunsFormat is deprecated and will be removed in 1.9.0. "
-    "Use mlrun.common.formatters.RunFormat instead.",
-    category=FutureWarning,
-)
-class RunsFormat(mlrun.common.types.StrEnum):
+class RunFormat(ObjectFormat, mlrun.common.types.StrEnum):
     # No enrichment, data is pulled as-is from the database.
     standard = "standard"
 

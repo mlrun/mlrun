@@ -118,7 +118,7 @@ def test_get_store_artifact_url_parsing():
             "project": "default",
             "key": "artifact_key",
             "tag": None,
-            "iter": None,
+            "iter": 0,
             "tree": None,
         },
         {
@@ -126,7 +126,7 @@ def test_get_store_artifact_url_parsing():
             "project": "project_name",
             "key": "artifact_key",
             "tag": None,
-            "iter": None,
+            "iter": 0,
             "tree": None,
         },
         {
@@ -134,7 +134,7 @@ def test_get_store_artifact_url_parsing():
             "project": "Project_Name",
             "key": "Artifact_Key",
             "tag": None,
-            "iter": None,
+            "iter": 0,
             "tree": "ABC",
         },
         {
@@ -142,7 +142,7 @@ def test_get_store_artifact_url_parsing():
             "project": "project_name",
             "key": "artifact_key",
             "tag": None,
-            "iter": None,
+            "iter": 0,
             "tree": "a5dc8e34a46240bb9a07cd9deb3609c7",
         },
         {
@@ -158,7 +158,7 @@ def test_get_store_artifact_url_parsing():
             "project": "project_name",
             "key": "artifact_key",
             "tag": "latest",
-            "iter": None,
+            "iter": 0,
             "tree": None,
         },
         {
@@ -182,7 +182,7 @@ def test_get_store_artifact_url_parsing():
             "project": "Project_Name",
             "key": "Artifact_Key",
             "tag": "ABC",
-            "iter": None,
+            "iter": 0,
             "tree": None,
         },
     ]

@@ -117,6 +117,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         object_uid: str = None,
+        raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = server.api.utils.singletons.db.get_db().read_artifact(
@@ -127,6 +128,7 @@ class Artifacts(
             project,
             producer_id,
             object_uid,
+            raise_on_not_found,
             format_=format_,
         )
         return artifact
@@ -168,6 +170,20 @@ class Artifacts(
             format_=format_,
         )
         return artifacts
+
+    def list_artifacts_for_producer_id(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ):
+        return server.api.utils.singletons.db.get_db().list_artifacts_for_producer_id(
+            db_session,
+            producer_id=producer_id,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
+        )
 
     def list_artifact_tags(
         self,

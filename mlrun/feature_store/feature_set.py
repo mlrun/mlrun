@@ -1409,7 +1409,7 @@ class SparkAggregateByKey(StepToDict):
             rowid_col = "__mlrun_rowid"
             if input_df.isStreaming:
                 uuid_udf = udf(lambda: str(uuid.uuid4()))
-                df = input_df.withColumn(rowid_col, uuid_udf)
+                df = input_df.withColumn(rowid_col, uuid_udf())
             else:
                 df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
 

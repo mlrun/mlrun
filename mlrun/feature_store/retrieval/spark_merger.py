@@ -109,7 +109,7 @@ class SparkFeatureMerger(BaseMerger):
 
         if entity_df.isStreaming:
             uuid_udf = udf(lambda: str(uuid.uuid4()))
-            entity_with_id = entity_df.withColumn("_row_nr", uuid_udf)
+            entity_with_id = entity_df.withColumn("_row_nr", uuid_udf())
         else:
             entity_with_id = entity_df.withColumn(
                 "_row_nr", monotonically_increasing_id()

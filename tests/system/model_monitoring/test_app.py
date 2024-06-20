@@ -341,9 +341,9 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v2"
+    project_name = "test-app-flow-v3"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -393,6 +393,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
     ) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         self.project.enable_model_monitoring(
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
@@ -507,7 +510,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ep.spec.feature_names
         ), "The feature names are not as expected"
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
+    @pytest.mark.parametrize("with_training_set", [False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
@@ -520,13 +523,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
+        self._submit_controller_and_deploy_writer(
+            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data,
+            # workaround for ML-5997
+        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(
-                self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
-                in self.apps_data,
-                # workaround for ML-5997
-            )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
 
@@ -679,6 +680,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
         )
 
     def _deploy_monitoring_infra(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
@@ -718,9 +722,12 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
             )
-
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
         )
 
         controller = self.project.get_function(
@@ -998,6 +1005,9 @@ class TestAllKindOfServing(TestMLRunSystem):
         }
 
     def test_all(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,

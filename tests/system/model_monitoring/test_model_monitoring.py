@@ -282,6 +282,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ).apply(mlrun_pipelines.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             **({} if self.image is None else {"image": self.image}),
@@ -845,6 +848,9 @@ class TestBatchDrift(TestMLRunSystem):
         )
 
         # Deploy model monitoring infra
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,
@@ -965,10 +971,11 @@ class TestModelMonitoringKafka(TestMLRunSystem):
             ),
         )
 
-        project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
+        project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path=f"kafka://{self.brokers}", tsdb_connection="v3io")
 
         # enable model monitoring
         serving_fn.set_tracking()
+
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             **({} if self.image is None else {"image": self.image}),
@@ -1183,6 +1190,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         }, "The result is different than expected"
 
     def test_record(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+        )
         self.project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,

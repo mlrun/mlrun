@@ -994,7 +994,8 @@ class MonitoringDeployment:
             ] = endpoint_store_connection
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "You must provide a valid endpoint store connection in here or in the system config"
+                "You must provide a valid endpoint store connection while using set_model_monitoring_credentials "
+                "API/SDK or in the system config"
             )
 
         # stream_path
@@ -1023,7 +1024,8 @@ class MonitoringDeployment:
             ] = stream_path
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "You must provide a valid stream path connection in here or in the system config"
+                "You must provide a valid stream path connection while using set_model_monitoring_credentials "
+                "API/SDK or in the system config"
             )
 
         if not tsdb_connection:
@@ -1044,7 +1046,8 @@ class MonitoringDeployment:
             ] = tsdb_connection
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "You must provide a valid tsdb connection in here or in the system config"
+                "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
+                "API/SDK or in the system config"
             )
 
         server.api.crud.Secrets().store_project_secrets(

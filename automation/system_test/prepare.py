@@ -350,6 +350,10 @@ class SystemTestPreparer:
             "MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL": "0 Seconds",
             # to allow batch_function to have parquet files sooner
             "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
+            # testing v3io store by default
+            "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION": "v3io",
+            "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION": "v3io",
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION": "v3io",
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"

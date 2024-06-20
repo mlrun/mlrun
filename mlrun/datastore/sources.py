@@ -73,10 +73,16 @@ def load_spark_dataframe_with_options(
 
         # Spark streaming expects either directory or file path with wildcard. Single file path is not supported
         # So we trick it making it by adding a wildcard to the end of the path: file.parquet -> file.parque[t]
-        last_char = non_hadoop_spark_options["path"][-1]
-        non_hadoop_spark_options["path"] = (
-            non_hadoop_spark_options["path"][:-1] + f"[{last_char}]"
-        )
+        if (
+            "path" in non_hadoop_spark_options
+            and len(non_hadoop_spark_options["path"]) > 0
+        ):
+            last_char = non_hadoop_spark_options["path"][-1]
+            # if path is not a directory and not a wildcard
+            if last_char not in "/\\*?]":
+                non_hadoop_spark_options["path"] = (
+                    non_hadoop_spark_options["path"][:-1] + f"[{last_char}]"
+                )
 
         df = reader.load(**non_hadoop_spark_options)
         schema = df.schema

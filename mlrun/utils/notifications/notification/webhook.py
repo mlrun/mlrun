@@ -65,6 +65,8 @@ class WebhookNotification(NotificationBase):
         if override_body:
             list_edit_runs = []
             for run in runs:
+                if isinstance(run, mlrun.model.RunObject):
+                    run = run.to_dict()
                 r = {
                     "project": run["metadata"]["project"],
                     "name": run["metadata"]["name"],

@@ -29,6 +29,7 @@ import mlrun.utils.notifications
 import server.api.api.utils
 import server.api.constants
 import server.api.crud
+from mlrun.utils.notifications.notification.webhook import WebhookNotification
 
 
 @pytest.mark.parametrize(
@@ -194,6 +195,170 @@ def test_condition_evaluation_timeout():
         mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
     )
     assert notification_pusher._should_notify(run, notification)
+
+
+# An example for a successful run inputs for webhook notifications
+run_example = {
+    "status": {
+        "notifications": {
+            "Test": {"status": "pending", "sent_time": None, "reason": None}
+        },
+        "results": {"return": 1},
+        "state": "completed",
+        "last_update": "2024-06-18T13:46:37.686443+00:00",
+        "start_time": "2024-06-18T13:46:37.392158+00:00",
+    },
+    "metadata": {
+        "uid": "b176e54e4ed24b28883aa69dce981601",
+        "project": "test-remote-workflow",
+        "name": "func-func",
+        "labels": {
+            "v3io_user": "admin",
+            "kind": "job",
+            "owner": "admin",
+            "mlrun/client_version": "1.7.0-rc21",
+            "mlrun/client_python_version": "3.9.18",
+            "host": "func-func-8lvl8",
+        },
+        "iteration": 0,
+    },
+    "spec": {
+        "function": "test-remote-workflow/func@8e0ddc3926470d5b97733679bb96738fa6dfd01b",
+        "parameters": {"x": 1},
+        "state_thresholds": {
+            "pending_scheduled": "1h",
+            "pending_not_scheduled": "-1",
+            "image_pull_backoff": "1h",
+            "executing": "24h",
+        },
+        "output_path": "v3io:///projects/test-remote-workflow/artifacts",
+        "notifications": [
+            {
+                "when": ["error", "completed"],
+                "name": "Test",
+                "params": {
+                    "url": "https://webhook.site/5da7ac4d-39dc-4896-b18f-e13c5712a96a",
+                    "method": "POST",
+                },
+                "message": "",
+                "status": "pending",
+                "condition": "",
+                "kind": "webhook",
+                "severity": "info",
+            }
+        ],
+        "handler": "func",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "override_body,runs",
+    [
+        ({"message": "runs: {{runs}}"}, run_example),
+        ({"message": "runs: {{ runs }}"}, run_example),
+        ({"message": "runs: {{runs}}"}, mlrun.model.RunObject.from_dict(run_example)),
+        (
+            {"message": "runs: {{ runs }}"},
+            mlrun.model.RunObject.from_dict(run_example),
+        ),
+    ],
+)
+async def test_webhook_overide_body_job_succeed(monkeypatch, override_body, runs):
+    requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
+
+    await WebhookNotification(
+        params={"override_body": override_body, "url": "http://test.com"}
+    ).push("test-message", "info", [runs])
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-8lvl8', "
+        "'status': {'state': 'completed', 'results': {'return': 1}}}]"
+    }
+    requests_mock.assert_called_once_with(
+        "http://test.com", headers={}, json=expected_body, ssl=None
+    )
+
+
+# An example for a failed runs inputs for webhook notifications
+run_example = {
+    "status": {
+        "error": 'can only concatenate str (not "int") to str',
+        "last_update": "2024-06-18T11:40:54.342987+00:00",
+        "start_time": "2024-06-18T11:40:54.021111+00:00",
+        "state": "error",
+        "notifications": {
+            "Notification": {"status": "pending", "sent_time": None, "reason": None}
+        },
+    },
+    "spec": {
+        "parameters": {"x": "s"},
+        "notifications": [
+            {
+                "when": ["error", "completed"],
+                "name": "Notification",
+                "params": {
+                    "url": "https://webhook.site/5da7ac4d-39dc-4896-b18f-e13c5712a96a",
+                    "method": "POST",
+                },
+                "severity": "info",
+                "message": "",
+                "condition": "",
+                "status": "pending",
+                "kind": "webhook",
+            }
+        ],
+        "state_thresholds": {
+            "pending_scheduled": "1h",
+            "pending_not_scheduled": "-1",
+            "image_pull_backoff": "1h",
+            "executing": "24h",
+        },
+        "output_path": "v3io:///projects/test-remote-workflow/artifacts",
+        "function": "test-remote-workflow/func@732e43e703c9dfdeba0feef4dd80968f9b16bcd3",
+        "handler": "func",
+    },
+    "metadata": {
+        "labels": {
+            "v3io_user": "admin",
+            "kind": "job",
+            "owner": "admin",
+            "mlrun/client_version": "1.7.0-rc21",
+            "mlrun/client_python_version": "3.9.18",
+            "host": "func-func-7x4xs",
+        },
+        "uid": "027c6b5a73d648f09735cc4977ff539f",
+        "iteration": 0,
+        "name": "func-func",
+        "project": "test-remote-workflow",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "override_body,runs",
+    [
+        ({"message": "runs: {{runs}}"}, run_example),
+        ({"message": "runs: {{ runs }}"}, run_example),
+        ({"message": "runs: {{runs}}"}, mlrun.model.RunObject.from_dict(run_example)),
+        (
+            {"message": "runs: {{ runs }}"},
+            mlrun.model.RunObject.from_dict(run_example),
+        ),
+    ],
+)
+async def test_webhook_overide_body_job_failed(monkeypatch, override_body, runs):
+    requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
+
+    await WebhookNotification(
+        params={"override_body": override_body, "url": "http://test.com"}
+    ).push("test-message", "info", [runs])
+    expected_body = {
+        "message": "runs: [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-7x4xs', "
+        "'status': {'state': 'error', 'error': 'can only concatenate str (not \"int\") to str'}}]"
+    }
+    requests_mock.assert_called_once_with(
+        "http://test.com", headers={}, json=expected_body, ssl=None
+    )
 
 
 @pytest.mark.parametrize(

@@ -56,7 +56,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid: str,
+        project: str = "",
+        iter: int = 0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     @abstractmethod

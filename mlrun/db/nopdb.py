@@ -73,7 +73,13 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     def list_runs(
@@ -115,7 +121,16 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         pass
 
     def list_artifacts(
@@ -131,6 +146,7 @@ class NopDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 

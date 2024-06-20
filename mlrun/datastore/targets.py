@@ -696,6 +696,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
+        target.attributes = self.attributes
         target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
@@ -727,8 +728,18 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
+        """
+        Delete the files of the target.
+
+        Do not use this function directly from the sdk. Use FeatureSet.purge_targets.
+        """
         store, path_in_store, target_path = self._get_store_and_path()
-        store.rm(target_path, recursive=True)
+        if path_in_store not in ["", "/"]:
+            store.rm(path_in_store, recursive=True)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to delete target. Please Use purge_targets from FeatureSet object."
+            )
 
     def as_df(
         self,

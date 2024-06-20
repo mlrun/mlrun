@@ -890,8 +890,8 @@ class MonitoringDeployment:
         """
         # for each cred from : [store, tsdb, stream]
         # 1. Check in project secrets.
-        # 2. Check if stream is on or if there is already part of the secrets sre set or there is MEP in the system.
-        #    a. if stream is on, set the cred in to the project secret (v3io by default/ from sys config).
+        # 2. Check if stream is on or if there is already part of the secrets set.
+        #    a. if True, set the cred in to the project secret (from exist cred/ from sys config / v3io by default).
 
         credentials_dict = {
             key: server.api.crud.Secrets().get_project_secret(
@@ -928,8 +928,6 @@ class MonitoringDeployment:
                     [val is not None for val in credentials_dict.values()]
                 ):  # check if one of the cred is already set
                     need_to_set = True
-                # check MEP in v3io-nosql and None in credentials_dict.values()
-                #    need_to_set = True
             finally:
                 if need_to_set and None in credentials_dict.values():
                     self.set_credentials(

@@ -67,7 +67,7 @@ class WebhookNotification(NotificationBase):
             for run in runs:
                 if isinstance(run, mlrun.model.RunObject):
                     run = run.to_dict()
-                if isinstance(run,dict):
+                if isinstance(run, dict):
                     r = {
                         "project": run["metadata"]["project"],
                         "name": run["metadata"]["name"],

@@ -990,6 +990,7 @@ def submit_run_sync(
                 mlrun.common.schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
+                schedule_labels,
             )
 
             project = task["metadata"]["project"]

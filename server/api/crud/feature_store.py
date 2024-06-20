@@ -15,7 +15,6 @@
 import typing
 
 import sqlalchemy.orm
-from deprecated import deprecated
 
 import mlrun.common.schemas
 import mlrun.config
@@ -166,11 +165,6 @@ class FeatureStore(
         )
 
     # TODO: remove in 1.9.0
-    @deprecated(
-        version="1.9.0",
-        reason="'list_features' will be removed in 1.9.0, use 'list_entities_v2' instead",
-        category=FutureWarning,
-    )
     def list_features(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -210,11 +204,6 @@ class FeatureStore(
         )
 
     # TODO: remove in 1.9.0
-    @deprecated(
-        version="1.9.0",
-        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
-        category=FutureWarning,
-    )
     def list_entities(
         self,
         db_session: sqlalchemy.orm.Session,

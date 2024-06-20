@@ -66,10 +66,12 @@ async def list_entities(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+        project_name=project,
+        resource_name="",
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
     )
     entities = await run_in_threadpool(
         server.api.crud.FeatureStore().list_entities_v2,
@@ -79,7 +81,6 @@ async def list_entities(
         tag,
         labels,
     )
-    # TODO: Consider checking permissions at the feature set level and filtering accordingly in the future
     return entities
 
 
@@ -93,10 +94,12 @@ async def list_features(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+        project_name=project,
+        resource_name="",
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
     )
     features = await run_in_threadpool(
         server.api.crud.FeatureStore().list_features_v2,
@@ -107,5 +110,4 @@ async def list_features(
         entities,
         labels,
     )
-    # TODO: Consider checking permissions at the feature set level and filtering accordingly in the future
     return features

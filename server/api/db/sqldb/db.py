@@ -3342,7 +3342,10 @@ class SQLDB(DBInterface):
 
                 qualified_entities.append(qualified_entity)
 
-        return mlrun.common.schemas.EntitiesOutputV2(entities=qualified_entities)
+        return mlrun.common.schemas.EntitiesOutputV2(
+            entities=qualified_entities,
+            feature_set_digests=feature_set_digests_v2,
+        )
 
     @staticmethod
     def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):

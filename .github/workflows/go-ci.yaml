@@ -47,7 +47,7 @@ jobs:
         env:
           RUNNER_CONTEXT: ${{ toJson(runner) }}
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "server/log-collector/go.mod"
           cache-dependency-path: "server/log-collector/go.sum"

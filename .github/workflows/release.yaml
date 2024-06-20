@@ -202,7 +202,7 @@ jobs:
     needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - name: Create feature branch tag
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.git.createRef({

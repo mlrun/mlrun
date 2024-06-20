@@ -674,6 +674,8 @@ def parse_artifact_uri(uri, default_project=""):
             raise ValueError(
                 f"illegal store path '{uri}', iteration must be integer value"
             )
+    else:
+        iteration = 0
     return (
         group_dict["project"] or default_project,
         group_dict["key"],

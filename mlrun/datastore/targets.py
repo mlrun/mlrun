@@ -696,6 +696,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
+        target.attributes = self.attributes
         target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()

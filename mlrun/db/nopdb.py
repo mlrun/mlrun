@@ -73,7 +73,13 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     def list_runs(

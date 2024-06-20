@@ -153,13 +153,13 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-        pipeline-adapter: ${{ matrix.pipeline-adapter }}
         cache: 'pip'
     - name: Change default pipeline adapter for MLRun
       if: matrix.default-pipeline-adapter != matrix.pipeline-adapter
       run: sed -i -e 's/${{ matrix.default-pipeline-adapter }}/${{ matrix.pipeline-adapter }}/g' requirements.txt
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
+
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
 

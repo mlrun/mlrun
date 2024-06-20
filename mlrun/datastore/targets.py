@@ -1244,7 +1244,9 @@ class SnowflakeTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = get_snowflake_spark_options(self.attributes)
-        spark_options["dbtable"] = self.attributes.get("essentials_attributes", {}).get("table")
+        spark_options["dbtable"] = self.attributes.get("essentials_attributes", {}).get(
+            "table"
+        )
         return spark_options
 
     def purge(self):

@@ -814,7 +814,9 @@ class SnowflakeSource(BaseSourceDriver):
         spark_options = get_snowflake_spark_options(self.attributes)
         if query := self.attributes.get("essentials_attributes", {}).get("query"):
             spark_options["query"] = query
-        elif table_name := self.attributes.get("essentials_attributes", {}).get("table"):
+        elif table_name := self.attributes.get("essentials_attributes", {}).get(
+            "table"
+        ):
             spark_options["query"] = f"SELECT * FROM {table_name}"
         else:
             mlrun.errors.MLRunInvalidArgumentError(

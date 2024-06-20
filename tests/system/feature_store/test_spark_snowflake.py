@@ -110,7 +110,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         data_values = [
             (
-                i + 1,
+                (i + 1) * 10,
                 f"Name{i + 1}",
                 random.randint(23, 60),
                 datetime.utcnow().replace(tzinfo=utc_timezone)
@@ -139,7 +139,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         result_table = f"result_{self.current_time}"
         feature_set = fstore.FeatureSet(
             name="snowflake_feature_set",
-            entities=[fstore.Entity("C_CUSTKEY")],
+            entities=[fstore.Entity("ID")],
             engine="spark",
         )
         source = SnowflakeSource(
@@ -170,8 +170,17 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
-        vector = fstore.FeatureVector("feature_vector_snowflake", ["snowflake_feature_set.*"])
-        vector.get_offline_features(engine="spark")
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
+        )
+        result = vector.get_offline_features(
+            engine="spark", with_indexes=True
+        ).to_dataframe()
+        result = result.reset_index(drop=False)
+        pd.testing.assert_frame_equal(
+            expected_df, result.sort_values(by="ID"), check_dtype=False
+        )
+
     def test_source(self):
         from pyspark.sql import SparkSession
 

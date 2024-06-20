@@ -79,15 +79,7 @@ async def list_entities(
         tag,
         labels,
     )
-    entities = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.entity,
-        entities.entities,
-        lambda entity_list_output: (
-            entity_list_output.feature_set_digest.metadata.project,
-            entity_list_output.entity.name,
-        ),
-        auth_info,
-    )
+    # TODO: Consider checking permissions at the feature set level and filtering accordingly in the future
     return entities
 
 
@@ -115,13 +107,5 @@ async def list_features(
         entities,
         labels,
     )
-    features = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.feature,
-        features.features,
-        lambda feature_list_output: (
-            feature_list_output.feature_set_digest.metadata.project,
-            feature_list_output.feature.name,
-        ),
-        auth_info,
-    )
+    # TODO: Consider checking permissions at the feature set level and filtering accordingly in the future
     return features

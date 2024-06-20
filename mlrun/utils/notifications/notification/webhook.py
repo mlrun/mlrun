@@ -67,17 +67,19 @@ class WebhookNotification(NotificationBase):
             for run in runs:
                 if isinstance(run, mlrun.model.RunObject):
                     run = run.to_dict()
-                r = {
-                    "project": run["metadata"]["project"],
-                    "name": run["metadata"]["name"],
-                    "host": run["metadata"]["labels"]["host"],
-                    "status": {"state": run["status"]["state"]},
-                }
-                if run["status"].get("error", None):
-                    r["status"]["error"] = run["status"]["error"]
-                elif run["status"].get("results", None):
-                    r["status"]["results"] = run["status"]["results"]
-                list_edit_runs.append(r)
+                if isinstance(run,dict):
+                    r = {
+                        "project": run["metadata"]["project"],
+                        "name": run["metadata"]["name"],
+                        "host": run["metadata"]["labels"]["host"],
+                        "status": {"state": run["status"]["state"]},
+                    }
+                    if run["status"].get("error", None):
+                        r["status"]["error"] = run["status"]["error"]
+                    elif run["status"].get("results", None):
+                        r["status"]["results"] = run["status"]["results"]
+                    run = r
+                list_edit_runs.append(run)
             if isinstance(override_body, dict):
                 for key, value in override_body.items():
                     if "{{ runs }}" in value:

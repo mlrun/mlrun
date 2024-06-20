@@ -46,8 +46,6 @@ from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
-    QualifiedEntity,
-    QualifiedFeature,
 )
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -3199,6 +3197,20 @@ class SQLDB(DBInterface):
             )
         return feature_set_index
 
+    @staticmethod
+    def _build_feature_mapping_from_feature_set(feature_set):
+        result = {}
+        for feature in feature_set.spec.features:
+            result[feature.name] = feature
+        return result
+
+    @staticmethod
+    def _build_entity_mapping_from_feature_set(feature_set):
+        result = {}
+        for entity in feature_set.spec.entities:
+            result[entity.name] = entity
+        return result
+
     def list_features_v2(
         self,
         session,
@@ -3220,12 +3232,15 @@ class SQLDB(DBInterface):
         if entities:
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
-        qualified_features: list[QualifiedFeature] = []
+        features_with_feature_set_index: list[Feature] = []
         feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
         feature_set_digest_id_to_index: dict[int, int] = {}
 
         transform_feature_set_model_to_schema = MemoizationCache(
             self._transform_feature_set_model_to_schema
+        ).memoize
+        build_feature_mapping_from_feature_set = MemoizationCache(
+            self._build_feature_mapping_from_feature_set
         ).memoize
 
         for row in query:
@@ -3242,14 +3257,10 @@ class SQLDB(DBInterface):
             for feature_set in feature_sets:
                 # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
                 # in the DB)
-                feature = next(
-                    (
-                        feature
-                        for feature in feature_set.spec.features
-                        if feature.name == feature_name
-                    ),
-                    None,
+                feature_name_to_feature = build_feature_mapping_from_feature_set(
+                    feature_set
                 )
+                feature = feature_name_to_feature.get(feature_name)
                 if not feature:
                     raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - features in DB not in feature-set document"
@@ -3258,17 +3269,12 @@ class SQLDB(DBInterface):
                 feature_set_index = self._dedup_and_append_feature_set(
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
-
-                qualified_feature = QualifiedFeature(
-                    name=feature.name,
-                    value_type=feature.value_type,
-                    feature_set_index=feature_set_index,
-                    labels=feature.labels,
+                features_with_feature_set_index.append(
+                    feature.copy(update=dict(feature_set_index=feature_set_index))
                 )
-                qualified_features.append(qualified_feature)
 
         return mlrun.common.schemas.FeaturesOutputV2(
-            features=qualified_features,
+            features=features_with_feature_set_index,
             feature_set_digests=feature_set_digests_v2,
         )
 
@@ -3350,12 +3356,15 @@ class SQLDB(DBInterface):
             session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
         )
 
-        qualified_entities: list[QualifiedEntity] = []
+        entities_with_feature_set_index: list[Entity] = []
         feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
         feature_set_digest_id_to_index: dict[int, int] = {}
 
         transform_feature_set_model_to_schema = MemoizationCache(
             self._transform_feature_set_model_to_schema
+        ).memoize
+        build_entity_mapping_from_feature_set = MemoizationCache(
+            self._build_entity_mapping_from_feature_set
         ).memoize
 
         for row in query:
@@ -3372,14 +3381,10 @@ class SQLDB(DBInterface):
             for feature_set in feature_sets:
                 # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
                 # in the DB)
-                entity = next(
-                    (
-                        entity
-                        for entity in feature_set.spec.entities
-                        if entity.name == entity_name
-                    ),
-                    None,
+                entity_name_to_feature = build_entity_mapping_from_feature_set(
+                    feature_set
                 )
+                entity = entity_name_to_feature.get(entity_name)
                 if not entity:
                     raise mlrun.errors.MLRunInternalServerError(
                         "Inconsistent data in DB - entities in DB not in feature-set document"
@@ -3388,18 +3393,12 @@ class SQLDB(DBInterface):
                 feature_set_index = self._dedup_and_append_feature_set(
                     feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
                 )
-
-                qualified_entity = QualifiedEntity(
-                    name=entity.name,
-                    value_type=entity.value_type,
-                    feature_set_index=feature_set_index,
-                    labels=entity.labels,
+                entities_with_feature_set_index.append(
+                    entity.copy(update=dict(feature_set_index=feature_set_index))
                 )
 
-                qualified_entities.append(qualified_entity)
-
         return mlrun.common.schemas.EntitiesOutputV2(
-            entities=qualified_entities,
+            entities=entities_with_feature_set_index,
             feature_set_digests=feature_set_digests_v2,
         )
 

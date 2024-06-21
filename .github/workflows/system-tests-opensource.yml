@@ -136,7 +136,7 @@ jobs:
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - uses: azure/setup-helm@v3
+    - uses: azure/setup-helm@v4
       with:
         version: "v3.9.1"
 

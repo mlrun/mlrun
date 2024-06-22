@@ -12,17 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include Dockerfile*
 include Makefile
 include README.md
 include mlrun/utils/version/version.json
-include server/api/alembic.ini
+include mlrun/runtimes/nuclio/application/*.go
 include *requirements.txt
-recursive-include examples *
-recursive-include hack *
-recursive-include mlrun/db/sql *.sql
-recursive-include tests *
-
-recursive-exclude tests/test_results *
-recursive-exclude examples/.ipynb_checkpoints *
-recursive-exclude * *.pyc

@@ -1,9 +1,6 @@
 [project]
 name = "mlrun"
 dynamic = ["version"]
-authors = [
-    {name = "Yaron Haviv", email = "yaronh@iguazio.com"},
-]
 description = "Tracking and config of machine learning runs"
 readme = "README.md"
 license = {text = "Apache License 2.0"}
@@ -123,10 +120,6 @@ azure-key-vault= [
     "azure-keyvault-secrets~=4.2",
     "pyopenssl>=23",
 ]
-bokeh= [
-    # >=2.4.2 to force having a security fix done in 2.4.2
-    "bokeh~=2.4, >=2.4.2",
-]
 # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly= ["plotly~=5.4, <5.12.0"]
@@ -155,12 +148,50 @@ dask= [
 ]
 alibaba-oss= ["ossfs==2023.12.0", "oss2==2.18.1"]
 tdengine = ["taos-ws-py~=0.3.2"]
+api = [
+    "uvicorn~=0.27.1",
+    "dask-kubernetes~=0.11.0",
+    # no support for 4 yet
+    # 3.10.2 is bugged for python 3.9
+    "apscheduler>=3.10.3,<4",
+    "objgraph~=3.6",
+    "igz-mgmt~=0.2.0",
+    "humanfriendly~=10.0",
+    "fastapi~=0.110.0",
+    # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
+    "sqlalchemy~=1.4",
+    "pymysql~=1.0",
+    "alembic~=1.9",
+    "timelength~=1.1",
+    "memray~=1.12",
+]
+complete = [
+    # google-cloud is excluded, see above for reasoning
+    """mlrun[
+    dev,
+    s3,
+    azure-blob-storage,
+    azure-key-vault,
+    plotly,
+    graphviz,
+    google-loud-storage,
+    google-loud-bigquery,
+    kafka,
+    redis,
+    mlflow,databrick-sdk,
+    sqlalchemy,
+    dask,
+    alibaba-oss,
+    tdengine,
+    api
+    ]"""
+]
+complete-api = ["mlrun[api, complete]"]
+all = ["mlrun[complete, google-cloud]"]
 
 [project.urls]
-Homepage = "https://mlrun.org/"
+Homepage = "https://github.com/mlrun/mlrun"
 Documentation = "https://docs.mlrun.org/en/stable/"
-Repository = "https://github.com/mlrun/mlrun"
-Issues = "https://github.com/mlrun/mlrun/issues"
 Changelog = "https://docs.mlrun.org/en/stable/change-log/index.html"
 
 [project.entry-points."console_scripts"]
@@ -174,15 +205,13 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "pyversion.__version__"}
+version = {attr = "pyversion.__pypi_version__"}
 
 [tool.setuptools.packages.find]
 namespaces = true
 where = ["."]
-#include = ["runtimes/nuclio/application/*.go"]
+include = ["mlrun*"]
 
-#[tool.setuptools.package-data]
-#mlrun = ["runtimes/nuclio/application/*.go"]
 
 [tool.ruff]
 extend-include = ["*.ipynb"]

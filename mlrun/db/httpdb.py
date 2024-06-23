@@ -725,16 +725,26 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         """Read the details of a stored run from the DB.
 
-        :param uid: The run's unique ID.
-        :param project: Project name.
-        :param iter: Iteration within a specific execution.
+        :param uid:         The run's unique ID.
+        :param project:     Project name.
+        :param iter:        Iteration within a specific execution.
+        :param format_:     The format in which to return the run details.
         """
 
         path = self._path_of("runs", project, uid)
-        params = {"iter": iter}
+        params = {
+            "iter": iter,
+            "format": format_.value,
+        }
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["data"]
@@ -1002,7 +1012,7 @@ class HTTPRunDB(RunDBInterface):
             "tree": tree,
             "uid": uid,
         }
-        if iter:
+        if iter is not None:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         return resp.json()

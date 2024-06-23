@@ -701,6 +701,8 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
 
+            # TODO: filtering by producer uri may be a heavy operation when there are many artifacts in a workflow.
+            #  We should filter the artifacts before loading them into memory with query.all()
             # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
             # When the artifact was produced by a workflow, the producer id is a workflow id.
             if producer_uri:
@@ -725,6 +727,29 @@ class SQLDB(DBInterface):
 
         return artifacts
 
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str = None,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ) -> ArtifactList:
+        project = project or mlrun.mlconf.default_project
+        artifact_records = self._find_artifacts_for_producer_id(
+            session,
+            producer_id=producer_id,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
+        )
+
+        artifacts = ArtifactList()
+        for artifact, artifact_tag in artifact_records:
+            artifact_struct = artifact.full_object
+            self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            artifacts.append(artifact_struct)
+
+        return artifacts
+
     def read_artifact(
         self,
         session,
@@ -740,18 +765,13 @@ class SQLDB(DBInterface):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
         computed_tag = tag or "latest"
-        artifact_tag_uid = None
-        if tag and not uid:
-            artifact_tag_uid = self._resolve_class_tag_uid(
-                session, ArtifactV2, project, key, computed_tag
-            )
-            if not artifact_tag_uid:
-                artifact_uri = generate_artifact_uri(project, key, tag, iter)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Artifact {artifact_uri} not found"
-                )
-            uid = artifact_tag_uid
+        enrich_tag = False
 
+        if tag and not uid:
+            enrich_tag = True
+            # If a tag is given, we can join and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
@@ -759,7 +779,7 @@ class SQLDB(DBInterface):
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
-        if iter:
+        if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
 
         db_artifact = query.one_or_none()
@@ -788,7 +808,7 @@ class SQLDB(DBInterface):
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
-        if artifact_tag_uid:
+        if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, computed_tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
@@ -1340,6 +1360,42 @@ class SQLDB(DBInterface):
             return list({artifact for artifact, _ in artifacts_and_tags})
 
         return artifacts_and_tags
+
+    def _find_artifacts_for_producer_id(
+        self,
+        session: Session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ) -> list[tuple[ArtifactV2, str]]:
+        """
+        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
+        :param session:                 DB session
+        :param producer_id:             The artifact producer ID to filter by
+        :param project:                 Project name to filter by
+        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :return: A list of tuples of (ArtifactV2, tag_name)
+        """
+        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        if project:
+            query = query.filter(ArtifactV2.project == project)
+        if producer_id:
+            query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+
+        tuples_filter = []
+        for key, tag, iteration in key_tag_iteration_pairs:
+            iteration = iteration or 0
+            tag = tag or "latest"
+            tuples_filter.append(
+                (ArtifactV2.key == key)
+                & (ArtifactV2.Tag.name == tag)
+                & (ArtifactV2.iteration == iteration)
+            )
+
+        query = query.filter(or_(*tuples_filter))
+        return query.all()
 
     def _add_artifact_name_query(self, query, name=None):
         if not name:

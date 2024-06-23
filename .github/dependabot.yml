@@ -11,10 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-from .artifact import ArtifactFormat  # noqa
-from .function import FunctionFormat  # noqa
-from .pipeline import PipelineFormat  # noqa
-from .project import ProjectFormat  # noqa
-from .run import RunFormat  # noqa
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "[Dependabot-automated] "
+    open-pull-requests-limit: 6

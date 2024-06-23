@@ -113,13 +113,13 @@ async def list_features(
     db_session: Session = Depends(deps.get_db_session),
 ):
     features = await server.api.api.endpoints.feature_store.list_features(
-        project,
-        name,
-        tag,
-        labels,
-        entities,
-        auth_info,
-        db_session,
+        project=project,
+        name=name,
+        tag=tag,
+        entities=entities,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
     )
 
     features_v2: list[QualifiedFeature] = []

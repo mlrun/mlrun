@@ -551,7 +551,14 @@ class SQLDB(DBInterface):
                 )
                 self._upsert(session, [db_artifact])
                 if tag:
-                    self.tag_artifacts(session, tag, [db_artifact], project)
+                    self.tag_artifacts(
+                        session,
+                        tag,
+                        [db_artifact],
+                        project,
+                        iteration=iter,
+                        producer_id=producer_id,
+                    )
                 return uid
             logger.debug(
                 "A similar artifact exists, but some values have changed - creating a new artifact",
@@ -619,11 +626,20 @@ class SQLDB(DBInterface):
                 tag,
                 [db_artifact],
                 project,
+                iteration=iteration,
+                producer_id=producer_id,
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
         if tag != "latest":
-            self.tag_artifacts(session, "latest", [db_artifact], project)
+            self.tag_artifacts(
+                session,
+                "latest",
+                [db_artifact],
+                project,
+                iteration=iteration,
+                producer_id=producer_id,
+            )
 
         return uid
 
@@ -950,6 +966,8 @@ class SQLDB(DBInterface):
         tag_name: str,
         artifacts,
         project: str,
+        iteration: bool = None,
+        producer_id: str = "",
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
         logger.debug(
@@ -961,13 +979,25 @@ class SQLDB(DBInterface):
 
         # to avoid multiple runs trying to tag the same artifacts simultaneously,
         # lock the artifacts with the same keys for the entire transaction (using with_for_update).
-        self._query(
-            session,
-            ArtifactV2,
-            project=project,
-        ).with_entities(ArtifactV2.id).filter(
-            ArtifactV2.key.in_(artifacts_keys),
-        ).order_by(ArtifactV2.id.asc()).populate_existing().with_for_update().all()
+        lock_query = (
+            self._query(
+                session,
+                ArtifactV2,
+                project=project,
+            )
+            .with_entities(ArtifactV2.id)
+            .filter(
+                ArtifactV2.key.in_(artifacts_keys),
+            )
+        )
+        if iteration is not None:
+            lock_query = lock_query.filter(ArtifactV2.iteration == iteration)
+        if producer_id:
+            lock_query = lock_query.filter(ArtifactV2.producer_id == producer_id)
+
+        lock_query.order_by(
+            ArtifactV2.id.asc()
+        ).populate_existing().with_for_update().all()
 
         logger.debug(
             "Acquired artifacts db lock",

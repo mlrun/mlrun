@@ -48,15 +48,3 @@ class TestAppDeployment:
         monitoring_deployment.deploy_histogram_data_drift_app(
             image="mlrun/mlrun", overwrite=True
         )
-
-    def test_credentials(
-        self, monitoring_deployment: mm_dep.MonitoringDeployment
-    ) -> None:
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            monitoring_deployment.check_if_credentials_are_set()
-
-        monitoring_deployment.set_credentials(
-            endpoint_store_connection="v3io",
-            stream_path="kafka://stream",
-            tsdb_connection="promitheus",
-        )

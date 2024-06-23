@@ -1277,7 +1277,9 @@ def test_function_does_not_receives_project_default_function_node_selector():
     proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
     # Check that function is not affected by project
-    assert enriched_function.spec.node_selector == non_enriched_function.spec.node_selector
+    assert (
+        enriched_function.spec.node_selector == non_enriched_function.spec.node_selector
+    )
 
     # Same check - with a function object
     func1 = mlrun.code_to_function(

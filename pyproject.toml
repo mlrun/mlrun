@@ -2,6 +2,9 @@
 name = "mlrun"
 dynamic = ["version"]
 description = "Tracking and config of machine learning runs"
+authors = [
+    {name = "Yaron Haviv", email = "yaronh@iguazio.com"},
+]
 readme = "README.md"
 license = {text = "Apache License 2.0"}
 keywords=[
@@ -167,24 +170,7 @@ api = [
 ]
 complete = [
     # google-cloud is excluded, see above for reasoning
-    """mlrun[
-    dev,
-    s3,
-    azure-blob-storage,
-    azure-key-vault,
-    plotly,
-    graphviz,
-    google-loud-storage,
-    google-loud-bigquery,
-    kafka,
-    redis,
-    mlflow,databrick-sdk,
-    sqlalchemy,
-    dask,
-    alibaba-oss,
-    tdengine,
-    api
-    ]"""
+    "mlrun[dev,s3,azure-blob-storage,azure-key-vault,plotly,graphviz,google-loud-storage,google-loud-bigquery,kafka,redis,mlflow,databrick-sdk,sqlalchemy,dask,alibaba-oss,tdengine,api]"
 ]
 complete-api = ["mlrun[api, complete]"]
 all = ["mlrun[complete, google-cloud]"]

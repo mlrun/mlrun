@@ -42,6 +42,7 @@ project.log_model(
     model_file="./assets/model.pkl",
     training_set=train_set,
     framework="sklearn",
+)
 ```
 
 ## Import, enable monitoring, and deploy the serving function

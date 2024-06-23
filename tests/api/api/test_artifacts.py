@@ -404,7 +404,7 @@ def test_list_artifacts_with_producer_uri(
 
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", src_path="some-path")
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
@@ -429,7 +429,16 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy"
     resp = client.get(artifact_path)
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # test request minimal format
+    artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=minimal"
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    assert all(
+        ["src_path" not in artifact["spec"] for artifact in resp.json()["artifacts"]]
+    )
 
     # explicitly request full format
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=full"
@@ -464,7 +473,14 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy"
     resp = client.get(artifact_path)
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # test minimal format
+    artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=minimal"
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    assert "src_path" not in resp.json()["data"]["spec"]
 
     # explicitly request full format
     artifact_path = (

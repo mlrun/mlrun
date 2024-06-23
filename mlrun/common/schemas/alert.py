@@ -104,7 +104,7 @@ class AlertCriteria(pydantic.BaseModel):
         pydantic.Field(
             description="Number of events to wait until notification is sent"
         ),
-    ] = 0
+    ] = 1
     period: Annotated[
         str,
         pydantic.Field(

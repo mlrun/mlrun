@@ -971,7 +971,11 @@ class TestModelMonitoringKafka(TestMLRunSystem):
             ),
         )
 
-        project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path=f"kafka://{self.brokers}", tsdb_connection="v3io")
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection="v3io",
+            stream_path=f"kafka://{self.brokers}",
+            tsdb_connection="v3io",
+        )
 
         # enable model monitoring
         serving_fn.set_tracking()

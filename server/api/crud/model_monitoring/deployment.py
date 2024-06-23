@@ -884,7 +884,7 @@ class MonitoringDeployment:
 
     def check_if_credentials_are_set(self, only_project_secrets: bool = False):
         """
-
+        Check if the model monitoring credentials are set. If not, raise an error.
         :param only_project_secrets:  set to true only when setting new credentials.
         :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
         """
@@ -955,8 +955,36 @@ class MonitoringDeployment:
         endpoint_store_connection: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
-        default_secrets: str = "",  # used only for upgrade case
+        default_secrets: typing.Optional[str] = "",  # used only for upgrade case
     ):
+        """
+        Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
+
+        :param access_key:                Model Monitoring access key for managing user permissions.
+        :param endpoint_store_connection: Endpoint store connection string. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io endpoint store,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. MySQL/SQLite - for SQL endpoint store, please provide full
+                                             connection string, for example
+                                             mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+        :param stream_path:               Path to the model monitoring stream. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. Kafka - for Kafka stream, please provide full connection string without
+                                             costume topic, for example kafka://<some_kafka_broker>:<port>.
+        :param tsdb_connection:           Connection string to the time series database. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
+                                             for example taosws://<username>:<password>@<host>:<port>.
+        :param default_secrets:           Optional, used only for upgrade case. By default, "".
+        """
         try:
             self.check_if_credentials_are_set(only_project_secrets=True)
             raise mlrun.errors.MLRunConflictError(

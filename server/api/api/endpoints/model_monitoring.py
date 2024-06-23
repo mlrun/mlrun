@@ -301,7 +301,7 @@ def set_model_monitoring_credentials(
     Set the credentials that will be used by the project's model monitoring
     infrastructure functions. Important to note that you have to set the credentials before deploying any
     model monitoring or serving function.
-    :param commons:
+    :param commons:                   The common parameters of the request.
     :param access_key:                Model Monitoring access key for managing user permissions.
     :param endpoint_store_connection: Endpoint store connection string. By default, None.
                                       Options:

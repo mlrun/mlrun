@@ -1064,7 +1064,7 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def enable_model_monitoring(
         self,
@@ -1075,7 +1075,7 @@ class SQLRunDB(RunDBInterface):
         rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
     ) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def disable_model_monitoring(
         self,
@@ -1086,24 +1086,24 @@ class SQLRunDB(RunDBInterface):
         delete_user_applications: bool = False,
         user_application_list: list[str] = None,
     ) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def delete_model_monitoring_function(
         self, project: str, functions: list[str]
     ) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def set_model_monitoring_credentials(
         self,
         project: str,
         credentials: dict[str, str],
     ) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _transform_db_error(self, func, *args, **kwargs):
         try:

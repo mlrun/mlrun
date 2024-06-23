@@ -3193,11 +3193,9 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_credentials(
         self,
         access_key: Optional[str] = None,
-        endpoint_store_connection: Optional[
-            str
-        ] = None,  # v3io-nosql, sql, system-default
-        stream_path: Optional[str] = None,  # v3io-stream, kafka, system-default
-        tsdb_connection: Optional[str] = None,  # v3io-tsdb, TDEngine, system-default
+        endpoint_store_connection: Optional[str] = None,
+        stream_path: Optional[str] = None,
+        tsdb_connection: Optional[str] = None,
     ):
         """
         Set the credentials that will be used by the project's model monitoring

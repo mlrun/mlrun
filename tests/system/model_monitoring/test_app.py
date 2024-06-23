@@ -341,9 +341,9 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v3"
+    project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -510,7 +510,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             ep.spec.feature_names
         ), "The feature names are not as expected"
 
-    @pytest.mark.parametrize("with_training_set", [False])
+    @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)

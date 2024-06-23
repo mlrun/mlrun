@@ -676,8 +676,8 @@ class RemoteRuntime(KubeResource):
     ):
         """
         Enriches the runtime spec with the project-level node selector.
-        Note: In MLRun, this feature is typically applied to the runtime object.
-        However, for Nuclio functions, there is no separate runtime object.
+        Note: In MLRun, this feature is typically applied to the run object.
+        However, for Nuclio functions, there is no separate run object.
         Thus, the feature is applied directly to the function object to accommodate Nuclio's serverless architecture.
 
         This method merges the project-level node selector with the existing function node_selector.

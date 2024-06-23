@@ -345,7 +345,7 @@ class RunDBInterface(ABC):
         tag: str = None,
         entities: list[str] = None,
         labels: list[str] = None,
-    ) -> mlrun.common.schemas.FeaturesOutput:
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
     # TODO: remove in 1.9.0

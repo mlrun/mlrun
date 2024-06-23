@@ -34,9 +34,6 @@ def spark_df_to_pandas(spark_df):
     if semver.parse(pd.__version__)["major"] >= 2:
         import pyspark.sql.functions as pyspark_functions
 
-        # TODO remain or delete
-        from pyspark.sql.types import DecimalType
-
         type_conversion_dict = {}
         for field in spark_df.schema.fields:
             if str(field.dataType) == "TimestampType":
@@ -48,10 +45,6 @@ def spark_df_to_pandas(spark_df):
                     ),
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
-
-            # TODO remain or delete
-            if isinstance(field.dataType, DecimalType):
-                type_conversion_dict[field.name] = "float"
 
         df = PandasConversionMixin.toPandas(spark_df)
         if type_conversion_dict:

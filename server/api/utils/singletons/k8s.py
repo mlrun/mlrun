@@ -545,7 +545,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def ensure_configmap(
         self,
         resource: str,
-        name: str,
+        resource_name: str,
         data: dict,
         namespace: str = "",
         labels: dict = None,
@@ -554,15 +554,15 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         have_confmap = False
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
         labels = labels or {}
-        labels[label_name] = name
+        labels[label_name] = resource_name
 
-        configmap_with_label = self.get_configmap(name, namespace)
+        configmap_with_label = self.get_configmap(resource_name, namespace)
         if configmap_with_label:
-            name = configmap_with_label.metadata.name
+            configmap_name = configmap_with_label.metadata.name
             have_confmap = True
         else:
-            full_name = f"{resource}-{name}"
-            name = (
+            full_name = f"{resource}-{resource_name}"
+            configmap_name = (
                 full_name
                 if len(full_name) <= 63
                 else full_name[:59] + self._generate_rand_string(4)
@@ -570,19 +570,19 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         body = client.V1ConfigMap(
             kind="ConfigMap",
-            metadata=client.V1ObjectMeta(name=name, labels=labels),
+            metadata=client.V1ObjectMeta(name=configmap_name, labels=labels),
             data=data,
         )
 
         if have_confmap:
             try:
                 self.v1api.replace_namespaced_config_map(
-                    name, namespace=namespace, body=body
+                    configmap_name, namespace=namespace, body=body
                 )
             except ApiException as exc:
                 logger.error(
                     "Failed to replace k8s config map",
-                    name=name,
+                    name=configmap_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
@@ -592,11 +592,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             except ApiException as exc:
                 logger.error(
                     "Failed to create k8s config map",
-                    name=name,
+                    name=configmap_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
-        return name
+        return configmap_name
 
     @raise_for_status_code
     def get_configmap(self, name: str, namespace: str = ""):

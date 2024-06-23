@@ -65,13 +65,13 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
     - name: Set up python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.9
         cache: pip
@@ -136,11 +136,11 @@ jobs:
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
 
-    - uses: azure/setup-helm@v3
+    - uses: azure/setup-helm@v4
       with:
         version: "v3.9.1"
 
-    - uses: manusa/actions-setup-minikube@v2.10.0
+    - uses: manusa/actions-setup-minikube@v2.11.0
       with:
         minikube version: "v1.32.0"
         kubernetes version: "v1.28.5"

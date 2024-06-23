@@ -725,16 +725,26 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         """Read the details of a stored run from the DB.
 
-        :param uid: The run's unique ID.
-        :param project: Project name.
-        :param iter: Iteration within a specific execution.
+        :param uid:         The run's unique ID.
+        :param project:     Project name.
+        :param iter:        Iteration within a specific execution.
+        :param format_:     The format in which to return the run details.
         """
 
         path = self._path_of("runs", project, uid)
-        params = {"iter": iter}
+        params = {
+            "iter": iter,
+            "format": format_.value,
+        }
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["data"]
@@ -979,6 +989,7 @@ class HTTPRunDB(RunDBInterface):
         project="",
         tree=None,
         uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         """Read an artifact, identified by its key, tag, tree and iteration.
 
@@ -988,20 +999,20 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.
         :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
         project = project or config.default_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
-        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "tag": tag,
             "tree": tree,
             "uid": uid,
         }
-        if iter:
+        if iter is not None:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         return resp.json()
@@ -1061,6 +1072,7 @@ class HTTPRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1095,6 +1107,7 @@ class HTTPRunDB(RunDBInterface):
         :param producer_uri:    Return artifacts produced by the requested producer URI. Producer URI usually
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
+        :param format_:         The format in which to return the artifacts. Default is 'full'.
         """
 
         project = project or config.default_project
@@ -1112,7 +1125,7 @@ class HTTPRunDB(RunDBInterface):
             "kind": kind,
             "category": category,
             "tree": tree,
-            "format": mlrun.common.formatters.ArtifactFormat.full.value,
+            "format": format_,
             "producer_uri": producer_uri,
         }
         error = "list artifacts"
@@ -2110,6 +2123,41 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error_message, params=params)
         return resp.json()["features"]
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> dict[str, list[dict]]:
+        """List feature-sets which contain specific features. This function may return multiple versions of the same
+        feature-set if a specific tag is not requested. Note that the various filters of this function actually
+        refer to the feature-set object containing the features, not to the features themselves.
+
+        :param project: Project which contains these features.
+        :param name: Name of the feature to look for. The name is used in a like query, and is not case-sensitive. For
+            example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
+        :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
+        :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
+        :param labels: Return only feature-sets which are labeled as requested.
+        :returns: A list of features, and a list of their corresponding feature sets.
+        """
+
+        project = project or config.default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "entity": entities or [],
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/features"
+
+        error_message = f"Failed listing features, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params, version="v2")
+        return resp.json()
+
     def list_entities(
         self,
         project: str,
@@ -2134,6 +2182,31 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing entities, project: {project}, query: {params}"
         resp = self.api_call("GET", path, error_message, params=params)
         return resp.json()["entities"]
+
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> dict[str, list[dict]]:
+        """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
+        to the :py:func:`~list_features_v2` function, and uses the same logic. However, the entities are matched
+        against the name rather than the features.
+        """
+
+        project = project or config.default_project
+        params = {
+            "name": name,
+            "tag": tag,
+            "label": labels or [],
+        }
+
+        path = f"projects/{project}/entities"
+
+        error_message = f"Failed listing entities, project: {project}, query: {params}"
+        resp = self.api_call("GET", path, error_message, params=params, version="v2")
+        return resp.json()
 
     @staticmethod
     def _generate_partition_by_params(

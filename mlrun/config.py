@@ -707,7 +707,7 @@ default_config = {
         "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
-        "max_allowed": 1000,
+        "max_allowed": 10000,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -937,24 +937,6 @@ class Config:
                 f"Security context enrichment mode enabled (override/retain) "
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
-
-    def resolve_kfp_url(self, namespace=None):
-        if config.kfp_url:
-            return config.kfp_url
-        igz_version = self.get_parsed_igz_version()
-        # TODO: When Iguazio 3.4 will deprecate we can remove this line
-        if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
-            if namespace is None:
-                if not config.namespace:
-                    raise mlrun.errors.MLRunNotFoundError(
-                        "For KubeFlow Pipelines to function, a namespace must be configured"
-                    )
-                namespace = config.namespace
-            # When instead of host we provided namespace we tackled this issue
-            # https://github.com/canonical/bundle-kubeflow/issues/412
-            # TODO: When we'll move to kfp 1.4.0 (server side) it should be resolved
-            return f"http://ml-pipeline.{namespace}.svc.cluster.local:8888"
-        return None
 
     def resolve_chief_api_url(self) -> str:
         if self.httpdb.clusterization.chief.url:

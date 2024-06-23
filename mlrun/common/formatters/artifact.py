@@ -13,9 +13,32 @@
 # limitations under the License.
 #
 
+import typing
+
 import mlrun.common.types
 
+from .base import ObjectFormat
 
-# TODO: add a format that returns a minimal response with ObjectFormat
-class ArtifactFormat(mlrun.common.types.StrEnum):
-    full = "full"
+
+class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    minimal = "minimal"
+
+    @staticmethod
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+        return {
+            ArtifactFormat.full: None,
+            ArtifactFormat.minimal: ArtifactFormat.filter_obj_method(
+                [
+                    "kind",
+                    "metadata",
+                    "status",
+                    "project",
+                    "spec.producer",
+                    "spec.db_key",
+                    "spec.size",
+                    "spec.framework",
+                    "spec.metrics",
+                    "spec.target_path",
+                ]
+            ),
+        }[_format]

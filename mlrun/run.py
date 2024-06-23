@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import importlib.util as imputil
 import json
 import os
@@ -28,9 +29,9 @@ from typing import Optional, Union
 
 import nuclio
 import yaml
-from kfp import Client
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.utils import get_client
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -293,10 +294,14 @@ def get_or_create_ctx(
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
+
     newspec["metadata"].setdefault("labels", {})
-    newspec["metadata"]["labels"] = {
-        mlrun_constants.MLRunInternalLabels.kind: RuntimeKinds.local
-    }
+
+    # This function can also be called as a local run if it is not called within a function.
+    # It will create a local run, and the run kind must be local by default.
+    newspec["metadata"]["labels"].setdefault(
+        mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -948,7 +953,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1009,7 +1014,7 @@ def get_pipeline(
         )
 
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

@@ -46,29 +46,9 @@ class Feature(FeatureStoreBaseModel):
         extra = pydantic.Extra.allow
 
 
-class QualifiedFeature(FeatureStoreBaseModel):
-    name: str
-    value_type: str
-    feature_set_index: int
-    labels: Optional[dict] = {}
-
-    class Config:
-        extra = pydantic.Extra.allow
-
-
 class Entity(FeatureStoreBaseModel):
     name: str
     value_type: str
-    labels: Optional[dict] = {}
-
-    class Config:
-        extra = pydantic.Extra.allow
-
-
-class QualifiedEntity(FeatureStoreBaseModel):
-    name: str
-    value_type: str
-    feature_set_index: int
     labels: Optional[dict] = {}
 
     class Config:
@@ -156,7 +136,7 @@ class FeaturesOutput(FeatureStoreBaseModel):
 
 
 class FeaturesOutputV2(FeatureStoreBaseModel):
-    features: list[QualifiedFeature]
+    features: list[Feature]
     feature_set_digests: list[FeatureSetDigestOutputV2]
 
 
@@ -166,7 +146,7 @@ class EntityListOutput(FeatureStoreBaseModel):
 
 
 class EntitiesOutputV2(FeatureStoreBaseModel):
-    entities: list[QualifiedEntity]
+    entities: list[Entity]
     feature_set_digests: list[FeatureSetDigestOutputV2]
 
 

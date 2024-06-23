@@ -49,7 +49,7 @@ for repo_info in repos:
         print(e)
 
 # Copying update_demos.sh from mlrun
-shutil.copyfile("automation/scripts/update_demos.sh", "demos/update_demos.sh")
+shutil.copy2("automation/scripts/update_demos.sh", "demos/update_demos.sh")
 
 # Create a tar archive of the temporary directory
 with tarfile.open("mlrun-demos.tar", "w") as tar:

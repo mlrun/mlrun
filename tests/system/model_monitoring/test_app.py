@@ -357,6 +357,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.model_name = "classification"
         cls.num_features = 4
 
+        # The main inference task event count
+        cls.num_events = 10_000
+
         cls.app_interval: int = 1  # every 1 minute
         cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
 
@@ -469,7 +472,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls,
         serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
         *,
-        num_events: int = 10_000,
+        num_events: int,
         with_training_set: bool = True,
     ) -> None:
         result = serving_fn.invoke(
@@ -492,11 +495,18 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint", ep_id=ep_id)
         ep = cls.run_db.get_model_endpoint(project=cls.project_name, endpoint_id=ep_id)
-        assert (
-            ep.status.current_stats.keys()
-            == ep.status.feature_stats.keys()
-            == set(ep.spec.feature_names)
-        ), "The endpoint current stats keys are not the same as feature stats and feature names"
+        assert ep.status.feature_stats.keys() == set(
+            ep.spec.feature_names
+        ), "The endpoint's feature stats keys are not the same as the feature names"
+        assert set(ep.status.current_stats.keys()) == set(
+            ep.status.feature_stats.keys()
+        ) | {
+            "timestamp",
+            "latency",
+            "error_count",
+            "metrics",
+            "p0",
+        }, "The endpoint's current stats is different than expected"
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
 
@@ -509,6 +519,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert set(drift_table.index) == set(
             ep.spec.feature_names
         ), "The feature names are not as expected"
+
+        assert (
+            ep.status.current_stats["sepal_length_cm"]["count"] == cls.num_events
+        ), "Different number of events than expected"
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
@@ -534,7 +548,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         serving_fn = future.result()
 
         time.sleep(5)
-        self._infer(serving_fn, with_training_set=with_training_set)
+        self._infer(
+            serving_fn, num_events=self.num_events, with_training_set=with_training_set
+        )
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds

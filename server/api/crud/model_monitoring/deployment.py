@@ -1042,7 +1042,7 @@ class MonitoringDeployment:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "Custom kafka topic is not allowed"
                     )
-                elif not stream_path.startswith("kafka://") or stream_path != "v3io://":
+                elif not stream_path.startswith("kafka://") and (stream_path != "v3io" or stream_path != ""):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "Currently only Kafka connection is supported for non-v3io stream,"
                         "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"

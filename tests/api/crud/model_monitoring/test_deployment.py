@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import typing
-import unittest
 from collections.abc import Iterator
 from unittest.mock import Mock, patch
 
@@ -82,7 +81,9 @@ class TestAppDeployment:
         self, monitoring_deployment: mm_dep.MonitoringDeployment
     ) -> None:
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            monitoring_deployment.check_if_credentials_are_set(only_project_secrets=True)
+            monitoring_deployment.check_if_credentials_are_set(
+                only_project_secrets=True
+            )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             monitoring_deployment.set_credentials(

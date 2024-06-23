@@ -562,7 +562,7 @@ class DaskCluster(KubejobRuntime):
         """
         Enriches the runtime spec with the project-level node selector.
         Note: In MLRun, this feature is typically applied to the run object.
-        However, In the Dask runtime, the node selector is merged directly on the function object
+        However, In the Dask runtime, the node selector is merged directly on the function object.
         Dask orchestrates distributed computing tasks,
         and applying the node selector directly to the function ensures consistency across all distributed tasks.
 

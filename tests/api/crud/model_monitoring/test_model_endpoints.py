@@ -70,7 +70,7 @@ def mock_kv() -> Iterator[None]:
 def mock_get_connection_string() -> Iterator[None]:
     with patch(
         "mlrun.model_monitoring.helpers.get_connection_string",
-        return_value=None,
+        return_value="v3io",
     ):
         yield
 
@@ -82,6 +82,8 @@ def test_create_with_empty_feature_stats(
     db_session: DBSession,
     model_endpoint: mlrun.common.schemas.ModelEndpoint,
 ) -> None:
+    mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
+    mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
     ModelEndpoints.create_model_endpoint(
         db_session=db_session, model_endpoint=model_endpoint
     )

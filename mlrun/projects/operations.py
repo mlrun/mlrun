@@ -194,7 +194,7 @@ def run_function(
         project = project_object or pipeline_context.project
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
-        project_name = project.metadata.name
+        project_name = project.metadata.name if project else ""
         if pipeline_context.workflow_id:
             task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
                 pipeline_context.workflow_id

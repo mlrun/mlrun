@@ -65,31 +65,27 @@ class WebhookNotification(NotificationBase):
         if override_body:
             list_edit_runs = []
             for run in runs:
-                if isinstance(run, mlrun.model.RunObject):
+                if hasattr(run, "to_dict"):
                     run = run.to_dict()
                 if isinstance(run, dict):
-                    r = {
+                    parsed_run = {
                         "project": run["metadata"]["project"],
                         "name": run["metadata"]["name"],
                         "host": run["metadata"]["labels"]["host"],
                         "status": {"state": run["status"]["state"]},
                     }
                     if run["status"].get("error", None):
-                        r["status"]["error"] = run["status"]["error"]
+                        parsed_run["status"]["error"] = run["status"]["error"]
                     elif run["status"].get("results", None):
-                        r["status"]["results"] = run["status"]["results"]
-                    run = r
-                list_edit_runs.append(run)
+                        parsed_run["status"]["results"] = run["status"]["results"]
+                    list_edit_runs.append(parsed_run)
+            runs_value = str(list_edit_runs)
             if isinstance(override_body, dict):
                 for key, value in override_body.items():
                     if "{{ runs }}" in value:
-                        override_body[key] = value.replace(
-                            "{{ runs }}", str(list_edit_runs)
-                        )
+                        override_body[key] = value.replace("{{ runs }}", runs_value)
                     elif "{{runs}}" in value:
-                        override_body[key] = value.replace(
-                            "{{runs}}", str(list_edit_runs)
-                        )
+                        override_body[key] = value.replace("{{runs}}", runs_value)
             request_body = override_body
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.

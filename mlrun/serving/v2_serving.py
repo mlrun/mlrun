@@ -548,9 +548,9 @@ def _init_endpoint_record(
         )
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
-    except mlrun.errors.MLRunBadRequestError:
+    except mlrun.errors.MLRunBadRequestError as err:
         logger.debug(
-            "Cant reach to model endpoints store",
+            f"Cant reach to model endpoints store, due to  : {err}",
         )
         return
 

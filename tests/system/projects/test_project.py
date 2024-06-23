@@ -1159,7 +1159,7 @@ class TestProject(TestMLRunSystem):
             name=function_name,
             func=code_path,
             kind="job",
-            image="docker.io/yaelgen/mlrun:refactor4",
+            image="mlrun/mlrun",
             handler="handler",
         )
         func.spec.node_selector = {

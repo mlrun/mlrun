@@ -59,7 +59,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Remote)
+        cls.configure_image_deployment(Deployment.Local)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -137,8 +137,8 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.executemany(insert_query, data_values)
         return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
-    #@pytest.mark.parametrize("passthrough", [True, False])
-    @pytest.mark.parametrize("passthrough", [True])
+    # @pytest.mark.parametrize("passthrough", [True, False])
+    @pytest.mark.parametrize("passthrough", [False])
     def test_snowflake_source_and_target(self, passthrough):
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
@@ -151,7 +151,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            schema=self.schema,
+            db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
         target = SnowflakeTarget(

@@ -37,7 +37,7 @@ def get_snowflake_spark_options(attributes):
         "sfUser": snowflake_attributes.get("user"),
         "sfPassword": get_snowflake_password(),
         "sfDatabase": snowflake_attributes.get("database"),
-        "sfSchema": snowflake_attributes.get("schema"),
+        "sfSchema": snowflake_attributes.get("db_schema"),
         "sfWarehouse": snowflake_attributes.get("warehouse"),
         "application": "iguazio_platform",
         "TIMESTAMP_TYPE_MAPPING": "TIMESTAMP_LTZ",

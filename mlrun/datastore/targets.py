@@ -1214,7 +1214,7 @@ class SnowflakeTarget(BaseStoreTarget):
                 "url": url,
                 "user": user,
                 "database": database,
-                "schema": db_schema,
+                "db_schema": db_schema,
                 "warehouse": warehouse,
                 "table": table_name,
             }

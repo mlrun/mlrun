@@ -156,6 +156,12 @@ class BaseSourceDriver(DataSource):
     def is_iterator(self):
         return False
 
+    @property
+    def essentials_attributes(self) -> dict:
+        if self.attributes:
+            return self.attributes.get("essentials_attributes")
+        return {}
+
 
 class CSVSource(BaseSourceDriver):
     """
@@ -783,7 +789,7 @@ class SnowflakeSource(BaseSourceDriver):
         url: str = None,
         user: str = None,
         database: str = None,
-        schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
@@ -794,7 +800,7 @@ class SnowflakeSource(BaseSourceDriver):
                 "url": url,
                 "user": user,
                 "database": database,
-                "schema": schema,
+                "db_schema": db_schema,
                 "warehouse": warehouse,
             }
             attributes["essentials_attributes"] = attrs
@@ -812,7 +818,7 @@ class SnowflakeSource(BaseSourceDriver):
 
     def get_spark_options(self):
         spark_options = get_snowflake_spark_options(self.attributes)
-        if query := self.attributes.get("essentials_attributes", {}).get("query"):
+        if query := self.essentials_attributes.get("query"):
             spark_options["query"] = query
         elif table_name := self.attributes.get("essentials_attributes", {}).get(
             "table"

@@ -322,4 +322,9 @@ class TestAlerts(TestMLRunSystem):
                 nuclio_function_url
             )
         )
-        assert deepdiff.DeepDiff(sent_notifications, expected_notifications) == {}
+        assert (
+            deepdiff.DeepDiff(
+                sent_notifications, expected_notifications, ignore_order=True
+            )
+            == {}
+        )

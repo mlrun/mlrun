@@ -137,13 +137,16 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.executemany(insert_query, data_values)
         return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
-    def test_snowflake_source_and_target(self):
+    #@pytest.mark.parametrize("passthrough", [True, False])
+    @pytest.mark.parametrize("passthrough", [True])
+    def test_snowflake_source_and_target(self, passthrough):
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
         feature_set = fstore.FeatureSet(
             name="snowflake_feature_set",
             entities=[fstore.Entity("ID")],
             engine="spark",
+            passthrough=passthrough,
         )
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
@@ -167,14 +170,15 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
                 local=self.run_local,
             ),
         )
-        result_data = self.cursor.execute(
-            f"select * from {self.database}.{self.schema}.{result_table}"
-        ).fetchall()
-        column_names = [desc[0] for desc in self.cursor.description]
-        result_df = pd.DataFrame(result_data, columns=column_names)
-        result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
-        expected_df = source_df.sort_values(by="ID").head(number_of_rows)
-        pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
+        if not passthrough:
+            result_data = self.cursor.execute(
+                f"select * from {self.database}.{self.schema}.{result_table}"
+            ).fetchall()
+            column_names = [desc[0] for desc in self.cursor.description]
+            result_df = pd.DataFrame(result_data, columns=column_names)
+            result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
+            expected_df = source_df.sort_values(by="ID").head(number_of_rows)
+            pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )

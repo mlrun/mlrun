@@ -113,7 +113,11 @@ async def create_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
     response = await _create_pipeline(
-        auth_info, request, experiment_name, run_name, project
+        auth_info=auth_info,
+        request=request,
+        experiment_name=experiment_name,
+        run_name=run_name,
+        project=project,
     )
     return response
 

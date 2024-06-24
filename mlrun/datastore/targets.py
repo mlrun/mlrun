@@ -775,6 +775,10 @@ class BaseStoreTarget(DataTargetBase):
     def get_dask_options(self):
         raise NotImplementedError()
 
+    @property
+    def source_attributes(self) -> dict:
+        return {}
+
 
 class ParquetTarget(BaseStoreTarget):
     """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
@@ -1208,8 +1212,8 @@ class SnowflakeTarget(BaseStoreTarget):
         warehouse: str = None,
         table_name: str = None,
     ):
+        attributes = attributes or {}
         if url:
-            attributes = attributes or {}
             attrs = {
                 "url": url,
                 "user": user,
@@ -1218,13 +1222,8 @@ class SnowflakeTarget(BaseStoreTarget):
                 "warehouse": warehouse,
                 "table": table_name,
             }
-            attributes["essentials_attributes"] = attrs
+            attributes.update(attrs)
 
-        # extended_attrs = {
-        #     key: value for key, value in attrs.items() if value is not None
-        # }
-        # attributes = {} if not attributes else attributes
-        # attributes.update(extended_attrs)
         super().__init__(
             name,
             path,
@@ -1244,9 +1243,7 @@ class SnowflakeTarget(BaseStoreTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         spark_options = get_snowflake_spark_options(self.attributes)
-        spark_options["dbtable"] = self.attributes.get("essentials_attributes", {}).get(
-            "table"
-        )
+        spark_options["dbtable"] = self.attributes.get("table")
         return spark_options
 
     def purge(self):
@@ -1264,6 +1261,17 @@ class SnowflakeTarget(BaseStoreTarget):
         **kwargs,
     ):
         raise NotImplementedError()
+
+    @property
+    def source_attributes(self) -> dict:
+        keys = ["url", "user", "database", "db_schema", "warehouse"]
+        if self.attributes:
+            snowflake_dict = {key: self.attributes.get(key) for key in keys}
+        else:
+            snowflake_dict = {key: None for key in keys}
+        table = self.attributes.get("table")
+        snowflake_dict["query"] = f"SELECT * from {table}" if table else None
+        return snowflake_dict
 
 
 class NoSqlBaseTarget(BaseStoreTarget):

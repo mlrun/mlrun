@@ -156,12 +156,6 @@ class BaseSourceDriver(DataSource):
     def is_iterator(self):
         return False
 
-    @property
-    def essentials_attributes(self) -> dict:
-        if self.attributes:
-            return self.attributes.get("essentials_attributes")
-        return {}
-
 
 class CSVSource(BaseSourceDriver):
     """
@@ -793,8 +787,8 @@ class SnowflakeSource(BaseSourceDriver):
         warehouse: str = None,
         **kwargs,
     ):
+        attributes = attributes or {}
         if url:
-            attributes = attributes or {}
             attrs = {
                 "query": query,
                 "url": url,
@@ -803,7 +797,7 @@ class SnowflakeSource(BaseSourceDriver):
                 "db_schema": db_schema,
                 "warehouse": warehouse,
             }
-            attributes["essentials_attributes"] = attrs
+            attributes.update(attrs)
 
         super().__init__(
             name,
@@ -818,16 +812,7 @@ class SnowflakeSource(BaseSourceDriver):
 
     def get_spark_options(self):
         spark_options = get_snowflake_spark_options(self.attributes)
-        if query := self.essentials_attributes.get("query"):
-            spark_options["query"] = query
-        elif table_name := self.attributes.get("essentials_attributes", {}).get(
-            "table"
-        ):
-            spark_options["query"] = f"SELECT * FROM {table_name}"
-        else:
-            mlrun.errors.MLRunInvalidArgumentError(
-                "mlrun failed to find query or table arguments."
-            )
+        spark_options["query"] = self.attributes.get("query")
         return spark_options
 
 

@@ -67,7 +67,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             requirements_file=requirements_path,
         )
         function.deploy()
-        run = function.run(handler="mycls::do")
+        run = function.run(handler="MyCls::do")
         outputs = run.outputs
         assert "requests" in outputs, "requests not in outputs"
         assert "chardet" in outputs, "chardet not in outputs"
@@ -341,7 +341,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             image="mlrun/mlrun",
         )
         for params, results in cases:
-            run = function.run(handler="mycls::mtd", params=params)
+            run = function.run(handler="MyCls::mtd", params=params)
             print(run.to_yaml())
             assert run.status.results == results
 

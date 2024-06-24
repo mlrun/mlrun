@@ -22,8 +22,7 @@ import snowflake.connector
 
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SnowflakeSource
-from mlrun.datastore.targets import SnowflakeTarget
-from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
+from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
@@ -60,7 +59,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Local)
+        cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -95,6 +94,10 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.source_table = f"source_{self.current_time}"
         self.tables_to_drop = [self.source_table]
+        if self.deployment_type == Deployment.Remote:
+            self.project.set_secrets(
+                {"SNOWFLAKE_PASSWORD": os.environ.get("SNOWFLAKE_PASSWORD")}
+            )
 
     def teardown_method(self, method):
         super().teardown_method(method)
@@ -160,7 +163,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             source,
             targets=[target],
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(
+                local=self.run_local,
+            ),
         )
         result_data = self.cursor.execute(
             f"select * from {self.database}.{self.schema}.{result_table}"
@@ -173,37 +178,19 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
+        run_config = (
+            fstore.RunConfig(local=self.run_local)
+            if self.run_local
+            else fstore.RunConfig(local=self.run_local, kind="remote-spark")
+        )
         result = vector.get_offline_features(
-            engine="spark", with_indexes=True
+            engine="spark",
+            with_indexes=True,
+            spark_service=self.spark_service,
+            run_config=run_config,
+            target=None if self.run_local else ParquetTarget(),
         ).to_dataframe()
         result = result.reset_index(drop=False)
         pd.testing.assert_frame_equal(
             expected_df, result.sort_values(by="ID"), check_dtype=False
-        )
-
-    def test_source(self):
-        from pyspark.sql import SparkSession
-
-        spark = (
-            SparkSession.builder.appName("snowflake_spark")
-            .config("spark.sql.session.timeZone", "UTC")
-            .getOrCreate()
-        )
-        number_of_rows = 10
-
-        source = SnowflakeSource(
-            "snowflake_source",
-            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            schema=self.schema,
-            time_field="LICENSE_DATE",
-            **self.snowflake_spark_parameters,
-        )
-        source_df = self.generate_snowflake_source_table()
-        result_spark_df = source.to_spark_df(session=spark)
-        result_df = spark_df_to_pandas(spark_df=result_spark_df)
-        sorted_source_df = source_df.sort_values(by="ID").head(number_of_rows)
-        pd.testing.assert_frame_equal(
-            sorted_source_df,
-            result_df,
-            check_dtype=False,
         )

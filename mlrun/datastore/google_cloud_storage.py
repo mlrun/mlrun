@@ -56,7 +56,11 @@ class GoogleCloudStorageStore(DataStore):
         if credentials:
             try:
                 # Try to handle credentials as a json connection string or do nothing if already a dict
-                token = credentials if isinstance(credentials, dict) else json.loads(credentials)
+                token = (
+                    credentials
+                    if isinstance(credentials, dict)
+                    else json.loads(credentials)
+                )
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials

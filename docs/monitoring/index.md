@@ -31,7 +31,7 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model 
 monitoring stream pod forwards data to a Parquet database. 
 The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. 
-Each monitoring application is a separate nuclio real-time function. Each one listens to a stream that is filled by 
+Each monitoring application is a separate nuclio real-time job. Each one listens to a stream that is filled by 
 the monitoring controller on each `base_period` interval.
 The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
@@ -41,8 +41,8 @@ to the same target. You can use `get_offline_features` to read the data from tha
 In parallel, an MLRun job runs, reading the parquet files and performing drift analysis. The drift analysis data is stored so 
 that the user can retrieve it in the Iguazio UI or in a Grafana dashboard.
 
-When you enable model monitoring, you effectively deploy three components:
-- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The controller is a scheduled batch job whose frequency is determined by `base_period`. 
+When you enable model monitoring ({py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`), you effectively deploy three components:
+- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The controller is a real-time Nuclio job whose frequency is determined by `base_period`. 
 - stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
 - writer function: writes to the database and outputs alerts.
 

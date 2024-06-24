@@ -55,8 +55,8 @@ class GoogleCloudStorageStore(DataStore):
         ) or self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
         if credentials:
             try:
-                # Try to handle credentials as a json connection string
-                token = json.loads(credentials)
+                # Try to handle credentials as a json connection string or do nothing if already a dict
+                token = credentials if isinstance(credentials, dict) else json.loads(credentials)
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials

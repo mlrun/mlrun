@@ -59,7 +59,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Local)
+        cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -137,8 +137,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.executemany(insert_query, data_values)
         return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
-    # @pytest.mark.parametrize("passthrough", [True, False])
-    @pytest.mark.parametrize("passthrough", [False])
+    @pytest.mark.parametrize("passthrough", [True, False])
     def test_snowflake_source_and_target(self, passthrough):
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
@@ -170,6 +169,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
                 local=self.run_local,
             ),
         )
+        expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         if not passthrough:
             result_data = self.cursor.execute(
                 f"select * from {self.database}.{self.schema}.{result_table}"
@@ -177,7 +177,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             column_names = [desc[0] for desc in self.cursor.description]
             result_df = pd.DataFrame(result_data, columns=column_names)
             result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
-            expected_df = source_df.sort_values(by="ID").head(number_of_rows)
+
             pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]

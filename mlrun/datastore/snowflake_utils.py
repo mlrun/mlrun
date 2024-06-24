@@ -30,6 +30,8 @@ def get_snowflake_password():
 
 
 def get_snowflake_spark_options(attributes):
+    if not attributes:
+        return {}
     return {
         "format": "net.snowflake.spark.snowflake",
         "sfURL": attributes.get("url"),

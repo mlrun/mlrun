@@ -268,9 +268,24 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
     def list_entities(
         self, project: str, name: str = None, tag: str = None, labels: list[str] = None
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    def list_entities_v2(
+        self, project: str, name: str = None, tag: str = None, labels: list[str] = None
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     def list_feature_sets(

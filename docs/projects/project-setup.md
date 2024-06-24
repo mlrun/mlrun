@@ -13,7 +13,9 @@ Upon loading an MLRun project via {py:meth}`~mlrun.projects.get_or_create_projec
 import mlrun
 
 # Load or create an MLRun project
-project = mlrun.get_or_create_project("my-project") # project_setup.py called while loading project
+project = mlrun.get_or_create_project(
+    "my-project"
+)  # project_setup.py called while loading project
 ```
 
 ## Format
@@ -96,12 +98,12 @@ The project can then be loaded using the following code snippet:
 ```python
 project = mlrun.get_or_create_project(
     name="my-project",
-    context="./src", # project_setup.py should be in this directory
+    context="./src",  # project_setup.py should be in this directory
     parameters={
-        "source" : "https://github.com/mlrun/my-repo#main",
-        "secrets_file" : ".env",
-        "default_image" : "mlrun/mlrun"
-    }
+        "source": "https://github.com/mlrun/my-repo#main",
+        "secrets_file": ".env",
+        "default_image": "mlrun/mlrun",
+    },
 )
 ```
 
@@ -115,7 +117,7 @@ Some common operations that can be added to the `project_setup.py` script includ
 Set the project source and enable pulling at runtime if specified. See {py:meth}`~mlrun.projects.MlrunProject.set_source` for more info.
 
 ```python
-source = project.get_param("source") # https://github.com/mlrun/my-repo#main
+source = project.get_param("source")  # https://github.com/mlrun/my-repo#main
 
 project.set_source(source, pull_at_runtime=True)
 ```
@@ -126,7 +128,7 @@ Export the local project directory contents to a zip file archive. Use this in c
 **Note:** This requires using the Iguazio `v3io` data layer or some `s3` compliant object storage such as `minio`.
 
 ```python
-source = project.get_param("source") # v3io:///bigdata/my_project.zip
+source = project.get_param("source")  # v3io:///bigdata/my_project.zip
 
 project.set_source(source, pull_at_runtime=True)
 if ".zip" in source:
@@ -138,7 +140,7 @@ if ".zip" in source:
 Define the default Docker image for the project. It will be used for functions without a specified image. See {py:meth}`~mlrun.projects.MlrunProject.set_default_image` for more info.
 
 ```python
-default_image = project.get_param("default_image") # mlrun/mlrun
+default_image = project.get_param("default_image")  # mlrun/mlrun
 
 if default_image:
     project.set_default_image(default_image)
@@ -148,13 +150,11 @@ if default_image:
 Build a Docker image and optionally set it as the project default. See {py:meth}`~mlrun.projects.MlrunProject.build_image` for more info.
 
 ```python
-base_image = project.get_param("base_image") # mlrun/mlrun
-requirements_file = project.get_param("requirements_file") # requirements.txt
+base_image = project.get_param("base_image")  # mlrun/mlrun
+requirements_file = project.get_param("requirements_file")  # requirements.txt
 
 project.build_image(
-    base_image=base_image,
-    requirements_file=requirements_file,
-    set_as_default=True
+    base_image=base_image, requirements_file=requirements_file, set_as_default=True
 )
 ```
 
@@ -181,7 +181,7 @@ project.set_workflow("main", "main_workflow.py")
 Create project secrets by setting them from a specified file path and load them as environment variables in the local environment. See {py:meth}`~mlrun.projects.MlrunProject.set_secrets` and {py:meth}`~mlrun.set_env_from_file` for more info.
 
 ```python
-secrets_file = project.get_param("secrets_file") # .env
+secrets_file = project.get_param("secrets_file")  # .env
 
 if secrets_file and os.path.exists(secrets_file):
     project.set_secrets(file_path=secrets_file)
@@ -194,8 +194,8 @@ Register artifacts like models or datasets in the project. Useful for version co
 ```python
 project.set_artifact(
     key="model",
-    artifact="artifacts/model:challenger.yaml", # YAML file in project directory
-    tag="challenger"
+    artifact="artifacts/model:challenger.yaml",  # YAML file in project directory
+    tag="challenger",
 )
 project.register_artifacts()
 ```

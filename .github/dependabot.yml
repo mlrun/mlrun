@@ -11,16 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-import typing
+version: 2
 
-
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
-):
-    # This function is not required on a KFP 2.0 setup
-    # The definition is here for import compatibility reasons
-    raise NotImplementedError
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "[Dependabot-automated] "
+    open-pull-requests-limit: 6

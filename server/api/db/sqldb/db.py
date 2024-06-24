@@ -43,6 +43,10 @@ import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.schemas.feature_store import (
+    FeatureSetDigestOutputV2,
+    FeatureSetDigestSpecV2,
+)
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -3170,6 +3174,110 @@ class SQLDB(DBInterface):
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)
 
+    @staticmethod
+    def _dedup_and_append_feature_set(
+        feature_set, feature_set_id_to_index, feature_set_digests_v2
+    ):
+        # dedup feature set list
+        # we can rely on the object ID because SQLAlchemy already avoids duplication at the object
+        # level, and the conversion from "model" to "schema" retains this property
+        feature_set_obj_id = id(feature_set)
+        feature_set_index = feature_set_id_to_index.get(feature_set_obj_id, None)
+        if feature_set_index is None:
+            feature_set_index = len(feature_set_id_to_index)
+            feature_set_id_to_index[feature_set_obj_id] = feature_set_index
+            feature_set_digests_v2.append(
+                FeatureSetDigestOutputV2(
+                    feature_set_index=feature_set_index,
+                    metadata=feature_set.metadata,
+                    spec=FeatureSetDigestSpecV2(
+                        entities=feature_set.spec.entities,
+                    ),
+                )
+            )
+        return feature_set_index
+
+    @staticmethod
+    def _build_feature_mapping_from_feature_set(feature_set):
+        result = {}
+        for feature in feature_set.spec.features:
+            result[feature.name] = feature
+        return result
+
+    @staticmethod
+    def _build_entity_mapping_from_feature_set(feature_set):
+        result = {}
+        for entity in feature_set.spec.entities:
+            result[entity.name] = entity
+        return result
+
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        # We don't filter by feature-set name here, as the name parameter refers to features
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        if entities:
+            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
+
+        features_with_feature_set_index: list[Feature] = []
+        feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
+        feature_set_digest_id_to_index: dict[int, int] = {}
+
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        build_feature_mapping_from_feature_set = MemoizationCache(
+            self._build_feature_mapping_from_feature_set
+        ).memoize
+
+        for row in query:
+            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
+            feature_name = feature_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                feature_name_to_feature = build_feature_mapping_from_feature_set(
+                    feature_set
+                )
+                feature = feature_name_to_feature.get(feature_name)
+                if not feature:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Inconsistent data in DB - features in DB not in feature-set document"
+                    )
+
+                feature_set_index = self._dedup_and_append_feature_set(
+                    feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
+                )
+                features_with_feature_set_index.append(
+                    feature.copy(update=dict(feature_set_index=feature_set_index))
+                )
+
+        return mlrun.common.schemas.FeaturesOutputV2(
+            features=features_with_feature_set_index,
+            feature_set_digests=feature_set_digests_v2,
+        )
+
     def list_entities(
         self,
         session,
@@ -3231,6 +3339,68 @@ class SQLDB(DBInterface):
                 )
 
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
+
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        entities_with_feature_set_index: list[Entity] = []
+        feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
+        feature_set_digest_id_to_index: dict[int, int] = {}
+
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        build_entity_mapping_from_feature_set = MemoizationCache(
+            self._build_entity_mapping_from_feature_set
+        ).memoize
+
+        for row in query:
+            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
+            entity_name = entity_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                entity_name_to_feature = build_entity_mapping_from_feature_set(
+                    feature_set
+                )
+                entity = entity_name_to_feature.get(entity_name)
+                if not entity:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Inconsistent data in DB - entities in DB not in feature-set document"
+                    )
+
+                feature_set_index = self._dedup_and_append_feature_set(
+                    feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
+                )
+                entities_with_feature_set_index.append(
+                    entity.copy(update=dict(feature_set_index=feature_set_index))
+                )
+
+        return mlrun.common.schemas.EntitiesOutputV2(
+            entities=entities_with_feature_set_index,
+            feature_set_digests=feature_set_digests_v2,
+        )
 
     @staticmethod
     def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):

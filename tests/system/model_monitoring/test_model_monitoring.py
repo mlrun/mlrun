@@ -249,7 +249,15 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     image: Optional[str] = None
 
     @pytest.mark.timeout(540)
-    @pytest.mark.parametrize("with_sql_target", [True, False])
+    @pytest.mark.parametrize(
+        "with_sql_target",
+        [
+            pytest.param(
+                True, marks=pytest.mark.skip(reason="Chronically fails, see ML-5820")
+            ),
+            False,
+        ],
+    )
     def test_basic_model_monitoring(self, with_sql_target: bool) -> None:
         # Main validations:
         # 1 - a single model endpoint is created

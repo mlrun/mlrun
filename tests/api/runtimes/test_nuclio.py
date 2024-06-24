@@ -414,10 +414,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) = server.api.crud.runtimes.nuclio.function._compile_function_config(
             function, db_session=db
         )
-        assert config["spec"]["nodeSelector"] == {
-            "kubernetes.io/arch": "amd64",
-            "kubernetes.io/hostname": "k8s-node1",
-        }
+        assert config["spec"]["nodeSelector"] == mlrun.utils.helpers.merge_with_precedence(
+            self.project_default_function_node_selector,
+            {"kubernetes.io/hostname": "k8s-node1"}
+        )
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """

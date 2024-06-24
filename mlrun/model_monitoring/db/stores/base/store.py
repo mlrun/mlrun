@@ -19,6 +19,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 
 
 class StoreBase(ABC):
+    type: typing.ClassVar[str]
     """
     An abstract class to handle the store object in the DB target.
     """

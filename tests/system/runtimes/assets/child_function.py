@@ -18,6 +18,7 @@ class Identity:
 
 
 class Augment:
-    def do(self, x):
-        x["more_stuff"] = 5
-        return x
+    def do(self, event):
+        event.body["more_stuff"] = 5
+        event.body["path"] = event.path
+        return event

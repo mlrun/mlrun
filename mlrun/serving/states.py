@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
+__all__ = [
+    "TaskStep",
+    "RouterStep",
+    "RootFlowStep",
+    "ErrorStep",
+    "MonitoringApplicationStep",
+]
 
 import os
 import pathlib
@@ -55,6 +61,7 @@ class StepKinds:
     choice = "choice"
     root = "root"
     error_step = "error_step"
+    monitoring_application = "monitoring_application"
 
 
 _task_step_fields = [
@@ -485,13 +492,15 @@ class TaskStep(BaseStep):
                 class_args[key] = arg
         class_args.update(extra_kwargs)
 
-        # add common args (name, context, ..) only if target class can accept them
-        argspec = getfullargspec(class_object)
-        for key in ["name", "context", "input_path", "result_path", "full_event"]:
-            if argspec.varkw or key in argspec.args:
-                class_args[key] = getattr(self, key)
-        if argspec.varkw or "graph_step" in argspec.args:
-            class_args["graph_step"] = self
+        if not isinstance(self, MonitoringApplicationStep):
+            # add common args (name, context, ..) only if target class can accept them
+            argspec = getfullargspec(class_object)
+
+            for key in ["name", "context", "input_path", "result_path", "full_event"]:
+                if argspec.varkw or key in argspec.args:
+                    class_args[key] = getattr(self, key)
+            if argspec.varkw or "graph_step" in argspec.args:
+                class_args["graph_step"] = self
         return class_args
 
     def get_step_class_object(self, namespace):
@@ -580,6 +589,39 @@ class TaskStep(BaseStep):
             else:
                 raise exc
         return event
+
+
+class MonitoringApplicationStep(TaskStep):
+    """monitoring application execution step, runs users class code"""
+
+    kind = "monitoring_application"
+    _default_class = ""
+
+    def __init__(
+        self,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        name: str = None,
+        after: list = None,
+        full_event: bool = None,
+        function: str = None,
+        responder: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+        )
 
 
 class ErrorStep(TaskStep):
@@ -789,6 +831,35 @@ class QueueStep(BaseStep):
     @property
     def async_object(self):
         return self._async_object
+
+    def to(
+        self,
+        class_name: Union[str, StepToDict] = None,
+        name: str = None,
+        handler: str = None,
+        graph_shape: str = None,
+        function: str = None,
+        full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+        **class_args,
+    ):
+        if not function:
+            name = get_name(name, class_name)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"step '{name}' must specify a function, because it follows a queue step"
+            )
+        return super().to(
+            class_name,
+            name,
+            handler,
+            graph_shape,
+            function,
+            full_event,
+            input_path,
+            result_path,
+            **class_args,
+        )
 
     def run(self, event, *args, **kwargs):
         data = event.body
@@ -1323,6 +1394,7 @@ classes_map = {
     "flow": FlowStep,
     "queue": QueueStep,
     "error_step": ErrorStep,
+    "monitoring_application": MonitoringApplicationStep,
 }
 
 

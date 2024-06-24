@@ -27,21 +27,26 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, distinct, func, or_, text
+from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
+from mlrun.common.schemas.feature_store import (
+    FeatureSetDigestOutputV2,
+    FeatureSetDigestSpecV2,
+)
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -60,6 +65,7 @@ from mlrun.utils import (
 )
 from server.api.db.base import DBInterface
 from server.api.db.sqldb.helpers import (
+    MemoizationCache,
     generate_query_predicate_for_name,
     label_set,
     run_labels,
@@ -666,6 +672,7 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         producer_uri: str = None,
         most_recent: bool = False,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         project = project or config.default_project
 
@@ -698,6 +705,8 @@ class SQLDB(DBInterface):
         for artifact, artifact_tag in artifact_records:
             artifact_struct = artifact.full_object
 
+            # TODO: filtering by producer uri may be a heavy operation when there are many artifacts in a workflow.
+            #  We should filter the artifacts before loading them into memory with query.all()
             # Producer URI usually points to a run and is used to filter artifacts by the run that produced them.
             # When the artifact was produced by a workflow, the producer id is a workflow id.
             if producer_uri:
@@ -714,6 +723,33 @@ class SQLDB(DBInterface):
                     continue
 
             self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
+            artifacts.append(
+                mlrun.common.formatters.ArtifactFormat.format_obj(
+                    artifact_struct, format_
+                )
+            )
+
+        return artifacts
+
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str = None,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ) -> ArtifactList:
+        project = project or mlrun.mlconf.default_project
+        artifact_records = self._find_artifacts_for_producer_id(
+            session,
+            producer_id=producer_id,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
+        )
+
+        artifacts = ArtifactList()
+        for artifact, artifact_tag in artifact_records:
+            artifact_struct = artifact.full_object
+            self._set_tag_in_artifact_struct(artifact_struct, artifact_tag)
             artifacts.append(artifact_struct)
 
         return artifacts
@@ -728,22 +764,18 @@ class SQLDB(DBInterface):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
         computed_tag = tag or "latest"
-        artifact_tag_uid = None
-        if tag and not uid:
-            artifact_tag_uid = self._resolve_class_tag_uid(
-                session, ArtifactV2, project, key, computed_tag
-            )
-            if not artifact_tag_uid:
-                artifact_uri = generate_artifact_uri(project, key, tag, iter)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Artifact {artifact_uri} not found"
-                )
-            uid = artifact_tag_uid
+        enrich_tag = False
 
+        if tag and not uid:
+            enrich_tag = True
+            # If a tag is given, we can join and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
@@ -751,7 +783,7 @@ class SQLDB(DBInterface):
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
-        if iter:
+        if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
 
         db_artifact = query.one_or_none()
@@ -780,9 +812,10 @@ class SQLDB(DBInterface):
         artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
-        if artifact_tag_uid:
+        if enrich_tag:
             self._set_tag_in_artifact_struct(artifact, computed_tag)
-        return artifact
+
+        return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
@@ -1053,6 +1086,8 @@ class SQLDB(DBInterface):
         link_artifact,
         uid=None,
     ):
+        artifacts_to_commit = []
+
         # get the artifact record from the db
         link_iteration = link_artifact.get("spec", {}).get("link_iteration")
         link_tree = link_artifact.get("spec", {}).get("link_tree") or link_artifact.get(
@@ -1061,45 +1096,52 @@ class SQLDB(DBInterface):
         link_key = link_artifact.get("spec", {}).get("link_key")
         if link_key:
             key = link_key
-        query = self._query(session, ArtifactV2).filter(
-            ArtifactV2.project == project,
-            ArtifactV2.key == key,
-            ArtifactV2.iteration == link_iteration,
-        )
-        if link_tree:
-            query = query.filter(ArtifactV2.producer_id == link_tree)
-        if uid:
-            query = query.filter(ArtifactV2.uid == uid)
 
-        artifact_record = query.one_or_none()
-        if not artifact_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
+        # We perform two consecutive SELECT queries and modify the two artifact records that are returned.
+        # Without no_autoflush, SQLAlchemy offloads the transaction data to the DB during the second SELECT query,
+        # which can result in a deadlock due to assumed conflicts between the transactions.
+        # Using no_autoflush ensures that all modifications don't arrive to the DB until the transaction is committed.
+        with session.no_autoflush:
+            # get the best iteration artifact record
+            query = self._query(session, ArtifactV2).filter(
+                ArtifactV2.project == project,
+                ArtifactV2.key == key,
+                ArtifactV2.iteration == link_iteration,
             )
+            if link_tree:
+                query = query.filter(ArtifactV2.producer_id == link_tree)
+            if uid:
+                query = query.filter(ArtifactV2.uid == uid)
 
-        # update the artifact record with best iteration
-        artifact_record.best_iteration = True
+            best_iteration_artifact_record = query.one_or_none()
+            if not best_iteration_artifact_record:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
+                )
 
-        artifacts_to_commit = [artifact_record]
+            # get the previous best iteration artifact
+            query = self._query(session, ArtifactV2).filter(
+                ArtifactV2.project == project,
+                ArtifactV2.key == key,
+                ArtifactV2.best_iteration,
+                ArtifactV2.iteration != link_iteration,
+            )
+            if link_tree:
+                query = query.filter(ArtifactV2.producer_id == link_tree)
 
-        # remove the best iteration flag from the previous best iteration artifact
-        query = self._query(session, ArtifactV2).filter(
-            ArtifactV2.project == project,
-            ArtifactV2.key == key,
-            ArtifactV2.best_iteration,
-            ArtifactV2.iteration != link_iteration,
-        )
-        if link_tree:
-            query = query.filter(ArtifactV2.producer_id == link_tree)
+            previous_best_iteration_artifacts = query.one_or_none()
+            if previous_best_iteration_artifacts:
+                # remove the previous best iteration flag
+                previous_best_iteration_artifacts.best_iteration = False
+                artifacts_to_commit.append(previous_best_iteration_artifacts)
 
-        previous_best_iteration_artifacts = query.one_or_none()
-        if previous_best_iteration_artifacts:
-            previous_best_iteration_artifacts.best_iteration = False
-            artifacts_to_commit.append(previous_best_iteration_artifacts)
+            # update the artifact record with best iteration
+            best_iteration_artifact_record.best_iteration = True
+            artifacts_to_commit.append(best_iteration_artifact_record)
 
         self._upsert(session, artifacts_to_commit)
 
-        return artifact_record.uid
+        return best_iteration_artifact_record.uid
 
     def _update_artifact_record_from_dict(
         self,
@@ -1322,6 +1364,42 @@ class SQLDB(DBInterface):
             return list({artifact for artifact, _ in artifacts_and_tags})
 
         return artifacts_and_tags
+
+    def _find_artifacts_for_producer_id(
+        self,
+        session: Session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ) -> list[tuple[ArtifactV2, str]]:
+        """
+        Find a producer's artifacts matching the given (key, tag, iteration) tuples.
+        :param session:                 DB session
+        :param producer_id:             The artifact producer ID to filter by
+        :param project:                 Project name to filter by
+        :param key_tag_iteration_pairs: List of tuples of (key, tag, iteration)
+        :return: A list of tuples of (ArtifactV2, tag_name)
+        """
+        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        if project:
+            query = query.filter(ArtifactV2.project == project)
+        if producer_id:
+            query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+
+        tuples_filter = []
+        for key, tag, iteration in key_tag_iteration_pairs:
+            iteration = iteration or 0
+            tag = tag or "latest"
+            tuples_filter.append(
+                (ArtifactV2.key == key)
+                & (ArtifactV2.Tag.name == tag)
+                & (ArtifactV2.iteration == iteration)
+            )
+
+        query = query.filter(or_(*tuples_filter))
+        return query.all()
 
     def _add_artifact_name_query(self, query, name=None):
         if not name:
@@ -1716,6 +1794,19 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Function, project=project, name=name)
 
+    def delete_functions(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing functions from db", project=project, name=names)
+
+        self._delete_multi_objects(
+            session=session,
+            main_table=Function,
+            related_tables=[Function.Tag, Function.Label],
+            project=project,
+            names=names,
+        )
+
     def update_function(
         self,
         session,
@@ -1741,6 +1832,63 @@ class SQLDB(DBInterface):
             self._upsert(session, [function])
             return function.struct
 
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
+    ):
+        """
+        This function updates the external invocation URLs of a function within a project.
+        It can add or remove URLs based on the specified `operation` which can be
+        either ADD or REMOVE of type :py:class:`~mlrun.types.Operation`
+        """
+        project = project or config.default_project
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        function, _ = self._get_function_db_object(
+            session,
+            normalized_function_name,
+            project,
+            tag=tag or "latest",
+            hash_key=hash_key,
+        )
+        if not function:
+            logger.debug(
+                "Function is not found, skipping external invocation urls update",
+                project=project,
+                name=name,
+                url=url,
+            )
+            return
+
+        struct = function.struct
+        existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
+        if operation == mlrun.common.types.Operation.ADD:
+            logger.debug(
+                "Adding new external invocation url to function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url not in existing_invocation_urls:
+                existing_invocation_urls.append(url)
+            struct["status"]["external_invocation_urls"] = existing_invocation_urls
+        elif operation == mlrun.common.types.Operation.REMOVE:
+            logger.debug(
+                "Removing an external invocation url from function",
+                project=project,
+                name=name,
+                url=url,
+            )
+            if url in existing_invocation_urls:
+                struct["status"]["external_invocation_urls"].remove(url)
+        function.struct = struct
+        self._upsert(session, [function])
+
     def _get_function(
         self,
         session,
@@ -1751,15 +1899,10 @@ class SQLDB(DBInterface):
         _format: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
-        query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
-        uid = self._get_function_uid(
-            session=session, name=name, tag=tag, hash_key=hash_key, project=project
-        )
+
+        obj, uid = self._get_function_db_object(session, name, project, tag, hash_key)
         tag_function_uid = None if not tag and hash_key else uid
-        if uid:
-            query = query.filter(Function.uid == uid)
-        obj = query.one_or_none()
         if obj:
             function = obj.struct
 
@@ -1779,6 +1922,26 @@ class SQLDB(DBInterface):
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")
 
+    def _get_function_db_object(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        query = self._query(session, Function, name=name, project=project)
+        uid = self._get_function_uid(
+            session=session,
+            name=name,
+            tag=tag,
+            hash_key=hash_key,
+            project=project,
+        )
+        if uid:
+            query = query.filter(Function.uid == uid)
+        return query.one_or_none(), uid
+
     def _get_function_uid(
         self, session, name: str, tag: str, hash_key: str, project: str
     ):
@@ -1796,9 +1959,13 @@ class SQLDB(DBInterface):
                 )
             return tag_function_uid
 
-    def _delete_functions(self, session: Session, project: str):
-        for function_name in self._list_project_function_names(session, project):
-            self.delete_function(session, project, function_name)
+    def _delete_project_functions(self, session: Session, project: str):
+        function_names = self._list_project_function_names(session, project)
+        self.delete_functions(
+            session,
+            project,
+            function_names,
+        )
 
     def _list_project_function_names(self, session: Session, project: str) -> list[str]:
         return [
@@ -2071,10 +2238,102 @@ class SQLDB(DBInterface):
         )
         self._delete(session, Schedule, project=project, name=name)
 
-    def delete_schedules(self, session: Session, project: str):
+    def delete_project_schedules(self, session: Session, project: str):
         logger.debug("Removing schedules from db", project=project)
-        for schedule in self.list_schedules(session, project=project):
-            self.delete_schedule(session, project, schedule.name)
+        function_names = [
+            schedule.name for schedule in self.list_schedules(session, project=project)
+        ]
+        self.delete_schedules(
+            session,
+            project,
+            names=function_names,
+        )
+
+    def delete_schedules(
+        self, session: Session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        logger.debug("Removing schedules from db", project=project, name=names)
+        self._delete_multi_objects(
+            session=session,
+            main_table=Schedule,
+            related_tables=[Schedule.Label],
+            project=project,
+            names=names,
+        )
+
+    @staticmethod
+    def _delete_multi_objects(
+        session: Session,
+        main_table: mlrun.utils.db.BaseModel,
+        related_tables: list[mlrun.utils.db.BaseModel],
+        project: str,
+        names: typing.Union[str, list[str]],
+    ):
+        if not names:
+            logger.debug(
+                "No names provided, skipping deletion",
+                project=project,
+                tables=[main_table] + related_tables,
+            )
+            return
+        for cls in related_tables:
+            logger.debug(f"Removing from {cls}", project=project, name=names)
+
+            # The select is mandatory for sqlalchemy 1.4 because
+            # query.delete does not support multiple-table criteria within DELETE
+            if project != "*":
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(
+                        and_(
+                            main_table.project == project,
+                            or_(main_table.name == name for name in names),
+                        )
+                    )
+                    .subquery()
+                )
+            else:
+                subquery = (
+                    select(cls.id)
+                    .join(main_table)
+                    .where(or_(main_table.name == name for name in names))
+                    .subquery()
+                )
+            stmt = (
+                delete(cls)
+                .where(cls.id.in_(aliased(subquery)))
+                .execution_options(synchronize_session=False)
+            )
+
+            # Execute the delete statement
+            execution_obj = session.execute(stmt)
+            logger.debug(
+                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                project=project,
+                names=names,
+                names_count=len(names),
+            )
+        if project != "*":
+            query = session.query(main_table).filter(
+                and_(
+                    main_table.project == project,
+                    or_(main_table.name == name for name in names),
+                )
+            )
+        else:
+            query = session.query(main_table).filter(
+                or_(main_table.name == name for name in names),
+            )
+
+        count = query.delete(synchronize_session=False)
+        logger.debug(
+            f"Removed {count} rows from {main_table} table",
+            project=project,
+            names=names,
+            names_count=len(names),
+        )
+        session.commit()
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
@@ -2624,8 +2883,8 @@ class SQLDB(DBInterface):
         self.delete_run_notifications(session, project=name)
         self.delete_alert_notifications(session, project=name)
         self.del_runs(session, project=name)
-        self.delete_schedules(session, name)
-        self._delete_functions(session, name)
+        self.delete_project_schedules(session, name)
+        self._delete_project_functions(session, name)
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
@@ -2871,13 +3130,20 @@ class SQLDB(DBInterface):
             query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
 
         features_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
             feature_name = feature_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2898,15 +3164,119 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - features in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 features_results.append(
                     mlrun.common.schemas.FeatureListOutput(
                         feature=feature,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
         return mlrun.common.schemas.FeaturesOutput(features=features_results)
+
+    @staticmethod
+    def _dedup_and_append_feature_set(
+        feature_set, feature_set_id_to_index, feature_set_digests_v2
+    ):
+        # dedup feature set list
+        # we can rely on the object ID because SQLAlchemy already avoids duplication at the object
+        # level, and the conversion from "model" to "schema" retains this property
+        feature_set_obj_id = id(feature_set)
+        feature_set_index = feature_set_id_to_index.get(feature_set_obj_id, None)
+        if feature_set_index is None:
+            feature_set_index = len(feature_set_id_to_index)
+            feature_set_id_to_index[feature_set_obj_id] = feature_set_index
+            feature_set_digests_v2.append(
+                FeatureSetDigestOutputV2(
+                    feature_set_index=feature_set_index,
+                    metadata=feature_set.metadata,
+                    spec=FeatureSetDigestSpecV2(
+                        entities=feature_set.spec.entities,
+                    ),
+                )
+            )
+        return feature_set_index
+
+    @staticmethod
+    def _build_feature_mapping_from_feature_set(feature_set):
+        result = {}
+        for feature in feature_set.spec.features:
+            result[feature.name] = feature
+        return result
+
+    @staticmethod
+    def _build_entity_mapping_from_feature_set(feature_set):
+        result = {}
+        for entity in feature_set.spec.entities:
+            result[entity.name] = entity
+        return result
+
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        # We don't filter by feature-set name here, as the name parameter refers to features
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Feature, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        if entities:
+            query = query.join(FeatureSet.entities).filter(Entity.name.in_(entities))
+
+        features_with_feature_set_index: list[Feature] = []
+        feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
+        feature_set_digest_id_to_index: dict[int, int] = {}
+
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        build_feature_mapping_from_feature_set = MemoizationCache(
+            self._build_feature_mapping_from_feature_set
+        ).memoize
+
+        for row in query:
+            feature_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Feature)
+            feature_name = feature_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                feature_name_to_feature = build_feature_mapping_from_feature_set(
+                    feature_set
+                )
+                feature = feature_name_to_feature.get(feature_name)
+                if not feature:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Inconsistent data in DB - features in DB not in feature-set document"
+                    )
+
+                feature_set_index = self._dedup_and_append_feature_set(
+                    feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
+                )
+                features_with_feature_set_index.append(
+                    feature.copy(update=dict(feature_set_index=feature_set_index))
+                )
+
+        return mlrun.common.schemas.FeaturesOutputV2(
+            features=features_with_feature_set_index,
+            feature_set_digests=feature_set_digests_v2,
+        )
 
     def list_entities(
         self,
@@ -2925,13 +3295,20 @@ class SQLDB(DBInterface):
         )
 
         entities_results = []
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        generate_feature_set_digest = MemoizationCache(
+            self._generate_feature_set_digest
+        ).memoize
+
         for row in query:
             entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
             entity_name = entity_record.name
 
             feature_sets = self._generate_records_with_tags_assigned(
                 row.FeatureSet,
-                self._transform_feature_set_model_to_schema,
+                transform_feature_set_model_to_schema,
                 feature_set_id_tags,
                 tag,
             )
@@ -2952,15 +3329,78 @@ class SQLDB(DBInterface):
                         "Inconsistent data in DB - entities in DB not in feature-set document"
                     )
 
+                feature_set_digest = generate_feature_set_digest(feature_set)
+
                 entities_results.append(
                     mlrun.common.schemas.EntityListOutput(
                         entity=entity,
-                        feature_set_digest=self._generate_feature_set_digest(
-                            feature_set
-                        ),
+                        feature_set_digest=feature_set_digest,
                     )
                 )
+
         return mlrun.common.schemas.EntitiesOutput(entities=entities_results)
+
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
+        feature_set_id_tags = self._get_records_to_tags_map(
+            session, FeatureSet, project, tag, name=None
+        )
+
+        query = self._generate_feature_or_entity_list_query(
+            session, Entity, project, feature_set_id_tags.keys(), name, tag, labels
+        )
+
+        entities_with_feature_set_index: list[Entity] = []
+        feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
+        feature_set_digest_id_to_index: dict[int, int] = {}
+
+        transform_feature_set_model_to_schema = MemoizationCache(
+            self._transform_feature_set_model_to_schema
+        ).memoize
+        build_entity_mapping_from_feature_set = MemoizationCache(
+            self._build_entity_mapping_from_feature_set
+        ).memoize
+
+        for row in query:
+            entity_record = mlrun.common.schemas.FeatureRecord.from_orm(row.Entity)
+            entity_name = entity_record.name
+
+            feature_sets = self._generate_records_with_tags_assigned(
+                row.FeatureSet,
+                transform_feature_set_model_to_schema,
+                feature_set_id_tags,
+                tag,
+            )
+
+            for feature_set in feature_sets:
+                # Get the feature from the feature-set full structure, as it may contain extra fields (which are not
+                # in the DB)
+                entity_name_to_feature = build_entity_mapping_from_feature_set(
+                    feature_set
+                )
+                entity = entity_name_to_feature.get(entity_name)
+                if not entity:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        "Inconsistent data in DB - entities in DB not in feature-set document"
+                    )
+
+                feature_set_index = self._dedup_and_append_feature_set(
+                    feature_set, feature_set_digest_id_to_index, feature_set_digests_v2
+                )
+                entities_with_feature_set_index.append(
+                    entity.copy(update=dict(feature_set_index=feature_set_index))
+                )
+
+        return mlrun.common.schemas.EntitiesOutputV2(
+            entities=entities_with_feature_set_index,
+            feature_set_digests=feature_set_digests_v2,
+        )
 
     @staticmethod
     def _assert_partition_by_parameters(partition_by_enum_cls, partition_by, sort):

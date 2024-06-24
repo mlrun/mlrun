@@ -45,4 +45,6 @@ class TestAppDeployment:
 
     @staticmethod
     def test_app_dep(monitoring_deployment: mm_dep.MonitoringDeployment) -> None:
-        monitoring_deployment.deploy_histogram_data_drift_app(image="mlrun/mlrun")
+        monitoring_deployment.deploy_histogram_data_drift_app(
+            image="mlrun/mlrun", overwrite=True
+        )

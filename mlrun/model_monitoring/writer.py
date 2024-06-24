@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Any, NewType
+from typing import Any, Callable, NewType
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas
@@ -30,7 +30,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     WriterEventKind,
 )
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
-from mlrun.model_monitoring.helpers import get_endpoint_record, get_result_instance_fqn
+from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
@@ -102,7 +102,11 @@ class ModelMonitoringWriter(StepToDict):
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, project: str, tsdb_secret_provider=None) -> None:
+    def __init__(
+        self,
+        project: str,
+        secret_provider: Callable = None,
+    ) -> None:
         self.project = project
         self.name = project  # required for the deployment process
 
@@ -111,10 +115,10 @@ class ModelMonitoringWriter(StepToDict):
         )
 
         self._app_result_store = mlrun.model_monitoring.get_store_object(
-            project=self.project
+            project=self.project, secret_provider=secret_provider
         )
         self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=tsdb_secret_provider
+            project=self.project, secret_provider=secret_provider
         )
         self._endpoints_records = {}
 
@@ -223,7 +227,7 @@ class ModelMonitoringWriter(StepToDict):
             endpoint_id = event[WriterEvent.ENDPOINT_ID]
             endpoint_record = self._endpoints_records.setdefault(
                 endpoint_id,
-                get_endpoint_record(project=self.project, endpoint_id=endpoint_id),
+                self._app_result_store.get_model_endpoint(endpoint_id=endpoint_id),
             )
             event_value = {
                 "app_name": event[WriterEvent.APPLICATION_NAME],

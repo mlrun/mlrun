@@ -320,3 +320,14 @@ def test_get_or_create_ctx_run_kind_local_from_function():
     )
     assert run.state() == "completed"
     assert run.output("return") == "local"
+
+
+def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(
+        "MLRUN_EXEC_CONFIG",
+        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+    )
+    context = mlrun.get_or_create_ctx("ctx")
+    assert context.labels.get("kind") == "spark"

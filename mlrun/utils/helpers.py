@@ -1607,6 +1607,30 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
+def merge_with_precedence(first_dict, second_dict):
+    """
+    Merge two dictionaries with precedence given to keys from the second dictionary.
+
+    This function merges two dictionaries, `first_dict` and `second_dict`, where keys from `second_dict`
+    take precedence in case of conflicts. If both dictionaries contain the same key,
+    the value from `second_dict` will overwrite the value from `first_dict`.
+
+    Example:
+        >>> first_dict = {"key1": "value1", "key2": "value2"}
+        >>> second_dict = {"key2": "new_value2", "key3": "value3"}
+        >>> merge_with_precedence(first_dict, second_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'value3'}
+
+    Note:
+    - The merge operation uses the ** operator in Python, which combines key-value pairs
+      from each dictionary. Later dictionaries take precedence when there are conflicting keys.
+    """
+    return {
+        **first_dict,
+        **second_dict,
+    }
+
+
 def validate_component_version_compatibility(
     component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
 ):

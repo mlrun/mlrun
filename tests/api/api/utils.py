@@ -84,5 +84,6 @@ def _create_project_obj(
             load_source_on_run=load_source_on_run,
             goals="some goals",
             artifact_path=artifact_path,
+            default_function_node_selector={"kubernetes.io/arch": "amd64"},
         ),
     )

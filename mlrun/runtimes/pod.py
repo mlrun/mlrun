@@ -532,7 +532,9 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = {**node_selector, **self.node_selector}
+        self.node_selector = mlrun.utils.helpers.merge_with_precedence(
+            node_selector, self.node_selector
+        )
 
     def _merge_tolerations(
         self,

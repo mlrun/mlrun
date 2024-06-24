@@ -496,6 +496,7 @@ def _deploy_nuclio_runtime(
         client_version=client_version,
         client_python_version=client_python_version,
         builder_env=builder_env,
+        db_session=db_session,
     )
     return fn
 

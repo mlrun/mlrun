@@ -327,9 +327,7 @@ with ctx:
 
         self._enrich_job(runtime, job)
 
-        self._enrich_node_selectors_with_project_level(
-            runtime, job, run.metadata.project
-        )
+        self._enrich_node_selectors_from_project(runtime, job, run.metadata.project)
 
         if runtime.spec.command:
             if "://" not in runtime.spec.command:
@@ -702,7 +700,7 @@ with ctx:
             )
         return
 
-    def _enrich_node_selectors_with_project_level(self, runtime, job, project_name):
+    def _enrich_node_selectors_from_project(self, runtime, job, project_name):
         # After adding the runtime executor and driver node selectors to the job object,
         # we enrich the node selectors with any additional selectors from the project-level configuration, if exists.
         if runtime._get_db() and project_name:
@@ -713,10 +711,10 @@ with ctx:
                         job,
                         "spec.driver.nodeSelector",
                         mlrun.utils.helpers.select_non_empty_fields(
-                            {
-                                **project.spec.default_function_node_selector,
-                                **runtime.spec.driver_node_selector,
-                            }
+                            mlrun.utils.helpers.merge_with_precedence(
+                                project.spec.default_function_node_selector,
+                                runtime.spec.driver_node_selector,
+                            )
                         ),
                     )
                 if runtime.spec.executor_node_selector:
@@ -724,10 +722,10 @@ with ctx:
                         job,
                         "spec.executor.nodeSelector",
                         mlrun.utils.helpers.select_non_empty_fields(
-                            {
-                                **project.spec.default_function_node_selector,
-                                **runtime.spec.executor_node_selector,
-                            }
+                            mlrun.utils.helpers.merge_with_precedence(
+                                project.spec.default_function_node_selector,
+                                runtime.spec.executor_node_selector,
+                            )
                         ),
                     )
             return job

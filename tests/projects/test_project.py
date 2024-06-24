@@ -1259,7 +1259,7 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
-def test_function_does_not_receives_project_default_function_node_selector():
+def test_function_not_enriched_with_project_default_function_node_selector():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)

@@ -214,14 +214,14 @@ class ServerSideLauncher(launcher.BaseLauncher):
             project = runtime._get_db().get_project(run.metadata.project)
             if project.spec.default_function_node_selector:
                 mlrun.utils.logger.info(
-                    "Enriching node selector from project",
+                    "Enriching run node selector from project",
                     project_name=run.metadata.project,
                     project_node_selector=project.spec.default_function_node_selector,
                 )
-                run.spec.node_selector = {
-                    **project.spec.default_function_node_selector,
-                    **runtime.spec.node_selector,
-                }
+                run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
+                    project.spec.default_function_node_selector,
+                    runtime.spec.node_selector,
+                )
 
         return run
 

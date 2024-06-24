@@ -554,35 +554,3 @@ class DaskCluster(KubejobRuntime):
         sout, serr = exec_from_params(handler, runobj, context)
         log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
         return context.to_dict()
-
-    def enrich_runtime_spec(
-        self,
-        project_node_selector: dict[str, str],
-    ):
-        """
-        Enriches the runtime spec with the project-level node selector.
-        Note: In MLRun, this feature is typically applied to the run object.
-        However, In the Dask runtime, the node selector is merged directly on the function object.
-        Dask orchestrates distributed computing tasks,
-        and applying the node selector directly to the function ensures consistency across all distributed tasks.
-
-        This method merges the project-level node selector with the existing function node_selector.
-        The merge logic used here combines the two dictionaries, giving precedence to
-        the keys in the runtime node_selector. If there are conflicting keys between the
-        two dictionaries, the values from self.spec.node_selector will overwrite the
-        values from project_node_selector.
-
-        Example:
-        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
-        and project_node_selector = {"type": "cpu", "environment": "production"}.
-        After the merge, the resulting node_selector will be:
-        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
-
-        Note:
-        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
-          combining key-value pairs from each dictionary. Later dictionaries take precedence
-          when there are conflicting keys.
-        """
-        self.spec.node_selector = mlrun.utils.helpers.select_non_empty_fields(
-            {**project_node_selector, **self.spec.node_selector}
-        )

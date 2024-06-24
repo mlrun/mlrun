@@ -2340,7 +2340,8 @@ class MlrunProject(ModelObj):
                                     Default: job
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           Add (clone) the current repo to the build source
+        :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
+                                    the project repo (project.spec.source).
         :param tag:                 Function version tag to set (none for current or 'latest')
                                     Specifying a tag as a parameter will update the project's tagged function
                                     (myfunc:v1) and the untagged function (myfunc)

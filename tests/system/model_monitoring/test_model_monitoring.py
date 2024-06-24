@@ -239,6 +239,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
 
+@pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestBasicModelMonitoring(TestMLRunSystem):

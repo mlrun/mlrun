@@ -52,7 +52,6 @@ mlrun_bc_*.json
 
 # used for local development.
 playground
-<<<<<<< HEAD
 credentials.txt
 credentials.json
 google-big-query-credentials.json

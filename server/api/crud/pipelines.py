@@ -235,7 +235,6 @@ class Pipelines(
         content_type: str,
         data: bytes,
         arguments: dict = None,
-        namespace: typing.Optional[str] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -263,7 +262,7 @@ class Pipelines(
         )
 
         try:
-            kfp_client = self.initialize_kfp_client(namespace)
+            kfp_client = self.initialize_kfp_client()
             experiment = PipelineExperiment(
                 kfp_client.create_experiment(name=experiment_name)
             )

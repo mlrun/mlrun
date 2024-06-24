@@ -188,6 +188,7 @@ For example:
 import pytest
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestSomeFunctionality(TestMLRunSystem):
@@ -199,6 +200,7 @@ Example of a suite with two tests, one of them meant for enterprise only
 ```python
 import pytest
 from tests.system.base import TestMLRunSystem
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
@@ -216,15 +218,16 @@ If some setup or teardown is required for the tests in the suite, add these foll
 ```python
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-    
+
     def custom_setup(self):
         pass
-    
+
     def custom_teardown(self):
         pass
-    
+
     def test_the_functionality(self):
         pass
 ```

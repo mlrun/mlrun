@@ -358,7 +358,7 @@ of following ways:
   after this command:
     ```python
     from mlrun.config import config as mlconf
-    
+
     mlconf.storage.auto_mount_type = "none"
     ```
 * If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
@@ -375,7 +375,7 @@ of following ways:
 
 The artifact path needs to be modified since the bucket name is set to `mlrun` by default. It is recommended to keep 
 the same path structure as the default, while modifying the bucket name. For example:
-```python
+```text
 s3://<bucket name>/projects/{{run.project}}/artifacts
 ```
 

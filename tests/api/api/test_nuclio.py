@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.nuclio
+import server.api.crud
 import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
 from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
@@ -96,7 +97,9 @@ def test_list_api_gateways(
 @patch.object(server.api.utils.clients.async_nuclio.Client, "get_api_gateway")
 @patch.object(server.api.utils.clients.async_nuclio.Client, "api_gateway_exists")
 @patch.object(server.api.utils.clients.async_nuclio.Client, "store_api_gateway")
+@patch.object(server.api.crud.Functions, "add_function_external_invocation_url")
 def test_store_api_gateway(
+    add_function_external_invocation_url_mocked,
     store_api_gateway_mocked,
     api_gateway_exists_mocked,
     get_api_gateway_mocked,
@@ -117,7 +120,7 @@ def test_store_api_gateway(
             )
         )
     )
-
+    add_function_external_invocation_url_mocked.return_value = True
     api_gateway_exists_mocked.return_value = False
     store_api_gateway_mocked.return_value = True
     get_api_gateway_mocked.return_value = mlrun.common.schemas.APIGateway(

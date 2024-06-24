@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import traceback
 import typing
 from http import HTTPStatus
@@ -26,6 +27,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio.function
+import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.clients.async_nuclio
@@ -33,6 +35,7 @@ import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.utils import logger
+from mlrun.utils.helpers import generate_object_uri
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
 
@@ -123,16 +126,40 @@ async def store_api_gateway(
         auth_info,
     )
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        create = not await client.api_gateway_exists(
-            name=name,
-            project_name=project,
-        )
+        create = False
+        try:
+            existing_api_gateway = await client.get_api_gateway(
+                project_name=project, name=name
+            )
+            # check if any functions were removed from the api gateway
+            unused_functions = [
+                func
+                for func in existing_api_gateway.get_function_names()
+                if func not in api_gateway.get_function_names()
+            ]
+            if unused_functions:
+                # delete api gateway url from those functions which are not used in api gateway anymore
+                await _delete_functions_external_invocation_url(
+                    project=project,
+                    url=existing_api_gateway.spec.host,
+                    function_names=unused_functions,
+                )
+
+        except mlrun.errors.MLRunNotFoundError:
+            create = True
+
         await client.store_api_gateway(
             project_name=project, api_gateway=api_gateway, create=create
         )
         api_gateway = await client.get_api_gateway(
             name=name,
             project_name=project,
+        )
+    if api_gateway:
+        await _add_functions_external_invocation_url(
+            project=project,
+            url=api_gateway.spec.host,
+            function_names=api_gateway.get_function_names(),
         )
     return api_gateway
 
@@ -157,8 +184,16 @@ async def delete_api_gateway(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-
     async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        api_gateway = await client.get_api_gateway(project_name=project, name=name)
+
+        if api_gateway:
+            await _delete_functions_external_invocation_url(
+                project=project,
+                url=api_gateway.spec.host,
+                function_names=api_gateway.get_function_names(),
+            )
+            return await client.delete_api_gateway(project_name=project, name=name)
         return await client.delete_api_gateway(project_name=project, name=name)
 
 
@@ -271,7 +306,9 @@ async def deploy_status(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime kind {fn.kind} is not a nuclio runtime",
         )
-
+    api_gateways_urls = await _get_api_gateways_urls_for_function(
+        auth_info, project, name, tag
+    )
     return await run_in_threadpool(
         _handle_nuclio_deploy_status,
         db_session,
@@ -282,6 +319,7 @@ async def deploy_status(
         tag,
         last_log_timestamp,
         verbose,
+        api_gateways_urls,
     )
 
 
@@ -502,7 +540,15 @@ def _deploy_nuclio_runtime(
 
 
 def _handle_nuclio_deploy_status(
-    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+    db_session,
+    auth_info,
+    fn,
+    name: str,
+    project: str,
+    tag: str,
+    last_log_timestamp: int,
+    verbose: bool,
+    api_gateway_urls: list[str],
 ):
     (
         state,
@@ -527,6 +573,10 @@ def _handle_nuclio_deploy_status(
 
     internal_invocation_urls = status.get("internalInvocationUrls", [])
     external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # add api gateway's URLs
+    if api_gateway_urls:
+        external_invocation_urls += api_gateway_urls
 
     # on earlier versions of mlrun, address used to represent the nodePort external invocation url
     # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
@@ -585,6 +635,26 @@ def _handle_nuclio_deploy_status(
     )
 
 
+async def _get_api_gateways_urls_for_function(
+    auth_info, project, name, tag
+) -> list[str]:
+    function_uri = generate_object_uri(project, name, tag)
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        api_gateways = await client.list_api_gateways(project)
+        # if there are any API gateways, filter the ones associated with the function
+        # extract the hosts from the API gateway specifications and return them as a list
+        # TODO: optimise the way we request api gateways by filtering on Nuclio side
+        return (
+            [
+                api_gateway.spec.host
+                for api_gateway in api_gateways.values()
+                if function_uri in api_gateway.get_function_names()
+            ]
+            if api_gateways
+            else []
+        )
+
+
 def _is_nuclio_deploy_status_changed(
     previous_status: dict, new_status: dict, new_state: str, new_nuclio_name: str = None
 ) -> bool:
@@ -606,3 +676,39 @@ def _is_nuclio_deploy_status_changed(
         or previous_status.get("address", "") != address
     )
     return has_changed
+
+
+async def _delete_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
+    tasks = [
+        asyncio.create_task(
+            run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().delete_function_external_invocation_url,
+                function_uri=function,
+                project=project,
+                invocation_url=url,
+            )
+        )
+        for function in function_names
+    ]
+    await asyncio.gather(*tasks)
+
+
+async def _add_functions_external_invocation_url(
+    project: str, url: str, function_names: list[str]
+) -> None:
+    tasks = [
+        asyncio.create_task(
+            run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().add_function_external_invocation_url,
+                function_uri=function,
+                project=project,
+                invocation_url=url,
+            )
+        )
+        for function in function_names
+    ]
+    await asyncio.gather(*tasks)

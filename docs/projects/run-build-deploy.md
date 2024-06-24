@@ -24,7 +24,7 @@ Use these methods as `project` methods. For example:
 
 ```python
 # run the "train" function in myproject
-run = myproject.run_function("train", inputs={"data": data_url})  
+run = myproject.run_function("train", inputs={"data": data_url})
 ```
     
 The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 
@@ -35,8 +35,8 @@ specify functions that you imported/created ad hoc, or to modify a function spec
 serving = import_function("hub://v2_model_server", new_name="serving")
 serving.spec.replicas = 2
 deploy = deploy_function(
-  serving,
-  models=[{"key": "mymodel", "model_path": train.outputs["model"]}],
+    serving,
+    models=[{"key": "mymodel", "model_path": train.outputs["model"]}],
 )
 ```
     
@@ -45,7 +45,7 @@ You can use the {py:meth}`~mlrun.projects.MlrunProject.get_function` method to g
 ```python
 trainer = project.get_function("train")
 trainer.with_limits(mem="2G", cpu=2, gpus=1)
-run = project.run_function("train", inputs={"data": data_url}) 
+run = project.run_function("train", inputs={"data": data_url})
 ```
 
 <a id="run"></a>
@@ -81,31 +81,37 @@ project.set_function("mycode.py", "prep", image="mlrun/mlrun")
 project.set_function("hub://auto_trainer", "train")
 
 # run functions (refer to them by name)
-run1 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
+run1 = project.run_function("prep", params={"x": 7}, inputs={"data": data_url})
 run2 = project.run_function("train", inputs={"dataset": run1.outputs["data"]})
-run2.artifact('confusion-matrix').show()
+run2.artifact("confusion-matrix").show()
 ```
 
 Example with `new_task`:
 
 ```python
 import mlrun
-project = mlrun.get_or_create_project('example-project')
----
+
+project = mlrun.get_or_create_project("example-project")
 
 from mlrun import RunTemplate, new_task, mlconf
 from os import path
-artifact_path = path.join(mlconf.artifact_path, '{{run.uid}}')
+
+artifact_path = path.join(mlconf.artifact_path, "{{run.uid}}")
+
+
 def handler(context, param, model_names):
     context.logger.info("Running handler")
-    context.set_label('category', 'tests')
+    context.set_label("category", "tests")
     for model_name, file_name in model_names:
         context.log_artifact(model_name, body=param.encode(), local_path=file_name)
-----
+
+
 func = project.set_function("my-func", kind="job", image="mlrun/mlrun")
 func.save()
----
-task = new_task(name='mytask', handler=handler, artifact_path=artifact_path, project='project-name')
+
+task = new_task(
+    name="mytask", handler=handler, artifact_path=artifact_path, project="project-name"
+)
 run_object = project.run_function("my-func", local=True, base_task=task)
 ```
 
@@ -141,7 +147,7 @@ Basic example:
 # Deploy a real-time nuclio function ("myapi")
 deployment = project.deploy_function("myapi")
 
-# invoke the deployed function (using HTTP request) 
+# invoke the deployed function (using HTTP request)
 resp = deployment.function.invoke("/do")
 ```
 
@@ -154,14 +160,14 @@ Example of using `deploy_function` inside a pipeline, after the `train` step, to
 # Deploy the trained model (from the "train" step) as a serverless serving function
 serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
 mlrun.deploy_function(
-  serving_fn,
-  models=[
-      {
-          "key": model_name,
-          "model_path": train.outputs["model"],
-          "class_name": 'mlrun.frameworks.sklearn.SklearnModelServer',
-      }
-  ],
+    serving_fn,
+    models=[
+        {
+            "key": model_name,
+            "model_path": train.outputs["model"],
+            "class_name": "mlrun.frameworks.sklearn.SklearnModelServer",
+        }
+    ],
 )
 ```
 
@@ -184,21 +190,21 @@ image that was set when the function was added to the project.
 For example:
 
 ```python
- project = mlrun.new_project(project_name, "./proj")
- # use v1 of a pre-built image as default
- project.set_default_image("myrepo/my-prebuilt-image:v1")
- # set function without an image, will use the project's default image
- project.set_function("mycode.py", "prep")
+project = mlrun.new_project(project_name, "./proj")
+# use v1 of a pre-built image as default
+project.set_default_image("myrepo/my-prebuilt-image:v1")
+# set function without an image, will use the project's default image
+project.set_function("mycode.py", "prep")
 
- # function will run with the "myrepo/my-prebuilt-image:v1" image
- run1 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
+# function will run with the "myrepo/my-prebuilt-image:v1" image
+run1 = project.run_function("prep", params={"x": 7}, inputs={"data": data_url})
 
- ...
+...
 
- # replace the default image with a newer v2
- project.set_default_image("myrepo/my-prebuilt-image:v2")
- # function will now run using the v2 version of the image 
- run2 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
+# replace the default image with a newer v2
+project.set_default_image("myrepo/my-prebuilt-image:v2")
+# function will now run using the v2 version of the image
+run2 = project.run_function("prep", params={"x": 7}, inputs={"data": data_url})
 ```
 Read more about {ref}`images-usage`.
 
@@ -226,32 +232,32 @@ based on the project configuration and provided parameters:
 For example:
 
 ```python
- # Set image config for current project object, using base mlrun image with additional requirements. 
- image_name = ".my-project-image"
- project.build_config(
-     image=image_name,
-     set_as_default=True,
-     with_mlrun=False,
-     base_image="mlrun/mlrun",
-     requirements=["vaderSentiment"],
- )
+# Set image config for current project object, using base mlrun image with additional requirements.
+image_name = ".my-project-image"
+project.build_config(
+    image=image_name,
+    set_as_default=True,
+    with_mlrun=False,
+    base_image="mlrun/mlrun",
+    requirements=["vaderSentiment"],
+)
 
- # Export the project configuration. The yaml file will contain the build configuration
- proj_file_path = "~/mlrun/my-project/project.yaml"
- project.export(proj_file_path)
+# Export the project configuration. The yaml file will contain the build configuration
+proj_file_path = "~/mlrun/my-project/project.yaml"
+project.export(proj_file_path)
 ```
  
 This project can then be imported and the default image can be built:
 
 ```python
- # Import the project as a new project with a different name
- new_project = mlrun.load_project("~/mlrun/my-project", name="my-other-project")
- # Build the default image for the project, based on project build config
- new_project.build_image()
+# Import the project as a new project with a different name
+new_project = mlrun.load_project("~/mlrun/my-project", name="my-other-project")
+# Build the default image for the project, based on project build config
+new_project.build_image()
 
- # Set a new function and run it (new function uses the my-project-image image built previously)
- new_project.set_function("sentiment.py", name="scores", kind="job", handler="handler")
- new_project.run_function("scores")
+# Set a new function and run it (new function uses the my-project-image image built previously)
+new_project.set_function("sentiment.py", name="scores", kind="job", handler="handler")
+new_project.run_function("scores")
 ```
 
 <a id="build_image"></a>
@@ -264,14 +270,9 @@ If you set a source for the project (for example, git source) and set `pull_at_r
 the generated image contains the project source in it. For example, this code builds `.some-project-image` 
 image with the source in it.
 ```python
-project = mlrun.get_or_create_project(
-    name="project-name", context="./"
-)
+project = mlrun.get_or_create_project(name="project-name", context="./")
 
-project.set_source(
-    "git://some/repo",
-    pull_at_runtime=False
-)
+project.set_source("git://some/repo", pull_at_runtime=False)
 
 project.build_image(image=".some-project-image")
 ```
@@ -290,6 +291,8 @@ image_name = ".temporary-image"
 project.build_image(image=image_name, set_as_default=False)
 
 # Create a function using the temp image name
-project.set_function("sentiment.py", name="scores", kind="job", handler="handler", image=image_name)
+project.set_function(
+    "sentiment.py", name="scores", kind="job", handler="handler", image=image_name
+)
 ```
    

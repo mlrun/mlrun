@@ -11,9 +11,8 @@ Assume you have the following code in `train.py`
 import pandas as pd
 from sklearn.svm import SVC
 
-def train_and_predict(train_data,
-                      predict_input,
-                      label_column='label'):
+
+def train_and_predict(train_data, predict_input, label_column="label"):
 
     x = train_data.drop(label_column, axis=1)
     y = train_data[label_column]
@@ -31,13 +30,13 @@ import pandas as pd
 from sklearn.svm import SVC
 import mlrun
 
-@mlrun.handler(labels={'framework':'scikit-learn'},
-               outputs=['prediction:dataset'],
-               inputs={"train_data": pd.DataFrame,
-                       "predict_input": pd.DataFrame})
-def train_and_predict(train_data,
-                      predict_input,
-                      label_column='label'):
+
+@mlrun.handler(
+    labels={"framework": "scikit-learn"},
+    outputs=["prediction:dataset"],
+    inputs={"train_data": pd.DataFrame, "predict_input": pd.DataFrame},
+)
+def train_and_predict(train_data, predict_input, label_column="label"):
 
     x = train_data.drop(label_column, axis=1)
     y = train_data[label_column]
@@ -52,15 +51,23 @@ To run the code, use the following example:
 
 ``` python
 import mlrun
+
 project = mlrun.get_or_create_project("mlrun-example", context="./", user_project=True)
 
-trainer = project.set_function("train.py", name="train_and_predict", kind="job", image="mlrun/mlrun", handler="train_and_predict")
+trainer = project.set_function(
+    "train.py",
+    name="train_and_predict",
+    kind="job",
+    image="mlrun/mlrun",
+    handler="train_and_predict",
+)
 
 trainer_run = project.run_function(
-    "train_and_predict", 
-    inputs={"train_data": mlrun.get_sample_path('data/iris/iris_dataset.csv'),
-            "predict_input": mlrun.get_sample_path('data/iris/iris_to_predict.csv')
-           }
+    "train_and_predict",
+    inputs={
+        "train_data": mlrun.get_sample_path("data/iris/iris_dataset.csv"),
+        "predict_input": mlrun.get_sample_path("data/iris/iris_to_predict.csv"),
+    },
 )
 ```
 
@@ -78,13 +85,10 @@ The decorator gives you the option to set labels for the run. The `labels` param
 The `mlrun.handler` decorator can also parse the input types, if they are specified. An equivalent definition is as follows:
 
 ``` python
-@mlrun.handler(labels={'framework':'scikit-learn'},
-               outputs=['prediction:dataset'])
-def train_and_predict(train_data: pd.DataFrame,
-                      predict_input: pd.DataFrame,
-                      label_column='label'):
-
-...
+@mlrun.handler(labels={"framework": "scikit-learn"}, outputs=["prediction:dataset"])
+def train_and_predict(
+    train_data: pd.DataFrame, predict_input: pd.DataFrame, label_column="label"
+): ...
 ```
 
 **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`, `typing.List` etc.) are 

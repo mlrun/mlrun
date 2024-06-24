@@ -70,6 +70,8 @@ class Member(project_follower.Member):
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.common.schemas.Project:
+        if name not in self._projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
         # deep copy so we won't accidentally get changes from tests
         return self._projects[name].copy(deep=True)
 

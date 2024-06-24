@@ -1991,6 +1991,7 @@ class DataTarget(DataTargetBase):
         "name",
         "kind",
         "path",
+        "attributes",
         "start_time",
         "online",
         "status",
@@ -2022,6 +2023,7 @@ class DataTarget(DataTargetBase):
         self.last_written = None
         self._producer = None
         self.producer = {}
+        self.attributes = {}
 
     @property
     def producer(self) -> FeatureSetProducer:

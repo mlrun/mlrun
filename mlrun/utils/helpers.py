@@ -674,6 +674,8 @@ def parse_artifact_uri(uri, default_project=""):
             raise ValueError(
                 f"illegal store path '{uri}', iteration must be integer value"
             )
+    else:
+        iteration = 0
     return (
         group_dict["project"] or default_project,
         group_dict["key"],
@@ -1318,6 +1320,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
         "scheduled_at",
         "finished_at",
         "description",
+        "experiment_id",
     ]
 
     if with_project:

@@ -1610,7 +1610,7 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
-def merge_with_precedence(first_dict, second_dict):
+def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
     """
     Merge two dictionaries with precedence given to keys from the second dictionary.
 

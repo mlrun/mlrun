@@ -217,7 +217,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
             if project.spec.default_function_node_selector:
-                mlrun.utils.logger.info(
+                mlrun.utils.logger.debug(
                     "Enriching run node selector from project",
                     project_name=run.metadata.project,
                     project_node_selector=project.spec.default_function_node_selector,

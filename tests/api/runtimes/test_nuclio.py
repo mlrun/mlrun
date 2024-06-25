@@ -403,7 +403,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
         assert config["metadata"]["labels"].get(key) == val
 
-    def test_compile_function_config_with_node_selector(
+    def test_compile_function_config_node_selector_enriched_from_project(
         self, db: Session, client: TestClient
     ):
         function = self._generate_runtime(self.runtime_kind)

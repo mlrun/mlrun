@@ -463,12 +463,12 @@ def _set_function_scheduling_params(function, nuclio_spec, db_session):
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        if function.spec.node_selector:
+        if node_selector := _enrich_function_node_selector_with_project(
+            db_session, function.metadata.project, function.spec.node_selector
+        ):
             nuclio_spec.set_config(
                 "spec.nodeSelector",
-                _enrich_function_node_selector_with_project(
-                    db_session, function.metadata.project, function.spec.node_selector
-                ),
+                node_selector,
             )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)

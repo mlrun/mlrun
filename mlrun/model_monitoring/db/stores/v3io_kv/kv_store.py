@@ -247,6 +247,8 @@ class KVStoreBase(StoreBase):
         # # Initialize an empty model endpoints list
         endpoint_list = []
 
+        function_uri = f"{self.project}/{function}" if function else None
+
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
             cursor = self.client.kv.new_cursor(
@@ -254,9 +256,8 @@ class KVStoreBase(StoreBase):
                 table_path=self.path,
                 filter_expression=self._build_kv_cursor_filter_expression(
                     self.project,
-                    function,
+                    function_uri,
                     model,
-                    labels,
                     top_level,
                 ),
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -269,7 +270,7 @@ class KVStoreBase(StoreBase):
                 exc=mlrun.errors.err_to_str(exc),
             )
             return endpoint_list
-
+        logger.debug("[David] Items", items=items)
         # Create a list of model endpoints unique ids
         if uids is None:
             uids = []
@@ -285,7 +286,31 @@ class KVStoreBase(StoreBase):
             endpoint = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            endpoint_list.append(endpoint)
+            logger.debug("[David] labels", labels=labels)
+            if labels:
+                label_in = True
+                endpoint_labels = json.loads(endpoint["labels"])
+                logger.debug("[David] endpoint_labels", endpoint_labels=endpoint_labels)
+                for label in labels:
+                    if "=" in label:
+                        label, value = list(map(lambda x: x.strip(), label.split("=")))
+                        logger.debug(
+                            "[David] label key split", label=label, value=value
+                        )
+                    else:
+                        value = None
+                        logger.debug(
+                            "[David] label key split", label=label, value=value
+                        )
+                    label_in = label in endpoint_labels and (
+                        (value and str(endpoint_labels[label]) == value) or not value
+                    )
+                    if not label_in:
+                        break
+                if label_in:
+                    endpoint_list.append(endpoint)
+            else:
+                endpoint_list.append(endpoint)
 
         return endpoint_list
 
@@ -507,9 +532,8 @@ class KVStoreBase(StoreBase):
     @staticmethod
     def _build_kv_cursor_filter_expression(
         project: str,
-        function: str = None,
+        function_uri: str = None,
         model: str = None,
-        labels: list[str] = None,
         top_level: bool = False,
     ) -> str:
         """
@@ -518,10 +542,7 @@ class KVStoreBase(StoreBase):
 
         :param project:    The name of the project.
         :param model:      The name of the model to filter by.
-        :param function:   The name of the function to filter by.
-        :param labels:     A list of labels to filter by. Label filters work by either filtering a specific value of
-                           a label (i.e. list("key=value")) or by looking for the existence of a given
-                           key (i.e. "key").
+        :param function_uri:   The uri of the function to filter by.
         :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
@@ -533,25 +554,28 @@ class KVStoreBase(StoreBase):
             raise mlrun.errors.MLRunInvalidArgumentError("project can't be empty")
 
         # Add project filter
-        filter_expression = [f"project=='{project}'"]
+        filter_expression = [f"{mm_schemas.EventFieldType.PROJECT}=='{project}'"]
 
         # Add function and model filters
-        if function:
-            filter_expression.append(f"function=='{function}'")
+        if function_uri:
+            filter_expression.append(
+                f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'"
+            )
         if model:
-            filter_expression.append(f"model=='{model}'")
+            model = model if ":" in model else f"{model}:latest"
+            filter_expression.append(f"{mm_schemas.EventFieldType.MODEL}=='{model}'")
 
-        # Add labels filters
-        if labels:
-            for label in labels:
-                if not label.startswith("_"):
-                    label = f"_{label}"
-
-                if "=" in label:
-                    lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-                    filter_expression.append(f"{lbl}=='{value}'")
-                else:
-                    filter_expression.append(f"exists({label})")
+        # # Add labels filters
+        # if labels:
+        #     for label in labels:
+        #         if not label.startswith("_"):
+        #             label = f"_{label}"
+        #
+        #         if "=" in label:
+        #             lbl, value = list(map(lambda x: x.strip(), label.split("=")))
+        #             filter_expression.append(f"{lbl}=='{value}'")
+        #         else:
+        #             filter_expression.append(f"exists({label})")
 
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:

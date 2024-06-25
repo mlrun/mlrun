@@ -303,6 +303,7 @@ class SQLStoreBase(StoreBase):
 
             # Apply filters
             if model:
+                model = model if ":" in model else f"{model}:latest"
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
@@ -310,11 +311,12 @@ class SQLStoreBase(StoreBase):
                     filtered_values=[model],
                 )
             if function:
+                function_uri = f"{self.project}/{function}"
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.FUNCTION,
-                    filtered_values=[function],
+                    key_filter=mm_schemas.EventFieldType.FUNCTION_URI,
+                    filtered_values=[function_uri],
                 )
             if uids:
                 query = self._filter_values(

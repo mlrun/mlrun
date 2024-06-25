@@ -61,7 +61,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         self._logger = logger
         self.project = "test-project"
-        self.project_default_function_node_selector = {"test-project": "node-selector"}
+        self.project_default_function_node_selector = {}
         self.name = "test-function"
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"

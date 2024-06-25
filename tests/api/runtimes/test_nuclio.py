@@ -62,6 +62,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.image_name = "test/image:latest"
         self.code_handler = "test_func"
+        self.project_default_function_node_selector = {"test-project": "node-selector"}
 
         os.environ["V3IO_ACCESS_KEY"] = self.v3io_access_key = "1111-2222-3333-4444"
         os.environ["V3IO_USERNAME"] = self.v3io_user = "test-user"
@@ -406,7 +407,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         function = self._generate_runtime(self.runtime_kind)
-        function.spec.node_selector = {"kubernetes.io/hostname": "k8s-node1"}
+        function_node_selector = {"kubernetes.io/hostname": "k8s-node1"}
+        function.spec.node_selector = function_node_selector
         (
             _,
             _,
@@ -414,9 +416,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) = server.api.crud.runtimes.nuclio.function._compile_function_config(
             function, db_session=db
         )
-        assert config["spec"]["nodeSelector"] == mlrun.utils.helpers.merge_with_precedence(
+        assert config["spec"][
+            "nodeSelector"
+        ] == mlrun.utils.helpers.merge_with_precedence(
             self.project_default_function_node_selector,
-            {"kubernetes.io/hostname": "k8s-node1"}
+            function_node_selector,
         )
 
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):

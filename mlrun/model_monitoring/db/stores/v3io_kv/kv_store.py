@@ -556,18 +556,6 @@ class KVStoreBase(StoreBase):
             model = model if ":" in model else f"{model}:latest"
             filter_expression.append(f"{mm_schemas.EventFieldType.MODEL}=='{model}'")
 
-        # # Add labels filters
-        # if labels:
-        #     for label in labels:
-        #         if not label.startswith("_"):
-        #             label = f"_{label}"
-        #
-        #         if "=" in label:
-        #             lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-        #             filter_expression.append(f"{lbl}=='{value}'")
-        #         else:
-        #             filter_expression.append(f"exists({label})")
-
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(

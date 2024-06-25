@@ -94,7 +94,7 @@ workflow_run = project.run(
         "transcribe_model": "openai/whisper-large-v3",
         "translate_to_english": True,
         "pii_recognition_model": "whole",
-        "pii_recognition_entities": ['PERSON', "EMAIL", "PHONE"],
+        "pii_recognition_entities": ["PERSON", "EMAIL", "PHONE"],
         "pii_recognition_entity_operator_map": {
             "PERSON": ("replace", {"new_value": "John Doe"}),
             "EMAIL": ("replace", {"new_value": "john_doe@email.com"}),

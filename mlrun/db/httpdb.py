@@ -963,7 +963,7 @@ class HTTPRunDB(RunDBInterface):
 
         # we do this because previously the 'uid' name was used for the 'tree' parameter
         tree = tree or uid
-
+        project = project or mlrun.mlconf.default_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
@@ -1002,7 +1002,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
-        project = project or config.default_project
+        project = project or mlrun.mlconf.default_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
@@ -1039,7 +1039,7 @@ class HTTPRunDB(RunDBInterface):
         :param deletion_strategy: The artifact deletion strategy types.
         :param secrets: Credentials needed to access the artifact data.
         """
-
+        project = project or mlrun.mlconf.default_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,

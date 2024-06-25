@@ -214,11 +214,13 @@ def _compile_function_config(
     serving_spec_volume = None
     serving_spec = function._get_serving_spec()
     if serving_spec is not None:
-        # To keep backward comatability, allow passing service spec
+        # To keep backward compatability, allow passing service spec
         # via Config Map only for client version higher then 1.7.0
         # TODO: remove in 1.9.0.
-        can_pass_via_cm = not client_version or (
-            semver.Version.parse(client_version) >= semver.Version.parse("1.7.0")
+        can_pass_via_cm = (
+            not client_version
+            or (semver.Version.parse(client_version) >= semver.Version.parse("1.7.0"))
+            or "unstable" in client_version
         )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod

@@ -168,7 +168,7 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"serving-conf-{self.project}-{self.name}"
+                                "name": f"{self.project}-{self.name}"
                                 + (f"-{func_name}" if func_name else "")
                             },
                             "name": "serving-conf",

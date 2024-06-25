@@ -90,7 +90,8 @@ to a `training_artifacts` variable:
 
 ```python
 from os import path
-training_artifacts = path.join(artifact_path, 'training')
+
+training_artifacts = path.join(artifact_path, "training")
 ```
 
 ```{admonition} Note

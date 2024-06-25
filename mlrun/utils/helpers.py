@@ -1629,8 +1629,8 @@ def merge_with_precedence(first_dict, second_dict):
       from each dictionary. Later dictionaries take precedence when there are conflicting keys.
     """
     return {
-        **first_dict,
-        **second_dict,
+        **(first_dict or {}),
+        **(second_dict or {}),
     }
 
 

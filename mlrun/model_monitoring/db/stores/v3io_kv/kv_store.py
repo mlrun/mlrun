@@ -270,7 +270,6 @@ class KVStoreBase(StoreBase):
                 exc=mlrun.errors.err_to_str(exc),
             )
             return endpoint_list
-        logger.debug("[David] Items", items=items)
         # Create a list of model endpoints unique ids
         if uids is None:
             uids = []
@@ -286,22 +285,14 @@ class KVStoreBase(StoreBase):
             endpoint = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            logger.debug("[David] labels", labels=labels)
             if labels:
                 label_in = True
                 endpoint_labels = json.loads(endpoint["labels"])
-                logger.debug("[David] endpoint_labels", endpoint_labels=endpoint_labels)
                 for label in labels:
                     if "=" in label:
                         label, value = list(map(lambda x: x.strip(), label.split("=")))
-                        logger.debug(
-                            "[David] label key split", label=label, value=value
-                        )
                     else:
                         value = None
-                        logger.debug(
-                            "[David] label key split", label=label, value=value
-                        )
                     label_in = label in endpoint_labels and (
                         (value and str(endpoint_labels[label]) == value) or not value
                     )

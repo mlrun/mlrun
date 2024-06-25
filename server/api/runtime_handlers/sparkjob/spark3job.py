@@ -703,7 +703,7 @@ with ctx:
     def _enrich_node_selectors_from_project(self, runtime, job, project_name):
         # After adding the runtime executor and driver node selectors to the job object,
         # we enrich the node selectors with any additional selectors from the project-level configuration, if exists.
-        if runtime._get_db() and project_name:
+        if project_name:
             project = runtime._get_db().get_project(project_name)
             if project.spec.default_function_node_selector:
                 if runtime.spec.driver_node_selector:

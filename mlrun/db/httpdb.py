@@ -1073,6 +1073,7 @@ class HTTPRunDB(RunDBInterface):
         tree: str = None,
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1108,6 +1109,7 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_:         The format in which to return the artifacts. Default is 'full'.
+        :param limit:           Maximum number of artifacts to return.
         """
 
         project = project or config.default_project
@@ -1127,6 +1129,7 @@ class HTTPRunDB(RunDBInterface):
             "tree": tree,
             "format": format_,
             "producer_uri": producer_uri,
+            "limit": limit,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"

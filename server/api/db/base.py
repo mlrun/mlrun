@@ -217,6 +217,7 @@ class DBInterface(ABC):
         producer_id: str = None,
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 

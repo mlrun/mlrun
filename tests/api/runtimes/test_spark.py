@@ -727,6 +727,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
 
         self.project = "default"
+        self.project_default_function_node_selector = {}
         self._create_project(client)
 
         resp = fstore.get_offline_features(

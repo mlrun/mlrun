@@ -1752,6 +1752,11 @@ class SQLDB(DBInterface):
         ):
             function_dict = function.struct
             if not function_tag:
+
+                # function status should be added only to tagged functions
+                # TODO: remove explicit cleaning
+                function_dict["status"] = None
+
                 # the unversioned uid is only a placeholder for tagged instances that are versioned.
                 # if another instance "took" the tag, we're left with an unversioned untagged instance
                 # don't list it

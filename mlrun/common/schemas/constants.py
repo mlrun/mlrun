@@ -119,6 +119,7 @@ class FeatureStorePartitionByField(mlrun.common.types.StrEnum):
 
 
 class RunPartitionByField(mlrun.common.types.StrEnum):
+    name = "name"  # Supported for runs objects
     project_and_name = "project_and_name"  # Supported for runs objects
 
     def to_partition_by_db_field(self, db_cls):

@@ -186,7 +186,7 @@ class Runs(
             start_time_from = (
                 datetime.datetime.now() - datetime.timedelta(days=7)
             ).isoformat()
-            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
         if isinstance(start_time_from, str):

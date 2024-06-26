@@ -870,7 +870,7 @@ class HTTPRunDB(RunDBInterface):
         ):
             # default to last week on no filter
             start_time_from = datetime.now() - timedelta(days=7)
-            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
         params = {

@@ -18,7 +18,7 @@
 | ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
-|ML-6795|Can now upgrade to v1.6.4 with when cluster has artifacts that do not have a `key`.|
+|ML-6795|Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
  
 ## v1.6.3 (4 June 2024)
 

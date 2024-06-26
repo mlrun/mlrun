@@ -9,7 +9,7 @@ If you are using the CE version, see {ref}`legacy-model-monitoring`.
 
 The model monitoring APIs are configured per project. The APIs are:
 
-- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; brings up the controller, writer and stream functions, and schedules the controller according to the `base_period`. You can also enable the default histogram-based data drift application when you enable model monitoring.
+- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; brings up the controller, writer and stream functions, and schedules the controller according to the `base_period`. You can also deploy the default histogram-based data drift application when you enable model monitoring.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Update or set a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; creates a function but does not set it. It's useful for troubleshooting, since it does  not register the function to the project.
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
@@ -22,9 +22,7 @@ The model monitoring APIs are configured per project. The APIs are:
 
 Enable model monitoring for a project with {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 The controller runs, by default, every 10 minutes, which is also the minimum interval. 
-You can modify the frequency with the parameter `base_period`. 
-To change the `base_period`, first run `disable_model_monitoring`, then run `enable_model_monitoring`  
-with the new `base_period` value. 
+You can modify the frequency with the parameter `base_period`, then running `update_model_monitoring_controller`. 
 
 ```python
 project.enable_model_monitoring(base_period=1)
@@ -34,7 +32,6 @@ project.enable_model_monitoring(base_period=1)
 
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. 
 This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
-
 
 ```python
 model_name = "RandomForestClassifier"

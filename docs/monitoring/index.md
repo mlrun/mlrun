@@ -32,7 +32,7 @@ The model monitoring process flow starts with collecting operational data from a
 monitoring stream pod forwards data to a Parquet database. 
 The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. 
 Each monitoring application is a separate nuclio real-time job. Each one listens to a stream that is filled by 
-the monitoring controller on each `base_period` interval.
+the monitoring controller at each `base_period` interval.
 The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
 The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 

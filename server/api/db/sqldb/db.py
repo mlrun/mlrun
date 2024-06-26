@@ -1753,7 +1753,9 @@ class SQLDB(DBInterface):
             function_dict = function.struct
             if not function_tag:
                 # function status should be added only to tagged functions
-                # TODO: remove explicit cleaning
+                # TODO: remove explicit cleaning; we also
+                #  will need to understand how to display functions in UI), because if we simply delete this string,
+                #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
 
                 # the unversioned uid is only a placeholder for tagged instances that are versioned.

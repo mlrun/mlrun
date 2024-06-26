@@ -61,7 +61,7 @@ def test_build_kv_cursor_filter_expression():
 
     filter_expression = endpoint_store._build_kv_cursor_filter_expression(
         project=TEST_PROJECT,
-        function_uri=f"{TEST_PROJECT}/test_function",
+        function="test_function",
         model="test_model",
     )
     expected = (

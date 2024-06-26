@@ -247,8 +247,6 @@ class KVStoreBase(StoreBase):
         # # Initialize an empty model endpoints list
         endpoint_list = []
 
-        function_uri = f"{self.project}/{function}" if function else None
-
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
             cursor = self.client.kv.new_cursor(
@@ -256,7 +254,7 @@ class KVStoreBase(StoreBase):
                 table_path=self.path,
                 filter_expression=self._build_kv_cursor_filter_expression(
                     self.project,
-                    function_uri,
+                    function,
                     model,
                     top_level,
                 ),
@@ -513,7 +511,7 @@ class KVStoreBase(StoreBase):
     @staticmethod
     def _build_kv_cursor_filter_expression(
         project: str,
-        function_uri: str = None,
+        function: str = None,
         model: str = None,
         top_level: bool = False,
     ) -> str:
@@ -523,7 +521,7 @@ class KVStoreBase(StoreBase):
 
         :param project:         The name of the project.
         :param model:           The name of the model to filter by.
-        :param function_uri:    The uri of the function to filter by (<project_name>/<function_name>).
+        :param function:        The name of the function to filter by.
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
@@ -538,7 +536,8 @@ class KVStoreBase(StoreBase):
         filter_expression = [f"{mm_schemas.EventFieldType.PROJECT}=='{project}'"]
 
         # Add function and model filters
-        if function_uri:
+        if function:
+            function_uri = f"{project}/{function}" if function else None
             filter_expression.append(
                 f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'"
             )

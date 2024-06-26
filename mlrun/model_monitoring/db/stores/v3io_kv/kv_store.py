@@ -285,22 +285,23 @@ class KVStoreBase(StoreBase):
             endpoint = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
+            label_in = True
             if labels:
-                label_in = True
                 endpoint_labels = json.loads(endpoint["labels"])
                 for label in labels:
                     if "=" in label:
-                        label, value = list(map(lambda x: x.strip(), label.split("=")))
+                        label, value = list(
+                            map(lambda x: x.strip(), label.split("=", 1))
+                        )
                     else:
                         value = None
                     label_in = label in endpoint_labels and (
-                        (value and str(endpoint_labels[label]) == value) or not value
+                        not value or str(endpoint_labels[label]) == value
                     )
                     if not label_in:
                         break
-                if label_in:
-                    endpoint_list.append(endpoint)
-            else:
+
+            if label_in:
                 endpoint_list.append(endpoint)
 
         return endpoint_list
@@ -531,10 +532,10 @@ class KVStoreBase(StoreBase):
         Convert the provided filters into a valid filter expression. The expected filter expression includes different
         conditions, divided by ' AND '.
 
-        :param project:    The name of the project.
-        :param model:      The name of the model to filter by.
-        :param function_uri:   The uri of the function to filter by.
-        :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
+        :param project:         The name of the project.
+        :param model:           The name of the model to filter by.
+        :param function_uri:    The uri of the function to filter by (<project_name>/<function_name>).
+        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
 

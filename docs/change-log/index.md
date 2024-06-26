@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.6.4](#v1-6-4-20-june-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.4](#v1-6-4-27-june-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -12,14 +12,13 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
  
-## v1.6.4 (20 June 2024)
+## v1.6.4 (27 June 2024)
   
 ###  Closed issues
 | ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
-|ML-6864 |UI: When attempting to load an artifact file that is too large to view, a message pops up advising you to download the file.| 
-|ML-6868 |UI: The Artifacts page (Artifacts/Datasets/Models) limits the display to 1000 items. Use filters to focus the query result.|
+|ML-6795|Can now upgrade to v1.6.4 with when cluster has artifacts that do not have a `key`.|
  
 ## v1.6.3 (4 June 2024)
 

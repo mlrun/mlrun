@@ -35,19 +35,23 @@ Example of creating a feature vector:
 import mlrun.feature_store as fstore
 
 # Feature vector definitions
-feature_vector_name = 'example-fv'
-feature_vector_description = 'Example feature vector'
-features = ['data_source_1.*', 
-            'data_source_2.feature_1', 
-            'data_source_2.feature_2',
-            'data_source_3.*']
-label_feature = 'label_source_1.label_feature'
+feature_vector_name = "example-fv"
+feature_vector_description = "Example feature vector"
+features = [
+    "data_source_1.*",
+    "data_source_2.feature_1",
+    "data_source_2.feature_2",
+    "data_source_3.*",
+]
+label_feature = "label_source_1.label_feature"
 
 # Feature vector creation
-fv = fstore.FeatureVector(name=feature_vector_name,
-                          features=features,
-                          label_feature=label_feature,
-                          description=feature_vector_description)
+fv = fstore.FeatureVector(
+    name=feature_vector_name,
+    features=features,
+    label_feature=label_feature,
+    description=feature_vector_description,
+)
 
 # Save the feature vector in the MLRun DB
 # so it can be referenced by the `store://`
@@ -137,13 +141,14 @@ as a function input using `store://feature-vectors/{project}/{feature_vector_nam
 For example:
 
 ```python
-fn = mlrun.import_function('hub://sklearn-classifier').apply(auto_mount())
+fn = mlrun.import_function("hub://sklearn-classifier").apply(auto_mount())
 
 # Define the training task, including the feature vector and label
-task = mlrun.new_task('training', 
-                      inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'},
-                      params={'label_column': 'label'}
-                     )
+task = mlrun.new_task(
+    "training",
+    inputs={"dataset": f"store://feature-vectors/{project}/{feature_vector_name}"},
+    params={"label_column": "label"},
+)
 
 # Run the function
 run = fn.run(task)
@@ -246,7 +251,7 @@ To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need
 import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
-feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
+feature_vector = "store://feature-vectors/{project}/{feature_vector_name}"
 fvec = fstore.get_feature_vector(feature_vector)
 svc = fvec.get_online_feature_service()
 ```
@@ -268,7 +273,7 @@ For example:
 
 ```python
 # Define the wanted entities
-entities = [{<feature-vector-entity-column-name>: <entity>}]
+entities = [{"<feature-vector-entity-column-name>": "<entity>"}]
 
 # Get the feature vectors from the service
 svc.get(entities)

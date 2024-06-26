@@ -22,24 +22,24 @@ To log an artifacts file, specify the local file path to the file using the `loc
 
 **Log with local path**
 ```python
-    with open("file.txt","w") as f:
-        f.write("abc is 123")
-    
-    project.log_artifact(
-        "file-example",
-        local_path="file.txt",
-        labels={"Test": "label-test"},
-    )
+with open("file.txt", "w") as f:
+    f.write("abc is 123")
+
+project.log_artifact(
+    "file-example",
+    local_path="file.txt",
+    labels={"Test": "label-test"},
+)
 ```
 
 **Log with body**
 ```python
-    project.log_artifact(
-        "some-data",
-        body=b"abc is 123",
-        format="txt",
-        labels={"Test": "label-test"},
-    )
+project.log_artifact(
+    "some-data",
+    body=b"abc is 123",
+    format="txt",
+    labels={"Test": "label-test"},
+)
 ```
 
 ## Log a Plotly object as an html file
@@ -47,39 +47,40 @@ This example illustrates logging a Plotly figure using `log_artifact` as an `htm
 ```python
 import plotly.graph_objects as go
 import numpy as np
+
 # Create a Sin(x) Graph
 x = np.linspace(0, 10, 100)
 y = np.sin(x)
 # Create a Plotly figure
 fig = go.Figure()
 # Add a line trace to the figure
-fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name='Sin(x)'))
+fig.add_trace(go.Scatter(x=x, y=y, mode="lines", name="Sin(x)"))
 # Update layout
 fig.update_layout(
-    title="Sin(x) Plot",
-    xaxis_title="x",
-    yaxis_title="sin(x)",
-    template="plotly_dark" 
+    title="Sin(x) Plot", xaxis_title="x", yaxis_title="sin(x)", template="plotly_dark"
 )
-project.log_artifact("plotly-artifact",
-                     body=fig.to_html(),# convert object for logging an html file
-                     format="html")
+project.log_artifact(
+    "plotly-artifact",
+    body=fig.to_html(),  # convert object for logging an html file
+    format="html",
+)
 ```
 ## Logging Plotly artifacts 
 This example illustrates using MLRun to convert and handle the object: 
 ```python
 # Use mlrun to convert the python object
-plotly_artifact = mlrun.artifacts.PlotlyArtifact(figure=fig, key="sin_x") 
+plotly_artifact = mlrun.artifacts.PlotlyArtifact(figure=fig, key="sin_x")
 # Log the artifact
-context.log_artifact(plotly_artifact) 
+context.log_artifact(plotly_artifact)
 ```
 ## Logging directory artifacts 
 When using `log_artifact` to log a directory, by default:
 - The artifact is logged as an `mlrun.artifacts.DirArtifact` object.
 - The files are not uploaded. If you want to upload the files, set `upload=True`.
 ```python
-    project.log_artifact(
+project.log_artifact(
     "artifact-directory-testing",
     local_path="./artifact_directory/",
-    labels={"Dir":"dir-example"})
+    labels={"Dir": "dir-example"},
+)
 ```

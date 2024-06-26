@@ -832,6 +832,35 @@ class QueueStep(BaseStep):
     def async_object(self):
         return self._async_object
 
+    def to(
+        self,
+        class_name: Union[str, StepToDict] = None,
+        name: str = None,
+        handler: str = None,
+        graph_shape: str = None,
+        function: str = None,
+        full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+        **class_args,
+    ):
+        if not function:
+            name = get_name(name, class_name)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"step '{name}' must specify a function, because it follows a queue step"
+            )
+        return super().to(
+            class_name,
+            name,
+            handler,
+            graph_shape,
+            function,
+            full_event,
+            input_path,
+            result_path,
+            **class_args,
+        )
+
     def run(self, event, *args, **kwargs):
         data = event.body
         if not data:

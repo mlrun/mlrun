@@ -15,3 +15,4 @@ sphinx-version-warning~=1.1
 # https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
 # which is not generating the API by module pages (using PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python does not work)
 protobuf~=3.20.3
+sphinxcontrib-mermaid~=0.9.2

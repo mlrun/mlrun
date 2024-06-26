@@ -92,9 +92,7 @@ def raise_for_status(
     try:
         response.raise_for_status()
     except (requests.HTTPError, aiohttp.ClientResponseError) as exc:
-        error_message = err_to_str(exc)
-        if message:
-            error_message = f"{error_message}: {message}"
+        error_message = err_to_str(exc) if not message else message
         status_code = (
             response.status_code
             if hasattr(response, "status_code")

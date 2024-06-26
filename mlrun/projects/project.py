@@ -51,6 +51,7 @@ import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.serving
+import mlrun.utils
 import mlrun.utils.regex
 from mlrun.alerts.alert import AlertConfig
 from mlrun.common.schemas.alert import AlertTemplate
@@ -993,15 +994,24 @@ class ProjectSpec(ModelObj):
 
         artifacts_dict = {}
         for artifact in artifacts:
-            if not isinstance(artifact, dict) and not hasattr(artifact, "to_dict"):
+            invalid_object_type = not isinstance(artifact, dict) and not hasattr(
+                artifact, "to_dict"
+            )
+            is_artifact_model = not isinstance(artifact, dict) and hasattr(
+                artifact, "to_dict"
+            )
+
+            if invalid_object_type:
                 raise ValueError("artifacts must be a dict or class")
-            if isinstance(artifact, dict):
-                key = artifact.get("metadata", {}).get("key", "")
-                if not key:
-                    raise ValueError('artifacts "metadata.key" must be specified')
-            else:
+            elif is_artifact_model:
                 key = artifact.key
                 artifact = artifact.to_dict()
+            else:  # artifact is a dict
+                # imported artifacts don't have metadata,spec,status fields
+                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
+                key = mlrun.utils.get_in(artifact, key_field, "")
+                if not key:
+                    raise ValueError(f'artifacts "{key_field}" must be specified')
 
             artifacts_dict[key] = artifact
 
@@ -2116,6 +2126,7 @@ class MlrunProject(ModelObj):
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
+        rebuild_images: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2135,6 +2146,7 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
                                                 Otherwise, deploy the model monitoring infrastructure on the
                                                 background, including the histogram data drift app if selected.
+        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2150,6 +2162,7 @@ class MlrunProject(ModelObj):
             image=image,
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            rebuild_images=rebuild_images,
         )
 
         if wait_for_deployment:
@@ -2324,7 +2337,8 @@ class MlrunProject(ModelObj):
                                     Default: job
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           Add (clone) the current repo to the build source
+        :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
+                                    the project repo (project.spec.source).
         :param tag:                 Function version tag to set (none for current or 'latest')
                                     Specifying a tag as a parameter will update the project's tagged function
                                     (myfunc:v1) and the untagged function (myfunc)
@@ -3650,6 +3664,7 @@ class MlrunProject(ModelObj):
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3679,6 +3694,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3693,6 +3709,7 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
+            limit=limit,
         )
 
     def list_models(

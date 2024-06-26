@@ -72,7 +72,7 @@ artifacts directory in the current active directory (`./artifacts`)
 
    `project.artifact_path='./artifacts'`
 
-```{admonition} For Iguazio MLOps Platform users
+```{admonition} For Iguazio AI Platform users
 In the platform, the default artifacts path is the <project name>/artifacts directory in the 
 predefined “projects” data container: `/v3io/projects/<project name>/artifacts`
 (for example, `/v3io/projects/myproject/artifacts` for a “myproject” project).
@@ -91,7 +91,8 @@ to a `training_artifacts` variable:
 
 ```python
 from os import path
-training_artifacts = path.join(artifact_path, 'training')
+
+training_artifacts = path.join(artifact_path, "training")
 ```
 
 ```{admonition} Note

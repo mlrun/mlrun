@@ -100,13 +100,20 @@ class SQLRunDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
-    def read_run(self, uid, project=None, iter=None):
+    def read_run(
+        self,
+        uid: str,
+        project: str = None,
+        iter: int = None,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         return self._transform_db_error(
             server.api.crud.Runs().get_run,
             self.session,
             uid,
             iter,
             project,
+            format_,
         )
 
     def list_runs(
@@ -195,7 +202,16 @@ class SQLRunDB(RunDBInterface):
             tree,
         )
 
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         return self._transform_db_error(
             server.api.crud.Artifacts().get_artifact,
             self.session,
@@ -205,6 +221,7 @@ class SQLRunDB(RunDBInterface):
             project=project,
             producer_id=tree,
             object_uid=uid,
+            format_=format_,
         )
 
     def list_artifacts(
@@ -220,6 +237,8 @@ class SQLRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -238,6 +257,8 @@ class SQLRunDB(RunDBInterface):
             kind=kind,
             category=category,
             producer_id=tree,
+            format_=format_,
+            limit=limit,
         )
 
     def del_artifact(
@@ -508,6 +529,24 @@ class SQLRunDB(RunDBInterface):
             labels,
         )
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_features_v2,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
     def list_entities(
         self,
         project: str,
@@ -517,6 +556,22 @@ class SQLRunDB(RunDBInterface):
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_entities,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
+        )
+
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_entities_v2,
             self.session,
             project,
             name,
@@ -1072,6 +1127,7 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
     ) -> None:
         raise NotImplementedError
 

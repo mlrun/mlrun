@@ -249,9 +249,6 @@ class TestAlerts(TestMLRunSystem):
                     "data": "notification failure",
                 },
             },
-            secret_params={
-                "webhook": "some-webhook",
-            },
         )
         return [alert_objects.AlertNotification(notification=notification)]
 
@@ -271,9 +268,6 @@ class TestAlerts(TestMLRunSystem):
                     "data": f"first drift of {result_kind}",
                 },
             },
-            secret_params={
-                "webhook": "some-webhook",
-            },
         )
         second_notification = mlrun.common.schemas.Notification(
             kind="webhook",
@@ -288,9 +282,6 @@ class TestAlerts(TestMLRunSystem):
                     "operation": "add",
                     "data": f"second drift of {result_kind}",
                 },
-            },
-            secret_params={
-                "webhook": "some-webhook",
             },
         )
         return [
@@ -331,4 +322,9 @@ class TestAlerts(TestMLRunSystem):
                 nuclio_function_url
             )
         )
-        assert deepdiff.DeepDiff(sent_notifications, expected_notifications) == {}
+        assert (
+            deepdiff.DeepDiff(
+                sent_notifications, expected_notifications, ignore_order=True
+            )
+            == {}
+        )

@@ -266,17 +266,22 @@ class Alerts(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
             )
 
-        if (
-            alert.criteria is not None
-            and alert.criteria.period is not None
-            and server.api.utils.helpers.string_to_timedelta(
-                alert.criteria.period, raise_on_error=False
-            )
-            is None
-        ):
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
-            )
+        if alert.criteria is not None:
+            if alert.criteria.count >= mlconfig.alerts.max_criteria_count:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Maximum criteria count exceeded: {alert.criteria.count}"
+                )
+
+            if (
+                alert.criteria.period is not None
+                and server.api.utils.helpers.string_to_timedelta(
+                    alert.criteria.period, raise_on_error=False
+                )
+                is None
+            ):
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
+                )
 
         for alert_notification in alert.notifications:
             if alert_notification.notification.kind not in [

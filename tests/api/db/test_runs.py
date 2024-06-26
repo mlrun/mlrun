@@ -461,7 +461,7 @@ def test_list_runs_with_same_names(db: DBInterface, db_session: Session):
         db_session,
         project="*",
         partition_sort_by=mlrun.common.schemas.SortField.created,
-        partition_by=mlrun.common.schemas.RunPartitionByField.name,
+        partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
     )
     assert len(runs) == 4
 

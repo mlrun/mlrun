@@ -1752,7 +1752,6 @@ class SQLDB(DBInterface):
         ):
             function_dict = function.struct
             if not function_tag:
-
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning
                 function_dict["status"] = None

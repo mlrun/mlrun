@@ -282,27 +282,16 @@ class KVStoreBase(StoreBase):
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
-            endpoint = self.get_model_endpoint(
+            endpoint_dict = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            label_in = True
-            if labels:
-                endpoint_labels = json.loads(endpoint["labels"])
-                for label in labels:
-                    if "=" in label:
-                        label, value = list(
-                            map(lambda x: x.strip(), label.split("=", 1))
-                        )
-                    else:
-                        value = None
-                    label_in = label in endpoint_labels and (
-                        not value or str(endpoint_labels[label]) == value
-                    )
-                    if not label_in:
-                        break
 
-            if label_in:
-                endpoint_list.append(endpoint)
+            if labels and not self._validate_labels(
+                endpoint_dict=endpoint_dict, labels=labels
+            ):
+                continue
+
+            endpoint_list.append(endpoint_dict)
 
         return endpoint_list
 

@@ -201,12 +201,7 @@ Disable partitioning with:
 
 ## Snowflake target
 
-```
-target = SnowflakeTarget(path="ds://profile-name")
-```
-
-`DatastoreProfileSnowflakeTarget` class parameters:
-
+Snowflake target parameters:
 - `name`
 - `user` (snowflake user)
 - `warehouse` (snowflake warehouse)

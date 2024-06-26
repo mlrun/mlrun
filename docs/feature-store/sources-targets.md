@@ -201,12 +201,11 @@ Disable partitioning with:
 
 ## Snowflake target
 
-```python
-profile = DatastoreProfileSnowflakeTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+```
 target = SnowflakeTarget(path="ds://profile-name")
 ```
 
-`DatastoreProfileKafkaTarget` class parameters:
+`DatastoreProfileSnowflakeTarget` class parameters:
 
 - `name`
 - `user` (snowflake user)
@@ -216,7 +215,7 @@ target = SnowflakeTarget(path="ds://profile-name")
 - `db_schema`
 - `table_name`
 
-In addition, you need to setup this env parameter:
+In addition, you need to set up this env parameter:
 `SNOWFLAKE_PASSWORD`
 
 ## NoSql target

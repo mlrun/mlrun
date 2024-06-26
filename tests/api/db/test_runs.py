@@ -455,6 +455,14 @@ def test_list_runs_with_same_names(db: DBInterface, db_session: Session):
         partition_sort_by=mlrun.common.schemas.SortField.created,
         partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
     )
+    assert len(runs) == 2
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        partition_sort_by=mlrun.common.schemas.SortField.created,
+        partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
+    )
     assert len(runs) == 4
 
 

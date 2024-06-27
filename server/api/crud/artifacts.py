@@ -113,10 +113,11 @@ class Artifacts(
         key: str,
         tag: str = "latest",
         iter: int = None,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         object_uid: str = None,
+        raise_on_not_found: bool = True,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = server.api.utils.singletons.db.get_db().read_artifact(
@@ -127,6 +128,7 @@ class Artifacts(
             project,
             producer_id,
             object_uid,
+            raise_on_not_found,
             format_=format_,
         )
         return artifact
@@ -134,7 +136,7 @@ class Artifacts(
     def list_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = "",
         tag: str = "",
         labels: list[str] = None,
@@ -147,6 +149,7 @@ class Artifacts(
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         producer_uri: str = None,
+        limit: int = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -166,13 +169,28 @@ class Artifacts(
             producer_id=producer_id,
             producer_uri=producer_uri,
             format_=format_,
+            limit=limit,
         )
         return artifacts
+
+    def list_artifacts_for_producer_id(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
+    ):
+        return server.api.utils.singletons.db.get_db().list_artifacts_for_producer_id(
+            db_session,
+            producer_id=producer_id,
+            project=project,
+            key_tag_iteration_pairs=key_tag_iteration_pairs,
+        )
 
     def list_artifact_tags(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -220,7 +238,7 @@ class Artifacts(
     def delete_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = "",
         tag: str = "latest",
         labels: list[str] = None,
@@ -256,7 +274,7 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         object_uid: str = None,
         producer_id: str = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (

@@ -190,7 +190,7 @@ class Projects(
             label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
         )
-        if mlrun.mlconf.resolve_kfp_url():
+        if mlrun.mlconf.kfp_url:
             logger.debug("Removing KFP pipelines project resources", project_name=name)
             server.api.crud.pipelines.Pipelines().delete_pipelines_runs(
                 db_session=session, project_name=name
@@ -440,7 +440,7 @@ class Projects(
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)
         project_to_recent_completed_pipelines_count = collections.defaultdict(lambda: 0)
         project_to_recent_failed_pipelines_count = collections.defaultdict(lambda: 0)
-        if not mlrun.mlconf.resolve_kfp_url():
+        if not mlrun.mlconf.kfp_url:
             # If KFP is not configured, return dict with 0 counters (no running pipelines)
             return (
                 project_to_recent_completed_pipelines_count,

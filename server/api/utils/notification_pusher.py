@@ -79,7 +79,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 name = notification_object.name
                 notification_type = NotificationTypes(notification_object.kind)
                 params = {}
-                params.update(notification_object.secret_params)
+                if notification_object.secret_params:
+                    params.update(notification_object.secret_params)
                 if notification_object.params:
                     params.update(notification_object.params)
                 notification = notification_type.get_notification()(name, params)

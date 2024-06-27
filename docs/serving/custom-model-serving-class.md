@@ -37,15 +37,16 @@ from cloudpickle import load
 import numpy as np
 import mlrun
 
+
 class ClassifierModel(mlrun.serving.V2ModelServer):
     def load(self):
         """load and initialize the model and/or other elements"""
-        model_file, extra_data = self.get_model('.pkl')
-        self.model = load(open(model_file, 'rb'))
+        model_file, extra_data = self.get_model(".pkl")
+        self.model = load(open(model_file, "rb"))
 
     def predict(self, body: dict) -> list:
         """Generate model predictions from sample"""
-        feats = np.asarray(body['inputs'])
+        feats = np.asarray(body["inputs"])
         result: np.ndarray = self.model.predict(feats)
         return result.tolist()
 ```
@@ -56,7 +57,7 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 import mlrun
 from sklearn.datasets import load_iris
 
-fn = mlrun.new_function('my_server', kind='serving')
+fn = mlrun.new_function("my_server", kind="serving")
 
 # set the topology/router and add models
 graph = fn.set_topology("router")
@@ -65,7 +66,7 @@ fn.add_model("model2", class_name="ClassifierModel", model_path="<path2>")
 
 # create and use the graph simulator
 server = fn.to_mock_server()
-x = load_iris()['data'].tolist()
+x = load_iris()["data"].tolist()
 result = server.test("/v2/models/model1/infer", {"inputs": x})
 ```
 
@@ -136,8 +137,9 @@ Example (run inside a notebook): this code converts a notebook to a serving func
 
 ```python
 from mlrun import code_to_function
-fn = code_to_function('my-function', kind='serving')
-fn.add_model('m1', model_path=<model-artifact/dir>, class_name='MyClass', x=100)
+
+fn = code_to_function("my-function", kind="serving")
+fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 
 See [`.add_model()`](../api/mlrun.runtimes.html#mlrun.runtimes.ServingRuntime.add_model) docstring for help and parameters.

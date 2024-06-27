@@ -27,7 +27,6 @@ from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
@@ -507,33 +506,6 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
     assert parsed_function_object.metadata.credentials.access_key == access_key
-
-
-def test_generate_function_and_task_from_submit_run_body_enrich_kind(
-    db: Session, client: TestClient
-):
-    task_name = "task_name"
-    tests.api.api.utils.create_project(client, PROJECT)
-    kind = mlrun.runtimes.RuntimeKinds.spark
-    project, function_name, function_tag, original_function = _mock_original_function(
-        client,
-        kind=kind,
-    )
-
-    submit_job_body = {
-        "task": {
-            "spec": {"function": f"{project}/{function_name}:{function_tag}"},
-            "metadata": {"name": task_name, "project": PROJECT},
-        },
-        "function": {"metadata": {"credentials": None}},
-    }
-    parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, submit_job_body
-    )
-    assert parsed_function_object.metadata.name == function_name
-    assert parsed_function_object.metadata.project == project
-    assert parsed_function_object.metadata.tag == function_tag
-    assert task["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.kind] == kind
 
 
 def test_ensure_function_has_auth_set(

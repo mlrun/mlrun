@@ -198,7 +198,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_task(task, function.kind)
+    apply_enrichment_and_validation_on_task(task)
 
     return function, task
 
@@ -212,7 +212,7 @@ async def submit_run(
     return response
 
 
-def apply_enrichment_and_validation_on_task(task, kind):
+def apply_enrichment_and_validation_on_task(task):
     # Conceal notification config params from the task object with secrets
     mask_notification_params_on_task(task, server.api.constants.MaskOperations.CONCEAL)
 
@@ -955,6 +955,7 @@ def submit_run_sync(
     response = None
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 

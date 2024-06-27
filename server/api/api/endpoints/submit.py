@@ -135,5 +135,4 @@ async def submit_job(
                 mlrun_constants.MLRunInternalLabels.client_python_version: client_python_version
             }
         )
-
     return await server.api.api.utils.submit_run(db_session, auth_info, data)

@@ -793,10 +793,6 @@ class SnowflakeSource(BaseSourceDriver):
             warnings.warn(
                 "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
             )
-            if db_schema:
-                warnings.warn(
-                    "schema is deprecated in 1.7.0 and db_schema is the replacement. ignoring schema."
-                )
         db_schema = db_schema or schema  # TODO: Remove in 1.9.0
 
         attributes = attributes or {}

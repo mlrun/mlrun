@@ -24,6 +24,7 @@ from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
+import storey
 from mergedeep import merge
 
 import mlrun
@@ -922,25 +923,19 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        store, path_in_store, target_path = self._get_store_and_path()
-
-        storage_options = store.get_storage_options()
-        if storage_options and self.storage_options:
-            storage_options = merge(storage_options, self.storage_options)
-        else:
-            storage_options = storage_options or self.storage_options
+        target_path = self.get_target_path()
 
         step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.ParquetTarget",
+            class_name="mlrun.datastore.targets.ParquetTargetStoreyWrapper",
             path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=storage_options,
+            storage_options=self.storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,
@@ -1067,6 +1062,47 @@ class ParquetTarget(BaseStoreTarget):
                     op = time_unit_to_op[partition]
                     df = df.withColumn(partition, op(timestamp_col))
         return df
+
+
+class ParquetTargetStoreyWrapper(storey.ParquetTarget):
+    def __init__(
+        self,
+        path: str,
+        index_cols: Union[str, Union[list[str], list[tuple[str, str]]], None] = None,
+        columns: Union[str, Union[list[str], list[tuple[str, str]]], None] = None,
+        partition_cols: Union[
+            str, Union[list[str], list[tuple[str, int]]], None
+        ] = None,
+        time_field: Union[None, str, int] = None,
+        time_format: Optional[str] = None,
+        infer_columns_from_data: Optional[bool] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Union[int, float, None] = None,
+        **kwargs,
+    ):
+        external_storage_options = kwargs.get("storage_options", None)
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(path)
+        storage_options = store.get_storage_options()
+        if storage_options and external_storage_options:
+            storage_options = merge(storage_options, external_storage_options)
+        else:
+            storage_options = storage_options or external_storage_options
+
+        if storage_options:
+            kwargs["storage_options"] = storage_options
+
+        super().__init__(
+            url,
+            index_cols,
+            columns,
+            partition_cols,
+            time_field,
+            time_format,
+            infer_columns_from_data,
+            max_events,
+            flush_after_seconds,
+            **kwargs,
+        )
 
 
 class CSVTarget(BaseStoreTarget):

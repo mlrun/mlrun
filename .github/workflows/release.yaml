@@ -159,7 +159,8 @@ jobs:
           python -m pip install \
             build~=1.0 \
             wheel~=0.42 \
-            twine~=4.0
+            twine~=4.0 \
+            "importlib_metadata<8.0"
       - name: Build & push to pypi
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |

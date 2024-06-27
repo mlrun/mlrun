@@ -29,7 +29,7 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options, get_snowflake_password
 from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
@@ -1249,7 +1249,16 @@ class SnowflakeTarget(BaseStoreTarget):
         return spark_options
 
     def purge(self):
-        pass
+        import snowflake.connector
+
+        account = self.attributes["url"].replace(".snowflakecomputing.com", "")
+        snowflake_connector = snowflake.connector.connect(
+            account=account,
+            user=self.attributes.get("user"),
+            password=get_snowflake_password(),
+            warehouse=self.attributes.get("warehouse"),
+        )
+        snowflake_connector.cursor()
 
     def as_df(
         self,

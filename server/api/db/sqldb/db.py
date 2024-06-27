@@ -1754,7 +1754,7 @@ class SQLDB(DBInterface):
             if not function_tag:
                 # function status should be added only to tagged functions
                 # TODO: remove explicit cleaning; we also
-                #  will need to understand how to display functions in UI), because if we simply delete this string,
+                #  will need to understand how to display functions in UI, because if we do not remove the status here,
                 #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
 

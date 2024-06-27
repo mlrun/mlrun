@@ -94,7 +94,6 @@ class Scheduler:
         if secret_name:
             labels = labels or {}
             labels[self._db_record_auth_label] = secret_name
-        return labels
 
     def _get_access_key_secret_name_from_db_record(
         self, db_schedule: mlrun.common.schemas.ScheduleRecord
@@ -134,13 +133,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._ensure_auth_info_has_access_key(auth_info, kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
-        # not the secret value itself. Therefore, it can be kept in a non-secure field.
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
-
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich(auth_info, kind, labels, name, project, scheduled_object)
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -211,11 +204,7 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
-        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
-
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich(auth_info, db_schedule.kind, labels, name, project, scheduled_object)
 
         get_db().update_schedule(
             session=db_session,
@@ -316,6 +305,7 @@ class Scheduler:
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         labels: dict = None,
         concurrency_limit: int = None,
+        fn_kind: str = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -345,10 +335,7 @@ class Scheduler:
             )
             kind = db_schedule.kind
 
-        self._ensure_auth_info_has_access_key(auth_info, kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich(auth_info, kind, labels, name, project, scheduled_object, fn_kind)
 
         db_schedule, is_update = get_db().store_schedule(
             session=db_session,
@@ -832,7 +819,7 @@ class Scheduler:
 
                     # Append the auth key label to the schedule labels in the DB.
                     labels = {label.name: label.value for label in db_schedule.labels}
-                    labels = self._append_access_key_secret_to_labels(
+                    self._append_access_key_secret_to_labels(
                         labels, secret_name
                     )
                     get_db().update_schedule(
@@ -993,6 +980,16 @@ class Scheduler:
                     schedule_notifications, schedule_name, project
                 )
             ]
+
+    def _enrich(self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None):
+        self._ensure_auth_info_has_access_key(auth_info, kind)
+        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
+        # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
+        # not the secret value itself. Therefore, it can be kept in a non-secure field.
+        self._append_access_key_secret_to_labels(labels, secret_name)
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+        if fn_kind:
+            labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
 
     @staticmethod
     def _remove_schedule_notification_secrets(

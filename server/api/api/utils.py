@@ -215,9 +215,6 @@ async def submit_run(
 def apply_enrichment_and_validation_on_task(task, kind):
     # Conceal notification config params from the task object with secrets
     mask_notification_params_on_task(task, server.api.constants.MaskOperations.CONCEAL)
-    task.setdefault("metadata", {}).setdefault("labels", {}).setdefault(
-        mlrun_constants.MLRunInternalLabels.kind, kind
-    )
 
 
 def mask_notification_params_on_task(
@@ -993,6 +990,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
+                fn_kind=fn.kind
             )
 
             project = task["metadata"]["project"]

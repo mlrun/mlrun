@@ -21,9 +21,9 @@ MLRUN_VERSION ?= unstable
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_REPO ?= mlrun
+# empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
-DOCKER_HUB ?= registry.hub.docker.com
-MLRUN_DOCKER_REGISTRY ?= $(DOCKER_HUB)/
+MLRUN_DOCKER_REGISTRY ?=
 # empty by default (use cache), set it to anything to disable caching (will add flags to pip and docker commands to
 # disable caching)
 MLRUN_NO_CACHE ?=
@@ -574,7 +574,7 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		$(DOCKER_HUB)/mysql/mysql-server:8.0 \
+		mysql/mysql-server:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 
@@ -596,10 +596,18 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code using Ruff
+fmt: ## Format the code using Ruff and blacken-docs
 	@echo "Running ruff checks and fixes..."
 	python -m ruff check --fix-only
 	python -m ruff format
+	@echo "Formatting the code blocks with blacken-docs..."
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+
+.PHONY: lint-docs
+lint-docs: ## Format the code blocks in markdown files
+# TODO: use the `--check` flag when blacken-docs 1.17 is released
+	@echo "Checking the code blocks with blacken-docs"
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -607,7 +615,7 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports lint-docs ## Run lint on the code
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

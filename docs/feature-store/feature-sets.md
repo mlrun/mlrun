@@ -51,7 +51,7 @@ Avoid using timestamps or bool as entities.
    
 Example:
 ```python
-#Create a basic feature set example
+# Create a basic feature set example
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 ```
 
@@ -105,11 +105,15 @@ in the Iguazio NoSQL DB (`NoSqlTarget`). You can use the default targets or add/
 Graph example (storey engine):
 ```python
 import mlrun.feature_store as fstore
-feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
+
+feature_set = fstore.FeatureSet(
+    "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+)
 # Define the computational graph including the custom functions
-feature_set.graph.to(DropColumns(drop_columns))\
-                 .to(RenameColumns(mapping={'bad': 'bed'}))
-feature_set.add_aggregation('hr', ['avg'], ["1h"])
+feature_set.graph.to(DropColumns(drop_columns)).to(
+    RenameColumns(mapping={"bad": "bed"})
+)
+feature_set.add_aggregation("hr", ["avg"], ["1h"])
 feature_set.plot()
 feature_set.ingest(data_df)
 ```
@@ -119,6 +123,7 @@ Graph example (pandas engine):
 def myfunc1(df, context=None):
     df = df.drop(columns=["exchange"])
     return df
+
 
 stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")

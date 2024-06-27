@@ -122,9 +122,7 @@ async def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    format_: mlrun.common.formatters.ArtifactFormat = Query(
-        mlrun.common.formatters.ArtifactFormat.full, alias="format"
-    ),
+    format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -201,9 +199,8 @@ async def list_artifacts(
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: mlrun.common.formatters.ArtifactFormat = Query(
-        mlrun.common.formatters.ArtifactFormat.full, alias="format"
-    ),
+    format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
+    limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -227,6 +224,7 @@ async def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,
+        limit=limit,
     )
 
     if not artifacts and tag:

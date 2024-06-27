@@ -44,6 +44,8 @@ from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
+_MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
+
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -246,15 +248,30 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: Optional[str] = None
 
-    @pytest.mark.timeout(270)
-    def test_basic_model_monitoring(self) -> None:
+    @pytest.mark.timeout(540)
+    @pytest.mark.parametrize(
+        "with_sql_target",
+        [
+            pytest.param(
+                True, marks=pytest.mark.skip(reason="Chronically fails, see ML-5820")
+            ),
+            False,
+        ],
+    )
+    def test_basic_model_monitoring(self, with_sql_target: bool) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
         # 2 - model name, tag and values are recorded as expected under the model endpoint
         # 3 - stream metrics are recorded as expected under the model endpoint
+        # 4 - test on both SQL and KV store targets
 
         # Deploy Model Servers
         project = self.project
+
+        if with_sql_target:
+            project.set_model_monitoring_credentials(
+                endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            )
 
         iris = load_iris()
         train_set = pd.DataFrame(

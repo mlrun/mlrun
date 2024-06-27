@@ -46,8 +46,8 @@ jobs:
         run: echo "$RUNNER_CONTEXT"
         env:
           RUNNER_CONTEXT: ${{ toJson(runner) }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "server/log-collector/go.mod"
           cache-dependency-path: "server/log-collector/go.sum"
@@ -66,7 +66,7 @@ jobs:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run GO tests
         run: |
           make test-go-unit-dockerized
@@ -75,12 +75,12 @@ jobs:
     name: Run Integration Tests in Kubernetes Environment
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # since github-actions gives us 14G only, and fills it up with some garbage
       - name: Freeing up disk space
         run: |
           "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-      - uses: manusa/actions-setup-minikube@v2.7.2
+      - uses: manusa/actions-setup-minikube@v2.11.0
         with:
           minikube version: "v1.28.0"
           kubernetes version: "v1.25.3"

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
@@ -20,6 +21,7 @@ from deprecated import deprecated
 import mlrun.alerts
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
@@ -192,6 +194,7 @@ class DBInterface(ABC):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 
@@ -213,6 +216,18 @@ class DBInterface(ABC):
         uid: str = None,
         producer_id: str = None,
         producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
     ):
         pass
 
@@ -307,6 +322,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def delete_functions(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
+        pass
+
+    @abstractmethod
     def list_functions(
         self,
         session,
@@ -330,6 +351,19 @@ class DBInterface(ABC):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
     ):
         pass
 
@@ -400,7 +434,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_schedules(self, session, project: str):
+    def delete_project_schedules(self, session, project: str):
+        pass
+
+    @abstractmethod
+    def delete_schedules(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -515,6 +555,12 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
     @abstractmethod
     def list_features(
         self,
@@ -528,6 +574,24 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
     def list_entities(
         self,
         session,
@@ -536,6 +600,17 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     @abstractmethod

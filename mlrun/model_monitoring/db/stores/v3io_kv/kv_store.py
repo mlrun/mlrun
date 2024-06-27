@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import typing
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -24,8 +23,8 @@ import v3io.dataplane.response
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.model_monitoring.db
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import logger
 
 # Fields to encode before storing in the KV table or to decode after retrieving
@@ -89,18 +88,21 @@ _KIND_TO_SCHEMA_PARAMS: dict[mm_schemas.WriterEventKind, SchemaParams] = {
 _EXCLUDE_SCHEMA_FILTER_EXPRESSION = '__name!=".#schema"'
 
 
-class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
+class KVStoreBase(StoreBase):
+    type: typing.ClassVar[str] = "v3io-nosql"
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, project: str, access_key: typing.Optional[str] = None) -> None:
+    def __init__(
+        self,
+        project: str,
+    ) -> None:
         super().__init__(project=project)
         # Initialize a V3IO client instance
-        self.access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api, access_key=self.access_key
+            endpoint=mlrun.mlconf.v3io_api,
         )
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
@@ -186,7 +188,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             table_path=self.path,
             key=endpoint_id,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=self.access_key,
         )
         endpoint = endpoint.output.item
 
@@ -255,7 +256,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                     self.project,
                     function,
                     model,
-                    labels,
                     top_level,
                 ),
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -268,7 +268,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
                 exc=mlrun.errors.err_to_str(exc),
             )
             return endpoint_list
-
         # Create a list of model endpoints unique ids
         if uids is None:
             uids = []
@@ -281,10 +280,16 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
-            endpoint = self.get_model_endpoint(
+            endpoint_dict = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            endpoint_list.append(endpoint)
+
+            if labels and not self._validate_labels(
+                endpoint_dict=endpoint_dict, labels=labels
+            ):
+                continue
+
+            endpoint_list.append(endpoint_dict)
 
         return endpoint_list
 
@@ -499,7 +504,6 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
 
     def _get_frames_client(self):
         return mlrun.utils.v3io_clients.get_frames_client(
-            token=self.access_key,
             address=mlrun.mlconf.v3io_framesd,
             container=self.container,
         )
@@ -509,20 +513,16 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
         project: str,
         function: str = None,
         model: str = None,
-        labels: list[str] = None,
         top_level: bool = False,
     ) -> str:
         """
         Convert the provided filters into a valid filter expression. The expected filter expression includes different
         conditions, divided by ' AND '.
 
-        :param project:    The name of the project.
-        :param model:      The name of the model to filter by.
-        :param function:   The name of the function to filter by.
-        :param labels:     A list of labels to filter by. Label filters work by either filtering a specific value of
-                           a label (i.e. list("key=value")) or by looking for the existence of a given
-                           key (i.e. "key").
-        :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
+        :param project:         The name of the project.
+        :param model:           The name of the model to filter by.
+        :param function:        The name of the function to filter by.
+        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
 
@@ -533,25 +533,17 @@ class KVStoreBase(mlrun.model_monitoring.db.StoreBase):
             raise mlrun.errors.MLRunInvalidArgumentError("project can't be empty")
 
         # Add project filter
-        filter_expression = [f"project=='{project}'"]
+        filter_expression = [f"{mm_schemas.EventFieldType.PROJECT}=='{project}'"]
 
         # Add function and model filters
         if function:
-            filter_expression.append(f"function=='{function}'")
+            function_uri = f"{project}/{function}" if function else None
+            filter_expression.append(
+                f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'"
+            )
         if model:
-            filter_expression.append(f"model=='{model}'")
-
-        # Add labels filters
-        if labels:
-            for label in labels:
-                if not label.startswith("_"):
-                    label = f"_{label}"
-
-                if "=" in label:
-                    lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-                    filter_expression.append(f"{lbl}=='{value}'")
-                else:
-                    filter_expression.append(f"exists({label})")
+            model = model if ":" in model else f"{model}:latest"
+            filter_expression.append(f"{mm_schemas.EventFieldType.MODEL}=='{model}'")
 
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:

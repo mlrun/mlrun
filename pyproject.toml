@@ -42,6 +42,7 @@ python_files = [
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_packages = [
@@ -85,6 +86,17 @@ ignore_imports = [
     "mlrun.config -> mlrun.db",
     "mlrun.utils.clones -> mlrun",
     "mlrun.utils.helpers -> mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
+type = "forbidden"
+source_modules = [
+    "mlrun",
+    "server.api",
+]
+forbidden_modules = [
+    "kfp",
 ]
 
 [[tool.importlinter.contracts]]

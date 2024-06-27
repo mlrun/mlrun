@@ -8,7 +8,7 @@ only stores the DataFrame, but it also provides information about the data, such
 The simplest way to store a dataset is with the following code:
 
 ``` python
-context.log_dataset(key='my_data', df=df)
+context.log_dataset(key="my_data", df=df)
 ```
 
 Where `key` is the name of the artifact and `df` is the DataFrame. By default, MLRun stores a short preview of 20 lines.
@@ -26,18 +26,24 @@ from os import path
 from mlrun.execution import MLClientCtx
 from mlrun.datastore import DataItem
 
+
 # Ingest a data set into the platform
-def get_data(context: MLClientCtx, source_url: DataItem, format: str = 'csv'):
+def get_data(context: MLClientCtx, source_url: DataItem, format: str = "csv"):
 
     iris_dataset = source_url.as_df()
 
-    target_path = path.join(context.artifact_path, 'data')
+    target_path = path.join(context.artifact_path, "data")
     # Optionally print data to your logger
-    context.logger.info('Saving Iris data set to {} ...'.format(target_path))
+    context.logger.info("Saving Iris data set to {} ...".format(target_path))
 
     # Store the data set in your artifacts database
-    context.log_dataset('iris_dataset', df=iris_dataset, format=format,
-                        index=False, artifact_path=target_path)
+    context.log_dataset(
+        "iris_dataset",
+        df=iris_dataset,
+        format=format,
+        index=False,
+        artifact_path=target_path,
+    )
 ```
 
 This code can be placed in a python file, or as a cell in the Python notebook.
@@ -46,28 +52,29 @@ You can run this function locally or as a job. For example, to run it locally:
 from os import path
 from mlrun import new_project, mlconf
 
-project_name = 'my-project'
-project_path = path.abspath('conf')
+project_name = "my-project"
+project_path = path.abspath("conf")
 project = new_project(project_name, project_path, init_git=True)
 
 # Target location for storing pipeline artifacts
-artifact_path = path.abspath('jobs')
+artifact_path = path.abspath("jobs")
 # MLRun DB path or API service URL
-mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+mlconf.dbpath = mlconf.dbpath or "http://mlrun-api:8080"
 
-source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
+source_url = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
 
 # Create a function from py or notebook (ipynb) file
-get_data_func = project.set_function('./get_data.py'
-    name='get_data'
-    kind='job', 
-    image='mlrun/mlrun')
-    
+get_data_func = project.set_function(
+    "./get_data.py", name="get_data", kind="job", image="mlrun/mlrun"
+)
+
 # Run get-data function locally
-get_data_run = get_data_func.run(handler="get_data",
-    inputs={'source_url': source_url},
+get_data_run = get_data_func.run(
+    handler="get_data",
+    inputs={"source_url": source_url},
     artifact_path=artifact_path,
-    local=True)
+    local=True,
+)
 ```
 
 The dataset location is returned in the `outputs` field, therefore you can get the location by calling
@@ -76,10 +83,10 @@ The dataset location is returned in the `outputs` field, therefore you can get t
 
 ``` python
 # Read your data set
-get_data_run.artifact('iris_dataset').as_df()
+get_data_run.artifact("iris_dataset").as_df()
 
 # Visualize an artifact in Jupyter (image, html, df, ..)
-get_data_run.artifact('confusion-matrix').show()
+get_data_run.artifact("confusion-matrix").show()
 ```
 
 The dataset returned from the run result is of the `DataItem` type. It allows access to the data itself as a Pandas 

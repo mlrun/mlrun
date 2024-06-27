@@ -134,9 +134,12 @@ async def get_run(
     iter: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    format_: mlrun.common.formatters.RunFormat = Query(
+        mlrun.common.formatters.RunFormat.full, alias="format"
+    ),
 ):
     data = await run_in_threadpool(
-        server.api.crud.Runs().get_run, db_session, uid, iter, project
+        server.api.crud.Runs().get_run, db_session, uid, iter, project, format_
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,

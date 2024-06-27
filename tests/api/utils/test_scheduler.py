@@ -21,6 +21,7 @@ import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import pytest_asyncio
 from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
@@ -40,8 +41,8 @@ from server.api.utils.scheduler import Scheduler
 from server.api.utils.singletons.db import get_db
 
 
-@pytest.fixture()
-async def scheduler(db: Session) -> typing.Generator:
+@pytest_asyncio.fixture()
+async def scheduler(db: Session) -> typing.AsyncIterator[Scheduler]:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     config.httpdb.jobs.allow_local_run = True

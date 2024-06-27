@@ -172,7 +172,7 @@ def test_create_artifact(db: Session, unversioned_client: TestClient):
         "spec": {
             "db_key": "some-key",
             "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "s3://aaa/aaa",
+            "target_path": "memory://aaa/aaa",
         },
         "status": {},
     }
@@ -351,6 +351,68 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
+@pytest.fixture
+def list_limit_unversioned_client(
+    unversioned_client: TestClient, request
+) -> TestClient:
+    def ensure_endpoint_limit(limit_: int = None):
+        for route in unversioned_client.app.routes:
+            if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
+                for qp in route.dependant.query_params:
+                    if qp.name == "limit":
+                        qp.default = limit_
+                        break
+
+    try:
+        ensure_endpoint_limit(request.param)
+        yield request.param, unversioned_client
+    finally:
+        ensure_endpoint_limit(None)
+
+
+@pytest.mark.parametrize("list_limit_unversioned_client", [2], indirect=True)
+def test_list_artifacts_with_limits(
+    db: Session, list_limit_unversioned_client: TestClient
+) -> None:
+    list_limit, unversioned_client = list_limit_unversioned_client
+    _create_project(unversioned_client, prefix="v1")
+
+    for i in range(list_limit + 1):
+        data = {
+            "kind": "artifact",
+            "metadata": {
+                "description": "",
+                "labels": {},
+                "key": KEY,
+                "project": PROJECT,
+                "tree": str(uuid.uuid4()),
+            },
+            "spec": {
+                "db_key": "some-key",
+                "producer": {"kind": "api"},
+                "target_path": "memory://aaa/aaa",
+            },
+            "status": {},
+        }
+        resp = unversioned_client.post(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+            json=data,
+        )
+        assert resp.status_code == HTTPStatus.CREATED.value
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(f"{artifact_path}?limit={list_limit-1}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == list_limit - 1
+
+    # Get all artifacts
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == list_limit
+
+
 def test_list_artifacts_with_producer_uri(
     db: Session, unversioned_client: TestClient
 ) -> None:
@@ -371,7 +433,7 @@ def test_list_artifacts_with_producer_uri(
             "spec": {
                 "db_key": "some-key",
                 "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "s3://aaa/aaa",
+                "target_path": "memory://aaa/aaa",
             },
             "status": {},
         }
@@ -404,7 +466,7 @@ def test_list_artifacts_with_producer_uri(
 
 def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", src_path="some-path")
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
@@ -429,7 +491,16 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy"
     resp = client.get(artifact_path)
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # test request minimal format
+    artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=minimal"
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    assert all(
+        ["src_path" not in artifact["spec"] for artifact in resp.json()["artifacts"]]
+    )
 
     # explicitly request full format
     artifact_path = f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=full"
@@ -464,7 +535,14 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     # request legacy format - expect failure (legacy format is not supported anymore)
     artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy"
     resp = client.get(artifact_path)
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+
+    # test minimal format
+    artifact_path = f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=minimal"
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    assert "src_path" not in resp.json()["data"]["spec"]
 
     # explicitly request full format
     artifact_path = (

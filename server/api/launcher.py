@@ -77,6 +77,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -162,7 +163,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 last_err = err
 
             finally:
-                result = runtime._update_run_state(task=run, err=last_err)
+                result = runtime._update_run_state(
+                    task=run,
+                    err=last_err,
+                    run_format=mlrun.common.formatters.RunFormat.standard,
+                )
 
         self._save_notifications(run)
 

@@ -82,6 +82,7 @@ from .events import (
 )
 from .feature_store import (
     EntitiesOutput,
+    EntitiesOutputV2,
     Entity,
     EntityListOutput,
     EntityRecord,
@@ -90,7 +91,9 @@ from .feature_store import (
     FeatureRecord,
     FeatureSet,
     FeatureSetDigestOutput,
+    FeatureSetDigestOutputV2,
     FeatureSetDigestSpec,
+    FeatureSetDigestSpecV2,
     FeatureSetIngestInput,
     FeatureSetIngestOutput,
     FeatureSetRecord,
@@ -98,6 +101,7 @@ from .feature_store import (
     FeatureSetSpec,
     FeatureSetsTagsOutput,
     FeaturesOutput,
+    FeaturesOutputV2,
     FeatureVector,
     FeatureVectorRecord,
     FeatureVectorsOutput,

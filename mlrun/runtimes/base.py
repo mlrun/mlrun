@@ -68,6 +68,7 @@ spec_fields = [
     "disable_auto_mount",
     "allow_empty_resources",
     "clone_target_dir",
+    "reset_on_run",
 ]
 
 
@@ -336,6 +337,7 @@ class BaseRuntime(ModelObj):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -390,6 +392,9 @@ class BaseRuntime(ModelObj):
                 standards and is at least 1 minute (-1 for infinite).
                 If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
+        :param reset_on_run: When True, function python modules would reload prior to code execution.
+                             This ensures latest code changes are executed. This argument must be used in
+                             conjunction with the local=True argument.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -418,15 +423,22 @@ class BaseRuntime(ModelObj):
             notifications=notifications,
             returns=returns,
             state_thresholds=state_thresholds,
+            reset_on_run=reset_on_run,
         )
 
-    def _get_db_run(self, task: RunObject = None):
+    def _get_db_run(
+        self,
+        task: RunObject = None,
+        run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         if self._get_db() and task:
             project = task.metadata.project
             uid = task.metadata.uid
             iter = task.metadata.iteration
             try:
-                return self._get_db().read_run(uid, project, iter=iter)
+                return self._get_db().read_run(
+                    uid, project, iter=iter, format_=run_format
+                )
             except mlrun.db.RunDBError:
                 return None
         if task:
@@ -543,13 +555,14 @@ class BaseRuntime(ModelObj):
         self,
         resp: dict = None,
         task: RunObject = None,
-        err=None,
+        err: Union[Exception, str] = None,
+        run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> typing.Optional[dict]:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
             was_none = True
-            resp = self._get_db_run(task)
+            resp = self._get_db_run(task, run_format)
 
             if not resp:
                 self.store_run(task)

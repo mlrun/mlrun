@@ -27,6 +27,7 @@ import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
+import server.api.constants
 import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
@@ -137,7 +138,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 5
+latest_data_version = 6
 
 
 def update_default_configuration_data():
@@ -239,6 +240,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_4_data_migrations(db, db_session)
             if current_data_version < 5:
                 _perform_version_5_data_migrations(db, db_session)
+            if current_data_version < 6:
+                _perform_version_6_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -577,7 +580,7 @@ def _migrate_artifacts_batch(
             link_artifact_ids.append(artifact.id)
             continue
 
-        artifact_metadata = artifact_dict.get("metadata", None)
+        artifact_metadata = artifact_dict.get("metadata", None) or {}
 
         # producer_id - the current uid value
         # uid can be in the metadata or in the artifact itself, or in the tree field
@@ -611,6 +614,11 @@ def _migrate_artifacts_batch(
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False
+
+        # to overcome issues with legacy artifacts with missing keys, we will set the key in the metadata
+        if not artifact_metadata.get("key"):
+            artifact_dict.setdefault("metadata", {})
+            artifact_dict["metadata"]["key"] = key
 
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
@@ -838,6 +846,25 @@ def _add_default_alert_templates(
         record = db.get_alert_template(db_session, template.template_name)
         if record is None or record.templates_differ(template):
             db.store_alert_template(db_session, template)
+
+
+def _perform_version_6_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_model_monitoring_jobs(db, db_session)
+
+
+def _migrate_model_monitoring_jobs(db, db_session):
+    db.delete_schedules(
+        session=db_session,
+        project="*",
+        names=["model-monitoring-controller", "model-monitoring-batch"],
+    )
+    db.delete_functions(
+        session=db_session,
+        project="*",
+        names=["model-monitoring-controller", "model-monitoring-batch"],
+    )
 
 
 def main() -> None:

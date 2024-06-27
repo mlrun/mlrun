@@ -37,9 +37,12 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
     check_num_events = True
 
     # noinspection PyMethodOverriding
-    def __init_subclass__(cls, check_num_events: bool) -> None:
+    def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__()
-        cls.check_num_events = check_num_events
+        assert (list(kwargs.keys())) == [
+            "check_num_events"
+        ], f"kwargs fields = {list(kwargs.keys())}"  # ml-6071
+        cls.check_num_events = kwargs["check_num_events"]
 
     def do_tracking(
         self,
@@ -78,9 +81,12 @@ class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
     check_num_events = True
 
     # noinspection PyMethodOverriding
-    def __init_subclass__(cls, check_num_events: bool) -> None:
+    def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__()
-        cls.check_num_events = check_num_events
+        assert (list(kwargs.keys())) == [
+            "check_num_events"
+        ], f"kwargs fields = {list(kwargs.keys())}"  # ml-6071
+        cls.check_num_events = kwargs["check_num_events"]
 
     def do_tracking(
         self,

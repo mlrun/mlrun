@@ -377,21 +377,25 @@ class TDEngineConnector(TSDBConnector):
             ),  # pyright: ignore[reportArgumentType]
         )
 
-    def read_prediction_metric_for_endpoint_if_exists(
-        self, endpoint_id: str
-    ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-        # Read just one record, because we just want to check if there is any data for this endpoint_id
-        predictions = self.read_predictions(
-            endpoint_id=endpoint_id,
-            start=datetime.min,
-            end=mlrun.utils.now_date(),
-            limit=1,
-        )
-        if predictions:
-            return mm_schemas.ModelEndpointMonitoringMetric(
-                project=self.project,
-                app=mm_schemas.SpecialApps.MLRUN_INFRA,
-                type=mm_schemas.ModelEndpointMonitoringMetricType.METRIC,
-                name=mm_schemas.PredictionsQueryConstants.INVOCATIONS,
-                full_name=get_invocations_fqn(self.project),
-            )
+    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
+    #
+    # def read_prediction_metric_for_endpoint_if_exists(
+    #     self, endpoint_id: str
+    # ) -> typing.Optional[mm_schemas.ModelEndpointMonitoringMetric]:
+    #     """
+    #     Read the "invocations" metric for the provided model endpoint, and return the metric object
+    #     if it exists.
+    #
+    #     :param endpoint_id: The model endpoint identifier.
+    #     :return:            `None` if the invocations metric does not exist, otherwise return the
+    #                         corresponding metric object.
+    #     """
+    #     # Read just one record, because we just want to check if there is any data for this endpoint_id
+    #     predictions = self.read_predictions(
+    #         endpoint_id=endpoint_id,
+    #         start=datetime.min,
+    #         end=mlrun.utils.now_date(),
+    #         limit=1,
+    #     )
+    #     if predictions:
+    #         return get_invocations_metric(self.project)

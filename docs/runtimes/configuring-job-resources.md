@@ -29,7 +29,7 @@ Environment variables can be added individually, from a Python dictionary, or a 
 fn.set_env(name="MY_ENV", value="MY_VAL")
 
 # Multiple variables
-fn.set_envs(env_vars={"MY_ENV" : "MY_VAL", "SECOND_ENV" : "SECOND_VAL"})
+fn.set_envs(env_vars={"MY_ENV": "MY_VAL", "SECOND_ENV": "SECOND_VAL"})
 
 # Multiple variables from file
 fn.set_envs(file_path="env.txt")
@@ -39,8 +39,13 @@ fn.set_envs(file_path="env.txt")
 
 Some runtimes can scale horizontally, configured either as a number of replicas:
 ```python
-training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                           kind="mpijob", image="mlrun/mlrun-gpu")
+training_function = mlrun.code_to_function(
+    "training.py",
+    name="training",
+    handler="train",
+    kind="mpijob",
+    image="mlrun/mlrun-gpu",
+)
 training_function.spec.replicas = 2
 ```
 or a range (for auto-scaling in Dask or Nuclio):
@@ -74,10 +79,15 @@ See more details in the [Kubernetes documentation: Resource Management for Pods 
 Examples of {py:meth}`~mlrun.runtimes.KubeResource.with_requests` and  {py:meth}`~mlrun.runtimes.KubeResource.with_limits`:
 
 ```python
-training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                           kind="mpijob", image="mlrun/mlrun-gpu")
-training_function.with_requests(mem="1G", cpu=1) #lower bound
-training_function.with_limits(mem="2G", cpu=2, gpus=1) #upper bound
+training_function = mlrun.code_to_function(
+    "training.py",
+    name="training",
+    handler="train",
+    kind="mpijob",
+    image="mlrun/mlrun-gpu",
+)
+training_function.with_requests(mem="1G", cpu=1)  # lower bound
+training_function.with_limits(mem="2G", cpu=2, gpus=1)  # upper bound
 ```
 
 ```{admonition} Note
@@ -352,7 +362,11 @@ In some instances, you might need to mount a file-system to your container to pe
 fn.apply(mlrun.mount_v3io())
 
 # Mount persistent storage - PVC
-fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
+fn.apply(
+    mlrun.platforms.mount_pvc(
+        pvc_name="data-claim", volume_name="data", volume_mount_path="/data"
+    )
+)
 ```
 
 ## Preventing stuck pods
@@ -375,11 +389,13 @@ To configure to infinity, use `-1`.
 
 To change the state thresholds, use:
 ```python
-func.set_state_thresholds({"pending_not_scheduled": "1 min"}) 
+func.set_state_thresholds({"pending_not_scheduled": "1 min"})
 ```
 For just the run, use:
 ```python
-func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
+func.run(
+    state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}
+)
 ```
 
 See {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`

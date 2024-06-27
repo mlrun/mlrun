@@ -137,22 +137,21 @@ class TestSQLStore:
     @pytest.fixture
     def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:
         # Generate store object target
-        store_type_object = mlrun.model_monitoring.db.ObjectStoreFactory(value="sql")
         with unittest.mock.patch(
             "mlrun.model_monitoring.helpers.get_connection_string",
             return_value=store_connection,
         ):
             sql_store = cast(
                 SQLStoreBase,
-                store_type_object.to_object_store(project=cls._TEST_PROJECT),
+                mlrun.model_monitoring.get_store_object(project=cls._TEST_PROJECT),
             )
             yield sql_store
             sql_store.delete_model_endpoints_resources()
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 
-    @staticmethod
     def test_sql_target_list_model_endpoints(
+        self,
         new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> None:
@@ -169,7 +168,8 @@ class TestSQLStore:
 
         # Generate and write the 2nd model endpoint into the DB table
         mock_endpoint_2 = _mock_random_endpoint
-        mock_endpoint_2.spec.model = "test_model"
+        mock_endpoint_2.spec.model = "test_model:latest"
+        mock_endpoint_2.spec.function_uri = f"{self._TEST_PROJECT}/function_test"
         mock_endpoint_2.metadata.uid = "12345"
         new_sql_store.write_model_endpoint(endpoint=mock_endpoint_2.flat_dict())
 
@@ -180,6 +180,11 @@ class TestSQLStore:
         # List only the model endpoint that has the model test_model
         filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
             model="test_model"
+        )
+        assert len(filtered_list_of_endpoints) == 1
+
+        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
+            function="function_test"
         )
         assert len(filtered_list_of_endpoints) == 1
 
@@ -331,7 +336,7 @@ class TestMonitoringSchedules:
             mp_ctx.setenv(
                 ProjectSecretKeys.ENDPOINT_STORE_CONNECTION, in_mem_connection
             )
-            store = SQLStoreBase(project="tmp_proj")
+            store = mlrun.model_monitoring.get_store_object(project="tmp_proj")
         store._create_tables_if_not_exist()
         return store
 

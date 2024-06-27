@@ -20,6 +20,7 @@ import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
+import mlrun.common.constants as mlrun_constants
 import mlrun.launcher.factory
 import mlrun.projects.operations
 import mlrun.projects.pipelines
@@ -254,7 +255,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _store_function(
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

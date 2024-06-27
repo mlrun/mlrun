@@ -96,7 +96,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.tables_to_drop = [self.source_table]
         if self.deployment_type == Deployment.Remote:
             self.project.set_secrets(
-                {"SNOWFLAKE_PASSWORD": os.environ.get("SNOWFLAKE_PASSWORD")}
+                {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
             )
 
     def teardown_method(self, method):
@@ -182,10 +182,8 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
-        run_config = (
-            fstore.RunConfig(local=self.run_local)
-            if self.run_local
-            else fstore.RunConfig(local=self.run_local, kind="remote-spark")
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
         )
         result = vector.get_offline_features(
             engine="spark",

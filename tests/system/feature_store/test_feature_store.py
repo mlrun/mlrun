@@ -17,6 +17,7 @@ import math
 import os
 import pathlib
 import random
+import shutil
 import string
 import tempfile
 import uuid
@@ -62,6 +63,8 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     RedisNoSqlTarget,
     TargetTypes,
+    get_offline_target,
+    get_online_target,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
@@ -2309,35 +2312,61 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
-    def test_purge_v3io(self):
-        key = "patient_id"
-        fset = fstore.FeatureSet(
-            "purge", entities=[Entity(key)], timestamp_key="timestamp"
-        )
-        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource(
-            "mycsv",
-            path=path,
-        )
-        targets = [
-            CSVTarget(),
-            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
-            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-            NoSqlTarget(),
-        ]
-        fset.set_targets(
-            targets=targets,
-            with_defaults=False,
-        )
-        fset.ingest(source)
+    @pytest.mark.parametrize("schema", ["v3io", "file"])
+    def test_purge_v3io(self, schema):
+        folder_url = ""
+        try:
+            if schema == "v3io":
+                folder_url = (
+                    f"v3io:///projects/{self.project_name}/purge_test_{uuid.uuid4()}"
+                )
+            else:
+                temp_dir = tempfile.TemporaryDirectory().name
+                folder_url = f"file://{temp_dir}"
+            key = "patient_id"
+            fset = fstore.FeatureSet(
+                "purge", entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+            source = CSVSource(
+                "mycsv",
+                path=path,
+            )
 
-        verify_purge(fset, targets)
+            targets = [
+                CSVTarget(),
+                CSVTarget(
+                    name="specified-path", path=f"{folder_url}/csv-purge-test.csv"
+                ),
+                ParquetTarget(
+                    name="parquets_dir_target",
+                    partitioned=True,
+                    partition_cols=["timestamp"],
+                    path=f"{folder_url}/parquet_folder_target",
+                ),
+                ParquetTarget(
+                    name="parquet_file_target",
+                    path=f"{folder_url}/file.parquet",
+                ),
+                NoSqlTarget(),
+            ]
+            fset.set_targets(
+                targets=targets,
+                with_defaults=False,
+            )
+            fset.ingest(source)
 
-        fset.ingest(source)
+            verify_purge(fset, targets)
 
-        targets_to_purge = targets[:-1]
+            fset.ingest(source)
 
-        verify_purge(fset, targets_to_purge)
+            targets_to_purge = targets[:-1]
+
+            verify_purge(fset, targets_to_purge)
+        finally:
+            if schema == "file" and folder_url:
+                path_only = folder_url.replace("file://", "")
+                shutil.rmtree(path_only)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -4817,6 +4846,56 @@ class TestFeatureStore(TestMLRunSystem):
             vector, entity_rows=basic_account_df
         ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_attributes_in_target(self, local):
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_attributes_source_{run_uuid}.parquet"
+        v3io_parquet_target_path = (
+            f"v3io:///projects/{self.project_name}/df_attributes_target_{run_uuid}"
+        )
+        df.to_parquet(v3io_parquet_source_path)
+
+        feature_set = fstore.FeatureSet(
+            "attributes_fs",
+            entities=[fstore.Entity("patient_id")],
+        )
+
+        offline_target = ParquetTarget(
+            name="test_target",
+            path=v3io_parquet_target_path,
+            attributes={"test_key": "test_value"},
+        )
+        online_target = NoSqlTarget(
+            "no_sql_target", attributes={"test_key_online": "test_value_online"}
+        )
+        source = ParquetSource("test_source", path=v3io_parquet_source_path)
+        feature_set.ingest(
+            source=source,
+            targets=[offline_target, online_target],
+            run_config=run_config,
+        )
+        result_offline_target = get_offline_target(feature_set)
+        result_online_target = get_online_target(feature_set)
+
+        assert result_offline_target.attributes == offline_target.attributes
+        assert result_online_target.attributes == online_target.attributes
+
+        read_back_feature_set = self._run_db.get_feature_set("attributes_fs")
+        assert (
+            get_offline_target(read_back_feature_set).attributes
+            == offline_target.attributes
+        )
+        assert (
+            get_online_target(read_back_feature_set).attributes
+            == online_target.attributes
+        )
 
     @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

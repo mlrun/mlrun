@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import json
 import typing
 import uuid
 
@@ -303,6 +302,7 @@ class SQLStoreBase(StoreBase):
 
             # Apply filters
             if model:
+                model = model if ":" in model else f"{model}:latest"
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
@@ -310,11 +310,12 @@ class SQLStoreBase(StoreBase):
                     filtered_values=[model],
                 )
             if function:
+                function_uri = f"{self.project}/{function}"
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.FUNCTION,
-                    filtered_values=[function],
+                    key_filter=mm_schemas.EventFieldType.FUNCTION_URI,
+                    filtered_values=[function_uri],
                 )
             if uids:
                 query = self._filter_values(
@@ -580,41 +581,6 @@ class SQLStoreBase(StoreBase):
 
         # Apply AND operator on the SQL query object with the filters tuple
         return query.filter(sqlalchemy.and_(*filter_query))
-
-    @staticmethod
-    def _validate_labels(
-        endpoint_dict: dict,
-        labels: list,
-    ) -> bool:
-        """Validate that the model endpoint dictionary has the provided labels. There are 2 possible cases:
-        1 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
-            that each pair exist in the endpoint dictionary.
-        2 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
-            the endpoint labels dictionary.
-
-        :param endpoint_dict: Dictionary of the model endpoint records.
-        :param labels:        List of dictionary of required labels.
-
-        :return: True if the labels exist in the endpoint labels dictionary, otherwise False.
-        """
-
-        # Convert endpoint labels into dictionary
-        endpoint_labels = json.loads(
-            endpoint_dict.get(mm_schemas.EventFieldType.LABELS)
-        )
-
-        for label in labels:
-            # Case 1 - label is a key=value pair
-            if "=" in label:
-                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-                if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
-                    return False
-            # Case 2 - label is just a key
-            else:
-                if label not in endpoint_labels:
-                    return False
-
-        return True
 
     def delete_model_endpoints_resources(self) -> None:
         """

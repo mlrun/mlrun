@@ -22,8 +22,7 @@ import uuid
 
 import mlrun_pipelines.common.models
 import mlrun_pipelines.patcher
-from kfp.compiler import compiler
-from mlrun_pipelines.helpers import new_pipe_metadata
+import mlrun_pipelines.utils
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -220,9 +219,10 @@ class _PipelineContext:
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
             force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
-            kfp_url = mlrun.mlconf.resolve_kfp_url()
-            if not kfp_url:
+            if not mlrun.mlconf.kfp_url:
+                logger.debug("Kubeflow pipeline URL is not set, running locally")
                 force_run_local = True
+
         if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local
 
@@ -502,13 +502,14 @@ class _KFPRunner(_PipelineRunner):
             functions,
             secrets=project._secrets,
         )
-        artifact_path = artifact_path or project.spec.artifact_path
-
-        conf = new_pipe_metadata(
-            artifact_path=artifact_path,
+        mlrun_pipelines.utils.compile_pipeline(
+            artifact_path=artifact_path or project.spec.artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            ops=None,
+            pipeline=pipeline,
+            pipe_file=target,
+            type_check=True,
         )
-        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
         pipeline_context.clear()
 

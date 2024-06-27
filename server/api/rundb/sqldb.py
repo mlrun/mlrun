@@ -100,13 +100,20 @@ class SQLRunDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
-    def read_run(self, uid, project=None, iter=None):
+    def read_run(
+        self,
+        uid: str,
+        project: str = None,
+        iter: int = None,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         return self._transform_db_error(
             server.api.crud.Runs().get_run,
             self.session,
             uid,
             iter,
             project,
+            format_,
         )
 
     def list_runs(
@@ -231,6 +238,7 @@ class SQLRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -250,6 +258,7 @@ class SQLRunDB(RunDBInterface):
             category=category,
             producer_id=tree,
             format_=format_,
+            limit=limit,
         )
 
     def del_artifact(
@@ -520,6 +529,24 @@ class SQLRunDB(RunDBInterface):
             labels,
         )
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_features_v2,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
     def list_entities(
         self,
         project: str,
@@ -529,6 +556,22 @@ class SQLRunDB(RunDBInterface):
     ):
         return self._transform_db_error(
             server.api.crud.FeatureStore().list_entities,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
+        )
+
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ):
+        return self._transform_db_error(
+            server.api.crud.FeatureStore().list_entities_v2,
             self.session,
             project,
             name,

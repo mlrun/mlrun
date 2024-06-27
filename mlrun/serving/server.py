@@ -383,8 +383,14 @@ def v2_serving_handler(context, event, get_body=False):
         if event.body == b"":
             event.body = None
 
-    # ML-6065 – workaround for NUC-178
-    if hasattr(event, "trigger") and event.trigger.kind in ("kafka", "kafka-cluster"):
+    # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
+    # workaround for NUC-178
+    event.stream_path = event.path
+    if hasattr(event, "trigger") and event.trigger.kind in (
+        "kafka",
+        "kafka-cluster",
+        "v3ioStream",
+    ):
         event.path = "/"
 
     return context._server.run(event, context, get_body)

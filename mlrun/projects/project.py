@@ -2337,7 +2337,8 @@ class MlrunProject(ModelObj):
                                     Default: job
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           Add (clone) the current repo to the build source
+        :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
+                                    the project repo (project.spec.source).
         :param tag:                 Function version tag to set (none for current or 'latest')
                                     Specifying a tag as a parameter will update the project's tagged function
                                     (myfunc:v1) and the untagged function (myfunc)
@@ -3663,6 +3664,7 @@ class MlrunProject(ModelObj):
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3692,6 +3694,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3706,6 +3709,7 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
+            limit=limit,
         )
 
     def list_models(

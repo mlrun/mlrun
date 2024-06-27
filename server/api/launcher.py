@@ -164,7 +164,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 last_err = err
 
             finally:
-                result = runtime._update_run_state(task=run, err=last_err)
+                result = runtime._update_run_state(
+                    task=run,
+                    err=last_err,
+                    run_format=mlrun.common.formatters.RunFormat.standard,
+                )
 
         self._save_notifications(run)
 

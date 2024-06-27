@@ -15,6 +15,8 @@
 
 import typing
 
+from kfp.dsl import PipelineConf
+
 from mlrun.config import config
 
 
@@ -23,8 +25,6 @@ def new_pipe_metadata(
     cleanup_ttl: int = None,
     op_transformers: list[typing.Callable] = None,
 ):
-    from kfp.dsl import PipelineConf
-
     def _set_artifact_path(task):
         from kubernetes import client as k8s_client
 

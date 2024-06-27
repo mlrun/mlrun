@@ -18,7 +18,7 @@ You can add a time-based filter condition when running `get_offline_feature` wit
 ```python
 import mlrun.feature_store as fstore
 
-feature_vector = '<feature_vector_name>'
+feature_vector = "<feature_vector_name>"
 fvec = fstore.get_feature_vector(feature_vector)
 offline_fv = fvec.get_offline_features(target=ParquetTarget())
 ```
@@ -39,7 +39,9 @@ To retrieve a feature vector's offline dataset, use MLRun's data item mechanism,
 specifying to receive it as a DataFrame.
 
 ```python
-df = mlrun.get_dataitem(f'store://feature-vectors/{project}/patient-deterioration').as_df()
+df = mlrun.get_dataitem(
+    f"store://feature-vectors/{project}/patient-deterioration"
+).as_df()
 ```
 
 When trying to retrieve the dataset in your training function, you can put the feature vector reference as an input to 
@@ -47,10 +49,12 @@ the function and use the `as_df()` function to retrieve it automatically.
 
 ```python
 # A sample MLRun training function
-def my_training_function(context, # MLRun context
-                         dataset, # our feature vector reference
-                         **kwargs):
-    
+def my_training_function(
+    context,  # MLRun context
+    dataset,  # our feature vector reference
+    **kwargs,
+):
+
     # retrieve the dataset
     df = dataset.as_df()
 
@@ -61,14 +65,14 @@ And now you can create the MLRun function and run it locally or over the kuberne
 
 ```python
 # Creating the training MLRun function with the code
-fn = mlrun.code_to_function('training', 
-                            kind='job',
-                            handler='my_training_function')
+fn = mlrun.code_to_function("training", kind="job", handler="my_training_function")
 
 # Creating the task to run the function with its dataset
-task = mlrun.new_task('training', 
-                      inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'}) # The feature vector is given as an input to the function
+task = mlrun.new_task(
+    "training",
+    inputs={"dataset": f"store://feature-vectors/{project}/{feature_vector_name}"},
+)  # The feature vector is given as an input to the function
 
 # Running the function over the kubernetes cluster
-fn.run(task) # Set local=True to run locally
+fn.run(task)  # Set local=True to run locally
 ```

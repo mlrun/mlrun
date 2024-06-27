@@ -30,6 +30,8 @@ from server.api.utils.notification_pusher import AlertNotificationPusher
 class Alerts(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
+    _states = dict()
+
     def store_alert(
         self,
         session: sqlalchemy.orm.Session,
@@ -134,6 +136,8 @@ class Alerts(
             server.api.crud.Events().remove_event_configuration(project, kind, name)
 
         server.api.utils.singletons.db.get_db().delete_alert(session, project, name)
+        if alert.id in self._states:
+            self._states.pop(alert.id)
 
     def process_event(
         self,
@@ -159,7 +163,7 @@ class Alerts(
             send_notification = False
 
             if alert.criteria is not None:
-                state_obj = state.full_object
+                state_obj = self._states.get(alert.id, None)
 
                 if state_obj is None:
                     state_obj = {"events": [event_data.timestamp]}
@@ -190,15 +194,19 @@ class Alerts(
                 else:
                     active = True
 
-            server.api.utils.singletons.db.get_db().store_alert_state(
-                session,
-                alert.project,
-                alert.name,
-                count=state.count,
-                last_updated=event_data.timestamp,
-                obj=state_obj,
-                active=active,
-            )
+                # we store the state along with the events that triggered the alert
+                server.api.utils.singletons.db.get_db().store_alert_state(
+                    session,
+                    alert.project,
+                    alert.name,
+                    count=state.count,
+                    last_updated=event_data.timestamp,
+                    obj=state_obj,
+                    active=active,
+                )
+
+            self._states[alert.id] = state_obj
+
         else:
             logger.debug(
                 "The entity of the alert does not match the one in event",
@@ -258,17 +266,22 @@ class Alerts(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
             )
 
-        if (
-            alert.criteria is not None
-            and alert.criteria.period is not None
-            and server.api.utils.helpers.string_to_timedelta(
-                alert.criteria.period, raise_on_error=False
-            )
-            is None
-        ):
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
-            )
+        if alert.criteria is not None:
+            if alert.criteria.count >= mlconfig.alerts.max_criteria_count:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Maximum criteria count exceeded: {alert.criteria.count}"
+                )
+
+            if (
+                alert.criteria.period is not None
+                and server.api.utils.helpers.string_to_timedelta(
+                    alert.criteria.period, raise_on_error=False
+                )
+                is None
+            ):
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
+                )
 
         for alert_notification in alert.notifications:
             if alert_notification.notification.kind not in [

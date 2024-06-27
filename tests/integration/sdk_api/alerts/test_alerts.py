@@ -349,6 +349,12 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with two notifications with the same name",
             },
+            {
+                "param_name": "criteria",
+                "param_value": alert_objects.AlertCriteria(count=10000000).dict(),
+                "exception": mlrun.errors.MLRunPreconditionFailedError,
+                "case": "testing create alert criteria counter more than max allowed",
+            },
         ]
         args = {
             "project_name": project_name,

@@ -708,6 +708,8 @@ default_config = {
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
         "max_allowed": 10000,
+        # maximum allowed value for count in criteria field inside AlertConfig
+        "max_criteria_count": 100,
     },
     "auth_with_client_id": {
         "enabled": False,

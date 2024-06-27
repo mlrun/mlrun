@@ -1790,7 +1790,7 @@ class SQLDB(DBInterface):
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
-                session, normalized_function_name, project, tag, hash_key, _format
+                session, normalized_function_name, project, tag, hash_key, format_
             )
         except mlrun.errors.MLRunNotFoundError as exc:
             if "_" in name:

@@ -1753,6 +1753,9 @@ class SQLDB(DBInterface):
             function_dict = function.struct
             if not function_tag:
                 # function status should be added only to tagged functions
+                # TODO: remove explicit cleaning; we also
+                #  will need to understand how to display functions in UI, because if we do not remove the status here,
+                #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
 
                 # the unversioned uid is only a placeholder for tagged instances that are versioned.
@@ -1925,15 +1928,6 @@ class SQLDB(DBInterface):
         tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
-
-            # If queried by hash key and nuclio/serving function remove status
-            is_nuclio = (
-                function.get("kind", "")
-                in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-            )
-            if hash_key and is_nuclio:
-                function["status"] = None
-
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag

@@ -783,21 +783,23 @@ class SnowflakeSource(BaseSourceDriver):
         url: str = None,
         user: str = None,
         database: str = None,
-        db_schema: str = None,
+        schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
         attributes = attributes or {}
         if url:
-            attrs = {
-                "query": query,
-                "url": url,
-                "user": user,
-                "database": database,
-                "db_schema": db_schema,
-                "warehouse": warehouse,
-            }
-            attributes.update(attrs)
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if schema:
+            attributes["db_schema"] = schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if query:
+            attributes["table"] = query
 
         super().__init__(
             name,

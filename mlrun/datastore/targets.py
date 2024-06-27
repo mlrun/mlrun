@@ -1214,15 +1214,17 @@ class SnowflakeTarget(BaseStoreTarget):
     ):
         attributes = attributes or {}
         if url:
-            attrs = {
-                "url": url,
-                "user": user,
-                "database": database,
-                "db_schema": db_schema,
-                "warehouse": warehouse,
-                "table": table_name,
-            }
-            attributes.update(attrs)
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if table_name:
+            attributes["table"] = table_name
 
         super().__init__(
             name,
@@ -1271,6 +1273,7 @@ class SnowflakeTarget(BaseStoreTarget):
             snowflake_dict = {key: None for key in keys}
         table = self.attributes.get("table")
         snowflake_dict["query"] = f"SELECT * from {table}" if table else None
+        snowflake_dict["schema"] = snowflake_dict.pop("db_schema")
         return snowflake_dict
 
 

@@ -276,12 +276,12 @@ def test_list_functions_with_format(db: DBInterface, db_session: Session):
         },
     }
     db.store_function(db_session, function_body, name, tag=tag, versioned=True)
-    functions = db.list_functions(db_session, tag=tag, _format="full")
+    functions = db.list_functions(db_session, tag=tag, format_="full")
     assert len(functions) == 1
     function = functions[0]
     assert function["spec"] == function_body["spec"]
 
-    functions = db.list_functions(db_session, tag=tag, _format="minimal")
+    functions = db.list_functions(db_session, tag=tag, format_="minimal")
     assert len(functions) == 1
     function = functions[0]
     del function_body["spec"]["extra_field"]

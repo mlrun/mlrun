@@ -732,6 +732,25 @@ class Notification(ModelObj):
                 "Notification params size exceeds max size of 1 MB"
             )
 
+    def validate_notification_params(self):
+        notification_class = mlrun.utils.notifications.NotificationTypes(
+            self.kind
+        ).get_notification()
+
+        secret_params = self.secret_params
+        params = self.params
+
+        if not secret_params and not params:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both 'secret_params' and 'params' are empty, at least one must be defined."
+            )
+        if secret_params and params and secret_params != params:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both 'secret_params' and 'params' are defined but they contain different values"
+            )
+
+        notification_class.validate_params(secret_params or params)
+
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""

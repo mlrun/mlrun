@@ -940,7 +940,7 @@ class MonitoringDeployment:
                         tsdb_connection=credentials_dict.get(
                             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
                         ),
-                        default_secrets="v3io",
+                        _default_secrets_v3io="v3io",
                     )
 
         raise mlrun.errors.MLRunBadRequestError(
@@ -983,7 +983,7 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
-        :param default_secrets:           Optional, used only for upgrade case, to set the all the undefined secrets
+        :param _default_secrets_v3io:     Optional, used only for upgrade case, to set the all the undefined secrets
                                           to v3io.
         """
         try:
@@ -1006,7 +1006,7 @@ class MonitoringDeployment:
         if not endpoint_store_connection:
             endpoint_store_connection = (
                 mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or default_secrets
+                or _default_secrets_v3io
             )
         if endpoint_store_connection:
             if (
@@ -1032,7 +1032,7 @@ class MonitoringDeployment:
             stream_path = (
                 mlrun.mlconf.model_endpoint_monitoring.stream_connection
                 or mlrun.mlconf.model_endpoint_monitoring.store_prefixes.stream  # TODO: Delete in 1.9.0
-                or default_secrets
+                or _default_secrets_v3io
             )
         if stream_path:
             if stream_path == "v3io":
@@ -1062,7 +1062,7 @@ class MonitoringDeployment:
         if not tsdb_connection:
             tsdb_connection = (
                 mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
-                or default_secrets
+                or _default_secrets_v3io
             )
         if tsdb_connection:
             if tsdb_connection != "v3io" and not tsdb_connection.startswith(

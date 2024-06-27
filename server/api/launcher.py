@@ -15,12 +15,12 @@ from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
-import mlrun.common.constants as mlrun_constants
 import mlrun.launcher.factory
 import mlrun.projects.operations
 import mlrun.projects.pipelines

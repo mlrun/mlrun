@@ -32,7 +32,6 @@ from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -991,7 +990,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
-                fn_kind=fn.kind
+                fn_kind=fn.kind,
             )
 
             project = task["metadata"]["project"]

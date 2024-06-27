@@ -133,7 +133,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._enrich(auth_info, kind, labels, name, project, scheduled_object)
+        self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object)
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -204,7 +204,9 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
-        self._enrich(auth_info, db_schedule.kind, labels, name, project, scheduled_object)
+        self._enrich_schedule(
+            auth_info, db_schedule.kind, labels, name, project, scheduled_object
+        )
 
         get_db().update_schedule(
             session=db_session,
@@ -335,7 +337,9 @@ class Scheduler:
             )
             kind = db_schedule.kind
 
-        self._enrich(auth_info, kind, labels, name, project, scheduled_object, fn_kind)
+        self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object, fn_kind
+        )
 
         db_schedule, is_update = get_db().store_schedule(
             session=db_session,
@@ -819,9 +823,7 @@ class Scheduler:
 
                     # Append the auth key label to the schedule labels in the DB.
                     labels = {label.name: label.value for label in db_schedule.labels}
-                    self._append_access_key_secret_to_labels(
-                        labels, secret_name
-                    )
+                    self._append_access_key_secret_to_labels(labels, secret_name)
                     get_db().update_schedule(
                         db_session,
                         db_schedule.project,
@@ -981,7 +983,9 @@ class Scheduler:
                 )
             ]
 
-    def _enrich(self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None):
+    def _enrich_schedule(
+        self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None
+    ):
         self._ensure_auth_info_has_access_key(auth_info, kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,

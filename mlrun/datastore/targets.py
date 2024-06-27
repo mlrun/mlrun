@@ -1273,7 +1273,6 @@ class SnowflakeTarget(BaseStoreTarget):
             snowflake_dict = {key: None for key in keys}
         table = self.attributes.get("table")
         snowflake_dict["query"] = f"SELECT * from {table}" if table else None
-        snowflake_dict["schema"] = snowflake_dict.pop("db_schema")
         return snowflake_dict
 
 

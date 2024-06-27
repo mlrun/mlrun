@@ -784,9 +784,21 @@ class SnowflakeSource(BaseSourceDriver):
         user: str = None,
         database: str = None,
         schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
+        # TODO: Remove in 1.9.0
+        if schema:
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
+            if db_schema:
+                warnings.warn(
+                    "schema is deprecated in 1.7.0 and db_schema is the replacement. ignoring schema."
+                )
+        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+
         attributes = attributes or {}
         if url:
             attributes["url"] = url
@@ -794,8 +806,8 @@ class SnowflakeSource(BaseSourceDriver):
             attributes["user"] = user
         if database:
             attributes["database"] = database
-        if schema:
-            attributes["db_schema"] = schema
+        if db_schema:
+            attributes["db_schema"] = db_schema
         if warehouse:
             attributes["warehouse"] = warehouse
         if query:

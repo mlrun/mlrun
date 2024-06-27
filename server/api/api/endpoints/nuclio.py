@@ -141,7 +141,7 @@ async def store_api_gateway(
                 # delete api gateway url from those functions which are not used in api gateway anymore
                 await _delete_functions_external_invocation_url(
                     project=project,
-                    url=existing_api_gateway.spec.host,
+                    url=existing_api_gateway.get_invoke_url(),
                     function_names=unused_functions,
                 )
 
@@ -158,7 +158,7 @@ async def store_api_gateway(
     if api_gateway:
         await _add_functions_external_invocation_url(
             project=project,
-            url=api_gateway.spec.host,
+            url=api_gateway.get_invoke_url(),
             function_names=api_gateway.get_function_names(),
         )
     return api_gateway
@@ -190,7 +190,7 @@ async def delete_api_gateway(
         if api_gateway:
             await _delete_functions_external_invocation_url(
                 project=project,
-                url=api_gateway.spec.host,
+                url=api_gateway.get_invoke_url(),
                 function_names=api_gateway.get_function_names(),
             )
             return await client.delete_api_gateway(project_name=project, name=name)

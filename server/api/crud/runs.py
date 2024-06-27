@@ -48,7 +48,7 @@ class Runs(
         data: dict,
         uid: str,
         iter: int = 0,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
 
@@ -235,7 +235,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         try:
@@ -293,7 +293,7 @@ class Runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         labels=None,
         state=None,
         days_ago: int = 0,

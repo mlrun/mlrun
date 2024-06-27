@@ -776,7 +776,7 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     @property
-    def source_attributes(self) -> dict:
+    def source_spark_attributes(self) -> dict:
         return {}
 
 
@@ -1263,7 +1263,7 @@ class SnowflakeTarget(BaseStoreTarget):
         raise NotImplementedError()
 
     @property
-    def source_attributes(self) -> dict:
+    def source_spark_attributes(self) -> dict:
         keys = ["url", "user", "database", "db_schema", "warehouse"]
         if self.attributes:
             snowflake_dict = {key: self.attributes.get(key) for key in keys}

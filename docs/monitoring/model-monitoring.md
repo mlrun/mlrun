@@ -9,20 +9,22 @@ If you are using the CE version, see {ref}`legacy-model-monitoring`.
 
 The model monitoring APIs are configured per project. The APIs are:
 
-- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; brings up the controller, writer and stream functions, and schedules the controller according to the `base_period`. You can also deploy the default histogram-based data drift application when you enable model monitoring.
+- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream functions, and schedules the controller according to the `base_period`. You can also deploy the default histogram-based data drift application when you enable model monitoring.
 - {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Update or set a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
-- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; creates a function but does not set it. It's useful for troubleshooting, since it does  not register the function to the project.
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a function but does not set it. It's useful for troubleshooting, since it does  not register the function to the project.
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Sets the Kafka or SQL credentials to be used by the project's model monitoring infrastructure functions. Set the credentials before deploying any model monitoring or serving function.
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disable the model monitoring application controller, writer, stream, histogram data drift application and the user's applications functions, according to the given params.
-- {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller` &mdash; Redeploy the model monitoring application controller functions.
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Sets the Kafka or SQL credentials to be used by the project's model monitoring infrastructure functions. 
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; disables the controller. 
 
 ## Enable model monitoring
 
 Enable model monitoring for a project with {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 The controller runs, by default, every 10 minutes, which is also the minimum interval. 
-You can modify the frequency with the parameter `base_period`, then running `update_model_monitoring_controller`. 
+You can modify the frequency with the parameter `base_period`. 
+with the new `base_period` value. 
+You can modify the frequency with the parameter `base_period`, and then running `update_model_monitoring_controller`. 
+
 
 ```python
 project.enable_model_monitoring(base_period=1)
@@ -32,6 +34,7 @@ project.enable_model_monitoring(base_period=1)
 
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. 
 This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
+
 
 ```python
 model_name = "RandomForestClassifier"
@@ -122,7 +125,7 @@ See the [Model monitoring and drift detection tutorial](../tutorials/05-model-mo
 
 The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
 window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
-From this point on, the applications are triggered by the controller. The controller checks the Parquet DB every 10 minutes (or non-default 
+The controller checks the Parquet DB every 10 minutes (or non-default 
 `base_period`) and streams any new data to the app.
 
 

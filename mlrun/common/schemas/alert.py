@@ -39,8 +39,8 @@ class EventKind(StrEnum):
     CONCEPT_DRIFT_SUSPECTED = "concept_drift_suspected"
     MODEL_PERFORMANCE_DETECTED = "model_performance_detected"
     MODEL_PERFORMANCE_SUSPECTED = "model_performance_suspected"
-    MODEL_SERVING_PERFORMANCE_DETECTED = "model_serving_performance_detected"
-    MODEL_SERVING_PERFORMANCE_SUSPECTED = "model_serving_performance_suspected"
+    SYSTEM_PERFORMANCE_DETECTED = "system_performance_detected"
+    SYSTEM_PERFORMANCE_SUSPECTED = "system_performance_suspected"
     MM_APP_ANOMALY_DETECTED = "mm_app_anomaly_detected"
     MM_APP_ANOMALY_SUSPECTED = "mm_app_anomaly_suspected"
     FAILED = "failed"
@@ -53,10 +53,10 @@ _event_kind_entity_map = {
     EventKind.CONCEPT_DRIFT_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.MODEL_PERFORMANCE_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.MODEL_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MODEL_SERVING_PERFORMANCE_DETECTED: [
+    EventKind.SYSTEM_PERFORMANCE_DETECTED: [
         EventEntityKind.MODEL_ENDPOINT_RESULT
     ],
-    EventKind.MODEL_SERVING_PERFORMANCE_SUSPECTED: [
+    EventKind.SYSTEM_PERFORMANCE_SUSPECTED: [
         EventEntityKind.MODEL_ENDPOINT_RESULT
     ],
     EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],

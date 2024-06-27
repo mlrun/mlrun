@@ -59,7 +59,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Remote)
+        cls.configure_image_deployment(Deployment.Local)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -150,7 +150,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
             query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            db_schema=self.schema,
+            schema=self.schema,
             **self.snowflake_spark_parameters,
         )
         target = SnowflakeTarget(

@@ -998,6 +998,7 @@ class Scheduler:
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
         self._enrich_schedule_notifications(project, name, scheduled_object)
         if fn_kind:
+            labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
         return labels
 

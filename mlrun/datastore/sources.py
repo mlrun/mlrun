@@ -799,7 +799,7 @@ class SnowflakeSource(BaseSourceDriver):
         if warehouse:
             attributes["warehouse"] = warehouse
         if query:
-            attributes["table"] = query
+            attributes["query"] = query
 
         super().__init__(
             name,

@@ -3228,7 +3228,7 @@ class MlrunProject(ModelObj):
                                           2. v3io - for v3io stream,
                                              pass `v3io` and the system will generate the exact path.
                                           3. Kafka - for Kafka stream, please provide full connection string without
-                                             costume topic, for example kafka://<some_kafka_broker>:<port>.
+                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
                                           1. None, will be set from the system configuration.

@@ -293,9 +293,9 @@ async def delete_model_monitoring_function(
 def set_model_monitoring_credentials(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     access_key: Optional[str] = None,
-    endpoint_store_connection: Optional[str] = None,  # v3io-nosql, sql, system-default
-    stream_path: Optional[str] = None,  # v3io-stream, kafka, system-default
-    tsdb_connection: Optional[str] = None,  # v3io-tsdb, TDEngine, system-default
+    endpoint_store_connection: Optional[str] = None,
+    stream_path: Optional[str] = None,
+    tsdb_connection: Optional[str] = None,
 ) -> None:
     """
     Set the credentials that will be used by the project's model monitoring
@@ -317,7 +317,7 @@ def set_model_monitoring_credentials(
                                       2. v3io - for v3io stream,
                                          pass `v3io` and the system will generate the exact path.
                                       3. Kafka - for Kafka stream, please provide full connection string without
-                                         costume topic, for example kafka://<some_kafka_broker>:<port>.
+                                         custom topic, for example kafka://<some_kafka_broker>:<port>.
     :param tsdb_connection:           Connection string to the time series database. By default, None.
                                       Options:
                                       1. None, will be set from the system configuration.

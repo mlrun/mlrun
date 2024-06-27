@@ -155,7 +155,7 @@ class MLRunPatcher:
         mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
         mlrun_docker_repo = self._config.get("DOCKER_REPO", "")
 
-        if not mlrun_docker_registry.endswith("/"):
+        if not mlrun_docker_registry.endswith("/") and mlrun_docker_repo:
             mlrun_docker_registry += "/"
 
         env = {

@@ -955,7 +955,7 @@ class MonitoringDeployment:
         endpoint_store_connection: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
-        default_secrets: typing.Optional[str] = "",  # used only for upgrade case
+        _default_secrets_v3io: typing.Optional[str] = None,
     ):
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
@@ -975,7 +975,7 @@ class MonitoringDeployment:
                                           2. v3io - for v3io stream,
                                              pass `v3io` and the system will generate the exact path.
                                           3. Kafka - for Kafka stream, please provide full connection string without
-                                             costume topic, for example kafka://<some_kafka_broker>:<port>.
+                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
                                           1. None, will be set from the system configuration.
@@ -983,7 +983,8 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
-        :param default_secrets:           Optional, used only for upgrade case. By default, "".
+        :param default_secrets:           Optional, used only for upgrade case, to set the all the undefined secrets
+                                          to v3io.
         """
         try:
             self.check_if_credentials_are_set(only_project_secrets=True)

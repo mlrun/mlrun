@@ -526,7 +526,7 @@ default_config = {
         "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connection": "",
-        # See mlrun.common.schemas.model_monitoring.constants.ModelMonitoringStreamKind for available options
+        # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
         "stream_connection": "",
     },
     "secret_stores": {
@@ -1090,7 +1090,6 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
-        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 

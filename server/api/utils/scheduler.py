@@ -94,6 +94,7 @@ class Scheduler:
         if secret_name:
             labels = labels or {}
             labels[self._db_record_auth_label] = secret_name
+        return labels
 
     def _get_access_key_secret_name_from_db_record(
         self, db_schedule: mlrun.common.schemas.ScheduleRecord
@@ -133,7 +134,7 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object)
+        labels = self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object)
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -204,7 +205,7 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
-        self._enrich_schedule(
+        labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
         )
 
@@ -337,7 +338,7 @@ class Scheduler:
             )
             kind = db_schedule.kind
 
-        self._enrich_schedule(
+        labels = self._enrich_schedule(
             auth_info, kind, labels, name, project, scheduled_object, fn_kind
         )
 
@@ -823,7 +824,7 @@ class Scheduler:
 
                     # Append the auth key label to the schedule labels in the DB.
                     labels = {label.name: label.value for label in db_schedule.labels}
-                    self._append_access_key_secret_to_labels(labels, secret_name)
+                    labels = self._append_access_key_secret_to_labels(labels, secret_name)
                     get_db().update_schedule(
                         db_session,
                         db_schedule.project,
@@ -990,10 +991,11 @@ class Scheduler:
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
-        self._append_access_key_secret_to_labels(labels, secret_name)
+        labels = self._append_access_key_secret_to_labels(labels, secret_name)
         self._enrich_schedule_notifications(project, name, scheduled_object)
         if fn_kind:
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
+        return labels
 
     @staticmethod
     def _remove_schedule_notification_secrets(

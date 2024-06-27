@@ -605,7 +605,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         assert res.status_code == 200
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name, expected_url=api_gateway.invoke_url.replace("https://", "")
         )
         self._cleanup_gateway()
 
@@ -617,7 +617,7 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name, expected_url=api_gateway.invoke_url.replace("https://", "")
         )
         self._cleanup_gateway()
 
@@ -629,10 +629,10 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name, expected_url=api_gateway.invoke_url.replace("https://", "")
         )
         self._check_functions_external_invocation_urls(
-            function_name=self.f2.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f2.metadata.name, expected_url=api_gateway.invoke_url.replace("https://", "")
         )
 
     def _get_basic_gateway(self):

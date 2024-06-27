@@ -134,7 +134,9 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        labels = self._enrich_schedule(auth_info, kind, labels, name, project, scheduled_object)
+        labels = self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object
+        )
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -824,7 +826,9 @@ class Scheduler:
 
                     # Append the auth key label to the schedule labels in the DB.
                     labels = {label.name: label.value for label in db_schedule.labels}
-                    labels = self._append_access_key_secret_to_labels(labels, secret_name)
+                    labels = self._append_access_key_secret_to_labels(
+                        labels, secret_name
+                    )
                     get_db().update_schedule(
                         db_session,
                         db_schedule.project,

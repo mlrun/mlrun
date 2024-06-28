@@ -28,6 +28,12 @@ class WebhookNotification(NotificationBase):
     API/Client notification for sending run statuses in a http request
     """
 
+    @classmethod
+    def validate_params(cls, params):
+        url = params.get("url", None)
+        if not url:
+            raise ValueError("Parameter 'url' is required for WebhookNotification")
+
     async def push(
         self,
         message: str,

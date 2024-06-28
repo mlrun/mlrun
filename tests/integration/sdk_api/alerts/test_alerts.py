@@ -209,7 +209,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         alert_from_template.with_entities(entities=entities)
 
-        notification = mlrun.common.schemas.Notification(
+        notification = mlrun.model.Notification(
             kind="slack",
             name="slack_drift",
             message="Ay caramba!",
@@ -220,7 +220,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             },
             condition="oops",
         )
-        notifications = [alert_objects.AlertNotification(notification=notification)]
+        notifications = [
+            alert_objects.AlertNotification(notification=notification.to_dict())
+        ]
 
         alert_from_template.with_notifications(notifications=notifications)
 
@@ -419,8 +421,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "severity": "warning",
                     "when": ["now"],
                     "condition": "failed",
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
+                    "params": {
+                        "repo": "some-repo",
+                        "issue": "some-issue",
+                        "token": "some-token",
                     },
                 }
             },

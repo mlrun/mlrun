@@ -35,6 +35,14 @@ class SlackNotification(NotificationBase):
         "skipped": ":zzz:",
     }
 
+    @classmethod
+    def validate_params(cls, params):
+        webhook = params.get("webhook", None) or mlrun.get_secret_or_env(
+            "SLACK_WEBHOOK"
+        )
+        if not webhook:
+            raise ValueError("Parameter 'webhook' is required for SlackNotification")
+
     async def push(
         self,
         message: str,

@@ -181,7 +181,7 @@ def test_requirement_specifiers_inconsistencies():
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
-        "pyyaml": {"~=5.1", ">=5.4.1, <6"},
+        "pyyaml": {">=5.4.1, <7"},
     }
 
     for (

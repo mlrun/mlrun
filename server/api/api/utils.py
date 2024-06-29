@@ -992,6 +992,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
+                fn_kind=fn.kind,
             )
 
             project = task["metadata"]["project"]

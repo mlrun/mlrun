@@ -15,6 +15,7 @@ from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
@@ -258,7 +259,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _store_function(
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

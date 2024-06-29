@@ -40,7 +40,7 @@ Using [UV](https://github.com/astral-sh/uv) is also an option,
 you may need to override current MLRun default packager-installer env var `MLRUN_PYTHON_PACKAGE_INSTALLER` to `uv`
 
 ```shell script
-uv venv venv
+uv venv venv --seed
 source venv/bin/activate
 ```
 

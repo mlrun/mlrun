@@ -13,7 +13,12 @@
 - [Deprecations and removed code](#deprecations-and-removed-code)
  
 ## v1.6.4 (30 June 2024)
-  
+
+## UI
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-6867|Scalability improvement. The artifacts page (artifacts/datasets/models) now displays a maximum of 1000 items. (Use filters to focus the results.) |
+
 ###  Closed issues
 | ID       |Description                                                               |
 |----------|---------------------------------------------------------------------------|

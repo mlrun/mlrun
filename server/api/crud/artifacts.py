@@ -113,7 +113,7 @@ class Artifacts(
         key: str,
         tag: str = "latest",
         iter: int = None,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         producer_id: str = None,
         object_uid: str = None,
@@ -136,7 +136,7 @@ class Artifacts(
     def list_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = "",
         tag: str = "",
         labels: list[str] = None,
@@ -190,7 +190,7 @@ class Artifacts(
     def list_artifact_tags(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -238,7 +238,7 @@ class Artifacts(
     def delete_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = "",
         tag: str = "latest",
         labels: list[str] = None,
@@ -274,7 +274,7 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         object_uid: str = None,
         producer_id: str = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (

@@ -120,7 +120,7 @@ def test_list_runs_with_notifications_identical_run_names(
     # default query with partition should only return the last run of the same name. this is done in the endpoint
     # and in the httpdb client, so we'll implement it here manually as this db instance goes directly to the sql db
     # implementation.
-    partition_by = mlrun.common.schemas.RunPartitionByField.name
+    partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
     partition_sort_by = mlrun.common.schemas.SortField.updated
 
     runs = db.list_runs(
@@ -438,6 +438,32 @@ def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session
             sort=False,
             last=1,
         )
+
+
+def test_list_runs_with_same_names(db: DBInterface, db_session: Session):
+    run_names = ["run_name_1", "run_name_2"]
+    project_names = ["project1", "project2"]
+    for run_name in run_names:
+        for project_name in project_names:
+            run = {"metadata": {"name": run_name}, "status": {"bla": "blabla"}}
+            run_uid = f"{run_name}-{project_name}"
+            db.store_run(db_session, run, run_uid, project_name)
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        partition_sort_by=mlrun.common.schemas.SortField.created,
+        partition_by=mlrun.common.schemas.RunPartitionByField.name,
+    )
+    assert len(runs) == 2
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        partition_sort_by=mlrun.common.schemas.SortField.created,
+        partition_by=mlrun.common.schemas.RunPartitionByField.project_and_name,
+    )
+    assert len(runs) == 4
 
 
 def _change_run_record_to_before_align_runs_migration(run, time_before_creation):

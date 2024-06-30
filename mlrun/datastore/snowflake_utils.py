@@ -30,13 +30,15 @@ def get_snowflake_password():
 
 
 def get_snowflake_spark_options(attributes):
+    if not attributes:
+        return {}
     return {
         "format": "net.snowflake.spark.snowflake",
         "sfURL": attributes.get("url"),
         "sfUser": attributes.get("user"),
         "sfPassword": get_snowflake_password(),
         "sfDatabase": attributes.get("database"),
-        "sfSchema": attributes.get("schema"),
+        "sfSchema": attributes.get("db_schema"),
         "sfWarehouse": attributes.get("warehouse"),
         "application": "iguazio_platform",
         "TIMESTAMP_TYPE_MAPPING": "TIMESTAMP_LTZ",

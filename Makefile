@@ -80,6 +80,15 @@ else
 	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "--ignore=tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT) tests/system"
 endif
 
+MLRUN_PYTHON_PACKAGE_INSTALLER ?= pip
+ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),pip)
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= python -m pip install
+else ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),uv)
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install
+else
+	$(error MLRUN_PYTHON_PACKAGE_INSTALLER must be either "pip" or "uv")
+endif
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -90,8 +99,12 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install \
+	# relevant for pip package installer only
+	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
+	fi
+
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \
@@ -106,13 +119,13 @@ install-conda-requirements: ## Install all requirements needed for development w
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install .[complete]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install .[all]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all]
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)

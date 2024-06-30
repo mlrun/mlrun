@@ -148,7 +148,32 @@ class TestAlerts(TestMLRunSystem):
             ),
         }
 
-        return [data_drift_example, concept_drift_example, anomaly_example]
+        system_performance_example = {
+            mm_constants.WriterEvent.ENDPOINT_ID: endpoint_id,
+            mm_constants.WriterEvent.APPLICATION_NAME: mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            mm_constants.WriterEvent.START_INFER_TIME: "2023-09-11T12:00:00",
+            mm_constants.WriterEvent.END_INFER_TIME: "2023-09-11T12:01:00",
+            mm_constants.WriterEvent.EVENT_KIND: "result",
+            mm_constants.WriterEvent.DATA: json.dumps(
+                {
+                    mm_constants.ResultData.RESULT_NAME: result_name,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.system_performance.value,
+                    mm_constants.ResultData.RESULT_VALUE: 0.9,
+                    mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
+                    mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
+                        {"threshold": 0.4}
+                    ),
+                    mm_constants.ResultData.CURRENT_STATS: "",
+                }
+            ),
+        }
+
+        return [
+            data_drift_example,
+            concept_drift_example,
+            anomaly_example,
+            system_performance_example,
+        ]
 
     def _generate_alerts(
         self, nuclio_function_url: str, result_endpoint_fqn
@@ -159,6 +184,7 @@ class TestAlerts(TestMLRunSystem):
             alert_objects.EventKind.DATA_DRIFT_DETECTED,
             alert_objects.EventKind.CONCEPT_DRIFT_SUSPECTED,
             alert_objects.EventKind.MM_APP_ANOMALY_DETECTED,
+            alert_objects.EventKind.SYSTEM_PERFORMANCE_DETECTED,
         ]
 
         for alert_kind in alerts_kind_to_test:

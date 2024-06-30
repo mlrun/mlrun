@@ -1378,8 +1378,9 @@ async def _delete_nuclio_functions_in_batches(
                     k8s_helper.delete_configmap(config_map.metadata.name)
                 return None
             except Exception as exc:
-                # return tuple with failure info
-                return function, mlrun.errors.err_to_str(exc)
+                # return tuple with failure info (intentionally not using mlrun.errors.err_to_str to avoid bloating
+                # the failure message)
+                return function, str(exc)
 
     # Configure maximum concurrent deletions
     max_concurrent_deletions = (

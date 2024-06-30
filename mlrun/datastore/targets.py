@@ -1255,14 +1255,16 @@ class SnowflakeTarget(BaseStoreTarget):
         import snowflake.connector
 
         account = self.attributes["url"].replace(".snowflakecomputing.com", "")
-        missing = {
-            key: self.attributes.get(key)
+        missing = [
+            key
             for key in ["database", "db_schema", "table"]
             if self.attributes.get(key) is None
-        }
+        ]
         if missing:
-            raise mlrun.errors.MLRunRuntimeError(f"Can\'t purge Snowflake target, "
-                                                 f"some attributes are missing: {missing}")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {missing}"
+            )
         with snowflake.connector.connect(
             account=account,
             user=self.attributes.get("user"),
@@ -1270,7 +1272,11 @@ class SnowflakeTarget(BaseStoreTarget):
             warehouse=self.attributes.get("warehouse"),
         ) as snowflake_connector:
             cursor = snowflake_connector.cursor()
-            query = f"DROP TABLE IF EXISTS {self.attributes.get('database')}.{self.attributes.get('db_schema')}.{self.attributes.get('table')}"
+            query = (
+                f"DROP TABLE IF EXISTS {self.attributes.get('database')}.{self.attributes.get('db_schema')}"
+                f".{self.attributes.get('table')}"
+            )
+            cursor.execute(query)
 
     def as_df(
         self,

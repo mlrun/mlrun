@@ -39,6 +39,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
+import server.api.crud.runtimes.nuclio
 import server.api.db.base
 import server.api.db.session
 import server.api.utils.auth.verifier
@@ -1367,7 +1368,7 @@ async def _delete_nuclio_functions_in_batches(
         function: str,
         _semaphore: asyncio.Semaphore,
         k8s_helper: server.api.utils.singletons.k8s.K8sHelper,
-    ) -> tuple[str, str]:
+    ) -> typing.Optional[tuple[str, str]]:
         async with _semaphore:
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
@@ -1378,7 +1379,7 @@ async def _delete_nuclio_functions_in_batches(
                 return None
             except Exception as exc:
                 # return tuple with failure info
-                return function, str(exc)
+                return function, mlrun.errors.err_to_str(exc)
 
     # Configure maximum concurrent deletions
     max_concurrent_deletions = (

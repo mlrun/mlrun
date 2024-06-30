@@ -516,8 +516,11 @@ def _deploy_nuclio_runtime(
                 if (
                     fn.spec.image.startswith("mlrun/")
                     and client_version
-                    and semver.Version.parse(client_version)
-                    < semver.Version.parse("1.6.3")
+                    and (
+                        semver.Version.parse(client_version)
+                        < semver.Version.parse("1.6.3")
+                        or "unstable" in client_version
+                    )
                 ):
                     raise mlrun.errors.MLRunBadRequestError(
                         "On deploy of serving-functions which is based on mlrun image "

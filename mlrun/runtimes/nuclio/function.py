@@ -270,9 +270,12 @@ class RemoteRuntime(KubeResource):
     def status(self, status):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
-    def pre_deploy_validation(self):
+    def pre_save_validation(self):
         if self.metadata.tag:
             mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
+
+    def pre_deploy_validation(self):
+        pass
 
     def set_config(self, key, value):
         self.spec.config[key] = value

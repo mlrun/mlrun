@@ -455,14 +455,16 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
 def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible
-    # Note: We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
-    # and instead, we delegate the merge logic to nuclio.
-    # This approach ensures that mlrun functions remain clean from per-system selectors,
-    # maintaining consistent behavior across nuclio and mlrun environments.
 
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
+        # We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
+        # and instead, we delegate the merge logic to nuclio.
+        # This approach ensures that mlrun functions remain clean from per-system selectors,
+        # maintaining consistent behavior across nuclio and mlrun environments.
+        if function.spec.node_selector:
+            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:

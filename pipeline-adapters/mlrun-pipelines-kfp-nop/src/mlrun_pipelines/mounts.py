@@ -15,44 +15,44 @@
 
 
 def v3io_cred(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_v3io(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_v3iod(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_pvc(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def set_env_variables(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_s3(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_spark_conf():
-    raise NotImplementedError
+    pass
 
 
 def mount_secret(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_configmap(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def mount_hostpath(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def auto_mount(*args, **kwargs):
-    raise NotImplementedError
+    pass

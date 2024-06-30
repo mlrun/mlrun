@@ -15,4 +15,4 @@
 
 
 def new_pipe_metadata(*args, **kwargs):
-    raise NotImplementedError
+    pass

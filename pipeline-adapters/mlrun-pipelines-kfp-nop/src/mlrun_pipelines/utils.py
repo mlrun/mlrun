@@ -15,8 +15,8 @@
 
 
 def compile_pipeline(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def get_client(*args, **kwargs):
-    raise NotImplementedError
+    pass

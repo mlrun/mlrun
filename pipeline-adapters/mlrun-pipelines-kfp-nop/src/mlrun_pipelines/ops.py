@@ -15,44 +15,44 @@
 
 
 def generate_kfp_dag_and_resolve_project(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def add_default_function_resources(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def add_function_node_selection_attributes(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def add_annotations(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def add_labels(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def add_default_env(task):
-    raise NotImplementedError
+    pass
 
 
 def sync_environment_variables(function, task):
-    raise NotImplementedError
+    pass
 
 
 def sync_mounts(function, task):
-    raise NotImplementedError
+    pass
 
 
 def generate_pipeline_node(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def generate_image_builder_pipeline_node(*args, **kwargs):
-    raise NotImplementedError
+    pass
 
 
 def generate_deployer_pipeline_node(*args, **kwargs):
-    raise NotImplementedError
+    pass

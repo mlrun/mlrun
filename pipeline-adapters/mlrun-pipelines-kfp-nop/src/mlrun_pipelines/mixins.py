@@ -16,9 +16,9 @@
 
 class KfpAdapterMixin:
     def apply(self, *args, **kwargs):
-        raise NotImplementedError
+        pass
 
 
 class PipelineProviderMixin:
     def resolve_project_from_workflow_manifest(self, *args, **kwargs):
-        raise NotImplementedError
+        pass

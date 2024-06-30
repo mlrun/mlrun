@@ -403,26 +403,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
         assert config["metadata"]["labels"].get(key) == val
 
-    def test_compile_function_config_node_selector_enriched_from_project(
-        self, db: Session, client: TestClient
-    ):
-        function = self._generate_runtime(self.runtime_kind)
-        function_node_selector = {"kubernetes.io/hostname": "k8s-node1"}
-        function.spec.node_selector = function_node_selector
-        (
-            _,
-            _,
-            config,
-        ) = server.api.crud.runtimes.nuclio.function._compile_function_config(
-            function, db_session=db
-        )
-        assert config["spec"][
-            "nodeSelector"
-        ] == mlrun.utils.helpers.merge_with_precedence(
-            self.project_default_function_node_selector,
-            function_node_selector,
-        )
-
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
         Expect no ingress template to be created, thought its mode is "always",

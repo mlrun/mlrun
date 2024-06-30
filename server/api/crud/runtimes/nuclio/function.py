@@ -20,7 +20,6 @@ import nuclio
 import nuclio.utils
 import requests
 import semver
-import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.constants
@@ -34,7 +33,6 @@ import mlrun.utils
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.runtime_handlers
 import server.api.utils.builder
-import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
 
@@ -45,7 +43,6 @@ def deploy_nuclio_function(
     client_version: str = None,
     builder_env: dict = None,
     client_python_version: str = None,
-    db_session: sqlalchemy.orm.Session = None,
 ):
     """Deploys a nuclio function.
 
@@ -61,7 +58,6 @@ def deploy_nuclio_function(
         client_python_version=client_python_version,
         builder_env=builder_env or {},
         auth_info=auth_info,
-        db_session=db_session,
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -206,7 +202,6 @@ def _compile_function_config(
     client_python_version: str = None,
     builder_env=None,
     auth_info=None,
-    db_session=None,
 ):
     _set_function_labels(function)
 
@@ -280,7 +275,7 @@ def _compile_function_config(
     handler = function.spec.function_handler
 
     _set_build_params(function, nuclio_spec, builder_env, project, auth_info)
-    _set_function_scheduling_params(function, nuclio_spec, db_session)
+    _set_function_scheduling_params(function, nuclio_spec)
     _set_function_replicas(function, nuclio_spec)
     _set_misc_specs(function, nuclio_spec)
 
@@ -458,18 +453,16 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
         )
 
 
-def _set_function_scheduling_params(function, nuclio_spec, db_session):
+def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible
+    # Note: We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
+    # and instead, we delegate the merge logic to nuclio.
+    # This approach ensures that mlrun functions remain clean from per-system selectors,
+    # maintaining consistent behavior across nuclio and mlrun environments.
+
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        if node_selector := _enrich_function_node_selector_with_project(
-            db_session, function.metadata.project, function.spec.node_selector
-        ):
-            nuclio_spec.set_config(
-                "spec.nodeSelector",
-                node_selector,
-            )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:
@@ -494,21 +487,6 @@ def _set_function_scheduling_params(function, nuclio_spec, db_session):
                 "spec.PreemptionMode",
                 function.spec.preemption_mode,
             )
-
-
-def _enrich_function_node_selector_with_project(
-    db_session, project_name, function_node_selector
-):
-    if db_session and project_name:
-        project = server.api.utils.singletons.db.get_db().get_project(
-            session=db_session, name=project_name
-        )
-        if project.spec.default_function_node_selector:
-            return mlrun.utils.helpers.merge_with_precedence(
-                project.spec.default_function_node_selector,
-                function_node_selector,
-            )
-    return function_node_selector
 
 
 def _set_function_replicas(function, nuclio_spec):

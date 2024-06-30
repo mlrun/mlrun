@@ -21,6 +21,7 @@ import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud

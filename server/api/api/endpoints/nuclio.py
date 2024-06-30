@@ -456,8 +456,9 @@ def _deploy_function(
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
         launcher.enrich_runtime(runtime=fn, full=True)
 
-        fn.save(versioned=False)
         fn.pre_deploy_validation()
+        fn.save(versioned=False)
+
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,

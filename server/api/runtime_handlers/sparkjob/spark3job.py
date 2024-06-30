@@ -157,7 +157,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             update_in(
                 job,
                 "spec.nodeSelector",
-                mlrun.utils.helpers.select_non_empty_fields(run.spec.node_selector),
+                mlrun.utils.helpers.to_non_empty_values_dict(run.spec.node_selector),
             )
 
         if not runtime.spec.image:
@@ -709,7 +709,7 @@ with ctx:
                 update_in(
                     job,
                     "spec.driver.nodeSelector",
-                    mlrun.utils.helpers.select_non_empty_fields(
+                    mlrun.utils.helpers.to_non_empty_values_dict(
                         mlrun.utils.helpers.merge_with_precedence(
                             project.spec.default_function_node_selector,
                             runtime.spec.driver_node_selector,
@@ -719,7 +719,7 @@ with ctx:
                 update_in(
                     job,
                     "spec.executor.nodeSelector",
-                    mlrun.utils.helpers.select_non_empty_fields(
+                    mlrun.utils.helpers.to_non_empty_values_dict(
                         mlrun.utils.helpers.merge_with_precedence(
                             project.spec.default_function_node_selector,
                             runtime.spec.executor_node_selector,

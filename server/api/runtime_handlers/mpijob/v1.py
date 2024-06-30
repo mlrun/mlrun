@@ -110,7 +110,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             update_in(
                 pod_template,
                 "spec.nodeSelector",
-                mlrun.utils.helpers.select_non_empty_fields(run.spec.node_selector),
+                mlrun.utils.helpers.to_non_empty_values_dict(run.spec.node_selector),
             )
             update_in(
                 pod_template,

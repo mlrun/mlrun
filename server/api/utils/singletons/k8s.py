@@ -32,7 +32,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
 from mlrun.utils import logger
-from mlrun.utils.helpers import select_non_empty_fields
+from mlrun.utils.helpers import to_non_empty_values_dict
 
 _k8s = None
 
@@ -898,4 +898,4 @@ def resolve_node_selector(run_node_selector, runtime_node_selector):
     node_selector = run_node_selector or runtime_node_selector
 
     # Ignore empty labels
-    return select_non_empty_fields(node_selector)
+    return to_non_empty_values_dict(node_selector)

@@ -210,7 +210,7 @@ class MLClientCtx:
 
     @property
     def node_selector(self):
-        """Dictionary with labels (read-only)"""
+        """Dictionary with node selectors (read-only)"""
         return deepcopy(self._node_selector)
 
     @property

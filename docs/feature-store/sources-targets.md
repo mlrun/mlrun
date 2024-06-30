@@ -201,7 +201,7 @@ Disable partitioning with:
 
 ## Snowflake target
 
-Snowflake target parameters:
+`SnowflakeTarget` parameters:
 - `name`
 - `user` (snowflake user)
 - `warehouse` (snowflake warehouse)

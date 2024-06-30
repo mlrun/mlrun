@@ -1269,7 +1269,7 @@ class SnowflakeTarget(BaseStoreTarget):
         keys = ["url", "user", "database", "db_schema", "warehouse"]
         attributes = self.attributes or {}
         snowflake_dict = {key: attributes.get(key) for key in keys}
-        table = self.attributes.get("table")
+        table = attributes.get("table")
         snowflake_dict["query"] = f"SELECT * from {table}" if table else None
         return snowflake_dict
 

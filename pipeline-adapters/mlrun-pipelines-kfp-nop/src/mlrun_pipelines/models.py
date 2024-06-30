@@ -16,9 +16,9 @@
 
 import unittest.mock
 
-PipelineNodeWrapper = unittest.mock.MagicMock
-
 from mlrun_pipelines.common.helpers import FlexibleMapper
+
+PipelineNodeWrapper = unittest.mock.MagicMock
 
 
 class PipelineStep(FlexibleMapper):

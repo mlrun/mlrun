@@ -22,7 +22,6 @@ from .base import ObjectFormat
 
 class FunctionFormat(ObjectFormat, mlrun.common.types.StrEnum):
     minimal = "minimal"
-    name_only = "name_only"
 
     @staticmethod
     def format_method(_format: str) -> typing.Optional[typing.Callable]:
@@ -43,8 +42,5 @@ class FunctionFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.node_selector",
                     "spec.priority_class_name",
                 ]
-            ),
-            FunctionFormat.name_only: FunctionFormat.filter_obj_method(
-                ["metadata.name"]
             ),
         }[_format]

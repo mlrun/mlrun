@@ -1065,21 +1065,15 @@ class ParquetTarget(BaseStoreTarget):
 
 
 class ParquetTargetStoreyWrapper(storey.ParquetTarget):
-    def __init__(
-        self,
-        path: str,
-        index_cols: Union[str, Union[list[str], list[tuple[str, str]]], None] = None,
-        columns: Union[str, Union[list[str], list[tuple[str, str]]], None] = None,
-        partition_cols: Union[
-            str, Union[list[str], list[tuple[str, int]]], None
-        ] = None,
-        time_field: Union[None, str, int] = None,
-        time_format: Optional[str] = None,
-        infer_columns_from_data: Optional[bool] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Union[int, float, None] = None,
-        **kwargs,
-    ):
+    def __init__(self, *args, **kwargs):
+        args = list(args)
+
+        if len(args) > 0:
+            path = args[0]
+        else:
+            path = None
+        path = kwargs.get("path", path)
+
         external_storage_options = kwargs.get("storage_options", None)
         store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(path)
         storage_options = store.get_storage_options()
@@ -1091,18 +1085,13 @@ class ParquetTargetStoreyWrapper(storey.ParquetTarget):
         if storage_options:
             kwargs["storage_options"] = storage_options
 
-        super().__init__(
-            url,
-            index_cols,
-            columns,
-            partition_cols,
-            time_field,
-            time_format,
-            infer_columns_from_data,
-            max_events,
-            flush_after_seconds,
-            **kwargs,
-        )
+        if len(args) > 0:
+            args[0] = url
+        if "path" in kwargs:
+            kwargs["path"] = url
+
+        args = tuple(args)
+        super().__init__(*args, **kwargs)
 
 
 class CSVTarget(BaseStoreTarget):

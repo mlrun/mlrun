@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import server.api.main
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
@@ -205,6 +206,8 @@ def test_submit_schedule_job_from_hub_from_ui(
 
     schedule = schedules[0]
     assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
+
+    assert schedule["labels"][mlrun_constants.MLRunInternalLabels.kind] == "job"
 
 
 def test_submit_job_with_output_path_enrichment(

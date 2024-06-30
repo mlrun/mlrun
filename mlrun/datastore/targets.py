@@ -1294,11 +1294,9 @@ class SnowflakeTarget(BaseStoreTarget):
     @property
     def source_spark_attributes(self) -> dict:
         keys = ["url", "user", "database", "db_schema", "warehouse"]
-        if self.attributes:
-            snowflake_dict = {key: self.attributes.get(key) for key in keys}
-        else:
-            snowflake_dict = {key: None for key in keys}
-        table = self.attributes.get("table")
+        attributes = self.attributes or {}
+        snowflake_dict = {key: attributes.get(key) for key in keys}
+        table = attributes.get("table")
         snowflake_dict["query"] = f"SELECT * from {table}" if table else None
         return snowflake_dict
 

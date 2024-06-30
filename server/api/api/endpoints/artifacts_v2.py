@@ -269,7 +269,7 @@ async def delete_artifact(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = mlrun.mlconf.default_project,
+    project: str = None,
     name: str = "",
     tag: str = "",
     tree: str = None,
@@ -278,6 +278,7 @@ async def delete_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    project = project or mlrun.mlconf.default_project
     artifacts = await run_in_threadpool(
         server.api.crud.Artifacts().list_artifacts,
         db_session,

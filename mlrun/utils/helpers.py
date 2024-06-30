@@ -149,7 +149,7 @@ if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
     nest_asyncio.apply()
 
 
-class run_keys:
+class RunKeys:
     input_path = "input_path"
     output_path = "output_path"
     inputs = "inputs"
@@ -158,6 +158,10 @@ class run_keys:
     outputs = "outputs"
     data_stores = "data_stores"
     secrets = "secret_sources"
+
+
+# for Backward compatibility
+run_keys = RunKeys
 
 
 def verify_field_regex(

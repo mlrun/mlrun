@@ -34,7 +34,7 @@ def env_file_test(context: mlrun.MLClientCtx):
     context.log_result("kfp_ttl", mlrun.mlconf.kfp_ttl)
 
 
-class mycls:
+class MyCls:
     def __init__(self, context=None, a1=1):
         self.context = context
         self.a1 = a1

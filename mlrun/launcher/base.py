@@ -118,6 +118,8 @@ class BaseLauncher(abc.ABC):
             self._refresh_function_metadata(runtime)
 
         tag = tag or runtime.metadata.tag
+        if tag:
+            mlrun.utils.validate_tag_name(tag, "function.metadata.tag")
 
         obj = runtime.to_dict()
         logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)

@@ -259,7 +259,7 @@ def test_run_class_code():
     ]
     fn = mlrun.code_to_function("mytst", filename=function_path, kind="local")
     for params, results in cases:
-        run = mlrun.run_function(fn, handler="mycls::mtd", params=params)
+        run = mlrun.run_function(fn, handler="MyCls::mtd", params=params)
         assert run.status.results == results
 
 
@@ -270,7 +270,7 @@ def test_run_class_file():
     ]
     fn = mlrun.new_function("mytst", command=function_path, kind="job")
     for params, results in cases:
-        run = fn.run(handler="mycls::mtd", params=params, local=True)
+        run = fn.run(handler="MyCls::mtd", params=params, local=True)
         assert run.status.results == results
 
 

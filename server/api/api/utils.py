@@ -427,6 +427,8 @@ def validate_and_mask_notification_list(
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
 
+        notification_object.validate_notification_params()
+
         notification_objects.append(notification_object)
 
     mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
@@ -990,6 +992,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
+                fn_kind=fn.kind,
             )
 
             project = task["metadata"]["project"]

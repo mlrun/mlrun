@@ -36,7 +36,9 @@ from mlrun.runtimes import RuntimeKinds
 
 
 def test_build_runtime_use_base_image_when_no_build():
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", kind=RuntimeKinds.job)
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+    )
     base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
@@ -56,7 +58,9 @@ def test_build_runtime_enrich_base_image(monkeypatch):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
-        fn = mlrun.new_function("some-function", "some-project", "some-tag", kind=RuntimeKinds.job)
+        fn = mlrun.new_function(
+            "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+        )
         base_image = "some/image"
         fn.build_config(
             base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"

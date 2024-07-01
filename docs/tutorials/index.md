@@ -1,4 +1,4 @@
-(tutorial)=
+(tutorials-all)=
 # Tutorials and Examples
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).

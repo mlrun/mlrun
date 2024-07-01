@@ -36,7 +36,9 @@ import server.api.runtime_handlers
 import server.api.utils.builder
 import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.config import config as mlrun_config
 from mlrun.utils import logger
 
 
@@ -324,6 +326,16 @@ def _compile_function_config(
         config=function.spec.config,
     )
 
+    build: mlrun.model.ImageBuilder = function.spec.build
+    base_image: str = (
+        build.base_image or function.spec.image or mlrun_config.default_base_image
+    )
+
+    if server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
+        enriched_base_image = function.full_image_path(
+            base_image, client_version, client_python_version
+        )
+        server.api.utils.builder.add_mlrun_to_requirements(build, enriched_base_image)
     _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version

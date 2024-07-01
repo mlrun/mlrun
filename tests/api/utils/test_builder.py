@@ -1089,7 +1089,7 @@ def test_mlrun_base_image_with_requirements(
             "some-function",
             "some-project",
             "some-tag",
-            kind="job",
+            kind="serving",
             requirements=["some-package"],
         )
         function.spec.build.base_image = base_image

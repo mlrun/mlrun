@@ -640,20 +640,15 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    is_mlrun_image = False
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    if base_image:
-        mlrun_images = [
-            "mlrun/mlrun",
-            "mlrun/mlrun-gpu",
-            "mlrun/ml-base",
-        ]
-        if any([image in base_image for image in mlrun_images]):
-            # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
-            with_mlrun = False
-            is_mlrun_image = True
+
+    mlrun_image = False
+    # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
+    if base_image and is_mlrun_image(base_image):
+        mlrun_image = True
+        with_mlrun = False
 
     if force_build:
         mlrun.utils.logger.info("Forcefully building image")
@@ -699,23 +694,8 @@ def build_runtime(
         base_image, client_version, client_python_version
     )
 
-    # Add mlrun to the requirements even though it is already installed because
-    # we want pip to include mlrun constraints when installing other packages
-    if is_mlrun_image and build.requirements:
-        image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
-            enriched_base_image
-        )
-        if has_py_package or mlrun_version_specifier:
-            installed_mlrun_version_command = resolve_mlrun_install_command_version(
-                mlrun_version_specifier, client_version=image_tag
-            )
-            build.requirements.insert(0, installed_mlrun_version_command)
-
-        else:
-            mlrun.utils.logger.warning(
-                "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
-                base_image=enriched_base_image,
-            )
+    if mlrun_image and build.requirements:
+        add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
 
     mlrun.utils.logger.info(
         "Building runtime image",
@@ -773,6 +753,36 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier=None):
+    # Add mlrun to the requirements even though it is already installed because
+    # we want pip to include mlrun constraints when installing other packages
+    image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
+        enriched_base_image
+    )
+    if has_py_package or mlrun_version_specifier:
+        installed_mlrun_version_command = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version=image_tag
+        )
+        build.requirements.insert(0, installed_mlrun_version_command)
+
+    else:
+        mlrun.utils.logger.warning(
+            "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
+            base_image=enriched_base_image,
+        )
+
+
+def is_mlrun_image(base_image):
+    mlrun_images = [
+        "mlrun/mlrun",
+        "mlrun/mlrun-gpu",
+        "mlrun/ml-base",
+    ]
+    if any([image in base_image for image in mlrun_images]):
+        return True
+    return False
 
 
 def resolve_and_enrich_image_target(

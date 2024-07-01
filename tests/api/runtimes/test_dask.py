@@ -488,6 +488,11 @@ class TestDaskRuntime(TestRuntimeBase):
             mlrun_constants.MLRunInternalLabels.tag: "latest",
         }
 
+        expected_node_selector = {
+            "test-project": "node-selector",
+            function_label_name: function_label_val,
+        }
+
         secrets = []
         client_version = "1.6.0"
         client_python_version = "3.9"
@@ -514,12 +519,7 @@ class TestDaskRuntime(TestRuntimeBase):
         assert scheduler_pod.spec.containers[0].resources == expected_resources
         assert worker_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.containers[0].env == expected_env
-        assert (
-            scheduler_pod.spec.node_selector
-            == mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, function.spec.node_selector
-            )
-        )
+        assert scheduler_pod.spec.node_selector == expected_node_selector
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2

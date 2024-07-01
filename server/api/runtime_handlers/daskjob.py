@@ -396,12 +396,20 @@ def enrich_dask_cluster(
     worker_container = client.V1Container(
         resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
-
+    project = function._get_db().get_project(function.metadata.project)
+    logger.info(
+        "Enriching Dask Cluster node selector from project",
+        project_name=function.metadata.project,
+        project_node_selector=project.spec.default_function_node_selector,
+    )
+    node_selector = mlrun.utils.helpers.merge_with_precedence(
+        project.spec.default_function_node_selector, function.spec.node_selector
+    )
     scheduler_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, scheduler_container
+        spec, scheduler_container, node_selector=node_selector
     )
     worker_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, worker_container
+        spec, worker_container, node_selector=node_selector
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
         if spec.image_pull_secret:

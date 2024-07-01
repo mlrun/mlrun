@@ -1,5 +1,5 @@
 # uploading to PyPI
-twine~=3.1
+twine~=5.1
 build~=1.0
 
 # formatting & linting

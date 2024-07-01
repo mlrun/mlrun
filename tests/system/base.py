@@ -49,9 +49,11 @@ class TestMLRunSystem:
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
-    model_monitoring_mandatory_env_vars = ["MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION",
-                                           "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
-                                           "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"]
+    model_monitoring_mandatory_env_vars = [
+        "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION",
+    ]
 
     enterprise_configured = os.getenv("V3IO_API")
 

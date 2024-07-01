@@ -32,6 +32,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
 from mlrun.utils import logger
+from mlrun.utils.helpers import to_non_empty_values_dict
 
 _k8s = None
 
@@ -868,6 +869,7 @@ class BasePod:
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: mlrun.runtimes.pod.KubeResourceSpec,
     container: client.V1Container,
+    node_selector: dict = None,
 ):
     return client.V1PodSpec(
         containers=[container],
@@ -875,7 +877,9 @@ def kube_resource_spec_to_pod_spec(
         volumes=kube_resource_spec.volumes,
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
-        node_selector=kube_resource_spec.node_selector,
+        node_selector=resolve_node_selector(
+            node_selector, kube_resource_spec.node_selector
+        ),
         affinity=kube_resource_spec.affinity,
         priority_class_name=kube_resource_spec.priority_class_name
         if len(mlrun.mlconf.get_valid_function_priority_class_names())
@@ -884,3 +888,12 @@ def kube_resource_spec_to_pod_spec(
         security_context=kube_resource_spec.security_context,
         termination_grace_period_seconds=kube_resource_spec.termination_grace_period_seconds,
     )
+
+
+def resolve_node_selector(run_node_selector, runtime_node_selector):
+    # To maintain backwards compatibility, use the node_selector from the run object if it exists.
+    # otherwise, use the node_selector from the function object.
+    node_selector = run_node_selector or runtime_node_selector
+
+    # Ignore empty labels
+    return to_non_empty_values_dict(node_selector)

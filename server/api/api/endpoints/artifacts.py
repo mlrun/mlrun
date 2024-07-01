@@ -258,7 +258,7 @@ async def list_artifacts(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = mlrun.mlconf.default_project,
+    project: str = None,
     name: str = "",
     tag: str = "",
     labels: list[str] = Query([], alias="label"),
@@ -266,7 +266,7 @@ async def delete_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     return await _delete_artifacts(
-        project=project,
+        project=project or mlrun.mlconf.default_project,
         name=name,
         tag=tag,
         labels=labels,

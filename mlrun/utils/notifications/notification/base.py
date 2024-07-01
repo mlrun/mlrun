@@ -28,6 +28,10 @@ class NotificationBase:
         self.name = name
         self.params = params or {}
 
+    @classmethod
+    def validate_params(cls, params):
+        pass
+
     @property
     def active(self) -> bool:
         return True

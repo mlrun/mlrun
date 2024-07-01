@@ -27,7 +27,7 @@ def hello_world(context):
     )
 
 
-class mycls:
+class MyCls:
     def __init__(self, context=None):
         self.context = context
 

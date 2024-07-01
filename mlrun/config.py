@@ -68,7 +68,7 @@ default_config = {
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)
-    "images_to_enrich_registry": "^mlrun/*",
+    "images_to_enrich_registry": "^mlrun/*, ^python:3.9",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
@@ -250,7 +250,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
-            "application": "python:3.9-slim",
+            "application": "python:3.9",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options

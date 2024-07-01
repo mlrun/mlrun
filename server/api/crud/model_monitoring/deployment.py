@@ -983,8 +983,7 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
-        :param _default_secrets_v3io:     Optional, used only for upgrade case, to set the all the undefined secrets
-                                          to v3io.
+        :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret key is set.
         """
         try:
             self.check_if_credentials_are_set(only_project_secrets=True)

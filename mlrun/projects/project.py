@@ -3662,6 +3662,7 @@ class MlrunProject(ModelObj):
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3691,6 +3692,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3705,6 +3707,7 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
+            limit=limit,
         )
 
     def list_models(

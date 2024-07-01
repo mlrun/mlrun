@@ -780,9 +780,7 @@ def is_mlrun_image(base_image):
         "mlrun/mlrun-gpu",
         "mlrun/ml-base",
     ]
-    if any([image in base_image for image in mlrun_images]):
-        return True
-    return False
+    return any([image in base_image for image in mlrun_images])
 
 
 def resolve_and_enrich_image_target(

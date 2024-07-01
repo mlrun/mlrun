@@ -606,9 +606,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_mlrun_requirements(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
-        user_unix_id = 1000
-        auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=user_unix_id)
-        mlrun.mlconf.igz_version = "3.6"
+        auth_info = mlrun.common.schemas.AuthInfo()
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )

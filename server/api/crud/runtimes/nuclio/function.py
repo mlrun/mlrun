@@ -38,7 +38,7 @@ import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun.config import config as mlrun_config
+from mlrun import mlconf
 from mlrun.utils import logger
 
 
@@ -328,7 +328,7 @@ def _compile_function_config(
 
     build: mlrun.model.ImageBuilder = function.spec.build
     base_image: str = (
-        build.base_image or function.spec.image or mlrun_config.default_base_image
+        build.base_image or function.spec.image or mlconf.default_base_image
     )
 
     if server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:

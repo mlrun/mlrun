@@ -61,6 +61,7 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
 
         self._logger = logger
         self.project = "test-project"
+        self.project_default_function_node_selector = {}
         self.name = "test-function"
         self.run_uid = "test_run_uid"
         self.image_name = "mlrun/mlrun:latest"
@@ -140,9 +141,17 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         pass
 
     def _create_project(
-        self, client: fastapi.testclient.TestClient, project_name: str = None
+        self,
+        client: fastapi.testclient.TestClient,
+        project_name: str = None,
+        default_function_node_selector: dict = None,
     ):
-        tests.api.api.utils.create_project(client, project_name or self.project)
+        tests.api.api.utils.create_project(
+            client=client,
+            project_name=project_name or self.project,
+            default_function_node_selector=default_function_node_selector
+            or self.project_default_function_node_selector,
+        )
 
     def _generate_task(self):
         return new_task(
@@ -786,7 +795,10 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
             assert (
                 deepdiff.DeepDiff(
                     pod.spec.node_selector,
-                    expected_node_selector,
+                    mlrun.utils.helpers.merge_with_precedence(
+                        self.project_default_function_node_selector,
+                        expected_node_selector,
+                    ),
                     ignore_order=True,
                 )
                 == {}

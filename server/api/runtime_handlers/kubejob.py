@@ -46,6 +46,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         execution: mlrun.execution.MLClientCtx,
     ):
         command, args, extra_env = self._get_cmd_args(runtime, run)
+        run_node_selector = run.spec.node_selector
 
         if run.metadata.iteration:
             runtime.store_run(run)
@@ -71,6 +72,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             args,
             workdir,
             self._get_lifecycle(),
+            node_selector=run_node_selector,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
@@ -210,7 +212,16 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
         return client.V1Lifecycle(pre_stop=pre_stop_handler)
 
 
-def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
+def func_to_pod(
+    image=None,
+    runtime=None,
+    extra_env=None,
+    command=None,
+    args=None,
+    workdir=None,
+    lifecycle=None,
+    node_selector=None,
+):
     container = client.V1Container(
         name="base",
         image=image,
@@ -225,7 +236,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
     )
 
     pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        runtime.spec, container
+        runtime.spec, container, node_selector
     )
 
     if runtime.spec.image_pull_secret:

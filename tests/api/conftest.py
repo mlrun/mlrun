@@ -206,7 +206,7 @@ def iguazio_client(
 
 class MockedK8sHelper:
     @pytest.fixture(autouse=True)
-    def mock_k8s_helper(self, mocked_k8s_helper):
+    def mock_k8s_helper(self):
         """
         This fixture mocks the k8s helper singleton for all tests in the class that inherit from this class.
         Example:
@@ -215,11 +215,15 @@ class MockedK8sHelper:
                 def test_something(self):
                     ...
         """
-        pass
+        _mocked_k8s_helper()
 
 
 @pytest.fixture()
 def mocked_k8s_helper():
+    _mocked_k8s_helper()
+
+
+def _mocked_k8s_helper():
     # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
     server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
         unittest.mock.Mock(return_value=[])

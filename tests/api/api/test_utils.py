@@ -38,7 +38,6 @@ import tests.api.conftest
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 from server.api.api.utils import (
-    _delete_nuclio_functions_in_batches,
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
@@ -47,6 +46,7 @@ from server.api.api.utils import (
     ensure_function_security_context,
     get_scheduler,
 )
+from server.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
@@ -1685,7 +1685,7 @@ async def test_delete_function_calls_k8s_helper_methods():
             return_value=k8s_helper_mock,
         ),
     ):
-        failed_requests = await _delete_nuclio_functions_in_batches(
+        failed_requests = await delete_nuclio_functions_in_batches(
             {}, "my-project", function_names
         )
 

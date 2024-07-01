@@ -1738,7 +1738,7 @@ class SQLDB(DBInterface):
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[dict]:
-        project = project or config.default_project
+        project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
             session,

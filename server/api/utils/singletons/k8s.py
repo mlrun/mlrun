@@ -550,12 +550,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         data: dict,
         namespace: str = "",
         labels: dict = None,
+        project: str = None,
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
         labels = labels or {}
         labels[label_name] = resource_name
+        labels[mlrun_constants.MLRunInternalLabels.project] = project
 
         configmap_with_label = self.get_configmap(resource_name, namespace)
         if configmap_with_label:

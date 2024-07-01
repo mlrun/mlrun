@@ -85,6 +85,7 @@ class MLClientCtx:
 
         self._labels = {}
         self._annotations = {}
+        self._node_selector = {}
 
         self._function = ""
         self._parameters = {}
@@ -206,6 +207,11 @@ class MLClientCtx:
     def labels(self):
         """Dictionary with labels (read-only)"""
         return deepcopy(self._labels)
+
+    @property
+    def node_selector(self):
+        """Dictionary with node selectors (read-only)"""
+        return deepcopy(self._node_selector)
 
     @property
     def annotations(self):
@@ -390,6 +396,7 @@ class MLClientCtx:
             self._state_thresholds = spec.get(
                 "state_thresholds", self._state_thresholds
             )
+            self._node_selector = spec.get("node_selector", self._node_selector)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -943,6 +950,7 @@ class MLClientCtx:
                 RunKeys.inputs: self._inputs,
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
+                "node_selector": self._node_selector,
             },
             "status": {
                 "results": self._results,

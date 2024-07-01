@@ -227,3 +227,4 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
         ):
             self.cursor.execute(f"select * from {table_path}").fetchall()
+

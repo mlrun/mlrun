@@ -16,6 +16,7 @@ import typing
 from datetime import datetime
 
 import pandas as pd
+import storey
 import taosws
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -24,6 +25,12 @@ import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
+
+
+class TDEngineTargetStoreyWrapper(storey.TDEngineTarget):
+    def __init__(self, *args, **kwargs):
+        kwargs["url"] = mlrun.model_monitoring.helpers.get_tsdb_connection_string()
+        super().__init__(*args, **kwargs)
 
 
 class TDEngineConnector(TSDBConnector):
@@ -131,10 +138,9 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "storey.TDEngineTarget",
+                "mlrun.model_monitoring.db.tsdb.tdengine.TDEngineTargetStoreyWrapper",
                 name=name,
                 after=after,
-                url=self._tdengine_connection_string,
                 supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
                 table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
                 time_col=mm_schemas.EventFieldType.TIME,

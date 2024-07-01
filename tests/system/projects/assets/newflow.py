@@ -79,7 +79,7 @@ def newpipe():
     )
 
     # deploy our model as a serverless function, we can pass a list of models to serve
-    deploy = deploy_function(
+    deploy_function(
         "serving",
         models=[{"key": f"{DATASET}:v1", "model_path": train.outputs["model"]}],
     )

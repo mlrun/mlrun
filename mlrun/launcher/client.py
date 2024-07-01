@@ -86,7 +86,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             hash_key = db.store_function(
                 struct, runtime.metadata.name, runtime.metadata.project, tag=tag, versioned=True
             )
-            run.spec.function = runtime._function_uri(tag=tag, hash_key=hash_key)
+            run.spec.function = runtime._function_uri(hash_key=hash_key)
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

@@ -688,10 +688,11 @@ def parse_artifact_uri(uri, default_project=""):
 def generate_object_uri(project, name, tag=None, hash_key=None):
     uri = f"{project}/{name}"
 
-    if tag:
-        uri += f":{tag}"
+    # prioritize hash key over tag
     if hash_key:
         uri += f"@{hash_key}"
+    elif tag:
+        uri += f":{tag}"
     return uri
 
 

@@ -201,13 +201,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def test_purge_snowflake_target(self):
         self.generate_snowflake_source_table()
         fake_target = SnowflakeTarget(
-            "snowflake_target",
+            "fake_snowflake_target",
             **self.snowflake_spark_parameters,
         )
-        try:
-            fake_target.purge()
-        except Exception as e:
-            print(e)
         with pytest.raises(
             mlrun.errors.MLRunRuntimeError,
             match=".*some attributes are missing.*",

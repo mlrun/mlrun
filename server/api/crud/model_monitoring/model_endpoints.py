@@ -512,9 +512,11 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection == "v3io"
-            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=project_name,
+        )
+        if stream_paths[0].startswith("v3io") and (
+            not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
         ):
             return
 

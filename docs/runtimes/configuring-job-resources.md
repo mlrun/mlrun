@@ -319,7 +319,27 @@ of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 
 ## Node selection
 Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced 
-parameter mainly used in production deployments to isolate platform services from workloads. 
+parameter mainly used in production deployments to isolate platform services from workloads. Node selection can be specified in the MLRun 
+and in the Nuclio service level, at the function level, and at the project level. Configurations defined at the function level take 
+precedence over those at the project level. Configurations set at either the project or function level (or both) take precedence over 
+those at the service level: if any configuration is specified at the project or function level (or both), the service level 
+configuration is not considered.   
+
+To illustrate this logic, consider the following cases:
+
+- MLRun service level (V), project level (V), function level (X): Project-level configuration applies to the function.
+- MLRun service level (V), project level (X), function level (V): Function-level configuration applies to the function.
+- MLRun service level (V), project level (V), function level (V): Merge between project and function levels, with function-level configuration taking precedence.
+- MLRun service level (V), project level (X), function level (X): Service-level configuration applies to the function.
+
+Here's an example that demonstrates how the function-level configuration overrides the project-level configuration, 
+while still incorporating any additional labels defined at the project level:
+- The project level defines node selectors like {"zone": "us-west1", "arch": "amd64"}
+- The function level specifies {"zone": "us-east1", "gpu": "true"}
+- The resulting configuration for the function is {"zone": "us-east1", "gpu": "true", "arch": "amd64"}
+
+Additionally, you can override and ignore (without node selectors defined at the project level from the function level by 
+using an empty key (a key with no value), thereby completely canceling a specific node selector label.
 
 ### SDK configuration
 
@@ -327,20 +347,30 @@ Configure node selection by adding the key:value pairs in your Jupyter notebook 
 For example:
 
 ```        
-# Only run on non-spot instances
+# Run a function only on non-spot instances
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
+```
+# Run a project on specific instances
+project.with_node_selection(node_selector={"zone": "us-west1"})
+```
 
-See {py:meth}`~#mlrun.runtimes.KubeResource.with_node_selection`.
+```
+# Cancel a node selector
+fn.with_node_selection(node_selector={"zone": })
+```
+
+See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
-When you get to the **Resources** tab, add **Key:Value** pair(s). Configure the node selection for individual Nuclio functions when creating a 
+- Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
+When you get to the **Resources** tab, add **Key:Value** pair(s). 
+- Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
-
+- Configure the node selection for a project in the Project page, under **Settings**, by adding **Key:Value** pairs.
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 

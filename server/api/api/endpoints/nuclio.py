@@ -527,7 +527,15 @@ def _deploy_nuclio_runtime(
                         "On deploy of serving-functions which is based on mlrun image "
                         "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
                     )
-                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
+
+                # Update model monitoring stream trigger if using old V3IO stream path
+                stream_paths = server.api.crud.model_monitoring.get_stream_path(
+                    project=fn.metadata.project,
+                )
+                if (
+                    stream_paths[0].startswith("v3io")
+                    and not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger()
+                ):
                     monitoring_deployment.deploy_model_monitoring_stream_processing(
                         overwrite=True
                     )

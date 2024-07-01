@@ -290,8 +290,6 @@ function expandPanel(el) {
   // Construct the full URL
   var fullUrl = new URL(el.title, baseUrl).href;
 
-  console.log(fullUrl);
-
   document.querySelector(panelName + "-title").innerHTML = fullUrl
   iframe = document.querySelector(panelName + "-body");
 

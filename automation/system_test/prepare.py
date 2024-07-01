@@ -351,9 +351,9 @@ class SystemTestPreparer:
             # to allow batch_function to have parquet files sooner
             "MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS": "100",
             # testing v3io store by default
-            "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION": "v3io",
-            "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION": "v3io",
-            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION": "v3io",
+            # "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION": "v3io",
+            # "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION": "v3io",
+            # "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION": "v3io",
         }
         if self._override_image_registry:
             data["MLRUN_IMAGES_REGISTRY"] = f"{self._override_image_registry}"
@@ -399,6 +399,11 @@ class SystemTestPreparer:
         )
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
+        self._env_config[
+            "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION"
+        ] = "v3io"
+        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
+        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
 
     def _install_dev_utilities(self):
         list_uninstall = [

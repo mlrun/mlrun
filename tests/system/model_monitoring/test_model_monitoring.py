@@ -241,6 +241,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBasicModelMonitoring(TestMLRunSystem):
     """Deploy and apply monitoring on a basic pre-trained model"""
 
@@ -268,10 +269,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy Model Servers
         project = self.project
 
-        if with_sql_target:
-            project.set_model_monitoring_credentials(
-                endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
-            )
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            if with_sql_target
+            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -290,9 +294,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         ).apply(mlrun_pipelines.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
-        project.set_model_monitoring_credentials(
-            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
-        )
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             **({} if self.image is None else {"image": self.image}),
@@ -384,6 +385,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
     # TODO: Temporary skip this test on open source until fixed
     @pytest.mark.enterprise
+    @pytest.mark.model_monitoring
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # Main validations:
@@ -530,6 +532,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 @pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestVotingModelMonitoring(TestMLRunSystem):
     """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
 
@@ -807,6 +810,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBatchDrift(TestMLRunSystem):
     """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
     the monitoring process of the batch infer job function that can be imported from the functions hub.
@@ -857,7 +861,9 @@ class TestBatchDrift(TestMLRunSystem):
 
         # Deploy model monitoring infra
         project.set_model_monitoring_credentials(
-            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
         project.enable_model_monitoring(
             base_period=1,
@@ -924,6 +930,7 @@ class TestBatchDrift(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelMonitoringKafka(TestMLRunSystem):
     """Deploy a basic iris model configured with kafka stream"""
 
@@ -980,9 +987,9 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         )
 
         project.set_model_monitoring_credentials(
-            endpoint_store_connection="v3io",
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=f"kafka://{self.brokers}",
-            tsdb_connection="v3io",
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
 
         # enable model monitoring
@@ -1040,6 +1047,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
@@ -1137,6 +1145,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelInferenceTSDBRecord(TestMLRunSystem):
     """
     Test that batch inference records results to V3IO TSDB when tracking is
@@ -1203,7 +1212,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     def test_record(self) -> None:
         self.project.set_model_monitoring_credentials(
-            endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io"
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
         self.project.enable_model_monitoring(
             base_period=1,

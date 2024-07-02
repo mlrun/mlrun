@@ -398,9 +398,10 @@ def enrich_dask_cluster(
     )
 
     # We query the project to enrich the worker and scheduler pod spec with the project's default node selector.
-    # since the dask runtime operates locally and bypasses the usual server API flow, we do not enrich the run object.
-    # however, the node selector is still relevant for the Dask cluster's workers and scheduler,
-    # this ensures that the cluster pods follow the project's specified node selection.
+    # Since the dask runtime is a local run, and does not run in a dedicated k8s pod, node selectors for that run
+    # are irrelevant, so we do not enrich the run object with the project node selector.
+    # However, the node selector is still relevant for the Dask cluster's workers and scheduler, which do run
+    # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
     project = function._get_db().get_project(function.metadata.project)
     logger.debug(
         "Enriching Dask Cluster node selector from project",

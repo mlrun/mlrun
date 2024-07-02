@@ -512,28 +512,33 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
-            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
-            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=project_name,
+        )
+        if stream_paths[0].startswith("v3io") and (
+            not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
         ):
             return
 
-        # Delete model monitoring store resources
-        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project_name
-        )
-
-        endpoint_store.delete_model_endpoints_resources()
-
-        # Delete model monitoring TSDB resources
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=project_name,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+        try:
+            # Delete model monitoring store resources
+            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
                 project=project_name
-            ),
-        )
-        tsdb_connector.delete_tsdb_resources()
+            )
+
+            endpoint_store.delete_model_endpoints_resources()
+
+            # Delete model monitoring TSDB resources
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=project_name,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=project_name
+                ),
+            )
+            tsdb_connector.delete_tsdb_resources()
+        except mlrun.errors.MLRunInvalidArgumentError:
+            # store not found, there is nothing to delete
+            pass
 
     @staticmethod
     def _validate_length_features_and_labels(

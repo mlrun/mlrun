@@ -158,18 +158,35 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget:
+class ModelEndpointTarget(MonitoringStrEnum):
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
+
+
+class StreamKind(MonitoringStrEnum):
+    V3IO_STREAM = "v3io_stream"
+    KAFKA = "kafka"
+
+
+class TSDBTarget(MonitoringStrEnum):
+    V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
+    PROMETHEUS = "prometheus"
 
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
+
+    @classmethod
+    def mandatory_secrets(cls):
+        return [
+            cls.ENDPOINT_STORE_CONNECTION,
+            cls.STREAM_PATH,
+            cls.TSDB_CONNECTION,
+        ]
 
 
 class ModelMonitoringStoreKinds:
@@ -342,12 +359,6 @@ class ModelMonitoringAppLabel:
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
-
-
-class TSDBTarget:
-    V3IO_TSDB = "v3io-tsdb"
-    TDEngine = "tdengine"
-    PROMETHEUS = "prometheus"
 
 
 class HistogramDataDriftApplicationConstants:

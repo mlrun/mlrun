@@ -1327,3 +1327,23 @@ def get_nuclio_deploy_status(
     else:
         text = "\n".join(outputs) if outputs else ""
         return state, address, name, last_log_timestamp, text, function_status
+
+
+def enrich_nuclio_function_from_headers(
+    func,
+    headers,
+):
+    func.status.state = headers.get("x-mlrun-function-status", "")
+    func.status.address = headers.get("x-mlrun-address", "")
+    func.status.nuclio_name = headers.get("x-mlrun-name", "")
+    func.status.internal_invocation_urls = (
+        headers.get("x-mlrun-internal-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-internal-invocation-urls")
+        else []
+    )
+    func.status.external_invocation_urls = (
+        headers.get("x-mlrun-external-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-external-invocation-urls")
+        else []
+    )
+    func.status.container_image = headers.get("x-mlrun-container-image", "")

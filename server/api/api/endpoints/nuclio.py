@@ -574,8 +574,16 @@ def _handle_nuclio_deploy_status(
     if state in ["error", "unhealthy"]:
         logger.error(f"Nuclio deploy error, {text}", name=name)
 
-    internal_invocation_urls = status.get("internalInvocationUrls", [])
-    external_invocation_urls = status.get("externalInvocationUrls", [])
+    internal_invocation_urls = (
+        status.get("internalInvocationUrls")
+        if status.get("internalInvocationUrls")
+        else []
+    )
+    external_invocation_urls = (
+        status.get("externalInvocationUrls")
+        if status.get("externalInvocationUrls")
+        else []
+    )
 
     # add api gateway's URLs
     if api_gateway_urls:

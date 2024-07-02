@@ -2488,25 +2488,17 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
-        """remove the specified model-monitoring-app function/s from the project spec
+        """delete the specified model-monitoring-app function/s
 
-        :param name: name of the model-monitoring-function/s (under the project)
+        :param name: name of the model-monitoring-function/s
         """
-        names = name if isinstance(name, list) else [name]
-        for func_name in names:
-            function = self.get_function(key=func_name)
-            if (
-                function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-                == mm_constants.ModelMonitoringAppLabel.VAL
-            ):
-                self.remove_function(name=func_name)
-                logger.info(
-                    f"{func_name} function has been removed from {self.name} project"
-                )
-            else:
-                raise logger.warn(
-                    f"There is no model monitoring function with {func_name} name"
-                )
+        # TODO: Remove this in 1.9.0
+        warnings.warn(
+            "'remove_model_monitoring_function' is deprecated and will be removed in 1.9.0. "
+            "Please use `delete_model_monitoring_function` instead.",
+            FutureWarning,
+        )
+        self.delete_model_monitoring_function(name)
 
     def delete_model_monitoring_function(self, name: Union[str, list[str]]):
         """delete the specified model-monitoring-app function/s

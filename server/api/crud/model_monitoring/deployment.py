@@ -22,6 +22,7 @@ from pathlib import Path
 import fastapi
 import nuclio
 import nuclio.utils
+import semver
 import sqlalchemy.orm
 from fastapi import BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
@@ -592,13 +593,42 @@ class MonitoringDeployment:
                 app_ready=ready,
             )
 
-    def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
+    def should_redeploy_monitoring_stream(
+        self, fn_image: str, client_version: str
+    ) -> bool:
         """
-        Check if the monitoring stream function has the new stream trigger. Note that this method is only relevant when
-        using V3IO stream path.
+        Check if the monitoring stream function should be redeployed. For example, if the stream is based on old V3IO
+        location.
 
-        :return: True if the monitoring stream function has valid stream trigger, otherwise False.
+        :param fn_image:       The image of the serving function. Note that if the image starts with 'mlrun/' then the
+                               client version must be >= 1.6.3, otherwise an error will be raised.
+        :param client_version: The client version that is used to deploy the function.
+
+        :return: True if the monitoring stream function should be redeployed, otherwise False.
+        :raises MLRunBadRequestError: If the client version is not supported, right now only client version >= 1.6.3
+        is supported.
         """
+
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=self.project
+        )
+
+        if not stream_paths[0].startswith("v3io"):
+            # Stream path is not V3IO, no need to redeploy the stream function
+            return False
+
+        if (
+            fn_image.startswith("mlrun/")
+            and client_version
+            and (
+                semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+                or "unstable" in client_version
+            )
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                "On deployment of serving-functions that are based on mlrun image "
+                "('mlrun/') and set-tracking is enabled, client version must be >= 1.6.3"
+            )
 
         try:
             function = server.api.crud.Functions().get_function(
@@ -612,15 +642,7 @@ class MonitoringDeployment:
                 "the stream function will be deployed with the new & the old stream triggers",
                 project=self.project,
             )
-            return True
-
-        stream_paths = server.api.crud.model_monitoring.get_stream_path(
-            project=self.project
-        )
-
-        if not stream_paths[0].startswith("v3io"):
-            # Stream path is not V3IO, no need to update the stream trigger
-            return True
+            return False
 
         if (
             function["spec"]["config"].get(
@@ -632,8 +654,8 @@ class MonitoringDeployment:
                 "The stream function needs to be updated with the new stream trigger",
                 project=self.project,
             )
-            return False
-        return True
+            return True
+        return False
 
     def _create_tsdb_tables(self):
         """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:

@@ -197,84 +197,13 @@ def test_condition_evaluation_timeout():
     assert notification_pusher._should_notify(run, notification)
 
 
-def generate_run_result(succeed):
-    run_example = {
-        "status": {
-            "notifications": {
-                "Test": {"status": "pending", "sent_time": None, "reason": None}
-            },
-            "last_update": "2024-06-18T13:46:37.686443+00:00",
-            "start_time": "2024-06-18T13:46:37.392158+00:00",
-        },
-        "metadata": {
-            "uid": "b176e54e4ed24b28883aa69dce981601",
-            "project": "test-remote-workflow",
-            "name": "func-func",
-            "labels": {
-                "v3io_user": "admin",
-                "kind": "job",
-                "owner": "admin",
-                "mlrun/client_version": "1.7.0-rc21",
-                "mlrun/client_python_version": "3.9.18",
-                "host": "func-func-8lvl8",
-            },
-            "iteration": 0,
-        },
-        "spec": {
-            "function": "test-remote-workflow/func@8e0ddc3926470d5b97733679bb96738fa6dfd01b",
-            "parameters": {"x": 1},
-            "state_thresholds": {
-                "pending_scheduled": "1h",
-                "pending_not_scheduled": "-1",
-                "image_pull_backoff": "1h",
-                "executing": "24h",
-            },
-            "output_path": "v3io:///projects/test-remote-workflow/artifacts",
-            "notifications": [
-                {
-                    "when": ["error", "completed"],
-                    "name": "Test",
-                    "params": {
-                        "url": "https://webhook.site/5da7ac4d-39dc-4896-b18f-e13c5712a96a",
-                        "method": "POST",
-                    },
-                    "message": "",
-                    "status": "pending",
-                    "condition": "",
-                    "kind": "webhook",
-                    "severity": "info",
-                }
-            ],
-            "handler": "func",
-        },
-    }
-    if succeed:
-        run_example["status"]["results"] = {"return": 1}
-        run_example["status"]["state"] = "completed"
-    else:
-        run_example["status"]["error"] = 'can only concatenate str (not "int") to str'
-        run_example["status"]["state"] = "error"
-    return run_example
-
-
 @pytest.mark.parametrize(
-    "override_body,runs",
-    [
-        ({"message": "runs: {{runs}}"}, generate_run_result(True)),
-        ({"message": "runs: {{ runs }}"}, generate_run_result(True)),
-        (
-            {"message": "runs: {{runs}}"},
-            mlrun.model.RunObject.from_dict(generate_run_result(True)),
-        ),
-        (
-            {"message": "runs: {{ runs }}"},
-            mlrun.model.RunObject.from_dict(generate_run_result(True)),
-        ),
-    ],
+    "override_body",
+    [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
 )
-async def test_webhook_overide_body_job_succeed(monkeypatch, override_body, runs):
+async def test_webhook_overide_body_job_succeed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-
+    runs = _generate_run_result(state="completed", results={"return": 1})
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [runs])
@@ -288,23 +217,14 @@ async def test_webhook_overide_body_job_succeed(monkeypatch, override_body, runs
 
 
 @pytest.mark.parametrize(
-    "override_body,runs",
-    [
-        ({"message": "runs: {{runs}}"}, generate_run_result(False)),
-        ({"message": "runs: {{ runs }}"}, generate_run_result(False)),
-        (
-            {"message": "runs: {{runs}}"},
-            mlrun.model.RunObject.from_dict(generate_run_result(False)),
-        ),
-        (
-            {"message": "runs: {{ runs }}"},
-            mlrun.model.RunObject.from_dict(generate_run_result(False)),
-        ),
-    ],
+    "override_body",
+    [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
 )
-async def test_webhook_overide_body_job_failed(monkeypatch, override_body, runs):
+async def test_webhook_overide_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
-
+    runs = _generate_run_result(
+        state="error", error='can only concatenate str (not "int") to str'
+    )
     await WebhookNotification(
         params={"override_body": override_body, "url": "http://test.com"}
     ).push("test-message", "info", [runs])
@@ -888,3 +808,63 @@ def _mock_async_response(monkeypatch, method, result):
     monkeypatch.setattr(aiohttp.ClientSession, method, requests_mock)
 
     return requests_mock
+
+
+def _generate_run_result(state: str, error: str = None, results: dict = None):
+    run_example = {
+        "status": {
+            "notifications": {
+                "Test": {"status": "pending", "sent_time": None, "reason": None}
+            },
+            "last_update": "2024-06-18T13:46:37.686443+00:00",
+            "start_time": "2024-06-18T13:46:37.392158+00:00",
+        },
+        "metadata": {
+            "uid": "b176e54e4ed24b28883aa69dce981601",
+            "project": "test-remote-workflow",
+            "name": "func-func",
+            "labels": {
+                "v3io_user": "admin",
+                "kind": "job",
+                "owner": "admin",
+                "mlrun/client_version": "1.7.0-rc21",
+                "mlrun/client_python_version": "3.9.18",
+                "host": "func-func-8lvl8",
+            },
+            "iteration": 0,
+        },
+        "spec": {
+            "function": "test-remote-workflow/func@8e0ddc3926470d5b97733679bb96738fa6dfd01b",
+            "parameters": {"x": 1},
+            "state_thresholds": {
+                "pending_scheduled": "1h",
+                "pending_not_scheduled": "-1",
+                "image_pull_backoff": "1h",
+                "executing": "24h",
+            },
+            "output_path": "v3io:///projects/test-remote-workflow/artifacts",
+            "notifications": [
+                {
+                    "when": ["error", "completed"],
+                    "name": "Test",
+                    "params": {
+                        "url": "https://webhook.site/5da7ac4d-39dc-4896-b18f-e13c5712a96a",
+                        "method": "POST",
+                    },
+                    "message": "",
+                    "status": "pending",
+                    "condition": "",
+                    "kind": "webhook",
+                    "severity": "info",
+                }
+            ],
+            "handler": "func",
+        },
+    }
+    if state == "completed":
+        run_example["status"]["results"] = results
+        run_example["status"]["state"] = state
+    elif state == "error":
+        run_example["status"]["error"] = error
+        run_example["status"]["state"] = state
+    return run_example

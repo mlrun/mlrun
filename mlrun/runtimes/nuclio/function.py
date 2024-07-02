@@ -1330,8 +1330,8 @@ def get_nuclio_deploy_status(
 
 
 def enrich_nuclio_function_from_headers(
-    func,
-    headers,
+    func: RemoteRuntime,
+    headers: dict = {},
 ):
     func.status.state = headers.get("x-mlrun-function-status", "")
     func.status.address = headers.get("x-mlrun-address", "")

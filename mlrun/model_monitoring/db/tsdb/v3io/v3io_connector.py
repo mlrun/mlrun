@@ -38,7 +38,8 @@ def _is_no_schema_error(exc: v3io_frames.ReadError) -> bool:
     In case of a nonexistent TSDB table - a `v3io_frames.ReadError` error is raised.
     Check if the error message contains the relevant string to verify the cause.
     """
-    return "No TSDB schema file found" in str(exc)
+    msg = str(exc)
+    return "No TSDB schema file found" in msg or "Failed to read schema at path" in msg
 
 
 class V3IOTSDBConnector(TSDBConnector):

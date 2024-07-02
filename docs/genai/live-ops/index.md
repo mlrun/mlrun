@@ -6,5 +6,6 @@
 ```{toctree}
 :maxdepth: 1
 
+genai-mm
 monitoring-llm
 ```

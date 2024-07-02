@@ -1071,10 +1071,9 @@ class ParquetTargetStoreyWrapper(storey.ParquetTarget):
         if len(args) > 0:
             path = args[0]
         else:
-            path = None
-        path = kwargs.get("path", path)
+            path = kwargs.get("path")
 
-        external_storage_options = kwargs.get("storage_options", None)
+        external_storage_options = kwargs.get("storage_options")
         store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(path)
         storage_options = store.get_storage_options()
         if storage_options and external_storage_options:
@@ -1087,10 +1086,10 @@ class ParquetTargetStoreyWrapper(storey.ParquetTarget):
 
         if len(args) > 0:
             args[0] = url
+
         if "path" in kwargs:
             kwargs["path"] = url
 
-        args = tuple(args)
         super().__init__(*args, **kwargs)
 
 

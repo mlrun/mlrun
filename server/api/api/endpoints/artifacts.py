@@ -200,6 +200,7 @@ async def list_artifacts(
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
+    limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -223,6 +224,7 @@ async def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,
+        limit=limit,
     )
 
     if not artifacts and tag:
@@ -256,7 +258,7 @@ async def list_artifacts(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: str = mlrun.mlconf.default_project,
+    project: str = None,
     name: str = "",
     tag: str = "",
     labels: list[str] = Query([], alias="label"),
@@ -264,7 +266,7 @@ async def delete_artifacts(
     db_session: Session = Depends(deps.get_db_session),
 ):
     return await _delete_artifacts(
-        project=project,
+        project=project or mlrun.mlconf.default_project,
         name=name,
         tag=tag,
         labels=labels,

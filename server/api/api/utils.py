@@ -39,6 +39,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
+import server.api.crud.runtimes.nuclio
 import server.api.db.base
 import server.api.db.session
 import server.api.utils.auth.verifier
@@ -52,6 +53,7 @@ from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger
+from server.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
 from server.api.db.sqldb.db import SQLDB
 from server.api.rundb.sqldb import SQLRunDB
 from server.api.utils.singletons.db import get_db
@@ -426,6 +428,8 @@ def validate_and_mask_notification_list(
 
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
+
+        notification_object.validate_notification_params()
 
         notification_objects.append(notification_object)
 
@@ -990,6 +994,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
+                fn_kind=fn.kind,
             )
 
             project = task["metadata"]["project"]
@@ -1315,7 +1320,7 @@ async def _delete_function(
             for function in nuclio_functions
         ]
         # delete Nuclio functions associated with the function tags in batches
-        failed_requests = await _delete_nuclio_functions_in_batches(
+        failed_requests = await delete_nuclio_functions_in_batches(
             auth_info, project, nuclio_function_names
         )
         if failed_requests:
@@ -1351,55 +1356,3 @@ async def _update_functions_with_deletion_info(functions, project, updates: dict
 
     tasks = [update_function(function) for function in functions]
     await asyncio.gather(*tasks)
-
-
-async def _delete_nuclio_functions_in_batches(
-    auth_info: mlrun.common.schemas.AuthInfo,
-    project_name: str,
-    function_names: list[str],
-):
-    async def delete_function(
-        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
-        project: str,
-        function: str,
-        _semaphore: asyncio.Semaphore,
-        k8s_helper: server.api.utils.singletons.k8s.K8sHelper,
-    ) -> tuple[str, str]:
-        async with _semaphore:
-            try:
-                await nuclio_client.delete_function(name=function, project_name=project)
-
-                config_map = k8s_helper.get_configmap(
-                    function, mlrun.common.constants.MLRUN_SERVING_CONF
-                )
-                if config_map:
-                    k8s_helper.delete_configmap(config_map.metadata.name)
-                return None
-            except Exception as exc:
-                # return tuple with failure info
-                return function, str(exc)
-
-    # Configure maximum concurrent deletions
-    max_concurrent_deletions = (
-        mlrun.mlconf.background_tasks.function_deletion_batch_size
-    )
-    semaphore = asyncio.Semaphore(max_concurrent_deletions)
-    failed_requests = []
-
-    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
-        tasks = [
-            delete_function(client, project_name, function_name, semaphore, k8s_helper)
-            for function_name in function_names
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # process results to identify failed deletion requests
-        for result in results:
-            if isinstance(result, tuple):
-                nuclio_name, error_message = result
-                if error_message:
-                    failed_requests.append(error_message)
-
-    return failed_requests

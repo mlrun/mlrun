@@ -51,7 +51,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             "summary": "Job {{project}}/{{entity}} failed.",
             "event_name": alert_objects.EventKind.FAILED,
             "state": alert_objects.AlertActiveState.INACTIVE,
-            "count": 3,
+            "criteria": alert_objects.AlertCriteria(period="1h", count=3),
         }
 
         mlrun.new_project(project_name)
@@ -74,6 +74,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # get alert and validate params
         alert = self._get_alerts(project_name, created_alert.name)
         self._validate_alert(alert, project_name, alert1["name"])
+        assert alert.criteria.count == 1
+        assert alert.criteria.period is None
 
         # try to get non existent alert ID
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -89,7 +91,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         self._post_event(project_name, alert1["event_name"], alert1["entity"]["kind"])
 
         # post event for alert 2
-        for _ in range(alert2["count"]):
+        for _ in range(alert2["criteria"].count):
             self._post_event(
                 project_name, alert2["event_name"], alert2["entity"]["kind"]
             )
@@ -207,7 +209,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         alert_from_template.with_entities(entities=entities)
 
-        notification = mlrun.common.schemas.Notification(
+        notification = mlrun.model.Notification(
             kind="slack",
             name="slack_drift",
             message="Ay caramba!",
@@ -218,7 +220,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             },
             condition="oops",
         )
-        notifications = [alert_objects.AlertNotification(notification=notification)]
+        notifications = [
+            alert_objects.AlertNotification(notification=notification.to_dict())
+        ]
 
         alert_from_template.with_notifications(notifications=notifications)
 
@@ -347,6 +351,12 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "exception": mlrun.errors.MLRunHTTPError,
                 "case": "testing create alert with two notifications with the same name",
             },
+            {
+                "param_name": "criteria",
+                "param_value": alert_objects.AlertCriteria(count=10000000).dict(),
+                "exception": mlrun.errors.MLRunPreconditionFailedError,
+                "case": "testing create alert criteria counter more than max allowed",
+            },
         ]
         args = {
             "project_name": project_name,
@@ -411,8 +421,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "severity": "warning",
                     "when": ["now"],
                     "condition": "failed",
-                    "secret_params": {
-                        "webhook": "https://hooks.slack.com/services/",
+                    "params": {
+                        "repo": "some-repo",
+                        "issue": "some-issue",
+                        "token": "some-token",
                     },
                 }
             },
@@ -425,7 +437,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert2["entity"]["project"],
             alert2["summary"],
             alert2["event_name"],
-            criteria={"period": "1h", "count": alert2["count"]},
+            criteria=alert2["criteria"],
             reset_policy=alert_objects.ResetPolicy.AUTO,
             notifications=notifications,
         )
@@ -436,6 +448,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert2["summary"],
             alert2["state"],
             alert2["event_name"],
+            alert_criteria=alert2["criteria"],
         )
 
         return created_alert, created_alert2
@@ -590,7 +603,8 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         if alert_trigger:
             assert alert.trigger == alert_trigger
         if alert_criteria:
-            assert alert.criteria == alert_criteria
+            assert alert.criteria.period == alert_criteria.period
+            assert alert.criteria.count == alert_criteria.count
         if alert_reset_policy:
             assert alert.reset_policy == alert_reset_policy
         if alert_entity:

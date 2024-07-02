@@ -33,6 +33,7 @@ import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
 from mlrun.errors import MLRunConflictError
+from mlrun.utils import logger
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
@@ -231,19 +232,24 @@ async def list_model_endpoints(
         action=schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-
-    endpoints = await run_in_threadpool(
-        server.api.crud.ModelEndpoints().list_model_endpoints,
-        project=project,
-        model=model,
-        function=function,
-        labels=labels,
-        metrics=metrics,
-        start=start,
-        end=end,
-        top_level=top_level,
-        uids=uids,
-    )
+    try:
+        endpoints = await run_in_threadpool(
+            server.api.crud.ModelEndpoints().list_model_endpoints,
+            project=project,
+            model=model,
+            function=function,
+            labels=labels,
+            metrics=metrics,
+            start=start,
+            end=end,
+            top_level=top_level,
+            uids=uids,
+        )
+    except mlrun.errors.MLRunInvalidArgumentError as e:
+        logger.warning(
+            f"Failed to list model endpoints, probably store connection is not defined yet. Error: {str(e)}"
+        )
+        endpoints = schemas.ModelEndpointList(endpoints=[])
     allowed_endpoints = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,

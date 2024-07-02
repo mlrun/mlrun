@@ -141,7 +141,7 @@ async def store_api_gateway(
                 # delete api gateway url from those functions which are not used in api gateway anymore
                 await _delete_functions_external_invocation_url(
                     project=project,
-                    url=existing_api_gateway.spec.host,
+                    url=existing_api_gateway.get_invoke_url(),
                     function_names=unused_functions,
                 )
 
@@ -158,7 +158,7 @@ async def store_api_gateway(
     if api_gateway:
         await _add_functions_external_invocation_url(
             project=project,
-            url=api_gateway.spec.host,
+            url=api_gateway.get_invoke_url(),
             function_names=api_gateway.get_function_names(),
         )
     return api_gateway
@@ -190,7 +190,7 @@ async def delete_api_gateway(
         if api_gateway:
             await _delete_functions_external_invocation_url(
                 project=project,
-                url=api_gateway.spec.host,
+                url=api_gateway.get_invoke_url(),
                 function_names=api_gateway.get_function_names(),
             )
             return await client.delete_api_gateway(project_name=project, name=name)
@@ -456,8 +456,9 @@ def _deploy_function(
         launcher = server.api.launcher.ServerSideLauncher(auth_info=auth_info)
         launcher.enrich_runtime(runtime=fn, full=True)
 
-        fn.save(versioned=False)
         fn.pre_deploy_validation()
+        fn.save(versioned=False)
+
         fn = _deploy_nuclio_runtime(
             auth_info,
             builder_env,
@@ -505,6 +506,19 @@ def _deploy_nuclio_runtime(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         )
+        try:
+            monitoring_deployment.check_if_credentials_are_set()
+        except mlrun.errors.MLRunBadRequestError as exc:
+            if monitoring_application:
+                err_txt = f"Can't deploy model monitoring application due to: {exc}"
+            else:
+                err_txt = (
+                    f"Can't deploy serving function with track models due to: {exc}"
+                )
+            server.api.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=err_txt,
+            )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
                 function=fn,
@@ -516,8 +530,11 @@ def _deploy_nuclio_runtime(
                 if (
                     fn.spec.image.startswith("mlrun/")
                     and client_version
-                    and semver.Version.parse(client_version)
-                    < semver.Version.parse("1.6.3")
+                    and (
+                        semver.Version.parse(client_version)
+                        < semver.Version.parse("1.6.3")
+                        or "unstable" in client_version
+                    )
                 ):
                     raise mlrun.errors.MLRunBadRequestError(
                         "On deploy of serving-functions which is based on mlrun image "

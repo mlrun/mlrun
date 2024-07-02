@@ -732,6 +732,25 @@ class Notification(ModelObj):
                 "Notification params size exceeds max size of 1 MB"
             )
 
+    def validate_notification_params(self):
+        notification_class = mlrun.utils.notifications.NotificationTypes(
+            self.kind
+        ).get_notification()
+
+        secret_params = self.secret_params
+        params = self.params
+
+        if not secret_params and not params:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both 'secret_params' and 'params' are empty, at least one must be defined."
+            )
+        if secret_params and params and secret_params != params:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both 'secret_params' and 'params' are defined but they contain different values"
+            )
+
+        notification_class.validate_params(secret_params or params)
+
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""
@@ -873,6 +892,7 @@ class RunSpec(ModelObj):
         notifications=None,
         state_thresholds=None,
         reset_on_run=None,
+        node_selector=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -910,6 +930,7 @@ class RunSpec(ModelObj):
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
         self.reset_on_run = reset_on_run
+        self.node_selector = node_selector or {}
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False

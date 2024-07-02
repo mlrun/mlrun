@@ -754,6 +754,177 @@ def test_notification_name_uniqueness_validation(
         )
 
 
+def generate_notification_validation_params():
+    validation_params = []
+    valid_params_by_kind = {
+        mlrun.common.schemas.notification.NotificationKind.slack: {
+            "webhook": "some-webhook"
+        },
+        mlrun.common.schemas.notification.NotificationKind.git: {
+            "repo": "some-repo",
+            "issue": "some-issue",
+            "token": "some-token",
+        },
+        mlrun.common.schemas.notification.NotificationKind.webhook: {"url": "some-url"},
+    }
+
+    for kind, valid_params in valid_params_by_kind.items():
+        # Both are None
+        validation_params.append(
+            (
+                {
+                    "kind": kind,
+                    "secret_params": None,
+                    "params": None,
+                },
+                pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            )
+        )
+        # Both are not None and equal
+        validation_params.append(
+            (
+                {
+                    "kind": kind,
+                    "secret_params": valid_params,
+                    "params": valid_params,
+                },
+                does_not_raise(),
+            )
+        )
+        # Both are not None and different
+        validation_params.append(
+            (
+                {
+                    "kind": kind,
+                    "secret_params": valid_params,
+                    "params": {
+                        key: f"some-different-{value}"
+                        for key, value in valid_params.items()
+                    },
+                },
+                pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            )
+        )
+        # Only secret_params is not None
+        validation_params.append(
+            (
+                {
+                    "kind": kind,
+                    "secret_params": valid_params,
+                    "params": None,
+                },
+                does_not_raise(),
+            )
+        )
+        # Only params is not None
+        validation_params.append(
+            (
+                {
+                    "kind": kind,
+                    "secret_params": None,
+                    "params": valid_params,
+                },
+                does_not_raise(),
+            )
+        )
+
+        # Specific invalid cases for each kind
+        if kind == mlrun.common.schemas.notification.NotificationKind.slack:
+            # invalid webhook
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "secret_params": {"webhook": None},
+                    },
+                    pytest.raises(
+                        ValueError,
+                        match="Parameter 'webhook' is required for SlackNotification",
+                    ),
+                )
+            )
+
+        if kind == mlrun.common.schemas.notification.NotificationKind.git:
+            # invalid repo
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "secret_params": {
+                            "repo": None,
+                            "issue": "some-issue",
+                            "token": "some-token",
+                        },
+                    },
+                    pytest.raises(
+                        ValueError,
+                        match="Parameter 'repo' is required for GitNotification",
+                    ),
+                )
+            )
+            # invalid token
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "params": {
+                            "repo": "some-repo",
+                            "issue": "some-issue",
+                            "token": None,
+                        },
+                    },
+                    pytest.raises(
+                        ValueError,
+                        match="Parameter 'token' is required for GitNotification",
+                    ),
+                )
+            )
+            # invalid issue
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "params": {
+                            "repo": "some-repo",
+                            "issue": None,
+                            "token": "some-token",
+                        },
+                    },
+                    pytest.raises(
+                        ValueError,
+                        match="At least one of 'issue' or 'merge_request' is required for GitNotification",
+                    ),
+                )
+            )
+
+        if kind == mlrun.common.schemas.notification.NotificationKind.webhook:
+            # invalid url
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "params": {"url": None},
+                    },
+                    pytest.raises(
+                        ValueError,
+                        match="Parameter 'url' is required for WebhookNotification",
+                    ),
+                )
+            )
+
+    return validation_params
+
+
+@pytest.mark.parametrize(
+    "notification_kwargs, expectation",
+    generate_notification_validation_params(),
+)
+def test_validate_notification_params(monkeypatch, notification_kwargs, expectation):
+    notification = mlrun.model.Notification(**notification_kwargs)
+    with expectation:
+        notification.validate_notification_params()
+
+
 def _mock_async_response(monkeypatch, method, result):
     response_json_future = asyncio.Future()
     response_json_future.set_result(result)

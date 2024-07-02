@@ -333,7 +333,7 @@ def test_module_load():
 
     def check_function(name, fn):
         graph = fn.set_topology("flow", engine="sync")
-        graph.to(name="s1", class_name="Mycls").to(name="s2", handler="myhand")
+        graph.to(name="s1", class_name="MyCls").to(name="s2", handler="myhand")
 
         server = fn.to_mock_server()
         resp = server.test(body=5)

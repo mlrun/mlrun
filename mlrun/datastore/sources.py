@@ -774,6 +774,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        attributes: dict[str, object] = None,
         time_field: str = None,
         schedule: str = None,
         start_time=None,
@@ -783,21 +784,34 @@ class SnowflakeSource(BaseSourceDriver):
         user: str = None,
         database: str = None,
         schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
-        attrs = {
-            "query": query,
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": schema,
-            "warehouse": warehouse,
-        }
+        # TODO: Remove in 1.9.0
+        if schema:
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
+        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if query:
+            attributes["query"] = query
 
         super().__init__(
             name,
-            attributes=attrs,
+            attributes=attributes,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,

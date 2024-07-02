@@ -63,11 +63,11 @@ from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
+    RunKeys,
     extend_hub_uri_if_needed,
     get_in,
     logger,
     retry_until_successful,
-    run_keys,
     update_in,
 )
 
@@ -280,7 +280,7 @@ def get_or_create_ctx(
             artifact_path = mlrun.utils.helpers.template_artifact_path(
                 mlconf.artifact_path, project or mlconf.default_project
             )
-            update_in(newspec, ["spec", run_keys.output_path], artifact_path)
+            update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
     newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)

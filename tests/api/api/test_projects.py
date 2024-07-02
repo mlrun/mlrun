@@ -23,6 +23,7 @@ from uuid import uuid4
 
 import deepdiff
 import fastapi.testclient
+import kubernetes.client
 import mergedeep
 import mlrun_pipelines.common.models
 import pytest
@@ -44,6 +45,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
+import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 import server.api.utils.singletons.scheduler
 import tests.api.conftest
@@ -178,6 +180,7 @@ def test_get_non_existing_project(
 def test_delete_project_with_resources(
     db: Session,
     unversioned_client: TestClient,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     api_version: str,
@@ -227,10 +230,31 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - cascading - should succeed and remove all related resources
+    # mock project configmaps
+    k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+
+    def _list_configmaps(*args, **kwargs):
+        label_selector = kwargs.get("label_selector")
+        assert project_to_remove in label_selector
+        return kubernetes.client.V1ConfigMapList(
+            items=[
+                kubernetes.client.V1ConfigMap(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=f"{project_to_remove}-configmap",
+                    )
+                )
+            ]
+        )
+
+    k8s_helper.v1api.list_namespaced_config_map = unittest.mock.Mock(
+        side_effect=_list_configmaps
+    )
+    k8s_helper.delete_configmap = unittest.mock.Mock()
     _send_delete_request_and_assert_response_code(
         mlrun.common.schemas.DeletionStrategy.cascading,
         successful_delete_response_code,
     )
+    k8s_helper.delete_configmap.assert_called_once()
 
     (
         project_to_keep_table_name_records_count_map_after_project_removal,

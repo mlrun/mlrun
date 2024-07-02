@@ -673,6 +673,7 @@ class SQLDB(DBInterface):
         producer_uri: str = None,
         most_recent: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         project = project or config.default_project
 
@@ -697,6 +698,7 @@ class SQLDB(DBInterface):
             best_iteration=best_iteration,
             most_recent=most_recent,
             attach_tags=not as_records,
+            limit=limit,
         )
         if as_records:
             return artifact_records
@@ -1284,6 +1286,7 @@ class SQLDB(DBInterface):
         best_iteration: bool = False,
         most_recent: bool = False,
         attach_tags: bool = False,
+        limit: int = None,
     ) -> typing.Union[
         list[tuple[ArtifactV2, str]],
         list[ArtifactV2],
@@ -1315,18 +1318,13 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
 
-        query = session.query(ArtifactV2, ArtifactV2.Tag.name)
+        # create a sub query that gets only the artifact IDs
+        # apply all filters and limits
+        query = session.query(ArtifactV2).with_entities(
+            ArtifactV2.id,
+            ArtifactV2.Tag.name,
+        )
 
-        # join on tags
-        if tag and tag != "*":
-            # If a tag is given, we can just join (faster than outer join) and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == tag)
-        else:
-            # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
-            query = query.outerjoin(
-                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            )
         if project:
             query = query.filter(ArtifactV2.project == project)
         if ids and ids != "*":
@@ -1357,7 +1355,29 @@ class SQLDB(DBInterface):
         if most_recent:
             query = self._attach_most_recent_artifact_query(session, query)
 
-        artifacts_and_tags = query.all()
+        # join on tags
+        if tag and tag != "*":
+            # If a tag is given, we can just join (faster than outer join) and filter on the tag
+            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
+            query = query.filter(ArtifactV2.Tag.name == tag)
+        else:
+            # If no tag is given, we need to outer join to get all artifacts, even if they don't have tags
+            query = query.outerjoin(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            )
+
+        if limit:
+            query = query.limit(limit)
+
+        # limit operation loads all the results before performing the actual limiting,
+        # therefore, we compile the above query as a sub query only for filtering out the relevant ids,
+        # then join the outer query on the subquery to select the correct columns of the table.
+        subquery = query.subquery()
+        outer_query = session.query(ArtifactV2, subquery.c.name)
+        outer_query = outer_query.select_from(ArtifactV2)
+        outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
+
+        artifacts_and_tags = outer_query.all()
 
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
@@ -1714,11 +1734,11 @@ class SQLDB(DBInterface):
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
         hash_key: typing.Optional[str] = None,
-        _format: str = mlrun.common.formatters.FunctionFormat.full,
+        format_: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[dict]:
-        project = project or config.default_project
+        project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
             session,
@@ -1733,6 +1753,9 @@ class SQLDB(DBInterface):
             function_dict = function.struct
             if not function_tag:
                 # function status should be added only to tagged functions
+                # TODO: remove explicit cleaning; we also
+                #  will need to understand how to display functions in UI, because if we do not remove the status here,
+                #  UI shows two function as `ready` which belong to the same Nuclio function
                 function_dict["status"] = None
 
                 # the unversioned uid is only a placeholder for tagged instances that are versioned.
@@ -1745,7 +1768,7 @@ class SQLDB(DBInterface):
 
             functions.append(
                 mlrun.common.formatters.FunctionFormat.format_obj(
-                    function_dict, _format
+                    function_dict, format_
                 )
             )
         return functions
@@ -1757,7 +1780,7 @@ class SQLDB(DBInterface):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
-        _format: str = None,
+        format_: str = None,
     ) -> dict:
         """
         In version 1.4.0 we added a normalization to the function name before storing.
@@ -1770,7 +1793,7 @@ class SQLDB(DBInterface):
         normalized_function_name = mlrun.utils.normalize_name(name)
         try:
             return self._get_function(
-                session, normalized_function_name, project, tag, hash_key, _format
+                session, normalized_function_name, project, tag, hash_key, format_
             )
         except mlrun.errors.MLRunNotFoundError as exc:
             if "_" in name:
@@ -1779,7 +1802,7 @@ class SQLDB(DBInterface):
                     function_name=name,
                 )
                 return self._get_function(
-                    session, name, project, tag, hash_key, _format
+                    session, name, project, tag, hash_key, format_
                 )
             else:
                 raise exc
@@ -1896,7 +1919,7 @@ class SQLDB(DBInterface):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
-        _format: str = mlrun.common.formatters.FunctionFormat.full,
+        format_: str = mlrun.common.formatters.FunctionFormat.full,
     ):
         project = project or config.default_project
         computed_tag = tag or "latest"
@@ -1905,19 +1928,10 @@ class SQLDB(DBInterface):
         tag_function_uid = None if not tag and hash_key else uid
         if obj:
             function = obj.struct
-
-            # If queried by hash key and nuclio/serving function remove status
-            is_nuclio = (
-                function.get("kind", "")
-                in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-            )
-            if hash_key and is_nuclio:
-                function["status"] = None
-
             # If connected to a tag add it to metadata
             if tag_function_uid:
                 function["metadata"]["tag"] = computed_tag
-            return mlrun.common.formatters.FunctionFormat.format_obj(function, _format)
+            return mlrun.common.formatters.FunctionFormat.format_obj(function, format_)
         else:
             function_uri = generate_object_uri(project, name, tag, hash_key)
             raise mlrun.errors.MLRunNotFoundError(f"Function not found {function_uri}")

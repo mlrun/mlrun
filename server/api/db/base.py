@@ -217,6 +217,7 @@ class DBInterface(ABC):
         producer_id: str = None,
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 
@@ -312,7 +313,7 @@ class DBInterface(ABC):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
-        _format: str = None,
+        format_: str = None,
     ):
         pass
 
@@ -335,7 +336,7 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
-        _format: str = None,
+        format_: str = None,
         page: int = None,
         page_size: int = None,
     ):

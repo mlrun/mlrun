@@ -38,7 +38,6 @@ import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.iguazio
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
-from mlrun import mlconf
 from mlrun.utils import logger
 
 

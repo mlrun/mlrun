@@ -611,7 +611,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         function = self._generate_runtime(self.runtime_kind)
-        function.spec.build.base_image = "mlrun/mlrun:0.6.0"
+        mlrun.utils.update_in(
+            function.spec.config,
+            "spec.build.baseImage",
+            "mlrun/mlrun:0.6.0",
+        )
         function.spec.build.requirements = ["some-requirements"]
         build_function(db, auth_info, function)
         assert "mlrun[complete]==0.6.0" in function.spec.build.requirements

@@ -326,17 +326,6 @@ def _compile_function_config(
         config=function.spec.config,
     )
 
-    build: mlrun.model.ImageBuilder = function.spec.build
-    base_image: str = (
-        build.base_image or function.spec.image or mlconf.default_base_image
-    )
-
-    if server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
-        enriched_base_image = function.full_image_path(
-            base_image, client_version, client_python_version
-        )
-        server.api.utils.builder.add_mlrun_to_requirements(build, enriched_base_image)
-    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version
     )
@@ -390,6 +379,13 @@ def _compile_function_config(
     )
 
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
+    build: mlrun.model.ImageBuilder = function.spec.build
+    base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
+
+    if server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
+        server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
+    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
+
     function_name = _set_function_name(function, config, project, tag)
 
     if serving_spec_volume is not None:

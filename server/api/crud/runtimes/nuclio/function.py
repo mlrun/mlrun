@@ -349,6 +349,9 @@ def _compile_function_config(
             # we create the base spec with essential attributes
             config = nuclio.config.new_config()
             mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
+        config = nuclio.config.extend_config(
+            config, nuclio_spec, tag, function.spec.build.code_origin
+        )
 
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving

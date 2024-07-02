@@ -594,9 +594,10 @@ class MonitoringDeployment:
 
     def is_monitoring_stream_has_the_new_stream_trigger(self) -> bool:
         """
-        Check if the monitoring stream function has the new stream trigger.
+        Check if the monitoring stream function has the new stream trigger. Note that this method is only relevant when
+        using V3IO stream path.
 
-        :return: True if the monitoring stream function has the new stream trigger, otherwise False.
+        :return: True if the monitoring stream function has valid stream trigger, otherwise False.
         """
 
         try:
@@ -611,6 +612,14 @@ class MonitoringDeployment:
                 "the stream function will be deployed with the new & the old stream triggers",
                 project=self.project,
             )
+            return True
+
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=self.project
+        )
+
+        if not stream_paths[0].startswith("v3io"):
+            # Stream path is not V3IO, no need to update the stream trigger
             return True
 
         if (

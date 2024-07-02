@@ -350,10 +350,6 @@ def _compile_function_config(
             config = nuclio.config.new_config()
             mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
 
-        config = nuclio.config.extend_config(
-            config, nuclio_spec, tag, function.spec.build.code_origin
-        )
-
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
             and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
@@ -381,10 +377,16 @@ def _compile_function_config(
     build: mlrun.model.ImageBuilder = function.spec.build
     base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
 
-    if base_image and server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
+    if (
+        base_image
+        and server.api.utils.builder.is_mlrun_image(base_image)
+        and build.requirements
+    ):
         server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
     _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
-
+    nuclio.config.extend_config(
+        config, nuclio_spec, tag, function.spec.build.code_origin
+    )
     function_name = _set_function_name(function, config, project, tag)
 
     if serving_spec_volume is not None:

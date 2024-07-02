@@ -1,26 +1,36 @@
 (model-monitoring-overview)=
-# Model monitoring
+# Model monitoring 
 
-By definition, ML models in production make inferences on constantly changing data. Even models that have been trained on massive data sets, with the most meticulously labelled data, start to degrade over time, due to concept drift. Changes in the live environment due to changing behavioral patterns, seasonal shifts, new regulatory environments, market volatility, etc., can have a big impact on a trained model’s ability to make accurate predictions.
+The MLRun's model monitoring service includes built-in model monitoring and reporting capabilities. With monitoring you get
+out-of-the-box analysis of:
 
-Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. Model monitoring includes:
+- **Continuous Assessment**: Model monitoring involves the continuous assessment of deployed machine learning models in real-time. 
+   It's a proactive approach to ensure that models remain accurate and reliable as they interact with live data.
+- **Model performance**: Machine learning models train on data. It is important you know how well they perform in production.
+  When you analyze the model performance, it is important you monitor not just the overall model performance, but also the
+  feature-level performance. This gives you better insights for the reasons behind a particular result.
+- **Data drift**: The change in model input data that potentially leads to model performance degradation. There are various
+  statistical metrics and drift metrics that you can use to identify data drift.
+- **Concept drift**: The statistical properties of the target variable (what the model is predicting) change over time. 
+   In other words, the meaning of the input data that the model was trained on has significantly changed over time,  and no longer matches the input data used to train the model. For this new data, accuracy of the model predictions is low. Drift analysis statistics are computed once an hour. See more details in <a href="https://www.iguazio.com/glossary/concept-drift/" target="_blank">Concept Drift</a>.
+- **Operational performance**: The overall health of the system. This applies to data (e.g., whether all the
+  expected data arrives to the model) as well as the model (e.g., response time and throughput). 
 
-- Built-in model monitoring:
-   Machine learning model monitoring is natively built in to the Iguazio MLOps Platform, along with a wide range of 
-   model management features and ML monitoring reports. It monitors all of your models in a single, simple, dashboard.
+You can set up notifications on various channels once an issue is detected. For example, notification
+to your IT via email and Slack when operational performance metrics pass a threshold. You can also set-up automated actions, for example,
+call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
 
-- Automated drift detection:
-   Automatically detects concept drift, anomalies, data skew, and model drift in real-time. Even if you are running hundreds of
-   models simultaneously, you can be sure to spot and remediate the one that has drifted.
 
-- Automated retraining:
-   When drift is detected, Iguazio automatically starts the entire training pipeline to retrain the model, including all relevant 
-   steps in the pipeline. The output is a production-ready challenger model, ready to be deployed. This keeps your models up to date, 
-   automatically.
 
-- Native feature store integration:
-   Feature vectors and labels are stored and analyzed in the Iguazio feature store and are easily compared to the trained 
-   features and labels running as part of the model development phase, making it easier for data science teams to 
-   collaborate and maintain consistency between AI projects.
 
-See full details and examples in [Model monitoring](../monitoring/index.html).
+**In this section**
+
+```{toctree}
+:maxdepth: 1
+
+../monitoring/index
+../monitoring/model-monitoring
+../monitoring/monitoring-models
+../monitoring/model-monitoring-deployment
+../monitoring/legacy-model-monitoring
+```

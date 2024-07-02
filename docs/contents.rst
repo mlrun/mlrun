@@ -30,7 +30,6 @@ Table of Contents
    data-prep/index
    development/index
    deployment/index
-   monitoring/index
    projects/ci-cd-automate
    
    
@@ -45,6 +44,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
+   
      
 .. toctree::
    :maxdepth: 1

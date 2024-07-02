@@ -381,7 +381,7 @@ def _compile_function_config(
     build: mlrun.model.ImageBuilder = function.spec.build
     base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
 
-    if server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
+    if base_image and server.api.utils.builder.is_mlrun_image(base_image) and build.requirements:
         server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
     _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
 

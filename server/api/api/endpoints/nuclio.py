@@ -17,7 +17,6 @@ import traceback
 import typing
 from http import HTTPStatus
 
-import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -526,24 +525,13 @@ def _deploy_nuclio_runtime(
             )
 
         if serving_to_monitor:
-            if not mlrun.mlconf.is_ce_mode():
-                if (
-                    fn.spec.image.startswith("mlrun/")
-                    and client_version
-                    and (
-                        semver.Version.parse(client_version)
-                        < semver.Version.parse("1.6.3")
-                        or "unstable" in client_version
-                    )
-                ):
-                    raise mlrun.errors.MLRunBadRequestError(
-                        "On deploy of serving-functions which is based on mlrun image "
-                        "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
-                    )
-                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
-                    monitoring_deployment.deploy_model_monitoring_stream_processing(
-                        overwrite=True
-                    )
+            if monitoring_deployment.should_redeploy_monitoring_stream(
+                fn_image=fn.spec.image, client_version=client_version
+            ):
+                # Redeploy the monitoring stream processing function
+                monitoring_deployment.deploy_model_monitoring_stream_processing(
+                    overwrite=True
+                )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,

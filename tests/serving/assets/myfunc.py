@@ -22,7 +22,7 @@ def myhand(x, context=None):
     return x * 2
 
 
-class Mycls(storey.MapClass):
+class MyCls(storey.MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

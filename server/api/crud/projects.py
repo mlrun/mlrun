@@ -27,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+import server.api.crud.runtimes.nuclio
 import server.api.db.session
 import server.api.utils.background_tasks
 import server.api.utils.clients.nuclio
@@ -141,38 +142,6 @@ class Projects(
         )
         self._verify_project_has_no_external_resources(session, name, auth_info)
 
-    def _verify_project_has_no_external_resources(
-        self,
-        session: sqlalchemy.orm.Session,
-        project: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ):
-        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
-        # secrets and model endpoints.
-        server.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(project)
-
-        # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
-        # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
-        # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
-        # Therefore, this check should remain at the end of the verification flow.
-        if (
-            mlrun.mlconf.is_api_running_on_k8s()
-            and get_k8s_helper().get_project_secret_keys(project)
-        ):
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                f"Project {project} can not be deleted since related resources found: project secrets"
-            )
-
-        # verify project can be deleted in nuclio
-        if mlrun.mlconf.nuclio_dashboard_url:
-            nuclio_client = server.api.utils.clients.nuclio.Client()
-            nuclio_client.delete_project(
-                session,
-                project,
-                deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
-                auth_info=auth_info,
-            )
-
     def delete_project_resources(
         self,
         session: sqlalchemy.orm.Session,
@@ -216,29 +185,9 @@ class Projects(
         # delete model monitoring resources
         server.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
-        # delete project secrets - passing None will delete all secrets
         if mlrun.mlconf.is_api_running_on_k8s():
-            secrets = None
-            (
-                secret_name,
-                action,
-            ) = get_k8s_helper().delete_project_secrets(name, secrets)
-            if action:
-                events_client = events_factory.EventsFactory().get_events_client()
-                events_client.emit(
-                    events_client.generate_project_secret_event(
-                        name,
-                        secret_name,
-                        action=action,
-                    )
-                )
-
-            else:
-                logger.debug(
-                    "No project secrets to delete",
-                    action=action,
-                    secret_name=secret_name,
-                )
+            self._delete_project_secrets(name)
+            self._delete_project_configmaps(name)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
@@ -341,6 +290,38 @@ class Projects(
                 )
             )
         return project_summaries
+
+    def _verify_project_has_no_external_resources(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ):
+        # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project
+        # secrets and model endpoints.
+        server.api.crud.ModelEndpoints().verify_project_has_no_model_endpoints(project)
+
+        # Note: this check lists also internal secrets. The assumption is that any internal secret that relate to
+        # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
+        # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
+        # Therefore, this check should remain at the end of the verification flow.
+        if (
+            mlrun.mlconf.is_api_running_on_k8s()
+            and get_k8s_helper().get_project_secret_keys(project)
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project} can not be deleted since related resources found: project secrets"
+            )
+
+        # verify project can be deleted in nuclio
+        if mlrun.mlconf.nuclio_dashboard_url:
+            nuclio_client = server.api.utils.clients.nuclio.Client()
+            nuclio_client.delete_project(
+                session,
+                project,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+                auth_info=auth_info,
+            )
 
     @staticmethod
     def _failed_statuses():
@@ -502,6 +483,41 @@ class Projects(
             project_to_recent_failed_pipelines_count,
             project_to_running_pipelines_count,
         )
+
+    @staticmethod
+    def _delete_project_secrets(name: str):
+        # Passing None will delete all secrets
+        secrets = None
+        (
+            secret_name,
+            action,
+        ) = get_k8s_helper().delete_project_secrets(name, secrets)
+        if action:
+            events_client = events_factory.EventsFactory().get_events_client()
+            events_client.emit(
+                events_client.generate_project_secret_event(
+                    name,
+                    secret_name,
+                    action=action,
+                )
+            )
+
+        else:
+            logger.debug(
+                "No project secrets to delete",
+                action=action,
+                secret_name=secret_name,
+            )
+
+    @staticmethod
+    def _delete_project_configmaps(name: str):
+        k8s_helper = get_k8s_helper()
+        label_selector = f"{mlrun_constants.MLRunInternalLabels.project}={name}"
+        config_maps = k8s_helper.v1api.list_namespaced_config_map(
+            k8s_helper.namespace, label_selector=label_selector
+        )
+        for config_map in config_maps.items:
+            k8s_helper.delete_configmap(config_map.metadata.name)
 
     @staticmethod
     def _wait_for_nuclio_project_deletion(

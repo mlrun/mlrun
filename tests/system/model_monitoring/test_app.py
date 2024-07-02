@@ -14,7 +14,6 @@
 
 import concurrent.futures
 import json
-import os
 import pickle
 import time
 import typing
@@ -100,29 +99,22 @@ class _V3IORecordsChecker:
     @classmethod
     def custom_setup(cls, project_name: str) -> None:
         # By default, the TSDB connection is based on V3IO TSDB
-        # To use TDEngine, set the `TSDB_CONNECTION` environment variable to the TDEngine connection string,
+        # To use TDEngine, set the `MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION`
+        # environment variable to the TDEngine connection string,
         # e.g. "taosws://user:password@host:port"
 
-        if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
-            project = mlrun.get_or_create_project(
-                project_name, "./", allow_cross_project=True
-            )
-            project.set_model_monitoring_credentials(
-                tsdb_connection=os.getenv(
-                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
-                )
-            )
+        project = mlrun.get_or_create_project(
+            project_name, "./", allow_cross_project=True
+        )
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
-            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name,
-                TSDB_CONNECTION=os.getenv(
-                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
-                ),
-            )
-        else:
-            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name
-            )
+        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+            project=project_name,
+        )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -340,6 +332,7 @@ class _V3IORecordsChecker:
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -534,13 +527,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
+        self._submit_controller_and_deploy_writer(
+            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data,
+            # workaround for ML-5997
+        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(
-                self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
-                in self.apps_data,
-                # workaround for ML-5997
-            )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
 
@@ -571,6 +562,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
     # TODO : delete in 1.9.0 (V1 app deprecation)
     project_name = "test-app-flow-v1"
@@ -606,6 +598,7 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
@@ -719,6 +712,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelMonitoringInitialize(TestMLRunSystem):
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -734,9 +728,14 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
             )
-
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
         )
 
         controller = self.project.get_function(
@@ -869,6 +868,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -1014,6 +1014,11 @@ class TestAllKindOfServing(TestMLRunSystem):
         }
 
     def test_all(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,
@@ -1078,6 +1083,11 @@ class TestTracking(TestAllKindOfServing):
         }
 
     def test_tracking(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,

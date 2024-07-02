@@ -21,7 +21,7 @@ from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
-from ..utils import DB_SCHEMA, run_keys
+from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
@@ -133,7 +133,7 @@ class StoreManager:
         return self._db
 
     def from_dict(self, struct: dict):
-        stor_list = struct.get(run_keys.data_stores)
+        stor_list = struct.get(RunKeys.data_stores)
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
                 schema, endpoint, parsed_url = parse_url(stor.get("url"))
@@ -145,7 +145,7 @@ class StoreManager:
                 self._stores[stor["name"]] = new_stor
 
     def to_dict(self, struct):
-        struct[run_keys.data_stores] = [
+        struct[RunKeys.data_stores] = [
             stor.to_dict() for stor in self._stores.values() if stor.from_spec
         ]
 

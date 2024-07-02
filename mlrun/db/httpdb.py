@@ -536,6 +536,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_monitoring_tsdb_connection")
                 or config.model_endpoint_monitoring.tsdb_connection
             )
+            config.model_endpoint_monitoring.stream_connection = (
+                server_cfg.get("stream_connection")
+                or config.model_endpoint_monitoring.stream_connection
+            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:
@@ -870,7 +874,7 @@ class HTTPRunDB(RunDBInterface):
         ):
             # default to last week on no filter
             start_time_from = datetime.now() - timedelta(days=7)
-            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
         params = {
@@ -963,7 +967,7 @@ class HTTPRunDB(RunDBInterface):
 
         # we do this because previously the 'uid' name was used for the 'tree' parameter
         tree = tree or uid
-
+        project = project or mlrun.mlconf.default_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
@@ -1002,7 +1006,7 @@ class HTTPRunDB(RunDBInterface):
         :param format_: The format in which to return the artifact. Default is 'full'.
         """
 
-        project = project or config.default_project
+        project = project or mlrun.mlconf.default_project
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
@@ -1039,7 +1043,7 @@ class HTTPRunDB(RunDBInterface):
         :param deletion_strategy: The artifact deletion strategy types.
         :param secrets: Credentials needed to access the artifact data.
         """
-
+        project = project or mlrun.mlconf.default_project
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
@@ -1073,6 +1077,7 @@ class HTTPRunDB(RunDBInterface):
         tree: str = None,
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -1108,6 +1113,7 @@ class HTTPRunDB(RunDBInterface):
             points to a run and is used to filter artifacts by the run that produced them when the artifact producer id
             is a workflow id (artifact was created as part of a workflow).
         :param format_:         The format in which to return the artifacts. Default is 'full'.
+        :param limit:           Maximum number of artifacts to return.
         """
 
         project = project or config.default_project
@@ -1127,6 +1133,7 @@ class HTTPRunDB(RunDBInterface):
             "tree": tree,
             "format": format_,
             "producer_uri": producer_uri,
+            "limit": limit,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
@@ -3394,6 +3401,7 @@ class HTTPRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -3403,14 +3411,16 @@ class HTTPRunDB(RunDBInterface):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param project:                         Project name.
-        :param base_period:                     The time period in minutes in which the model monitoring controller
-                                                function triggers. By default, the base period is 10 minutes.
-        :param image:                           The image of the model monitoring controller, writer & monitoring
-                                                stream functions, which are real time nuclio functions.
-                                                By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
+        :param project:                          Project name.
+        :param base_period:                      The time period in minutes in which the model monitoring controller
+                                                  function triggers. By default, the base period is 10 minutes.
+        :param image:                             The image of the model monitoring controller, writer & monitoring
+                                                  stream functions, which are real time nuclio functions.
+                                                  By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
+        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
@@ -3420,6 +3430,7 @@ class HTTPRunDB(RunDBInterface):
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "rebuild_images": rebuild_images,
+                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
         )
 
@@ -3543,6 +3554,23 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
             params={"image": image},
+        )
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+    ) -> None:
+        """
+        Set the credentials for the model monitoring application.
+
+        :param project:     Project name.
+        :param credentials: Credentials to set.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
+            params={**credentials},
         )
 
     def create_hub_source(

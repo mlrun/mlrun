@@ -238,6 +238,7 @@ class SQLRunDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -257,6 +258,7 @@ class SQLRunDB(RunDBInterface):
             category=category,
             producer_id=tree,
             format_=format_,
+            limit=limit,
         )
 
     def del_artifact(
@@ -1117,7 +1119,7 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def enable_model_monitoring(
         self,
@@ -1126,6 +1128,7 @@ class SQLRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -1147,6 +1150,13 @@ class SQLRunDB(RunDBInterface):
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
     ) -> None:
         raise NotImplementedError
 

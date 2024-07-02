@@ -130,6 +130,13 @@ def test_pad_features_hist(
 
 class TestBatchInterval:
     @staticmethod
+    @pytest.fixture(autouse=True)
+    def set_mlconf():
+        mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
+        mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
+        yield
+
+    @staticmethod
     @pytest.fixture
     def timedelta_seconds(request: pytest.FixtureRequest) -> int:
         if marker := request.node.get_closest_marker(
@@ -261,6 +268,7 @@ class TestBatchInterval:
         first_request: Optional[int],
         expected_last_analyzed: Optional[int],
     ) -> None:
+        mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
         assert (
             _BatchWindow(
                 project="my-project",

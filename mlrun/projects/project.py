@@ -2127,6 +2127,7 @@ class MlrunProject(ModelObj):
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2136,17 +2137,18 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image:        Deprecated.
-        :param base_period:                     The time period in minutes in which the model monitoring controller
-                                                function is triggered. By default, the base period is 10 minutes.
-        :param image:                           The image of the model monitoring controller, writer, monitoring
-                                                stream & histogram data drift functions, which are real time nuclio
-                                                functions. By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
-                                                Otherwise, deploy the model monitoring infrastructure on the
-                                                background, including the histogram data drift app if selected.
-        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
+        :param default_controller_image:          Deprecated.
+        :param base_period:                       The time period in minutes in which the model monitoring controller
+                                                  function is triggered. By default, the base period is 10 minutes.
+        :param image:                             The image of the model monitoring controller, writer, monitoring
+                                                  stream & histogram data drift functions, which are real time nuclio
+                                                  functions. By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
+                                                  Otherwise, deploy the model monitoring infrastructure on the
+                                                  background, including the histogram data drift app if selected.
+        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
+        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2163,6 +2165,7 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
             rebuild_images=rebuild_images,
+            fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         )
 
         if wait_for_deployment:
@@ -2337,7 +2340,8 @@ class MlrunProject(ModelObj):
                                     Default: job
         :param image:               Docker image to be used, can also be specified in the function object/yaml
         :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           Add (clone) the current repo to the build source
+        :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
+                                    the project repo (project.spec.source).
         :param tag:                 Function version tag to set (none for current or 'latest')
                                     Specifying a tag as a parameter will update the project's tagged function
                                     (myfunc:v1) and the untagged function (myfunc)
@@ -3204,49 +3208,44 @@ class MlrunProject(ModelObj):
         stream_path: Optional[str] = None,
         tsdb_connection: Optional[str] = None,
     ):
-        """Set the credentials that will be used by the project's model monitoring
+        """
+        Set the credentials that will be used by the project's model monitoring
         infrastructure functions. Important to note that you have to set the credentials before deploying any
         model monitoring or serving function.
 
-        :param access_key:                Model Monitoring access key for managing user permissions
-        :param endpoint_store_connection: Endpoint store connection string
-        :param stream_path:               Path to the model monitoring stream
-        :param tsdb_connection:           Connection string to the time series database
+        :param access_key:                Model Monitoring access key for managing user permissions.
+        :param endpoint_store_connection: Endpoint store connection string. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io endpoint store,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. MySQL/SQLite - for SQL endpoint store, please provide full
+                                             connection string, for example
+                                             mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+        :param stream_path:               Path to the model monitoring stream. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. Kafka - for Kafka stream, please provide full connection string without
+                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
+        :param tsdb_connection:           Connection string to the time series database. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
+                                             for example taosws://<username>:<password>@<host>:<port>.
         """
-
-        secrets_dict = {}
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
-
-        if endpoint_store_connection:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
-
-        if stream_path:
-            if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Custom kafka topic is not allowed"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
-
-        if tsdb_connection:
-            if not tsdb_connection.startswith("taosws://"):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
-                    "please provide a full URL (e.g. taosws://user:password@host:port)"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ] = tsdb_connection
-
-        self.set_secrets(
-            secrets=secrets_dict,
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.set_model_monitoring_credentials(
+            project=self.name,
+            credentials={
+                "access_key": access_key,
+                "endpoint_store_connection": endpoint_store_connection,
+                "stream_path": stream_path,
+                "tsdb_connection": tsdb_connection,
+            },
         )
 
     def run_function(
@@ -3663,6 +3662,7 @@ class MlrunProject(ModelObj):
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3692,6 +3692,7 @@ class MlrunProject(ModelObj):
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
         :param tree: Return artifacts of the requested tree.
+        :param limit: Maximum number of artifacts to return.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3706,6 +3707,7 @@ class MlrunProject(ModelObj):
             kind=kind,
             category=category,
             tree=tree,
+            limit=limit,
         )
 
     def list_models(

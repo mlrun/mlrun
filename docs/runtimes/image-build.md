@@ -34,15 +34,15 @@ will require building of the image:
 project = mlrun.new_project(project_name, "./proj")
 
 project.set_function(
-   "train_code.py", 
-   name="trainer",
-   kind="job",
-   image="mlrun/mlrun",
-   handler="train_func",
-   requirements=["pandas"]
+    "train_code.py",
+    name="trainer",
+    kind="job",
+    image="mlrun/mlrun",
+    handler="train_func",
+    requirements=["pandas"],
 )
 
-# auto_build will trigger building the image before running, 
+# auto_build will trigger building the image before running,
 # due to the additional requirements.
 project.run_function("trainer", auto_build=True)
 ```
@@ -69,8 +69,8 @@ resulting image name, as specified in the `image` parameter.
 
 ```python
 project.build_function(
-   "trainer",
-   base_image="myrepo/my_base_image:latest",
+    "trainer",
+    base_image="myrepo/my_base_image:latest",
 )
 ```
 
@@ -82,12 +82,12 @@ To run arbitrary commands during the image build, pass them in the `commands` pa
 github_repo = "myusername/myrepo.git@mybranch"
 
 project.build_function(
-   "trainer",
-   base_image="myrepo/base_image:latest",
-   commands= [
+    "trainer",
+    base_image="myrepo/base_image:latest",
+    commands=[
         "pip install git+https://github.com/" + github_repo,
-        "mkdir -p /some/path && chmod 0777 /some/path",    
-   ]
+        "mkdir -p /some/path && chmod 0777 /some/path",
+    ],
 )
 ```
 
@@ -104,11 +104,7 @@ of the specified version instead.
 For example:
 
 ```python
-project.build_function(
-   "trainer",
-   with_mlrun=True,
-   mlrun_version_specifier="1.0.0"
-)
+project.build_function("trainer", with_mlrun=True, mlrun_version_specifier="1.0.0")
 ```
 
 ### Working with code repository
@@ -167,7 +163,7 @@ Only use this flag in trusted environments or with private registries where you 
 To use this flag, pass it in the extra_args parameter, for example:
 ```python
 project.build_function(
-    ...
+    "<function-name>",
     extra_args="--skip-tls-verify",
 )
 ```
@@ -179,8 +175,8 @@ the `builder_env` parameter, for example:
 
 ```python
 project.build_function(
-   ...
-   builder_env={"GIT_TOKEN": token},
+    "<function-name>",
+    builder_env={"GIT_TOKEN": token},
 )
 ```
 
@@ -195,7 +191,7 @@ Kaniko directly, for example:
 
 ```python
 project.build_function(
-    ...
+    "<function-name>",
     extra_args="--build arg GIT_TOKEN=token --skip-tls-verify",
 )
 ```
@@ -227,9 +223,11 @@ To prepare this image, MLRun provides the following facilities:
 ```python
 # For remote Spark
 from mlrun.runtimes import RemoteSparkRuntime
+
 RemoteSparkRuntime.deploy_default_image()
 
 # For Spark operator
 from mlrun.runtimes import Spark3Runtime
+
 Spark3Runtime.deploy_default_image()
 ```

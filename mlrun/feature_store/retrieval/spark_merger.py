@@ -45,6 +45,7 @@ def spark_df_to_pandas(spark_df):
                     ),
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
+
         df = PandasConversionMixin.toPandas(spark_df)
         if type_conversion_dict:
             df = df.astype(type_conversion_dict)
@@ -252,7 +253,7 @@ class SparkFeatureMerger(BaseMerger):
                 )
             source_kind = target.kind
             source_path = target.get_target_path()
-
+            source_kwargs = target.source_spark_attributes
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]

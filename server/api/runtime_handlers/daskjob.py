@@ -402,7 +402,7 @@ def enrich_dask_cluster(
     # however, the node selector is still relevant for the Dask cluster's workers and scheduler,
     # this ensures that the cluster pods follow the project's specified node selection.
     project = function._get_db().get_project(function.metadata.project)
-    logger.info(
+    logger.debug(
         "Enriching Dask Cluster node selector from project",
         project_name=function.metadata.project,
         project_node_selector=project.spec.default_function_node_selector,

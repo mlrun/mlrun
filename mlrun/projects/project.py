@@ -2490,7 +2490,7 @@ class MlrunProject(ModelObj):
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
         """delete the specified model-monitoring-app function/s
 
-        :param name: name of the model-monitoring-function/s
+        :param name: name of the model-monitoring-function/s (under the project)
         """
         # TODO: Remove this in 1.9.0
         warnings.warn(

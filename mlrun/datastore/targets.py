@@ -923,19 +923,25 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        target_path = self.get_target_path()
+        store, path_in_store, target_path = self._get_store_and_path()
+
+        storage_options = store.get_storage_options()
+        if storage_options and self.storage_options:
+            storage_options = merge(storage_options, self.storage_options)
+        else:
+            storage_options = storage_options or self.storage_options
 
         step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.targets.ParquetTargetStoreyWrapper",
+            class_name="storey.ParquetTarget",
             path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=self.storage_options,
+            storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,

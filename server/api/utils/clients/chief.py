@@ -196,7 +196,7 @@ class Client(
         get project summary gets the project summary from an in memory cache in the chief
         """
         return await self._proxy_request_to_chief(
-            "GET", f"/project-summaries/{project}", request
+            "GET", f"project-summaries/{project}", request
         )
 
     async def get_clusterization_spec(

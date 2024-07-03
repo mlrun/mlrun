@@ -260,6 +260,14 @@ def _compile_function_config(
 ):
     """
     Compile the nuclio function configuration from the mlrun function object.
+
+    :param function:              nuclio function object
+    :param client_version:        mlrun client version
+    :param client_python_version: mlrun client python version
+    :param builder_env:           mlrun builder environment (for config/credentials)
+    :param auth_info:             service AuthInfo
+
+    :return: function name, project name, function config
     """
     _set_function_labels(function)
 
@@ -381,15 +389,6 @@ def _compile_function_config(
     )
 
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
-    build: mlrun.model.ImageBuilder = function.spec.build
-    base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
-
-    if (
-        base_image
-        and server.api.utils.builder.is_mlrun_image(base_image)
-        and build.requirements
-    ):
-        server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
     _resolve_and_set_build_requirements_and_commands(function, config)
 
     function_name = _set_function_name(function, config, project, tag)
@@ -464,6 +463,8 @@ def _resolve_and_set_nuclio_runtime(
 
 @pure_nuclio_deployed_restricted()
 def _resolve_and_set_build_requirements_and_commands(function, config):
+    _add_mlrun_to_requirements_if_needed(config, function)
+
     commands = (
         mlrun.utils.get_in(config, "spec.build.commands")
         or function.spec.build.commands
@@ -490,6 +491,17 @@ def _resolve_and_set_build_requirements_and_commands(function, config):
         commands.append(f"python -m pip install {encoded_requirements}")
 
     mlrun.utils.update_in(config, "spec.build.commands", commands)
+
+
+def _add_mlrun_to_requirements_if_needed(config, function):
+    build: mlrun.model.ImageBuilder = function.spec.build
+    base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
+    if (
+        base_image
+        and server.api.utils.builder.is_mlrun_image(base_image)
+        and build.requirements
+    ):
+        server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
 
 
 def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):

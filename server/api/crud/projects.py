@@ -46,9 +46,6 @@ class Projects(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._cache = {
-            "project_resources_counters": {"value": None, "ttl": datetime.datetime.min}
-        }
         self._project_resource_counters_cache = {}
 
     def create_project(

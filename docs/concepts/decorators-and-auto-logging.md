@@ -88,7 +88,8 @@ The `mlrun.handler` decorator can also parse the input types, if they are specif
 @mlrun.handler(labels={"framework": "scikit-learn"}, outputs=["prediction:dataset"])
 def train_and_predict(
     train_data: pd.DataFrame, predict_input: pd.DataFrame, label_column="label"
-): ...
+):
+    ...
 ```
 
 **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`, `typing.List` etc.) are 

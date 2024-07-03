@@ -333,7 +333,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     assert context.labels.get("kind") == "spark"
 
 
-def test_varify_tag_exists_in_output_uri_on_run():
+def test_verify_tag_exists_in_run_output_uri():
     project = mlrun.get_or_create_project("dummy-project")
     project.set_function(
         func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"

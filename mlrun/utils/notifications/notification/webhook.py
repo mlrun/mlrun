@@ -69,29 +69,31 @@ class WebhookNotification(NotificationBase):
             request_body["custom_html"] = custom_html
 
         if override_body:
-            list_edit_runs = []
-            for run in runs:
-                if hasattr(run, "to_dict"):
-                    run = run.to_dict()
-                if isinstance(run, dict):
-                    parsed_run = {
-                        "project": run["metadata"]["project"],
-                        "name": run["metadata"]["name"],
-                        "host": run["metadata"]["labels"]["host"],
-                        "status": {"state": run["status"]["state"]},
-                    }
-                    if run["status"].get("error", None):
-                        parsed_run["status"]["error"] = run["status"]["error"]
-                    elif run["status"].get("results", None):
-                        parsed_run["status"]["results"] = run["status"]["results"]
-                    list_edit_runs.append(parsed_run)
-            runs_value = str(list_edit_runs)
+            def get_override_body_runs():
+                list_edit_runs = []
+                for run in runs:
+                    if hasattr(run, "to_dict"):
+                        run = run.to_dict()
+                    if isinstance(run, dict):
+                        parsed_run = {
+                            "project": run["metadata"]["project"],
+                            "name": run["metadata"]["name"],
+                            "host": run["metadata"]["labels"]["host"],
+                            "status": {"state": run["status"]["state"]},
+                        }
+                        if run["status"].get("error", None):
+                            parsed_run["status"]["error"] = run["status"]["error"]
+                        elif run["status"].get("results", None):
+                            parsed_run["status"]["results"] = run["status"]["results"]
+                        list_edit_runs.append(parsed_run)
+                return str(list_edit_runs)
+
             if isinstance(override_body, dict):
                 for key, value in override_body.items():
                     if "{{ runs }}" in value:
-                        override_body[key] = value.replace("{{ runs }}", runs_value)
+                        override_body[key] = value.replace("{{ runs }}", get_override_body_runs())
                     elif "{{runs}}" in value:
-                        override_body[key] = value.replace("{{runs}}", runs_value)
+                        override_body[key] = value.replace("{{runs}}", get_override_body_runs())
             request_body = override_body
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.

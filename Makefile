@@ -457,6 +457,7 @@ test: clean ## Run mlrun tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		--junitxml=report.xml \
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
@@ -480,6 +481,7 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		--junitxml=report.xml \
 		-rf \
 		tests/integration \
 		tests/rundb/test_httpdb.py
@@ -517,6 +519,7 @@ test-system: ## Run mlrun system tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		--junitxml=report.xml \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
@@ -526,6 +529,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		--junitxml=report.xml \
 		-rf \
 		-m "not enterprise" \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
@@ -699,9 +703,9 @@ ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 --junitxml=report.xml $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 --junitxml=report.xml tests/api/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 

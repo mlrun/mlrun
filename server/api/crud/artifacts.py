@@ -58,6 +58,7 @@ class Artifacts(
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
 
+        # TODO: remove this in 1.8.0
         if mlrun.utils.helpers.is_legacy_artifact(artifact):
             artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
                 artifact

@@ -38,6 +38,7 @@ import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
+import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
@@ -1614,20 +1615,11 @@ class HTTPRunDB(RunDBInterface):
             raise RunDBError("bad function build response")
 
         if resp.headers:
-            func.status.state = resp.headers.get("x-mlrun-function-status", "")
             last_log_timestamp = float(
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
-            func.status.address = resp.headers.get("x-mlrun-address", "")
-            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
-            func.status.internal_invocation_urls = resp.headers.get(
-                "x-mlrun-internal-invocation-urls", ""
-            ).split(",")
-            func.status.external_invocation_urls = resp.headers.get(
-                "x-mlrun-external-invocation-urls", ""
-            ).split(",")
-            func.status.container_image = resp.headers.get(
-                "x-mlrun-container-image", ""
+            mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+                func, resp.headers
             )
 
         text = ""
@@ -1685,16 +1677,8 @@ class HTTPRunDB(RunDBInterface):
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
             if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                func.status.address = resp.headers.get("x-mlrun-address", "")
-                func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
-                func.status.internal_invocation_urls = resp.headers.get(
-                    "x-mlrun-internal-invocation-urls", ""
-                ).split(",")
-                func.status.external_invocation_urls = resp.headers.get(
-                    "x-mlrun-external-invocation-urls", ""
-                ).split(",")
-                func.status.container_image = resp.headers.get(
-                    "x-mlrun-container-image", ""
+                mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+                    func, resp.headers
                 )
 
             builder_pod = resp.headers.get("builder_pod", "")

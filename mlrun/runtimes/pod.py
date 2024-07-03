@@ -1518,7 +1518,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
 
     # check if attribute of type dict, and then check if type is sanitized
     if isinstance(attribute, dict):
-        if attribute_config["not_sanitized_class"] != dict:
+        if not isinstance(attribute_config["not_sanitized_class"], dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
@@ -1528,7 +1528,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     elif isinstance(attribute, list) and not isinstance(
         attribute[0], attribute_config["sub_attribute_type"]
     ):
-        if attribute_config["not_sanitized_class"] != list:
+        if not isinstance(attribute_config["not_sanitized_class"], list):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )

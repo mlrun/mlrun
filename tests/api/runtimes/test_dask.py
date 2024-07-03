@@ -61,7 +61,7 @@ class TestDaskRuntime(TestRuntimeBase):
         self.v3io_access_key = "1111-2222-3333-4444"
         self.v3io_user = "test-user"
         self.scheduler_address = "http://1.2.3.4"
-
+        self.project_default_function_node_selector = {"test-project": "node-selector"}
         self._mock_dask_cluster()
 
     def custom_teardown(self):
@@ -436,10 +436,11 @@ class TestDaskRuntime(TestRuntimeBase):
         self.assert_security_context(other_security_context)
 
     def test_enrich_dask_cluster(self):
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function = mlrun.runtimes.DaskCluster(
             metadata=dict(
                 name="test",
-                project="project",
+                project=self.project,
                 labels={"label1": "val1"},
                 annotations={"annotation1": "val1"},
             ),
@@ -453,12 +454,13 @@ class TestDaskRuntime(TestRuntimeBase):
                     {"name": "TEST_DUP", "value": "A"},
                     {"name": "TEST_DUP", "value": "B"},
                 ],
+                node_selector={function_label_name: function_label_val},
             ),
         )
 
         function.generate_runtime_k8s_env = unittest.mock.Mock(
             return_value=[
-                {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
+                {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
                 {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             ]
         )
@@ -472,18 +474,23 @@ class TestDaskRuntime(TestRuntimeBase):
             "requests": {},
         }
         expected_env = [
-            {"name": "MLRUN_DEFAULT_PROJECT", "value": "project"},
+            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
             {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
             k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
             {"name": "TEST_DUP", "value": "A"},
         ]
         expected_labels = {
-            mlrun_constants.MLRunInternalLabels.project: "project",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
             mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
             mlrun_constants.MLRunInternalLabels.function: "test",
             "label1": "val1",
             mlrun_constants.MLRunInternalLabels.scrape_metrics: "True",
             mlrun_constants.MLRunInternalLabels.tag: "latest",
+        }
+
+        expected_node_selector = {
+            "test-project": "node-selector",
+            function_label_name: function_label_val,
         }
 
         secrets = []
@@ -512,6 +519,7 @@ class TestDaskRuntime(TestRuntimeBase):
         assert scheduler_pod.spec.containers[0].resources == expected_resources
         assert worker_pod.spec.containers[0].env == expected_env
         assert scheduler_pod.spec.containers[0].env == expected_env
+        assert scheduler_pod.spec.node_selector == expected_node_selector
 
         # used once by test, once by enrich_dask_cluster
         assert function.generate_runtime_k8s_env.call_count == 2

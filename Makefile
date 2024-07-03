@@ -618,9 +618,8 @@ fmt: ## Format the code using Ruff and blacken-docs
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
-# TODO: use the `--check` flag when blacken-docs 1.17 is released
 	@echo "Checking the code blocks with blacken-docs"
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies

@@ -60,7 +60,6 @@ import mlrun
 
 
 class OnnxGenaiModelServer(mlrun.serving.v2_serving.V2ModelServer):
-
     def __init__(
         self,
         context: mlrun.MLClientCtx,

@@ -1089,7 +1089,9 @@ async def test_schedule_convert_from_old_credentials_to_new(
     _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
 
 
-@unittest.mock.patch.object(Scheduler, "_store_schedule_secrets_using_auth_secret")
+@unittest.mock.patch.object(
+    Scheduler, "_store_schedule_secrets_using_auth_secret", return_value="auth-secret"
+)
 @pytest.mark.asyncio
 async def test_update_schedule(
     mock_store_schedule_secrets_using_auth_secret,
@@ -1098,7 +1100,6 @@ async def test_update_schedule(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mock_store_schedule_secrets_using_auth_secret.return_value = "auth-secret"
     labels_1 = {
         "label1": "value1",
         "label2": "value2",

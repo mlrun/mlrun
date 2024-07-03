@@ -235,9 +235,12 @@ async def move_api_to_online():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
             _start_periodic_pagination_cache_monitoring()
-            _start_periodic_project_summaries_calculation()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
+
+    # periodic project summaries calculation should run on all instances
+    # not just the chief
+    _start_periodic_project_summaries_calculation()
 
 
 async def _start_periodic_logs_collection():
@@ -544,7 +547,7 @@ def _start_periodic_project_summaries_calculation():
             interval,
             server.api.crud.projects.Projects().refresh_project_resources_counters_cache.__name__,
             False,
-            server.api.db.session.run_function_with_new_db_session,
+            server.api.db.session.run_async_function_with_new_db_session,
             server.api.crud.projects.Projects().refresh_project_resources_counters_cache,
         )
 

@@ -100,6 +100,10 @@ class ArtifactProducer:
 
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
+
+    if mlrun.utils.is_legacy_artifact(struct):
+        return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
+
     artifact_class = artifact_types[kind]
     return artifact_class.from_dict(struct)
 

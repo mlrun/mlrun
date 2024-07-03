@@ -107,7 +107,7 @@ default_config = {
         },
         "projects": {
             "summaries": {
-                "cache_interval": "60",
+                "cache_interval": "30",
             },
         },
     },

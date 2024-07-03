@@ -160,12 +160,11 @@ class MLRunPatcher:
 
         env = {
             "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REGISTRY": mlrun_docker_registry,
-            "MLRUN_DOCKER_REPO": mlrun_docker_repo,
+            "MLRUN_DOCKER_REPO": self._config["DOCKER_REGISTRY"],
         }
         cmd = ["make", target]
         self._exec_local(cmd, live=True, env=env)
-        return f"{mlrun_docker_registry}{mlrun_docker_repo}/{image_name}:{image_tag}"
+        return f"{self._config['DOCKER_REGISTRY']}/{image_name}:{image_tag}"
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")

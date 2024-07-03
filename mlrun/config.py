@@ -104,7 +104,12 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
-        }
+        },
+        "projects": {
+            "summaries": {
+                "cache_interval": "60",
+            },
+        },
     },
     "crud": {
         "runs": {

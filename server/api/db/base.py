@@ -444,12 +444,6 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_projects_summaries(
-        self, session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        pass
-
-    @abstractmethod
     def delete_project_related_resources(self, session, name: str):
         pass
 

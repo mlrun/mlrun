@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import asyncio
 import typing
 import unittest.mock
 
@@ -415,12 +414,9 @@ async def test_list_project_summaries(
         distinct_scheduled_jobs_pending_count=3,
         distinct_scheduled_pipelines_pending_count=4,
     )
-    server.api.crud.Projects().generate_projects_summaries = unittest.mock.Mock(
-        return_value=asyncio.Future()
-    )
-    server.api.crud.Projects().generate_projects_summaries.return_value.set_result(
-        [project_summary]
-    )
+    server.api.crud.Projects()._project_resource_counters_cache[
+        project.metadata.name
+    ] = project_summary
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert (

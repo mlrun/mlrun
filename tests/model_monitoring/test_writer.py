@@ -153,6 +153,13 @@ class TestHistogramGeneralDriftResultEvent:
         )
 
     @staticmethod
+    @pytest.fixture(autouse=True)
+    def set_mlconf():
+        mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
+        mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
+        yield
+
+    @staticmethod
     @patch("mlrun.utils.v3io_clients.get_client")  # patch frames client
     def test_update_model_endpoint(
         _, general_drift_event: _RawEvent, mock_v3io_client: V3IOClient

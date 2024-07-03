@@ -1089,13 +1089,16 @@ async def test_schedule_convert_from_old_credentials_to_new(
     _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
 
 
+@unittest.mock.patch.object(Scheduler, "_store_schedule_secrets_using_auth_secret")
 @pytest.mark.asyncio
 async def test_update_schedule(
+    mock_store_schedule_secrets_using_auth_secret,
     db: Session,
     client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
+    mock_store_schedule_secrets_using_auth_secret.return_value = "auth-secret"
     labels_1 = {
         "label1": "value1",
         "label2": "value2",
@@ -1196,7 +1199,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         inactive_cron_trigger,
         None,
-        {},
+        {"mlrun-auth-key": "auth-secret"},
         config.httpdb.scheduling.default_concurrency_limit,
     )
 
@@ -1237,7 +1240,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger,
         next_run_time,
-        {},
+        {"mlrun-auth-key": "auth-secret"},
         config.httpdb.scheduling.default_concurrency_limit,
     )
     time_to_sleep = (

@@ -104,7 +104,7 @@ jobs:
       with:
         name: Pytest
         reporter: java-junit
-        path: report.xml
+        path: /tmp/report.xml
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -131,7 +131,7 @@ jobs:
       with:
         name: Pytest
         reporter: java-junit
-        path: report.xml
+        path: /tmp/report.xml
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -157,7 +157,7 @@ jobs:
         with:
           name: Pytest
           reporter: java-junit
-          path: report.xml
+          path: /tmp/report.xml
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})

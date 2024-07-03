@@ -481,7 +481,7 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--junitxml=report.xml \
+		--junitxml=/tmp/report.xml \
 		-rf \
 		tests/integration \
 		tests/rundb/test_httpdb.py

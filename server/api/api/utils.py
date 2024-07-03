@@ -430,14 +430,11 @@ def validate_and_mask_notification_list(
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
 
-        # store the original secret_params and temporarily unmask for validation
-        original_secret_params = notification_object.secret_params
-        unmask_notification_params_secret(project, notification_object)
-
-        notification_object.validate_notification_params()
-
-        # restore the original secret_params to maintain the object state
-        notification_object.secret_params = original_secret_params
+        # skip the params validation if the key is "secret"
+        secret_params = notification_object.secret_params or {}
+        params_secret = secret_params.get("secret", "")
+        if not params_secret:
+            notification_object.validate_notification_params()
 
         notification_objects.append(notification_object)
 

@@ -178,6 +178,27 @@ class Client(
             "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )
 
+    async def list_project_summaries(
+        self,
+        request: fastapi.Request,
+    ) -> fastapi.Response:
+        """
+        list project summaries gets the project summaries from an in memory cache in the chief
+        """
+        return await self._proxy_request_to_chief("GET", "project-summaries", request)
+
+    async def get_project_summary(
+        self,
+        project: str,
+        request: fastapi.Request,
+    ) -> fastapi.Response:
+        """
+        get project summary gets the project summary from an in memory cache in the chief
+        """
+        return await self._proxy_request_to_chief(
+            "GET", f"/project-summaries/{project}", request
+        )
+
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.common.schemas.ClusterizationSpec]:

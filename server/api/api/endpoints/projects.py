@@ -349,6 +349,7 @@ async def list_projects(
     "/project-summaries", response_model=mlrun.common.schemas.ProjectSummariesOutput
 )
 async def list_project_summaries(
+    request: fastapi.Request,
     owner: str = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
@@ -359,6 +360,20 @@ async def list_project_summaries(
         server.api.api.deps.get_db_session
     ),
 ):
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting project summaries, re-routing to chief",
+            owner=owner,
+            labels=labels,
+        )
+        chief_client = server.api.utils.clients.chief.Client()
+        return await chief_client.list_project_summaries(
+            request=request,
+        )
+
     projects_output = await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
@@ -391,6 +406,7 @@ async def list_project_summaries(
     "/project-summaries/{name}", response_model=mlrun.common.schemas.ProjectSummary
 )
 async def get_project_summary(
+    request: fastapi.Request,
     name: str,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         server.api.api.deps.get_db_session
@@ -399,6 +415,17 @@ async def get_project_summary(
         server.api.api.deps.authenticate_request
     ),
 ):
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.common.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting project summaries, re-routing to chief",
+            name=name,
+        )
+        chief_client = server.api.utils.clients.chief.Client()
+        return await chief_client.get_project_summary(project=name, request=request)
+
     project_summary = await get_project_member().get_project_summary(
         db_session, name, auth_info.session
     )

@@ -218,7 +218,8 @@ class Projects(
             await self.refresh_project_resources_counters_cache(session)
 
         project_summaries = []
-        for project_name in names or self._project_resource_counters_cache.keys():
+        project_names = names or self._project_resource_counters_cache.keys()
+        for project_name in project_names:
             project_summaries.append(
                 self._project_resource_counters_cache.get(project_name)
             )

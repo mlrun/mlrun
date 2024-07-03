@@ -258,6 +258,9 @@ def _compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
+    """
+    Compile the nuclio function configuration from the mlrun function object.
+    """
     _set_function_labels(function)
 
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
@@ -349,6 +352,7 @@ def _compile_function_config(
             # we create the base spec with essential attributes
             config = nuclio.config.new_config()
             mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
+
         config = nuclio.config.extend_config(
             config, nuclio_spec, tag, function.spec.build.code_origin
         )
@@ -386,10 +390,8 @@ def _compile_function_config(
         and build.requirements
     ):
         server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
-    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
-    nuclio.config.extend_config(
-        config, nuclio_spec, tag, function.spec.build.code_origin
-    )
+    _resolve_and_set_build_requirements_and_commands(function, config)
+
     function_name = _set_function_name(function, config, project, tag)
 
     if serving_spec_volume is not None:
@@ -461,12 +463,8 @@ def _resolve_and_set_nuclio_runtime(
 
 
 @pure_nuclio_deployed_restricted()
-def _resolve_and_set_build_requirements_and_commands(function, nuclio_spec):
-    nuclio_spec.cmd = function.spec.build.commands or []
-    _resolve_and_set_build_requirements(function, nuclio_spec)
-
-
-def _resolve_and_set_build_requirements(function, nuclio_spec):
+def _resolve_and_set_build_requirements_and_commands(function, config):
+    commands = mlrun.utils.get_in(config, "spec.build.commands") or []
     if function.spec.build.requirements:
         resolved_requirements = []
         # wrap in single quote to ensure that the requirement is treated as a single string
@@ -485,7 +483,9 @@ def _resolve_and_set_build_requirements(function, nuclio_spec):
             resolved_requirements.append(shlex.quote(requirement))
 
         encoded_requirements = " ".join(resolved_requirements)
-        nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
+        commands.append(f"python -m pip install {encoded_requirements}")
+
+    mlrun.utils.update_in(config, "spec.build.commands", commands)
 
 
 def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):

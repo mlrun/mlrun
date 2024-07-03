@@ -261,13 +261,13 @@ def _compile_function_config(
     """
     Compile the nuclio function configuration from the mlrun function object.
 
-    :param function:              nuclio function object
+    :param function:              mlrun function object
     :param client_version:        mlrun client version
     :param client_python_version: mlrun client python version
     :param builder_env:           mlrun builder environment (for config/credentials)
     :param auth_info:             service AuthInfo
 
-    :return: function name, project name, function config
+    :return: function name, project name, nuclio function config
     """
     _set_function_labels(function)
 

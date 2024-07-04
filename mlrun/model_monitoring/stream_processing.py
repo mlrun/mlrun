@@ -45,7 +45,7 @@ from mlrun.utils import logger
 
 class ParquetTargetStoreyWrapper(storey.ParquetTarget):
     """
-    ParquetTarget requires a storage_options to be available.
+    ParquetTarget may require storage_options, which may contain credentials.
     To avoid passing it openly within the graph, we use this wrapper instead.
     """
 

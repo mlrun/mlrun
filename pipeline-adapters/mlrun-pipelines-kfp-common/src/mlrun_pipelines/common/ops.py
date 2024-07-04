@@ -27,7 +27,6 @@ from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.utils import (
     dict_to_yaml,
-    gen_md_table,
     get_artifact_target,
     get_in,
     get_workflow_url,

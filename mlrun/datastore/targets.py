@@ -24,7 +24,6 @@ from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import storey
 from mergedeep import merge
 
 import mlrun
@@ -1068,35 +1067,6 @@ class ParquetTarget(BaseStoreTarget):
                     op = time_unit_to_op[partition]
                     df = df.withColumn(partition, op(timestamp_col))
         return df
-
-
-class ParquetTargetStoreyWrapper(storey.ParquetTarget):
-    def __init__(self, *args, **kwargs):
-        args = list(args)
-
-        if args:
-            path = args[0]
-        else:
-            path = kwargs.get("path")
-
-        external_storage_options = kwargs.get("storage_options")
-        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(path)
-        storage_options = store.get_storage_options()
-        if storage_options and external_storage_options:
-            storage_options = merge(storage_options, external_storage_options)
-        else:
-            storage_options = storage_options or external_storage_options
-
-        if storage_options:
-            kwargs["storage_options"] = storage_options
-
-        if len(args) > 0:
-            args[0] = url
-
-        if "path" in kwargs:
-            kwargs["path"] = url
-
-        super().__init__(*args, **kwargs)
 
 
 class CSVTarget(BaseStoreTarget):

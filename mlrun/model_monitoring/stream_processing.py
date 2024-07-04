@@ -19,6 +19,7 @@ import os
 import typing
 
 import storey
+from mergedeep import merge
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
@@ -40,6 +41,40 @@ from mlrun.common.schemas.model_monitoring.constants import (
     PrometheusEndpoints,
 )
 from mlrun.utils import logger
+
+
+class ParquetTargetStoreyWrapper(storey.ParquetTarget):
+    """
+    ParquetTarget requires a storage_options to be available.
+    To avoid passing it openly within the graph, we use this wrapper instead.
+    """
+
+    def __init__(self, *args, **kwargs):
+        args = list(args)
+
+        if args:
+            path = args[0]
+        else:
+            path = kwargs.get("path")
+
+        external_storage_options = kwargs.get("storage_options")
+        store, resolved_store_path, url = mlrun.store_manager.get_or_create_store(path)
+        storage_options = store.get_storage_options()
+        if storage_options and external_storage_options:
+            storage_options = merge(storage_options, external_storage_options)
+        else:
+            storage_options = storage_options or external_storage_options
+
+        if storage_options:
+            kwargs["storage_options"] = storage_options
+
+        if args:
+            args[0] = url
+
+        if "path" in kwargs:
+            kwargs["path"] = url
+
+        super().__init__(*args, **kwargs)
 
 
 # Stream processing code

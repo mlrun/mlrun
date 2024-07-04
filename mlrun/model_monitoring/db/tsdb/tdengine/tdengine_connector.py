@@ -28,6 +28,11 @@ from mlrun.utils import logger
 
 
 class TDEngineTargetStoreyWrapper(storey.TDEngineTarget):
+    """
+    TDEngineTarget requires a connection string to the TDEngine server.
+    To avoid passing this string openly within the graph, we use this wrapper instead.
+    """
+
     def __init__(self, *args, **kwargs):
         kwargs["url"] = mlrun.model_monitoring.helpers.get_tsdb_connection_string()
         super().__init__(*args, **kwargs)

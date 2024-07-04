@@ -102,7 +102,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: dockerized-tests-report
-        path: /tmp/mlrun_test_report.xml
+        path: | 
+          /tmp/mlrun_test_report.xml
+          /tmp/mlrun_test_report.html
 
   integration-tests:
     name: Run Dockerized Integration Tests

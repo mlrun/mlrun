@@ -372,8 +372,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return run_obj_dict
 
 
-def load_module(file_name, handler, context):
-    """Load module from file name"""
+def load_module(
+    file_name: str,
+    handler: str,
+    context: MLClientCtx,
+    embed_in_sys: bool = True,
+):
+    """
+    Load module from filename
+    :param file_name:       The module path to load
+    :param handler:         The callable to load
+    :param context:         Execution context
+    :param embed_in_sys:    Embed the file-named module in sys.modules. This is not persistent with remote
+                            environments and therefore can effect pickling.
+    """
     module = None
     if file_name:
         path = Path(file_name)
@@ -384,7 +396,8 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
-        sys.modules[mod_name] = module
+        if embed_in_sys:
+            sys.modules[mod_name] = module
         spec.loader.exec_module(module)
 
     class_args = {}

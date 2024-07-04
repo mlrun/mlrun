@@ -390,6 +390,7 @@ def v2_serving_handler(context, event, get_body=False):
         "kafka",
         "kafka-cluster",
         "v3ioStream",
+        "v3io-stream",
     ):
         event.path = "/"
 

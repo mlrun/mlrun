@@ -2627,7 +2627,10 @@ class SQLDB(DBInterface):
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
             .filter(
                 Schedule.Label.name.in_(
-                    [mlrun_constants.MLRunInternalLabels.workflow, "kind"]
+                    [
+                        mlrun_constants.MLRunInternalLabels.workflow,
+                        mlrun_constants.MLRunInternalLabels.kind,
+                    ]
                 )
             )
             .all()

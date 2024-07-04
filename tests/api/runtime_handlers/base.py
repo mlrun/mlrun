@@ -159,6 +159,10 @@ class TestRuntimeHandlerBase:
         return labels
 
     @staticmethod
+    def _generate_run_pod_label_selector(run_uid):
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
+
+    @staticmethod
     def _generate_config_map(name, labels, data=None):
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
@@ -507,14 +511,14 @@ class TestRuntimeHandlerBase:
             f"Unexpected number of calls to list_namespaced_pod "
             f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
         )
-        if expected_label_selector and expected_label_selector != "":
-            expected_label_selector = (
-                expected_label_selector or runtime_handler._get_default_label_selector()
-            )
-            get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
-                get_k8s_helper().resolve_namespace(),
-                label_selector=expected_label_selector,
-            )
+        # if expected_label_selector and expected_label_selector != "":
+        expected_label_selector = (
+            expected_label_selector or runtime_handler._get_default_label_selector()
+        )
+        get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
+            get_k8s_helper().resolve_namespace(),
+            label_selector=expected_label_selector,
+        )
 
     @staticmethod
     def _assert_list_namespaced_crds_calls(

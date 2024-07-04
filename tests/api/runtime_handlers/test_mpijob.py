@@ -469,7 +469,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
-            "",
+            self._generate_run_pod_label_selector(image_pull_backoff_job_uid),
         )
         assert len(stale_runs) == 2
 
@@ -613,10 +613,6 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [[self.launcher_pod, self.worker_pod]]
         )
         return mocked_responses[0].items
-
-    @staticmethod
-    def _generate_run_pod_label_selector(run_uid):
-        return f"mlrun/uid={run_uid}"
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

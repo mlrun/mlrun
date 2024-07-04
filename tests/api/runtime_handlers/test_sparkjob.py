@@ -160,6 +160,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_crds_calls),
         )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            f"{mlrun_constants.MLRunInternalLabels.mlrun_class}=spark",
+        )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
@@ -413,7 +418,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         "force",
         (
             True,
-            # False,
+            False,
         ),
     )
     def test_delete_resources_stateless_crd(

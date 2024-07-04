@@ -98,6 +98,11 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: dockerized-tests-report
+        path: /tmp/mlrun_test_report.xml
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -219,11 +224,11 @@ jobs:
         run: |
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
-      - name: Upload backward compatibility test report
+      - name: Upload test report
         uses: actions/upload-artifact@v4
         with:
           name: backward-compatibility-test-report
-          path: /tmp/backword_compatibility.xml
+          path: /tmp/backword_compatibility.html
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

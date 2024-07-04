@@ -20,6 +20,7 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm.session
 
+import mlrun.common.runtimes.constants
 import mlrun.config
 import server.api.crud
 import server.api.main
@@ -264,7 +265,7 @@ class TestCollectRunSLogs:
                 uid=run_uid,
                 name=run_uid,
                 kind="job",
-                state=mlrun.runtimes.constants.RunStates.completed,
+                state=mlrun.common.runtimes.constants.RunStates.completed,
             )
 
         # verify that we have 1000 runs
@@ -274,6 +275,10 @@ class TestCollectRunSLogs:
             only_uids=False,
         )
         assert len(runs) == num_of_runs
+
+        # sort the runs by their uid, so we can predict the order of the calls
+        # split the uid by "_" and take the last part, which is the number
+        runs = sorted(runs, key=lambda run: int(run["metadata"]["uid"].split("_")[-1]))
 
         log_collector_call_mock = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")

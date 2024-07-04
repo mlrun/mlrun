@@ -205,9 +205,12 @@ class StoreManager:
     def get_or_create_store(
         self, url, secrets: dict = None, project_name=""
     ) -> (DataStore, str, str):
+        if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
+            url = url.replace("v3io://", "v3io:///", 1)
+
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
-        store_key = f"{schema}://{endpoint}"
+        store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)
@@ -216,6 +219,8 @@ class StoreManager:
             else:
                 secrets = secrets or datastore_profile.secrets()
             url = datastore_profile.url(subpath)
+            if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
+                url = url.replace("v3io://", "v3io:///", 1)
             schema, endpoint, parsed_url = parse_url(url)
             subpath = parsed_url.path
 

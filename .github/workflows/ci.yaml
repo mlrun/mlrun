@@ -101,10 +101,9 @@ jobs:
     - name: Upload test report
       uses: actions/upload-artifact@v4
       with:
-        name: dockerized-tests-report
-        path: | 
-          /tmp/mlrun_test_report.xml
-          /tmp/mlrun_test_report.html
+        name: tests-report
+        path:
+          /tmp/*_report.html
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -125,6 +124,12 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
       timeout-minutes: 90
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: tests-report
+        path:
+          /tmp/*_report.html
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -144,6 +149,12 @@ jobs:
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-report
+          path:
+            /tmp/*_report.html
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
@@ -169,6 +180,12 @@ jobs:
 
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
+    - name: Upload test report
+      uses: actions/upload-artifact@v4
+      with:
+        name: tests-report
+        path:
+          /tmp/*_report.html
 
   docs:
     name: Build Project Documentation
@@ -229,8 +246,9 @@ jobs:
       - name: Upload test report
         uses: actions/upload-artifact@v4
         with:
-          name: backward-compatibility-test-report
-          path: /tmp/backword_compatibility.html
+          name: tests-report
+          path:
+            /tmp/*_report.html
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

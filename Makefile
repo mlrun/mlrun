@@ -532,7 +532,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/system_test_report.html \
+		--html=/tmp/system_tests_opensource_report.html \
 		--self-contained-html \
 		-rf \
 		-m "not enterprise" \

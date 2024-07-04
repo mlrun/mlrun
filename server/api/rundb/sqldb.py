@@ -272,6 +272,7 @@ class SQLRunDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
@@ -281,6 +282,7 @@ class SQLRunDB(RunDBInterface):
             project,
             deletion_strategy=deletion_strategy,
             secrets=secrets,
+            iter=iter,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):

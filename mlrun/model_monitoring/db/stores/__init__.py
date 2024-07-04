@@ -63,7 +63,7 @@ class ObjectStoreFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunInvalidMMStoreType(
             f"{value} is not a valid endpoint store, please choose a valid value: %{valid_values}."
         )
 

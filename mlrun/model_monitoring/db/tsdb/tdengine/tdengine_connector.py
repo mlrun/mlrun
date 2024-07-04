@@ -29,7 +29,7 @@ from mlrun.utils import logger
 
 class TDEngineTargetStoreyWrapper(storey.TDEngineTarget):
     """
-    TDEngineTarget requires a connection string to the TDEngine server.
+    TDEngineTarget requires a connection string to the TDEngine server, which may contain credentials.
     To avoid passing this string openly within the graph, we use this wrapper instead.
     """
 

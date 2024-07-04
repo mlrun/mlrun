@@ -34,10 +34,12 @@ Base = declarative_base()
 class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
+        # TODO: migrate to DATETIME, see ML-6921
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
     )
     last_request = Column(
         EventFieldType.LAST_REQUEST,
+        # TODO: migrate to DATETIME, see ML-6921
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
     )
 

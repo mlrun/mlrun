@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from sqlalchemy import (
     DATETIME,
-    TIMESTAMP,
+    TIMESTAMP,  # TODO: migrate to DATETIME, see ML-6921
     Boolean,
     Column,
     Float,
@@ -91,11 +92,11 @@ class ModelEndpointsBaseTable(BaseModel):
     metrics = Column(EventFieldType.METRICS, Text)
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
-        TIMESTAMP(timezone=True),
+        TIMESTAMP(timezone=True),  # TODO: migrate to DATETIME, see ML-6921
     )
     last_request = Column(
         EventFieldType.LAST_REQUEST,
-        TIMESTAMP(timezone=True),
+        TIMESTAMP(timezone=True),  # TODO: migrate to DATETIME, see ML-6921
     )
 
 

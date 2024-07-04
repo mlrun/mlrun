@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from sqlalchemy import (
+    DATETIME,
     TIMESTAMP,
     Boolean,
     Column,
@@ -122,11 +123,11 @@ class ApplicationResultBaseTable(BaseModel):
 
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
-        TIMESTAMP(timezone=True),
+        DATETIME(timezone=True),
     )
     end_infer_time = Column(
         WriterEvent.END_INFER_TIME,
-        TIMESTAMP(timezone=True),
+        DATETIME(timezone=True),
     )
 
     result_status = Column(ResultData.RESULT_STATUS, String(10))
@@ -152,11 +153,11 @@ class ApplicationMetricsBaseTable(BaseModel):
     )
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
-        TIMESTAMP(timezone=True),
+        DATETIME(timezone=True),
     )
     end_infer_time = Column(
         WriterEvent.END_INFER_TIME,
-        TIMESTAMP(timezone=True),
+        DATETIME(timezone=True),
     )
     metric_name = Column(
         MetricData.METRIC_NAME,

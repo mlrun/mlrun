@@ -52,11 +52,11 @@ class _ApplicationResultOrMetric:
 
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
+        sqlalchemy.dialects.mysql.DATETIME(fsp=3, timezone=True),
     )
     end_infer_time = Column(
         WriterEvent.END_INFER_TIME,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
+        sqlalchemy.dialects.mysql.DATETIME(fsp=3, timezone=True),
     )
 
     @declared_attr

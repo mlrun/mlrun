@@ -101,7 +101,7 @@ jobs:
     - name: Upload test report
       uses: actions/upload-artifact@v4
       with:
-        name: dockerized-test-report
+        name: unit-test-report
         path:
           /tmp/*_report.html
 
@@ -152,7 +152,7 @@ jobs:
       - name: Upload test report
         uses: actions/upload-artifact@v4
         with:
-          name: migration-tests-report
+          name: migrations-tests-report
           path:
             /tmp/*_report.html
 
@@ -180,12 +180,6 @@ jobs:
 
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
-    - name: Upload test report
-      uses: actions/upload-artifact@v4
-      with:
-        name: package-tests-report
-        path:
-          /tmp/*_report.html
 
   docs:
     name: Build Project Documentation

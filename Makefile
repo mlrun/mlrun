@@ -457,7 +457,7 @@ test: clean ## Run mlrun tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/mlrun_test_report.html \
+		--html=/tmp/unit_test_report.html \
 		--self-contained-html \
 		--ignore=tests/integration \
 		--ignore=tests/system \

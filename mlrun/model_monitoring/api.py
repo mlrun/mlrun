@@ -47,8 +47,8 @@ def get_or_create_model_endpoint(
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
     sample_set_statistics: dict[str, typing.Any] = None,
-    drift_threshold: float = None,
-    possible_drift_threshold: float = None,
+    drift_threshold: typing.Optional[float] = None,
+    possible_drift_threshold: typing.Optional[float] = None,
     monitoring_mode: mm_constants.ModelMonitoringMode = mm_constants.ModelMonitoringMode.disabled,
     db_session=None,
 ) -> ModelEndpoint:
@@ -69,13 +69,13 @@ def get_or_create_model_endpoint(
                                      full function hash.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
                                      the new model endpoint (applicable only to new endpoint_id).
-    :param drift_threshold:          The threshold of which to mark drifts (applicable only to new endpoint_id).
-    :param possible_drift_threshold: The threshold of which to mark possible drifts (applicable only to new
+    :param drift_threshold:          (deprecated) The threshold of which to mark drifts (applicable only to new
+                                     endpoint_id).
+    :param possible_drift_threshold: (deprecated) The threshold of which to mark possible drifts (applicable only to new
                                      endpoint_id).
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id
                                      (applicable only to new endpoint_id).
     :param db_session:               A runtime session that manages the current dialog with the database.
-
 
     :return: A ModelEndpoint object
     """

@@ -28,6 +28,10 @@ class SQLTypesUtil:
         sqlite = sqlalchemy.TIMESTAMP
         mysql = sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3)
 
+    class _Datetime:
+        sqlite = sqlalchemy.DATETIME(timezone=True)
+        mysql = sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=3)
+
     class _Blob:
         sqlite = sqlalchemy.BLOB
         mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
@@ -38,7 +42,15 @@ class SQLTypesUtil:
 
     @classmethod
     def timestamp(cls):
+        """
+        Use `SQLTypesUtil.datetime()` in new columns.
+        See ML-6921.
+        """
         return cls._return_type(cls._Timestamp)
+
+    @classmethod
+    def datetime(cls):
+        return cls._return_type(cls._Datetime)
 
     @classmethod
     def blob(cls):

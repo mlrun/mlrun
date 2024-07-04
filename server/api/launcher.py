@@ -176,6 +176,68 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
+    def _enrich_run(
+        self,
+        runtime,
+        run,
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: list[mlrun.model.Notification] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+    ):
+        run = super()._enrich_run(
+            runtime=runtime,
+            run=run,
+            handler=handler,
+            project_name=project_name,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+            state_thresholds=state_thresholds,
+        )
+
+        return self._pre_run_enrichement(runtime, run)
+
+    def _pre_run_enrichement(self, runtime, run):
+        """
+        Enrich the run object with the project's default node selector.
+        This ensures the node selector is correctly set on the run
+        while maintaining the runtime's integrity from system-specific project settings.
+        """
+        if runtime._get_db():
+            project = runtime._get_db().get_project(run.metadata.project)
+            if project.spec.default_function_node_selector:
+                mlrun.utils.logger.debug(
+                    "Enriching run node selector from project",
+                    project_name=run.metadata.project,
+                    project_node_selector=project.spec.default_function_node_selector,
+                )
+                run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
+                    project.spec.default_function_node_selector,
+                    runtime.spec.node_selector,
+                )
+        return run
+
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",

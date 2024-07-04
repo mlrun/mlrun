@@ -775,6 +775,10 @@ class BaseStoreTarget(DataTargetBase):
     def get_dask_options(self):
         raise NotImplementedError()
 
+    @property
+    def source_spark_attributes(self) -> dict:
+        return {}
+
 
 class ParquetTarget(BaseStoreTarget):
     """Parquet target storage driver, used to materialize feature set/vector data into parquet files.
@@ -1208,19 +1212,20 @@ class SnowflakeTarget(BaseStoreTarget):
         warehouse: str = None,
         table_name: str = None,
     ):
-        attrs = {
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": db_schema,
-            "warehouse": warehouse,
-            "table": table_name,
-        }
-        extended_attrs = {
-            key: value for key, value in attrs.items() if value is not None
-        }
-        attributes = {} if not attributes else attributes
-        attributes.update(extended_attrs)
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if table_name:
+            attributes["table"] = table_name
+
         super().__init__(
             name,
             path,
@@ -1258,6 +1263,15 @@ class SnowflakeTarget(BaseStoreTarget):
         **kwargs,
     ):
         raise NotImplementedError()
+
+    @property
+    def source_spark_attributes(self) -> dict:
+        keys = ["url", "user", "database", "db_schema", "warehouse"]
+        attributes = self.attributes or {}
+        snowflake_dict = {key: attributes.get(key) for key in keys}
+        table = attributes.get("table")
+        snowflake_dict["query"] = f"SELECT * from {table}" if table else None
+        return snowflake_dict
 
 
 class NoSqlBaseTarget(BaseStoreTarget):

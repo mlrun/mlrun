@@ -98,13 +98,6 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
-    - name: Create test annotations
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Pytest
-        reporter: java-junit
-        path: /tmp/report.xml
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -125,13 +118,6 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
       timeout-minutes: 90
-    - name: Create test annotations
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Pytest
-        reporter: java-junit
-        path: /tmp/report.xml
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -151,13 +137,6 @@ jobs:
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
-      - name: Create test annotations
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Pytest
-          reporter: java-junit
-          path: /tmp/report.xml
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
@@ -240,6 +219,11 @@ jobs:
         run: |
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+      - name: Upload backward compatibility test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backward-compatibility-test-report
+          path: /tmp/backword_compatibility.xml
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

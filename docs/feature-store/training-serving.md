@@ -46,7 +46,6 @@ import os
 
 
 class ClassifierModel(mlrun.serving.V2ModelServer):
-
     def load(self):
         """load and initialize the model and/or other elements"""
         model_file, extra_data = self.get_model(".pkl")

@@ -998,3 +998,15 @@ def test_normalize_username(username, expected_normalized_username):
 def test_is_safe_path(basedir, path, is_symlink, is_valid):
     safe = mlrun.utils.is_safe_path(basedir, path, is_symlink)
     assert safe == is_valid
+
+
+def test_get_artifact_target():
+    item = {
+        "kind": "artifact",
+        "spec": {
+            "db_key": "dummy-db-key",
+        },
+        "metadata": {"tree": "dummy-tree", "tag": "dummy-tag"},
+    }
+    target = mlrun.utils.get_artifact_target(item, project="dummy-project")
+    assert target == "store://artifacts/dummy-project/dummy-db-key:dummy-tag@dummy-tree"

@@ -30,8 +30,7 @@ SSH_PASSWORD:
 # For iguazio datanode registry use <data-node-ip>:8009
 DOCKER_REGISTRY:
 
-# Docker repository to push to
-# If you are using the iguazio datanode registry, use "mlrun"
+# Docker repository to push to (optional), added as a suffix to the registry
 DOCKER_REPO:
 
 # Optional - Use when your registry is connected to a DNS which is accessible from the cluster

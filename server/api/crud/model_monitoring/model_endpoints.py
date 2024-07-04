@@ -436,53 +436,58 @@ class ModelEndpoints:
         :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata.
                  To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
-
-        logger.info(
-            "Listing endpoints",
-            project=project,
-            model=model,
-            function=function,
-            labels=labels,
-            metrics=metrics,
-            start=start,
-            end=end,
-            top_level=top_level,
-            uids=uids,
-        )
-
-        # Initialize an empty model endpoints list
-        endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
-
-        # Generate a model endpoint store object and get a list of model endpoint dictionaries
-        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project
-        )
-
-        endpoint_dictionary_list = endpoint_store.list_model_endpoints(
-            function=function,
-            model=model,
-            labels=labels,
-            top_level=top_level,
-            uids=uids,
-        )
-
-        for endpoint_dict in endpoint_dictionary_list:
-            # Convert to `ModelEndpoint` object
-            endpoint_obj = self._convert_into_model_endpoint_object(
-                endpoint=endpoint_dict
+        try:
+            logger.info(
+                "Listing endpoints",
+                project=project,
+                model=model,
+                function=function,
+                labels=labels,
+                metrics=metrics,
+                start=start,
+                end=end,
+                top_level=top_level,
+                uids=uids,
             )
 
-            # If time metrics were provided, retrieve the results from the time series DB
-            if metrics:
-                self._add_real_time_metrics(
-                    model_endpoint_object=endpoint_obj,
-                    metrics=metrics,
-                    start=start,
-                    end=end,
+            # Initialize an empty model endpoints list
+            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
+
+            # Generate a model endpoint store object and get a list of model endpoint dictionaries
+            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
+                project=project
+            )
+
+            endpoint_dictionary_list = endpoint_store.list_model_endpoints(
+                function=function,
+                model=model,
+                labels=labels,
+                top_level=top_level,
+                uids=uids,
+            )
+
+            for endpoint_dict in endpoint_dictionary_list:
+                # Convert to `ModelEndpoint` object
+                endpoint_obj = self._convert_into_model_endpoint_object(
+                    endpoint=endpoint_dict
                 )
 
-            # Add the `ModelEndpoint` object into the model endpoints list
-            endpoint_list.endpoints.append(endpoint_obj)
+                # If time metrics were provided, retrieve the results from the time series DB
+                if metrics:
+                    self._add_real_time_metrics(
+                        model_endpoint_object=endpoint_obj,
+                        metrics=metrics,
+                        start=start,
+                        end=end,
+                    )
+
+                # Add the `ModelEndpoint` object into the model endpoints list
+                endpoint_list.endpoints.append(endpoint_obj)
+        except mlrun.errors.MLRunInvalidArgumentError as e:
+            logger.warning(
+                f"Failed to list model endpoints, probably store connection is not defined yet. Error: {str(e)}"
+            )
+            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
 
         return endpoint_list
 
@@ -496,11 +501,7 @@ class ModelEndpoints:
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        try:
-            endpoints = self.list_model_endpoints(project_name)
-        except mlrun.errors.MLRunInvalidArgumentError:
-            # store not found, there is nothing to delete
-            return
+        endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"

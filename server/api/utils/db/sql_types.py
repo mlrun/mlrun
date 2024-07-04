@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import sqlalchemy
 import sqlalchemy.dialects.mysql
 
@@ -32,20 +32,20 @@ class SQLTypesUtil:
         sqlite = sqlalchemy.BLOB
         mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
 
-    @staticmethod
-    def collation():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Collations)
+    @classmethod
+    def collation(cls):
+        return cls._return_type(cls.Collations)
+
+    @classmethod
+    def timestamp(cls):
+        return cls._return_type(cls.Timestamp)
+
+    @classmethod
+    def blob(cls):
+        return cls._return_type(cls.Blob)
 
     @staticmethod
-    def timestamp():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Timestamp)
-
-    @staticmethod
-    def blob():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Blob)
-
-    @staticmethod
-    def _return_type(type_cls):
+    def _return_type(type_cls: type):
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if mysql_dsn_data:
             return type_cls.mysql

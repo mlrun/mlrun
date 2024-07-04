@@ -1074,7 +1074,7 @@ class ParquetTargetStoreyWrapper(storey.ParquetTarget):
     def __init__(self, *args, **kwargs):
         args = list(args)
 
-        if len(args) > 0:
+        if args:
             path = args[0]
         else:
             path = kwargs.get("path")

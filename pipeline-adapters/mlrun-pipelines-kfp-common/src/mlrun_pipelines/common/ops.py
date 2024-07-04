@@ -566,7 +566,7 @@ def write_kfpmeta(struct):
     struct = deepcopy(struct)
     uid = struct["metadata"].get("uid")
     project = struct["metadata"].get("project", config.default_project)
-    output_artifacts, out_dict = get_kfp_outputs(
+    _, out_dict = get_kfp_outputs(
         struct["status"].get(run_keys.artifacts, []),
         struct["metadata"].get("labels", {}),
         project,
@@ -643,17 +643,6 @@ def get_kfp_outputs(artifacts, labels, project):
                     "header": header,
                     "source": target,
                 }
-                outputs += [meta]
-
-        elif output.get("kind") == "dataset":
-            header = output_spec.get("header")
-            preview = output_spec.get("preview")
-            if preview:
-                tbl_md = gen_md_table(header, preview)
-                text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output_spec["preview"]
-
-                meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]
 
     return outputs, out_dict

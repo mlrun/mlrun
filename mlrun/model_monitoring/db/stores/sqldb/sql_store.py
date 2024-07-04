@@ -292,61 +292,64 @@ class SQLStoreBase(StoreBase):
         model_endpoints_table = (
             self.ModelEndpointsTable.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
-
-        # Get the model endpoints records using sqlalchemy ORM
-        with create_session(dsn=self._sql_connection_string) as session:
-            # Generate the list query
-            query = session.query(self.ModelEndpointsTable).filter_by(
-                project=self.project
-            )
-
-            # Apply filters
-            if model:
-                model = model if ":" in model else f"{model}:latest"
-                query = self._filter_values(
-                    query=query,
-                    model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.MODEL,
-                    filtered_values=[model],
+        try:
+            # Get the model endpoints records using sqlalchemy ORM
+            with create_session(dsn=self._sql_connection_string) as session:
+                # Generate the list query
+                query = session.query(self.ModelEndpointsTable).filter_by(
+                    project=self.project
                 )
-            if function:
-                function_uri = f"{self.project}/{function}"
-                query = self._filter_values(
-                    query=query,
-                    model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.FUNCTION_URI,
-                    filtered_values=[function_uri],
-                )
-            if uids:
-                query = self._filter_values(
-                    query=query,
-                    model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.UID,
-                    filtered_values=uids,
-                    combined=False,
-                )
-            if top_level:
-                node_ep = str(mm_schemas.EndpointType.NODE_EP.value)
-                router_ep = str(mm_schemas.EndpointType.ROUTER.value)
-                endpoint_types = [node_ep, router_ep]
-                query = self._filter_values(
-                    query=query,
-                    model_endpoints_table=model_endpoints_table,
-                    key_filter=mm_schemas.EventFieldType.ENDPOINT_TYPE,
-                    filtered_values=endpoint_types,
-                    combined=False,
-                )
-            # Convert the results from the DB into a ModelEndpoint object and append it to the model endpoints list
-            for endpoint_record in query.all():
-                endpoint_dict = endpoint_record.to_dict()
 
-                # Filter labels
-                if labels and not self._validate_labels(
-                    endpoint_dict=endpoint_dict, labels=labels
-                ):
-                    continue
+                # Apply filters
+                if model:
+                    model = model if ":" in model else f"{model}:latest"
+                    query = self._filter_values(
+                        query=query,
+                        model_endpoints_table=model_endpoints_table,
+                        key_filter=mm_schemas.EventFieldType.MODEL,
+                        filtered_values=[model],
+                    )
+                if function:
+                    function_uri = f"{self.project}/{function}"
+                    query = self._filter_values(
+                        query=query,
+                        model_endpoints_table=model_endpoints_table,
+                        key_filter=mm_schemas.EventFieldType.FUNCTION_URI,
+                        filtered_values=[function_uri],
+                    )
+                if uids:
+                    query = self._filter_values(
+                        query=query,
+                        model_endpoints_table=model_endpoints_table,
+                        key_filter=mm_schemas.EventFieldType.UID,
+                        filtered_values=uids,
+                        combined=False,
+                    )
+                if top_level:
+                    node_ep = str(mm_schemas.EndpointType.NODE_EP.value)
+                    router_ep = str(mm_schemas.EndpointType.ROUTER.value)
+                    endpoint_types = [node_ep, router_ep]
+                    query = self._filter_values(
+                        query=query,
+                        model_endpoints_table=model_endpoints_table,
+                        key_filter=mm_schemas.EventFieldType.ENDPOINT_TYPE,
+                        filtered_values=endpoint_types,
+                        combined=False,
+                    )
+                # Convert the results from the DB into a ModelEndpoint object and append it to the model endpoints list
+                for endpoint_record in query.all():
+                    endpoint_dict = endpoint_record.to_dict()
 
-                endpoint_list.append(endpoint_dict)
+                    # Filter labels
+                    if labels and not self._validate_labels(
+                        endpoint_dict=endpoint_dict, labels=labels
+                    ):
+                        continue
+
+                    endpoint_list.append(endpoint_dict)
+        except sqlalchemy.exc.ProgrammingError:
+            # Probably table doesn't exist, return empty list
+            endpoint_list = []
 
         return endpoint_list
 

@@ -496,7 +496,11 @@ class ModelEndpoints:
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        endpoints = self.list_model_endpoints(project_name)
+        try:
+            endpoints = self.list_model_endpoints(project_name)
+        except mlrun.errors.MLRunInvalidArgumentError:
+            # store not found, there is nothing to delete
+            return
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"

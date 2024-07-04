@@ -644,7 +644,7 @@ with warnings.catch_warnings():
         page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
 
@@ -655,11 +655,11 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
         last_updated = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)

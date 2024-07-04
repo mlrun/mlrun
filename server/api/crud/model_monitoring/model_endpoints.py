@@ -484,8 +484,9 @@ class ModelEndpoints:
                 # Add the `ModelEndpoint` object into the model endpoints list
                 endpoint_list.endpoints.append(endpoint_obj)
         except mlrun.errors.MLRunInvalidArgumentError as e:
-            logger.warning(
-                f"Failed to list model endpoints, probably store connection is not defined. Error: {str(e)}"
+            logger.debug(
+                f"Failed to list model endpoints, probably store connection is not defined.\n"
+                f"Error: {mlrun.errors.err_to_str(e)}"
             )
             endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
 

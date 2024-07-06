@@ -504,7 +504,6 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {

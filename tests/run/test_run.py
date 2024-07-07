@@ -259,7 +259,7 @@ def test_run_class_code():
     ]
     fn = mlrun.code_to_function("mytst", filename=function_path, kind="local")
     for params, results in cases:
-        run = mlrun.run_function(fn, handler="mycls::mtd", params=params)
+        run = mlrun.run_function(fn, handler="MyCls::mtd", params=params)
         assert run.status.results == results
 
 
@@ -270,7 +270,7 @@ def test_run_class_file():
     ]
     fn = mlrun.new_function("mytst", command=function_path, kind="job")
     for params, results in cases:
-        run = fn.run(handler="mycls::mtd", params=params, local=True)
+        run = fn.run(handler="MyCls::mtd", params=params, local=True)
         assert run.status.results == results
 
 
@@ -331,3 +331,15 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"
+
+
+def test_verify_tag_exists_in_run_output_uri():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
+    )
+    run = project.run_function("test", params={"tag": "v1"}, local=True)
+    uri = run.output("file_result")
+
+    # Verify that the tag exists in the URI
+    assert ":v1" in uri

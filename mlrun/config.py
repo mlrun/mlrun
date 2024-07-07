@@ -504,13 +504,12 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
-            "stream": "",
+            "stream": "",  # TODO: Delete in 1.9.0
             "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
@@ -523,11 +522,12 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
-        "store_type": "v3io-nosql",
+        "store_type": "v3io-nosql",  # TODO: Delete in 1.9.0
         "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
-        "tsdb_connector_type": "v3io-tsdb",
         "tsdb_connection": "",
+        # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
+        "stream_connection": "",
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
@@ -708,6 +708,8 @@ default_config = {
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
         "max_allowed": 10000,
+        # maximum allowed value for count in criteria field inside AlertConfig
+        "max_criteria_count": 100,
     },
     "auth_with_client_id": {
         "enabled": False,
@@ -1090,7 +1092,6 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
-        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1112,13 +1113,6 @@ class Config:
         """
 
         if target != "offline":
-            store_prefix_dict = (
-                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
-            )
-            if store_prefix_dict.get(kind):
-                # Target exist in store prefix and has a valid string value
-                return store_prefix_dict[kind].format(project=project, **kwargs)
-
             if (
                 function_name
                 and function_name

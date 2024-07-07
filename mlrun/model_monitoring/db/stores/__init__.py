@@ -63,7 +63,7 @@ class ObjectStoreFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunInvalidMMStoreType(
             f"{value} is not a valid endpoint store, please choose a valid value: %{valid_values}."
         )
 
@@ -111,10 +111,12 @@ def get_store_object(
     ):
         store_type = mlrun.common.schemas.model_monitoring.ModelEndpointTarget.SQL
         kwargs["store_connection_string"] = store_connection_string
+    elif store_connection_string and store_connection_string == "v3io":
+        store_type = (
+            mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
+        )
     else:
-        # Set the default store type if no connection has been set
-        store_type = mlrun.mlconf.model_endpoint_monitoring.store_type
-
+        store_type = None
     # Get store type value from ObjectStoreFactory enum class
     store_type_fact = ObjectStoreFactory(store_type)
 

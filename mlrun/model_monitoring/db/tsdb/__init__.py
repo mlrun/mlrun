@@ -57,14 +57,13 @@ class ObjectTSDBFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidArgumentError(
+        raise mlrun.errors.MLRunInvalidMMStoreType(
             f"{value} is not a valid tsdb, please choose a valid value: %{valid_values}."
         )
 
 
 def get_tsdb_connector(
     project: str,
-    tsdb_connector_type: str = "",
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     **kwargs,
 ) -> TSDBConnector:
@@ -86,12 +85,10 @@ def get_tsdb_connector(
     if tsdb_connection_string and tsdb_connection_string.startswith("taosws"):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
         kwargs["connection_string"] = tsdb_connection_string
-
-    # Set the default TSDB connector type if no connection has been set
-    tsdb_connector_type = (
-        tsdb_connector_type
-        or mlrun.mlconf.model_endpoint_monitoring.tsdb_connector_type
-    )
+    elif tsdb_connection_string and tsdb_connection_string == "v3io":
+        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
+    else:
+        tsdb_connector_type = None
 
     # Get connector type value from ObjectTSDBFactory enum class
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)

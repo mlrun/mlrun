@@ -21,6 +21,7 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.utils.helpers
+import server.api.utils.lru_cache
 import server.api.utils.singletons.db
 from mlrun.config import config as mlconfig
 from mlrun.utils import logger
@@ -30,6 +31,10 @@ from server.api.utils.notification_pusher import AlertNotificationPusher
 class Alerts(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
+    _states = dict()
+    _alert_cache = None
+    _alert_state_cache = None
+
     def store_alert(
         self,
         session: sqlalchemy.orm.Session,
@@ -50,6 +55,7 @@ class Alerts(
 
         if alert is not None:
             self._delete_notifications(alert)
+            self._get_alert_by_id_cached().cache_remove(session, alert.id)
         else:
             num_alerts = (
                 server.api.utils.singletons.db.get_db().get_num_configured_alerts(
@@ -65,7 +71,9 @@ class Alerts(
 
         if alert is not None:
             for kind in alert.trigger.events:
-                server.api.crud.Events().remove_event_configuration(project, kind, name)
+                server.api.crud.Events().remove_event_configuration(
+                    project, kind, alert.id
+                )
             alert_data.created = alert.created
             alert_data.id = alert.id
 
@@ -75,12 +83,14 @@ class Alerts(
 
         for kind in new_alert.trigger.events:
             server.api.crud.Events().add_event_configuration(
-                project, kind, new_alert.name
+                project, kind, new_alert.id
             )
 
         self.reset_alert(session, project, new_alert.name)
 
         server.api.utils.singletons.db.get_db().enrich_alert(session, new_alert)
+
+        logger.debug("Stored alert", alert=new_alert)
 
         return new_alert
 
@@ -131,27 +141,24 @@ class Alerts(
             return
 
         for kind in alert.trigger.events:
-            server.api.crud.Events().remove_event_configuration(project, kind, name)
+            server.api.crud.Events().remove_event_configuration(project, kind, alert.id)
 
         server.api.utils.singletons.db.get_db().delete_alert(session, project, name)
+        if alert.id in self._states:
+            self._states.pop(alert.id)
 
     def process_event(
         self,
         session: sqlalchemy.orm.Session,
         project: str,
-        name: str,
+        alert_id: int,
         event_data: mlrun.common.schemas.Event,
     ):
-        alert = server.api.utils.singletons.db.get_db().get_alert(
-            session, project, name
-        )
-
-        state = server.api.utils.singletons.db.get_db().get_alert_state(
-            session, alert.id
-        )
+        state = self._get_alert_state_cached()(session, alert_id)
         if state.active:
-            logger.debug("Alert already active, so ignoring event", name=alert.name)
             return
+
+        alert = self._get_alert_by_id_cached()(session, alert_id)
 
         state_obj = None
         # check if the entity of the alert matches the one in event
@@ -159,7 +166,7 @@ class Alerts(
             send_notification = False
 
             if alert.criteria is not None:
-                state_obj = state.full_object
+                state_obj = self._states.get(alert.id, None)
 
                 if state_obj is None:
                     state_obj = {"events": [event_data.timestamp]}
@@ -189,16 +196,23 @@ class Alerts(
                     self.reset_alert(session, alert.project, alert.name)
                 else:
                     active = True
+                    self._get_alert_state_cached().cache_replace(
+                        state, session, alert.id
+                    )
 
-            server.api.utils.singletons.db.get_db().store_alert_state(
-                session,
-                alert.project,
-                alert.name,
-                count=state.count,
-                last_updated=event_data.timestamp,
-                obj=state_obj,
-                active=active,
-            )
+                # we store the state along with the events that triggered the alert
+                server.api.utils.singletons.db.get_db().store_alert_state(
+                    session,
+                    alert.project,
+                    alert.name,
+                    count=state.count,
+                    last_updated=event_data.timestamp,
+                    obj=state_obj,
+                    active=active,
+                )
+
+            self._states[alert.id] = state_obj
+
         else:
             logger.debug(
                 "The entity of the alert does not match the one in event",
@@ -220,12 +234,29 @@ class Alerts(
         server.api.crud.Events().cache_initialized = True
         logger.debug("Finished populating event cache for alerts")
 
+    @classmethod
+    def _get_alert_by_id_cached(cls):
+        if not cls._alert_cache:
+            cls._alert_cache = server.api.utils.lru_cache.LRUCache(
+                server.api.utils.singletons.db.get_db().get_alert_by_id, maxsize=1000
+            )
+
+        return cls._alert_cache
+
+    @classmethod
+    def _get_alert_state_cached(cls):
+        if not cls._alert_state_cache:
+            cls._alert_state_cache = server.api.utils.lru_cache.LRUCache(
+                server.api.utils.singletons.db.get_db().get_alert_state, maxsize=1000
+            )
+        return cls._alert_state_cache
+
     @staticmethod
     def _try_populate_event_cache(session: sqlalchemy.orm.Session):
         for alert in server.api.utils.singletons.db.get_db().get_all_alerts(session):
             for event_name in alert.trigger.events:
                 server.api.crud.Events().add_event_configuration(
-                    alert.project, event_name, alert.name
+                    alert.project, event_name, alert.id
                 )
 
     def process_event_no_cache(
@@ -258,17 +289,22 @@ class Alerts(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
             )
 
-        if (
-            alert.criteria is not None
-            and alert.criteria.period is not None
-            and server.api.utils.helpers.string_to_timedelta(
-                alert.criteria.period, raise_on_error=False
-            )
-            is None
-        ):
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
-            )
+        if alert.criteria is not None:
+            if alert.criteria.count >= mlconfig.alerts.max_criteria_count:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Maximum criteria count exceeded: {alert.criteria.count}"
+                )
+
+            if (
+                alert.criteria.period is not None
+                and server.api.utils.helpers.string_to_timedelta(
+                    alert.criteria.period, raise_on_error=False
+                )
+                is None
+            ):
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Invalid period ({alert.criteria.period}) specified for alert {name} for project {project}"
+                )
 
         for alert_notification in alert.notifications:
             if alert_notification.notification.kind not in [
@@ -325,6 +361,7 @@ class Alerts(
         server.api.utils.singletons.db.get_db().store_alert_state(
             session, project, name, last_updated=None
         )
+        self._get_alert_state_cached().cache_remove(session, alert.id)
 
     def _delete_notifications(self, alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:

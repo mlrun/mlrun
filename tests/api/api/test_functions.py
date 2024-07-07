@@ -508,15 +508,22 @@ def test_tracking_on_serving(
         return_value=fastapi.Response()
     )
 
+    server.api.crud.Secrets().store_project_secrets(
+        project=PROJECT,
+        secrets=mlrun.common.schemas.SecretsData(
+            provider="kubernetes",
+            secrets={
+                key: "v3io"
+                for key in mlrun.common.schemas.model_monitoring.constants.ProjectSecretKeys.mandatory_secrets()
+            },
+        ),
+    )
+
     functions_to_monkeypatch = {
-        server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
         server.api.api.endpoints.nuclio: [
             "process_model_monitoring_secret",
-            "create_model_monitoring_stream",
         ],
-        server.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        server.api.crud.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:

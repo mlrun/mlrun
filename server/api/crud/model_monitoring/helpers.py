@@ -121,12 +121,16 @@ def get_stream_path(
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
         secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
-    ) or mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
-        target="online",
-        function_name=function_name,
     )
+
+    if not stream_uri or stream_uri == "v3io":
+        # TODO : remove the first part of this condition in 1.9.0
+        stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+            target="online",
+            function_name=function_name,
+        )
 
     if isinstance(
         stream_uri, list

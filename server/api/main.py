@@ -233,11 +233,11 @@ async def move_api_to_online():
         server.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+            _start_periodic_cleanup()
+            _start_periodic_runs_monitoring()
             _start_periodic_pagination_cache_monitoring()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
-            _start_periodic_cleanup()
-            _start_periodic_runs_monitoring()
 
 
 async def _start_periodic_logs_collection():
@@ -374,22 +374,22 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
 
         # list all the runs in the system which we didn't request logs collection for yet
-        run_uids = await fastapi.concurrency.run_in_threadpool(
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[False],
             only_uids=True,
             states=run_states,
         )
-        if run_uids:
+        if runs_uids:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=run_uids,
+                runs_uids=runs_uids,
             )
             await _start_log_and_update_runs(
                 start_logs_limit=start_logs_limit,
                 db_session=db_session,
-                runs_uids=run_uids,
+                runs_uids=runs_uids,
             )
 
     finally:

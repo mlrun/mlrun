@@ -762,7 +762,7 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter url: URL of the snowflake cluster
     :parameter user: snowflake user
     :parameter database: snowflake database
-    :parameter schema: snowflake schema - deprecated
+    :parameter schema: snowflake schema - deprecated, use db_schema
     :parameter db_schema: snowflake schema
     :parameter warehouse: snowflake warehouse
     """

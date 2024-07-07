@@ -1268,9 +1268,9 @@ class SnowflakeTarget(BaseStoreTarget):
 
         with snowflake.connector.connect(
             account=account,
-            user=self.attributes.get("user"),
+            user=self.attributes["user"],
             password=get_snowflake_password(),
-            warehouse=self.attributes.get("warehouse"),
+            warehouse=self.attributes["warehouse"],
         ) as snowflake_connector:
             drop_statement = (
                 f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"

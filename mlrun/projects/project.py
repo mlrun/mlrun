@@ -715,7 +715,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
     if name and name_from_struct and name_from_struct != name:
         error_message = (
             f"Project name mismatch, {name_from_struct} != {name}, project is loaded from {name_from_struct} "
-            f"project yaml. To prevent this warning, you can take one of the following actions:\n"
+            f"project yaml. To prevent/allow this, you can take one of the following actions:\n"
             "1. Set the `allow_cross_project=True` when loading the project.\n"
             f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
             "3. Use different project context dir."

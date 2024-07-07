@@ -1384,20 +1384,24 @@ class SQLDB(DBInterface):
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()
         outer_query = session.query(ArtifactV2, subquery.c.name)
+        if with_entities:
+            outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
+
         outer_query = outer_query.select_from(ArtifactV2)
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
-        if with_entities:
-            outer_query.with_entities(*with_entities)
 
-        result = outer_query.all()
-        if with_entities:
-            return list({result})
-
+        results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
-            return list({artifact for artifact, _ in result})
+            artifacts = set()
+            for *artifact, _ in results:
+                if with_entities:
+                    artifacts.add(tuple(artifact))
+                else:
+                    artifacts.add(artifact[0])
+            return list(artifacts)
 
-        return result
+        return results
 
     def _find_artifacts_for_producer_id(
         self,

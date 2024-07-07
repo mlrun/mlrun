@@ -522,15 +522,12 @@ class SQLStoreBase(StoreBase):
 
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
+            db_name = self._sql_connection_string.split("/")[-1]
             if not self._engine.has_table(table):
-                logger.info(
-                    f"Creating table {table} on {self._sql_connection_string.split('/')[-1]} db."
-                )
+                logger.info(f"Creating table {table} on {db_name} db.")
                 self._tables[table].metadata.create_all(bind=self._engine)
             else:
-                logger.info(
-                    f"Table {table} already exists on {self._sql_connection_string.split('/')[-1]} db."
-                )
+                logger.info(f"Table {table} already exists on {db_name} db.")
 
     @staticmethod
     def _filter_values(

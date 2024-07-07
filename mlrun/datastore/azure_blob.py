@@ -208,6 +208,7 @@ class AzureBlobStore(DataStore):
             for key in spark_options:
                 if key.startswith(prefix):
                     account_key = key[len(prefix) :]
-                    url += f"@{account_key}"
+                    if not url.endswith(account_key):
+                        url += f"@{account_key}"
                     break
         return url

@@ -23,7 +23,6 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring
-import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers

@@ -516,6 +516,38 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
+        if not with_training_set:
+            # validate that stream resources were deleted as expected
+            stream_path = self._test_env[
+                "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
+            ]
+            if stream_path.startswith("v3io:///"):
+                from v3io.dataplane.response import HttpResponseError
+
+                from mlrun.utils.v3io_clients import get_v3io_client
+
+                client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream/serving-state.json",
+                    )
+
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream-model-monitoring-writer/serving-state.json",
+                    )
+
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream-evidently-app-test-v2/serving-state.json",
+                    )
+            elif stream_path.startswith("kafka://"):
+                pass
+
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
 

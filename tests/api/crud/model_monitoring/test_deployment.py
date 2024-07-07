@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import taosws
 
 import mlrun.runtimes
 import server
@@ -97,7 +98,6 @@ class TestAppDeployment:
                 stream_path="kafka://stream",
                 tsdb_connection="promitheus",
             )
-        import taosws
 
         with pytest.raises(taosws.QueryError):
             monitoring_deployment.set_credentials(

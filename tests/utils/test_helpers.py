@@ -384,7 +384,9 @@ def test_validate_v3io_consumer_group(value, expected):
         },
         {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
         {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
-        {"image": "python:3.9", "expected_output": "ghcr.io/python:3.9",
+        {
+            "image": "python:3.9",
+            "expected_output": "ghcr.io/python:3.9",
         },
         {
             "image": "some-repo/some-image",

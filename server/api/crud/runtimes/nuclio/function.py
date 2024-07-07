@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import asyncio
 import base64
 import shlex
+import typing
 
 import nuclio
 import nuclio.utils
@@ -33,6 +34,8 @@ import mlrun.utils
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.runtime_handlers
 import server.api.utils.builder
+import server.api.utils.clients.async_nuclio
+import server.api.utils.clients.iguazio
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
 
@@ -174,6 +177,57 @@ def get_nuclio_deploy_status(
         return state, address, name, last_log_timestamp, text, function_status
 
 
+async def delete_nuclio_functions_in_batches(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project_name: str,
+    function_names: list[str],
+):
+    async def delete_function(
+        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
+        project: str,
+        function: str,
+        _semaphore: asyncio.Semaphore,
+        k8s_helper_: server.api.utils.singletons.k8s.K8sHelper,
+    ) -> typing.Optional[tuple[str, str]]:
+        async with _semaphore:
+            try:
+                await nuclio_client.delete_function(name=function, project_name=project)
+
+                config_map = k8s_helper_.get_configmap(function)
+                if config_map:
+                    k8s_helper_.delete_configmap(config_map.metadata.name)
+                return None
+            except Exception as exc:
+                # return tuple with failure info (intentionally not using mlrun.errors.err_to_str to avoid bloating
+                # the failure message)
+                return function, str(exc)
+
+    # Configure maximum concurrent deletions
+    max_concurrent_deletions = (
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
+    semaphore = asyncio.Semaphore(max_concurrent_deletions)
+    failed_requests = []
+
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        tasks = [
+            delete_function(client, project_name, function_name, semaphore, k8s_helper)
+            for function_name in function_names
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # process results to identify failed deletion requests
+        for result in results:
+            if isinstance(result, tuple):
+                nuclio_name, error_message = result
+                if error_message:
+                    failed_requests.append(error_message)
+
+    return failed_requests
+
+
 def pure_nuclio_deployed_restricted():
     """
     Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
@@ -237,6 +291,7 @@ def _compile_function_config(
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
                 labels={mlrun_constants.MLRunInternalLabels.created: "true"},
+                project=project,
             )
             volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
             volume_mount = {

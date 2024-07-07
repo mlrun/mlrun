@@ -96,7 +96,7 @@ class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
     cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
     desired_state: Optional[str]
-    labels: Optional[dict] = {}
+    labels: Optional[dict] = None
     concurrency_limit: Optional[int]
     credentials: Credentials = Credentials()
 

@@ -30,7 +30,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image: mlrun/mlrun-ui:1.6.2
+        image: mlrun/mlrun-ui:1.6.4
         env:
         - name: MLRUN_API_PROXY_URL
           value: http://mlrun-api:8080

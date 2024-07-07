@@ -1387,7 +1387,6 @@ class SQLDB(DBInterface):
         if with_entities:
             outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
 
-        outer_query = outer_query.select_from(ArtifactV2)
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
         results = outer_query.all()
@@ -1846,7 +1845,7 @@ class SQLDB(DBInterface):
             related_tables=[Function.Tag, Function.Label],
             project=project,
             main_table_identifier=Function.name,
-            main_table_idenrifier_values=names,
+            main_table_identifier_values=names,
         )
 
     def update_function(
@@ -2301,9 +2300,21 @@ class SQLDB(DBInterface):
         main_table: mlrun.utils.db.BaseModel,
         related_tables: list[mlrun.utils.db.BaseModel],
         project: str,
-        main_table_identifier: str = "name",
+        main_table_identifier: str,
         main_table_identifier_values: typing.Union[str, list[str]] = None,
     ) -> int:
+        """
+        Delete multiple objects from the DB, including related tables.
+        :param session: SQLAlchemy session.
+        :param main_table: The main table to delete from.
+        :param related_tables: Related tables to delete from, will be joined with the main table by the identifiers
+            since in SQLite the deletion is not always cascading.
+        :param project: The project to delete from.
+        :param main_table_identifier: The main table attribute to filter by.
+        :param main_table_identifier_values: The values corresponding to main_table_identifier to filter by.
+
+        :return: The amount of deleted rows from the main table.
+        """
         if not main_table_identifier_values:
             logger.debug(
                 "No identifier values provided, skipping deletion",

@@ -282,7 +282,7 @@ class SQLRunDB(RunDBInterface):
             project,
             deletion_strategy=deletion_strategy,
             secrets=secrets,
-            iter=iter,
+            iteration=iter,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):

@@ -819,13 +819,14 @@ def enrich_image_url(
     tag += resolve_image_tag_suffix(
         mlrun_version=mlrun_version, python_version=client_python_version
     )
-    registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
+
+    registry = config.images_registry if is_mlrun_image else config.vendor_images_registry
 
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided

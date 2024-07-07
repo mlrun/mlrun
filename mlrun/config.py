@@ -64,7 +64,10 @@ default_config = {
     "api_base_version": "v1",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
-    "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    # registry to use with mlrun images that start with "mlrun/" e.g. quay.io/ (defaults to empty, for dockerhub)
+    "images_registry": "",
+    # registry for use with mlrun images that don't start with "mlrun/" (defaults to empty, for dockerhub)
+    "vendor_images_registry": "",
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)

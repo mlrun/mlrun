@@ -844,19 +844,25 @@ class SQLDB(DBInterface):
         producer_id=None,
     ):
         project = project or config.default_project
-        distinct_keys = {
-            artifact.key
+        distinct_keys_and_uids = {
+            (artifact.key, artifact.uid)
             for artifact in self._find_artifacts(
-                session, project, ids, tag, labels, name=name
+                session=session,
+                project=project,
+                name=name,
+                ids=ids,
+                tag=tag,
+                labels=labels,
+                producer_id=producer_id,
             )
         }
         failed_to_delete_keys = []
-        for key in distinct_keys:
+        for key, uid in distinct_keys_and_uids:
             artifact_column_identifier, column_value = self._delete_tagged_object(
                 session,
                 ArtifactV2,
                 project=project,
-                tag=tag,
+                uid=uid,
                 key=key,
                 commit=False,
                 producer_id=producer_id,
@@ -865,7 +871,7 @@ class SQLDB(DBInterface):
                 # record was not found
                 continue
 
-            # we do a best effort deletion
+            # we do best effort deletion
             try:
                 if artifact_column_identifier == "id":
                     # deleting tags, because in sqlite the relationships aren't necessarily cascading

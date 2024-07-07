@@ -99,6 +99,7 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
     - name: Upload test report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: unit-test-report
@@ -125,6 +126,7 @@ jobs:
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
       timeout-minutes: 90
     - name: Upload test report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: integration-tests-report
@@ -150,6 +152,7 @@ jobs:
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
       - name: Upload test report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: migrations-tests-report
@@ -238,6 +241,7 @@ jobs:
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
       - name: Upload test report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backward-compatibility-tests-report

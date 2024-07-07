@@ -373,6 +373,7 @@ jobs:
           make test-system
 
     - name: Upload test report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: system-tests-enterprise-report

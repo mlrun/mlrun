@@ -543,10 +543,30 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 with pytest.raises(HttpResponseError):
                     client.object.get(
                         container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream-histogram-data-drift/serving-state.json",
+                    )
+
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
                         path=f"{self.project_name}/model-endpoints/stream-evidently-app-test-v2/serving-state.json",
                     )
             elif stream_path.startswith("kafka://"):
-                pass
+                import kafka
+
+                _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+                consumer = kafka.KafkaConsumer(
+                    bootstrap_servers=brokers,
+                )
+                topics = consumer.topics()
+                project_topics_list = [
+                    f"monitoring_stream_{self.project_name}",
+                    f"monitoring_stream_{self.project_name}_model_monitoring_writer",
+                    f"monitoring_stream_{self.project_name}_histogram-data-drift",
+                    f"monitoring_stream_{self.project_name}_evidently_app_test_v2",
+                ]
+                for topic in project_topics_list:
+                    assert topic not in topics
 
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)

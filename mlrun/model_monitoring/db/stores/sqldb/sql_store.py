@@ -20,6 +20,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
+from sqlalchemy.engine import make_url
 from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
@@ -61,6 +62,8 @@ class SQLStoreBase(StoreBase):
 
         self._sql_connection_string = kwargs.get("store_connection_string")
         self._engine = get_engine(dsn=self._sql_connection_string)
+
+    def create_tables(self):
         self._create_tables_if_not_exist()
 
     def _init_tables(self):
@@ -522,7 +525,7 @@ class SQLStoreBase(StoreBase):
 
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
-            db_name = self._sql_connection_string.split("/")[-1]
+            db_name = make_url(self._sql_connection_string).database
             if not self._engine.has_table(table):
                 logger.info(f"Creating table {table} on {db_name} db.")
                 self._tables[table].metadata.create_all(bind=self._engine)

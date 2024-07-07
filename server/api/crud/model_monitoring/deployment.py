@@ -131,8 +131,6 @@ class MonitoringDeployment:
         )
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image, overwrite=rebuild_images)
-        # Create tsdb tables that will be used for storing the model monitoring data
-        self._create_tsdb_tables()
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
@@ -664,7 +662,7 @@ class MonitoringDeployment:
             return True
         return False
 
-    def _create_tsdb_tables(self):
+    def _create_tsdb_tables(self, connection_string: str):
         """Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:
         - app_results: a detailed result that includes status, kind, extra data, etc.
         - metrics: a basic key value that represents a numeric metric.
@@ -673,13 +671,23 @@ class MonitoringDeployment:
         tsdb_connector: mlrun.model_monitoring.db.TSDBConnector = (
             mlrun.model_monitoring.get_tsdb_connector(
                 project=self.project,
-                secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                    project=self.project
-                ),
+                tsdb_connection_string=connection_string,
             )
         )
 
         tsdb_connector.create_tables()
+
+    def _create_sql_tables(self, connection_string: str):
+        """Create the SQL tables using the SQL connector"""
+
+        store_connector: mlrun.model_monitoring.db.StoreBase = (
+            mlrun.model_monitoring.get_store_object(
+                project=self.project,
+                store_connection_string=connection_string,
+            )
+        )
+
+        store_connector.create_tables()
 
     def list_model_monitoring_functions(self) -> list:
         """Retrieve a list of all the model monitoring functions."""
@@ -1111,6 +1119,19 @@ class MonitoringDeployment:
                 "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
+
+        # Create tsdb & sql tables that will be used for storing the model monitoring data
+        # Check the cred are valid
+        self._create_tsdb_tables(
+            connection_string=secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ]
+        )
+        self._create_sql_tables(
+            connection_string=secrets_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ]
+        )
 
         server.api.crud.Secrets().store_project_secrets(
             project=self.project,

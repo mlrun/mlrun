@@ -1272,12 +1272,11 @@ class SnowflakeTarget(BaseStoreTarget):
             password=get_snowflake_password(),
             warehouse=self.attributes.get("warehouse"),
         ) as snowflake_connector:
-            cursor = snowflake_connector.cursor()
             drop_statement = (
                 f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"
                 f".{self.attributes['table']}"
             )
-            cursor.execute(drop_statement)
+            snowflake_connector.execute_string(drop_statement)
 
     def as_df(
         self,

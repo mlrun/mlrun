@@ -917,7 +917,7 @@ class MonitoringDeployment:
 
         if not stream_paths:
             # No stream paths to delete
-            pass
+            return
 
         elif stream_paths[0].startswith("v3io"):
             # Delete V3IO stream

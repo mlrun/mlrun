@@ -746,10 +746,12 @@ class MonitoringDeployment:
                     function_name,
                     self.auth_info,
                     delete_app_stream_resources=True
+                    if function_name
                     not in [
                         mm_constants.MonitoringFunctionNames.STREAM,
                         mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                    ],
+                    ]
+                    else False,
                     access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)
@@ -913,7 +915,11 @@ class MonitoringDeployment:
                 )
             )
 
-        if stream_paths[0].startswith("v3io"):
+        if not stream_paths:
+            # No stream paths to delete
+            pass
+
+        elif stream_paths[0].startswith("v3io"):
             # Delete V3IO stream
             import v3io.dataplane
             import v3io.dataplane.response
@@ -936,7 +942,7 @@ class MonitoringDeployment:
                     logger.warning(
                         "Can't delete v3io stream",
                         stream_path=stream_path,
-                        error=e,
+                        error=mlrun.errors.err_to_str(e),
                     )
         elif stream_paths[0].startswith("kafka://"):
             # Delete Kafka topics
@@ -955,7 +961,7 @@ class MonitoringDeployment:
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=brokers,
-                    client_id=f"{project}",
+                    client_id=project,
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
@@ -963,8 +969,13 @@ class MonitoringDeployment:
                 logger.warning(
                     "Can't delete kafka topics",
                     topics=topics,
-                    error=e,
+                    error=mlrun.errors.err_to_str(e),
                 )
+        else:
+            logger.warning(
+                "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
+                stream_path=stream_paths[0],
+            )
 
     def check_if_credentials_are_set(self, only_project_secrets: bool = False):
         """

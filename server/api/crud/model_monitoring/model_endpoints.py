@@ -592,6 +592,8 @@ class ModelEndpoints:
                 )
             )
 
+        model_monitoring_applications = model_monitoring_applications or []
+
         # Add the writer and monitoring stream to the application streams list
         model_monitoring_applications.append(
             mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.WRITER

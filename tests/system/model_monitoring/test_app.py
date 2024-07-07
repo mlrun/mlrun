@@ -386,6 +386,58 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     def custom_setup(cls) -> None:
         _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
 
+    @classmethod
+    def custom_teardown(self):
+        # validate that stream resources were deleted as expected
+        stream_path = self._test_env[
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
+        ]
+
+        func_to_validate = [
+            "model-monitoring-writer",
+            "histogram-data-drift",
+            "evidently-app-test-v2",
+        ]
+
+        if stream_path.startswith("v3io:///"):
+            from v3io.dataplane.response import HttpResponseError
+
+            from mlrun.utils.v3io_clients import get_v3io_client
+
+            client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+
+            for func in func_to_validate:
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream-{func}/serving-state.json",
+                    )
+
+            # validate that the monitoring stream was deleted
+            with pytest.raises(HttpResponseError):
+                client.object.get(
+                    container="projects",
+                    path=f"{self.project_name}/model-endpoints/stream/serving-state.json",
+                )
+
+        elif stream_path.startswith("kafka://"):
+            import kafka
+
+            _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=brokers,
+            )
+            topics = consumer.topics()
+
+            project_topics_list = [f"monitoring_stream_{self.project_name}"]
+            for func in func_to_validate:
+                project_topics_list.append(
+                    f"monitoring_stream_{self.project_name}_{func}"
+                )
+
+            for topic in project_topics_list:
+                assert topic not in topics
+
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
     ) -> None:
@@ -516,58 +568,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
-        if not with_training_set:
-            # validate that stream resources were deleted as expected
-            stream_path = self._test_env[
-                "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
-            ]
-            if stream_path.startswith("v3io:///"):
-                from v3io.dataplane.response import HttpResponseError
-
-                from mlrun.utils.v3io_clients import get_v3io_client
-
-                client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
-
-                with pytest.raises(HttpResponseError):
-                    client.object.get(
-                        container="projects",
-                        path=f"{self.project_name}/model-endpoints/stream/serving-state.json",
-                    )
-
-                with pytest.raises(HttpResponseError):
-                    client.object.get(
-                        container="projects",
-                        path=f"{self.project_name}/model-endpoints/stream-model-monitoring-writer/serving-state.json",
-                    )
-
-                with pytest.raises(HttpResponseError):
-                    client.object.get(
-                        container="projects",
-                        path=f"{self.project_name}/model-endpoints/stream-histogram-data-drift/serving-state.json",
-                    )
-
-                with pytest.raises(HttpResponseError):
-                    client.object.get(
-                        container="projects",
-                        path=f"{self.project_name}/model-endpoints/stream-evidently-app-test-v2/serving-state.json",
-                    )
-            elif stream_path.startswith("kafka://"):
-                import kafka
-
-                _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
-                consumer = kafka.KafkaConsumer(
-                    bootstrap_servers=brokers,
-                )
-                topics = consumer.topics()
-                project_topics_list = [
-                    f"monitoring_stream_{self.project_name}",
-                    f"monitoring_stream_{self.project_name}_model_monitoring_writer",
-                    f"monitoring_stream_{self.project_name}_histogram-data-drift",
-                    f"monitoring_stream_{self.project_name}_evidently_app_test_v2",
-                ]
-                for topic in project_topics_list:
-                    assert topic not in topics
-
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)
 
@@ -771,6 +771,13 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
     image: typing.Optional[str] = None
 
     def test_model_monitoring_crud(self) -> None:
+        stream_path = self._test_env[
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
+        ]
+        if not stream_path.startswith("v3io:///"):
+            # TODO : add support for testing Kafka
+            pass
+
         import v3io.dataplane
 
         all_functions = mm_constants.MonitoringFunctionNames.list() + [

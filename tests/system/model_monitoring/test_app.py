@@ -776,7 +776,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         ]
         if not stream_path.startswith("v3io:///"):
             # TODO : add support for testing Kafka
-            pass
+            return
 
         import v3io.dataplane
 

@@ -4152,28 +4152,32 @@ class SQLDB(DBInterface):
                 "Neither name nor key specified when deleting an object."
             )
 
-        object_id = None
         obj_name = name or key
-        if uid:
-            object_record = self._query(
-                session,
-                cls,
-                project=project,
-                uid=uid,
-                name=name,
-                key=key,
-                **kwargs,
-            ).one_or_none()
-            if object_record is None:
-                return None, None
-            object_id = object_record.id
-        elif tag and tag != "*":
-            tag_record = self._query(
-                session, cls.Tag, project=project, name=tag, obj_name=obj_name
-            ).one_or_none()
-            if tag_record is None:
-                return None, None
-            object_id = tag_record.obj_id
+
+        # try to find the object by given arguments
+        query = self._query(
+            session,
+            cls,
+            project=project,
+            uid=uid,
+            name=name,
+            key=key,
+            **kwargs,
+        )
+
+        # join on tags if given
+        if tag and tag != "*":
+            query = query.join(cls.Tag, cls.Tag.obj_id == cls.id)
+            query = query.filter(cls.Tag.name == tag)
+
+        object_record = query.one_or_none()
+
+        if object_record is None:
+            # object not found, nothing to delete
+            return None, None
+
+        # get the object id from the object record
+        object_id = object_record.id
 
         if object_id:
             if not commit:

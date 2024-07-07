@@ -256,11 +256,11 @@ async def delete_artifact(
     )
     await run_in_threadpool(
         server.api.crud.Artifacts().delete_artifact,
-        db_session,
-        key,
-        tag,
-        project,
-        object_uid,
+        db_session=db_session,
+        key=key,
+        tag=tag,
+        project=project,
+        object_uid=object_uid,
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         secrets=secrets,

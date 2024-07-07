@@ -200,15 +200,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
     def test_purge_snowflake_target(self):
         self.generate_snowflake_source_table()
-        fake_target = SnowflakeTarget(
-            "fake_snowflake_target",
-            **self.snowflake_spark_parameters,
-        )
-        with pytest.raises(
-            mlrun.errors.MLRunRuntimeError,
-            match=".*some attributes are missing.*",
-        ):
-            fake_target.purge()
         target = SnowflakeTarget(
             "snowflake_target",
             table_name=self.source_table,
@@ -223,3 +214,14 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
         ):
             self.cursor.execute(f"select * from {table_path}").fetchall()
+
+    def test_purge_with_missing_attribute(self):
+        fake_target = SnowflakeTarget(
+            "fake_snowflake_target",
+            **self.snowflake_spark_parameters,
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match=".*some attributes are missing.*",
+        ):
+            fake_target.purge()

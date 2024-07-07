@@ -88,21 +88,26 @@ def get_model_endpoint_store(
 def get_store_object(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    store_connection_string: typing.Optional[str] = None,
     **kwargs,
 ) -> StoreBase:
     """
     Generate a store object. If a connection string is provided, the store type will be updated according to the
     connection string. Currently, the supported store types are SQL and v3io-nosql.
 
-    :param project:         The name of the project.
-    :param secret_provider: An optional secret provider to get the connection string secret.
+    :param project:                 The name of the project.
+    :param secret_provider:         An optional secret provider to get the connection string secret.
+    :param store_connection_string: Optional explicit connection string of the store.
 
     :return: `StoreBase` object. Using this object, the user can apply different operations such as write, update, get
     and delete a model endpoint record.
     """
 
-    store_connection_string = mlrun.model_monitoring.helpers.get_connection_string(
-        secret_provider=secret_provider
+    store_connection_string = (
+        store_connection_string
+        or mlrun.model_monitoring.helpers.get_connection_string(
+            secret_provider=secret_provider
+        )
     )
 
     if store_connection_string and (

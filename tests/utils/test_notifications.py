@@ -201,7 +201,7 @@ def test_condition_evaluation_timeout():
     "override_body",
     [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
 )
-async def test_webhook_overide_body_job_succeed(monkeypatch, override_body):
+async def test_webhook_override_body_job_succeed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
     runs = _generate_run_result(state="completed", results={"return": 1})
     await WebhookNotification(
@@ -220,7 +220,7 @@ async def test_webhook_overide_body_job_succeed(monkeypatch, override_body):
     "override_body",
     [({"message": "runs: {{runs}}"}), ({"message": "runs: {{ runs }}"})],
 )
-async def test_webhook_overide_body_job_failed(monkeypatch, override_body):
+async def test_webhook_override_body_job_failed(monkeypatch, override_body):
     requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
     runs = _generate_run_result(
         state="error", error='can only concatenate str (not "int") to str'

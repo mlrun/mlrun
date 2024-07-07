@@ -402,7 +402,7 @@ class EventStreamProcessor:
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
-                "mlrun.datastore.targets.ParquetTargetStoreyWrapper",
+                "mlrun.model_monitoring.stream_processing.ParquetTargetStoreyWrapper",
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",

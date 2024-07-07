@@ -656,8 +656,8 @@ def get_kfp_outputs(artifacts, labels, project):
 
     return outputs, out_dict
 
+
 def _sanitize_ui_metadata(struct):
     status_fields_to_remove = ["iterations", "artifacts"]
     for field in status_fields_to_remove:
-        if field in struct["status"]:
-            del struct["status"][field]
+        struct["status"].pop(field, None)

@@ -128,11 +128,6 @@ class TestSQLStore:
             }
         )
 
-    @staticmethod
-    @pytest.fixture(autouse=True)
-    def init_sql_tables(new_sql_store: SQLStoreBase) -> None:
-        new_sql_store._create_tables_if_not_exist()
-
     @classmethod
     @pytest.fixture
     def new_sql_store(cls, store_connection: str) -> Iterator[SQLStoreBase]:

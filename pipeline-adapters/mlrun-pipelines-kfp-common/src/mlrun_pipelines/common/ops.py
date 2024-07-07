@@ -27,6 +27,7 @@ from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.utils import (
     dict_to_yaml,
+    gen_md_table,
     get_artifact_target,
     get_in,
     get_workflow_url,
@@ -565,7 +566,7 @@ def write_kfpmeta(struct):
     struct = deepcopy(struct)
     uid = struct["metadata"].get("uid")
     project = struct["metadata"].get("project", config.default_project)
-    _, out_dict = get_kfp_outputs(
+    output_artifacts, out_dict = get_kfp_outputs(
         struct["status"].get(run_keys.artifacts, []),
         struct["metadata"].get("labels", {}),
         project,
@@ -596,9 +597,7 @@ def write_kfpmeta(struct):
             pass
 
     text = "# Run Report\n"
-    if "iterations" in struct["status"]:
-        del struct["status"]["iterations"]
-
+    _sanitize_ui_metadata(struct)
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
     metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
@@ -644,4 +643,21 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
+            if preview:
+                tbl_md = gen_md_table(header, preview)
+                text = f"## Dataset: {key}  \n\n" + tbl_md
+                del output_spec["preview"]
+
+                meta = {"type": "markdown", "storage": "inline", "source": text}
+                outputs += [meta]
+
     return outputs, out_dict
+
+def _sanitize_ui_metadata(struct):
+    status_fields_to_remove = ["iterations", "artifacts"]
+    for field in status_fields_to_remove:
+        if field in struct["status"]:
+            del struct["status"][field]

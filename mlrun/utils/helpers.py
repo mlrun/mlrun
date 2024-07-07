@@ -826,7 +826,9 @@ def enrich_image_url(
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
 
-    registry = config.images_registry if is_mlrun_image else config.vendor_images_registry
+    registry = (
+        config.images_registry if is_mlrun_image else config.vendor_images_registry
+    )
 
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided

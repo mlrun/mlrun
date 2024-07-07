@@ -1092,6 +1092,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1113,6 +1114,12 @@ class Config:
         """
 
         if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project, **kwargs)
             if (
                 function_name
                 and function_name

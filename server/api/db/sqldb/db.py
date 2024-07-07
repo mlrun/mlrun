@@ -4153,31 +4153,33 @@ class SQLDB(DBInterface):
             )
 
         obj_name = name or key
+        object_id = None
 
-        # try to find the object by given arguments
-        query = self._query(
-            session,
-            cls,
-            project=project,
-            uid=uid,
-            name=name,
-            key=key,
-            **kwargs,
-        )
+        if uid or tag:
+            # try to find the object by given arguments
+            query = self._query(
+                session,
+                cls,
+                project=project,
+                uid=uid,
+                name=name,
+                key=key,
+                **kwargs,
+            )
 
-        # join on tags if given
-        if tag and tag != "*":
-            query = query.join(cls.Tag, cls.Tag.obj_id == cls.id)
-            query = query.filter(cls.Tag.name == tag)
+            # join on tags if given
+            if tag and tag != "*":
+                query = query.join(cls.Tag, cls.Tag.obj_id == cls.id)
+                query = query.filter(cls.Tag.name == tag)
 
-        object_record = query.one_or_none()
+            object_record = query.one_or_none()
 
-        if object_record is None:
-            # object not found, nothing to delete
-            return None, None
+            if object_record is None:
+                # object not found, nothing to delete
+                return None, None
 
-        # get the object id from the object record
-        object_id = object_record.id
+            # get the object id from the object record
+            object_id = object_record.id
 
         if object_id:
             if not commit:

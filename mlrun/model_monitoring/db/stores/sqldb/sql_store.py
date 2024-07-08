@@ -62,6 +62,7 @@ class SQLStoreBase(StoreBase):
 
         self._sql_connection_string = kwargs.get("store_connection_string")
         self._engine = get_engine(dsn=self._sql_connection_string)
+        self._init_tables()
 
     def create_tables(self):
         self._create_tables_if_not_exist()
@@ -73,13 +74,13 @@ class SQLStoreBase(StoreBase):
         self._init_monitoring_schedules_table()
 
     def _init_model_endpoints_table(self):
-        self.ModelEndpointsTable = (
+        self.model_endpoints_table = (
             mlrun.model_monitoring.db.stores.sqldb.models._get_model_endpoints_table(
                 connection_string=self._sql_connection_string
             )
         )
         self._tables[mm_schemas.EventFieldType.MODEL_ENDPOINTS] = (
-            self.ModelEndpointsTable
+            self.model_endpoints_table
         )
 
     def _init_application_results_table(self):
@@ -216,8 +217,8 @@ class SQLStoreBase(StoreBase):
 
         self._update(
             attributes=attributes,
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
     def delete_model_endpoint(self, endpoint_id: str) -> None:
@@ -228,8 +229,8 @@ class SQLStoreBase(StoreBase):
         """
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
     def get_model_endpoint(
@@ -248,8 +249,8 @@ class SQLStoreBase(StoreBase):
 
         # Get the model endpoint record
         endpoint_record = self._get(
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
         if not endpoint_record:
@@ -285,12 +286,12 @@ class SQLStoreBase(StoreBase):
         endpoint_list = []
 
         model_endpoints_table = (
-            self.ModelEndpointsTable.__table__  # pyright: ignore[reportAttributeAccessIssue]
+            self.model_endpoints_table.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
-            query = session.query(self.ModelEndpointsTable).filter_by(
+            query = session.query(self.model_endpoints_table).filter_by(
                 project=self.project
             )
 

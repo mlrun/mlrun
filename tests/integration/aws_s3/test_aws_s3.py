@@ -32,7 +32,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
-
+import tempfile
 here = os.path.dirname(__file__)
 config_file_path = os.path.join(here, "test-aws-s3.yml")
 
@@ -111,12 +111,12 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
-            prefix_path = f"ds://{self.profile_name}/"
+            self.prefix_path = f"ds://{self.profile_name}/"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
-            prefix_path = "s3://"
-        self._bucket_path = f"{prefix_path}{self.bucket_name}"
+            self.prefix_path = "s3://"
+        self._bucket_path = f"{self.prefix_path}{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_url = f"{self.run_dir_url}{object_file}"
@@ -301,3 +301,23 @@ class TestAwsS3:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    def test_wrong_credential_artifact(self, use_datastore_profile):
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name,
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        rpath = self._object_url.replace(self.prefix_path, "")
+        with tempfile.NamedTemporaryFile(
+                suffix=".txt", mode="w", delete=False
+        ) as temp_file:
+            with open(temp_file.name, "w") as temp_file_cursor:
+                temp_file_cursor.write("text for test_wrong_delete test")
+
+            self._fs.put(temp_file.name, rpath)
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_ACCESS_KEY_ID")
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        with pytest.raises(PermissionError):
+            data_item.delete()

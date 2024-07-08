@@ -201,6 +201,7 @@ class S3Store(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         bucket, key = self.get_bucket_and_key(path)
         path = f"{bucket}/{key}"
+        self.filesystem.ls(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 

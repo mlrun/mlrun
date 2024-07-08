@@ -320,7 +320,7 @@ class Artifacts(
                 path
             ):
                 raise mlrun.errors.MLRunNotImplementedServerError(
-                    "Deleting artifact data kind dataset is currently available for a single file"
+                    "Deleting artifact data of kind 'dataset' is currently supported for a single file only"
                 )
 
             server.api.crud.Files().delete_artifact_data(

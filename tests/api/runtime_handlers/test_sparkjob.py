@@ -246,6 +246,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.completed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        list_namespaced_pods_calls = [
+            # 1 call per threshold state verification
+            [],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
@@ -255,6 +260,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={self.run_uid}",
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -266,6 +276,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             [self.failed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        list_namespaced_pods_calls = [
+            # 1 call per threshold state verification
+            [],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
@@ -275,6 +290,11 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={self.run_uid}",
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
 

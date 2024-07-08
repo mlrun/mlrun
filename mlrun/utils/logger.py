@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import logging
+import os
 import typing
 from enum import Enum
+from functools import cached_property
 from sys import stdout
 from traceback import format_exception
 from typing import IO, Optional, Union
@@ -92,6 +94,16 @@ class HumanReadableFormatter(_BaseFormatter):
 
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
+    _colors = {
+        logging.NOTSET: "",
+        logging.DEBUG: "\x1b[34m",
+        logging.INFO: "\x1b[36m",
+        logging.WARNING: "\x1b[33m",
+        logging.ERROR: "\x1b[0;31m",
+        logging.CRITICAL: "\x1b[1;31m",
+    }
+    _color_reset = "\x1b[0m"
+
     def format(self, record) -> str:
         more = ""
         record_with = self._record_with(record)
@@ -113,11 +125,33 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
                 [f"{key}: {_format_value(val)}" for key, val in record_with.items()]
             )
         return (
-            "> "
+            f"{self._get_message_color(record.levelno)}> "
             f"{self.formatTime(record, self.datefmt)} "
             f"[{record.name}:{record.levelname.lower()}] "
-            f"{record.getMessage()}{more}"
+            f"{record.getMessage()}{more}{self._get_color_reset()}"
         )
+
+    def _get_color_reset(self):
+        if not self._have_color_support:
+            return ""
+
+        return self._color_reset
+
+    def _get_message_color(self, levelno):
+        if not self._have_color_support:
+            return ""
+
+        return self._colors[levelno]
+
+    @cached_property
+    def _have_color_support(self):
+        if os.environ.get("PYCHARM_HOSTED"):
+            return True
+        if os.environ.get("NO_COLOR"):
+            return False
+        if os.environ.get("CLICOLOR_FORCE"):
+            return True
+        return stdout.isatty()
 
 
 class Logger:

@@ -27,6 +27,8 @@ from .targets import get_online_target
 
 def is_store_uri(url):
     """detect if the uri starts with the store schema prefix"""
+    if not url:
+        return False
     return url.startswith(DB_SCHEMA + "://")
 
 

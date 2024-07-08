@@ -13,9 +13,11 @@
 # limitations under the License.
 import typing
 from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import taosws
 
 import mlrun.runtimes
 import server
@@ -77,8 +79,13 @@ class TestAppDeployment:
             image="mlrun/mlrun", overwrite=True
         )
 
+    @staticmethod
+    @pytest.fixture
+    def store_connection(tmp_path: Path) -> str:
+        return f"sqlite:///{tmp_path / 'test.db'}"
+
     def test_credentials(
-        self, monitoring_deployment: mm_dep.MonitoringDeployment
+        self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str
     ) -> None:
         with pytest.raises(mlrun.errors.MLRunBadRequestError):
             monitoring_deployment.check_if_credentials_are_set(
@@ -92,15 +99,9 @@ class TestAppDeployment:
                 tsdb_connection="promitheus",
             )
 
-        monitoring_deployment.set_credentials(
-            endpoint_store_connection="v3io",
-            stream_path="kafka://stream",
-            tsdb_connection="taosws://",
-        )
-
-        with pytest.raises(mlrun.errors.MLRunConflictError):
+        with pytest.raises(taosws.QueryError):
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
-                stream_path="v3io",
-                tsdb_connection="v3io",
+                stream_path="kafka://stream",
+                tsdb_connection="taosws://",
             )

@@ -741,7 +741,7 @@ snowflake_source = SnowflakeSource(
     user="<user>",
     password="<password>",
     database="SNOWFLAKE_SAMPLE_DATA",
-    schema="TPCH_SF1",
+    db_schema="TPCH_SF1",
     warehouse="compute_wh",
 )
 snowflake_df = snowflake_source.to_dataframe()

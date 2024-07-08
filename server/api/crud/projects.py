@@ -27,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.crud
+import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio
 import server.api.db.session
 import server.api.utils.background_tasks
@@ -174,6 +175,22 @@ class Projects(
 
         server.api.crud.Events().delete_project_alert_events(name)
 
+        # get model monitoring application names, important for deleting model monitoring resources
+        model_monitoring_deployment = (
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment(
+                project=name,
+                db_session=session,
+                auth_info=auth_info,
+                model_monitoring_access_key=None,
+            )
+        )
+
+        model_monitoring_applications = (
+            model_monitoring_deployment._get_monitoring_application_to_delete(
+                delete_user_applications=True
+            )
+        )
+
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
@@ -183,7 +200,11 @@ class Projects(
         self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
         # delete model monitoring resources
-        server.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
+        server.api.crud.ModelEndpoints().delete_model_endpoints_resources(
+            project_name=name,
+            db_session=session,
+            model_monitoring_applications=model_monitoring_applications,
+        )
 
         if mlrun.mlconf.is_api_running_on_k8s():
             self._delete_project_secrets(name)

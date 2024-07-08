@@ -15,7 +15,7 @@ default_data_path = os.environ.get("AGENT_DATA_PATH", str(root_path / "data"))
 class AppConfig(BaseModel):
     """Configuration for the agent."""
 
-    api_url: str = "http://localhost:8000"
+    api_url: str = "http://localhost:8001"  # url of the controller API
     verbose: bool = True
     log_level: str = "DEBUG"
     use_local_db: bool = True
@@ -28,7 +28,7 @@ class AppConfig(BaseModel):
 
     # Default LLM
     default_llm: dict = {
-        "class_name": "langchain.chat_models.ChatOpenAI",
+        "class_name": "langchain_community.chat_models.ChatOpenAI",
         "temperature": 0,
         "model_name": "gpt-3.5-turbo",
     }
@@ -48,7 +48,7 @@ class AppConfig(BaseModel):
     def print(self):
         print(yaml.dump(self.dict()))
 
-    # @classmethod
+    @classmethod
     def load_from_yaml(cls, path: str):
         with open(path, "r") as f:
             data = yaml.safe_load(f)
@@ -88,18 +88,18 @@ logger.info("Logger initialized...")
 
 
 embeddings_shortcuts = {
-    "huggingface": "langchain.embeddings.HuggingFaceEmbeddings",
-    "openai": "langchain.embeddings.openai.OpenAIEmbeddings",
+    "huggingface": "langchain_huggingface.embeddings.huggingface.HuggingFaceEmbeddings",
+    "openai": "langchain_openai.embeddings.base.OpenAIEmbeddings",
 }
 
 vector_db_shortcuts = {
-    "milvus": "langchain.vectorstores.Milvus",
-    "chroma": "langchain.vectorstores.chroma.Chroma",
+    "milvus": "langchain_community.vectorstores.Milvus",
+    "chroma": "langchain_community.vectorstores.chroma.Chroma",
 }
 
 llm_shortcuts = {
-    "chat": "langchain.chat_models.ChatOpenAI",
-    "gpt": "langchain.chat_models.GPT",
+    "chat": "langchain_community.chat_models.ChatOpenAI",
+    "gpt": "langchain_community.chat_models.GPT",
 }
 
 

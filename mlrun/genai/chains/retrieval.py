@@ -1,10 +1,11 @@
-from langchain.chains import RetrievalQAWithSourcesChain
-from langchain.prompts import PromptTemplate
-from langchain.schema.callbacks.base import BaseCallbackHandler
+from langchain.chains.qa_with_sources.retrieval import \
+    RetrievalQAWithSourcesChain
+from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.prompts import PromptTemplate
 
-from ..config import get_llm, get_vector_db, logger
-from ..schema import PipelineEvent
-from .base import ChainRunner
+from mlrun.genai.chains.base import ChainRunner
+from mlrun.genai.config import get_llm, get_vector_db, logger
+from mlrun.genai.schema import PipelineEvent
 
 
 class DocumentCallbackHandler(BaseCallbackHandler):
@@ -71,7 +72,7 @@ class DocumentRetriever:
         return cls(llm, vector_db, verbose=config.verbose, **search_kwargs)
 
     def _get_answer(self, query):
-        result = self.chain({"question": query}, callbacks=[self.cb])
+        result = self.chain({"question": query.content}, callbacks=[self.cb])
         sources = [s.strip() for s in result["sources"].split(",")]
         source_docs = [
             doc
@@ -92,7 +93,6 @@ class DocumentRetriever:
 
 
 class MultiRetriever(ChainRunner):
-
     def __init__(self, llm=None, default_collection=None, **kwargs):
         super().__init__(**kwargs)
         self.llm = llm

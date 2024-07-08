@@ -1,14 +1,12 @@
 import mlrun
 from mlrun import serving
+from mlrun.genai.config import config as default_config
+from mlrun.genai.schema import ApiDictResponse
+from mlrun.genai.sessions import get_session_store
 from mlrun.utils import get_caller_globals
-
-from .config import config as default_config
-from .schema import ApiDictResponse
-from .sessions import get_session_store
 
 
 class AppServer:
-
     def __init__(self, config=None, verbose=False):
         self._config = config or default_config
         self._session_store = get_session_store(self._config)
@@ -42,7 +40,7 @@ class AppServer:
     def api_startup(self):
         print("\nstartup event\n")
 
-    def to_fastapi(self, router=None, with_controller=False):
+    def to_fastapi(self, router=None):
         from fastapi import FastAPI
         from fastapi.middleware.cors import CORSMiddleware
 
@@ -58,22 +56,11 @@ class AppServer:
             allow_headers=["*"],
         )
 
-        if not router:
-            if with_controller:
-                from llmapps.controller.api import router as controller_router
-
-                router = controller_router
-            else:
-                from llmapps.app.api import base_router
-
-                router = base_router
-
         extra = app.extra or {}
         extra["app_server"] = self
         app.extra = extra
-        router.add_event_handler("startup", self.api_startup)
-
-        app.include_router(router)
+        if router:
+            app.include_router(router)
         return app
 
 

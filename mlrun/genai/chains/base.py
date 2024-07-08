@@ -2,11 +2,10 @@ import asyncio
 
 import storey
 
-from ..schema import PipelineEvent
+from mlrun.genai.schema import PipelineEvent
 
 
 class ChainRunner(storey.Flow):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._is_async = asyncio.iscoroutinefunction(self._run)
@@ -40,7 +39,6 @@ class ChainRunner(storey.Flow):
 
 
 class SessionLoader(storey.Flow):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -58,7 +56,6 @@ class SessionLoader(storey.Flow):
 
 
 class HistorySaver(ChainRunner):
-
     def __init__(
         self,
         answer_key: str = None,

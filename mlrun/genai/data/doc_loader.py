@@ -1,22 +1,14 @@
 import uuid
 from pathlib import Path
 
-from langchain.document_loaders import (
-    CSVLoader,
-    PyMuPDFLoader,
-    TextLoader,
-    UnstructuredHTMLLoader,
-    UnstructuredMarkdownLoader,
-    UnstructuredPowerPointLoader,
-    UnstructuredWordDocumentLoader,
-    WebBaseLoader,
-)
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import (
+    CSVLoader, PyMuPDFLoader, TextLoader, UnstructuredHTMLLoader,
+    UnstructuredMarkdownLoader, UnstructuredPowerPointLoader,
+    UnstructuredWordDocumentLoader, WebBaseLoader)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from ..config import AppConfig, get_vector_db, logger
-from .web_loader import SmartWebLoader
-from llmapps.controller.model import DocCollection
-from llmapps.controller.sqlclient import client
+from mlrun.genai.config import AppConfig, get_vector_db, logger
+from mlrun.genai.data.web_loader import SmartWebLoader
 
 LOADER_MAPPING = {
     ".csv": (CSVLoader, {}),
@@ -113,20 +105,20 @@ class DataLoader:
 
 
 def get_data_loader(
-    config: AppConfig, collection_name: str = None, session=None
+    config: AppConfig,
+    client,
+    collection_name: str = None,
 ) -> DataLoader:
     """Get a data loader instance."""
-    close_session = True if session is None else False
-    session = session or client.get_db_session()
+    # close_session = True if session is None else False
+    # session = session or client.get_db_session()
     collection_name = collection_name or config.default_collection()
     db_args = None
-    collection = client.get_collection(collection_name, session=session).data
+    collection = client.get_collection(collection_name)
     if not collection:
-        client.create_collection(DocCollection(name=collection_name), session=session)
+        client.create_collection(name=collection_name)
     else:
-        db_args = collection.db_args
-    if close_session:
-        session.close()
+        db_args = collection["db_args"]
     vector_db = get_vector_db(
         config,
         collection_name=collection_name,

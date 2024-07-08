@@ -1,9 +1,8 @@
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts.prompt import PromptTemplate
 
-from ..config import get_llm, logger
-from ..schema import PipelineEvent
-from .base import ChainRunner
+from mlrun.genai.chains.base import ChainRunner
+from mlrun.genai.config import get_llm, logger
+from mlrun.genai.schema import PipelineEvent
 
 _refine_prompt_template = """
 You are a helpful AI assistant, given the following conversation and a follow up request, rephrase the follow up request to be a standalone request, keeping the same user language.
@@ -21,7 +20,6 @@ Standalone request:
 
 
 class RefineQuery(ChainRunner):
-
     def __init__(self, llm=None, prompt_template=None, **kwargs):
         super().__init__(**kwargs)
         self.llm = llm
@@ -33,12 +31,14 @@ class RefineQuery(ChainRunner):
         refine_prompt = PromptTemplate.from_template(
             self.prompt_template or _refine_prompt_template
         )
-        self._chain = LLMChain(llm=self.llm, prompt=refine_prompt, verbose=self.verbose)
+        self._chain = refine_prompt | self.llm
 
     def _run(self, event: PipelineEvent):
         chat_history = str(event.conversation)
         logger.debug(f"Question: {event.query}\nChat history: {chat_history}")
-        resp = self._chain.run({"question": event.query, "chat_history": chat_history})
+        resp = self._chain.invoke(
+            {"question": event.query, "chat_history": chat_history}
+        )
         return {"answer": resp}
 
 

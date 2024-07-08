@@ -1,6 +1,6 @@
-from llmapps.controller.model import ChatSession
-
-from .schema import PipelineEvent
+from mlrun.genai.client import Client
+from mlrun.genai.client import client as default_client
+from mlrun.genai.schema import ChatSession, PipelineEvent
 
 
 class SessionStore:
@@ -8,58 +8,35 @@ class SessionStore:
         self.db_session = None
         self.client = client
 
-    def get_db_session(self):
-        if self.db_session is None:
-            self.db_session = self.client.get_db_session()
-        return self.db_session
-
-    def read_state(self, event: PipelineEvent, db_session=None):
-        close_session = True if db_session is None else False
-        db_session = db_session or self.get_db_session()
+    def read_state(self, event: PipelineEvent):
         event.username = event.username or "guest"
-        event.user = self.client.get_user(event.username, session=db_session)
+        event.user = self.client.get_user(event.username)
         if event.session_id:
-            chat_session = self.client.get_session(
-                event.session_id, session=db_session
-            ).data
-            if chat_session:
+            resp = self.client.get_session(event.session_id)["data"]
+            if resp:
+                chat_session = ChatSession(**resp)
                 event.session = chat_session
                 event.state = chat_session.state
                 event.conversation = chat_session.to_conversation()
             else:
                 self.client.create_session(
-                    ChatSession(
-                        name=event.session_id, username=event.username or "guest"
-                    ),
-                    session=db_session,
+                    name=event.session_id,
+                    username=event.username or "guest",
                 )
 
-        if close_session:
-            db_session.close()
-
-    def save(self, event: PipelineEvent, db_session=None):
+    def save(self, event: PipelineEvent):
         """Save the session and conversation to the database"""
         if event.session_id:
-            close_session = True if db_session is None else False
-            db_session = db_session or self.get_db_session()
             self.client.update_session(
-                ChatSession(
-                    name=event.session_id,
-                    state=event.state,
-                    history=event.conversation.to_list(),
-                ),
-                session=db_session,
+                name=event.session_id,
+                state=event.state,
+                history=event.conversation.to_list(),
             )
 
-            if close_session:
-                db_session.close()
 
-
-def get_session_store(config):
-    # todo: support different session stores
-    if config.use_local_db:
-        from llmapps.controller.sqlclient import client
-
-        return SessionStore(client)
-
-    raise NotImplementedError("Only local db is supported for now")
+def get_session_store(config=None):
+    if config:
+        client = Client(base_url=config.api_url)
+    else:
+        client = default_client
+    return SessionStore(client=client)

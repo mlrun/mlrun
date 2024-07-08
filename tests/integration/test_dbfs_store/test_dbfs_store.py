@@ -253,3 +253,27 @@ class TestDBFSStore:
             "ds://test_profile/test_directory/test_file.txt", secrets={}
         )
         assert data_item.store.to_dict() != test_data_item._store.to_dict()
+
+    def test_wrong_credential_artifact(self, use_datastore_profile):
+        if use_datastore_profile:
+            self.profile = DatastoreProfileDBFS(
+                name=self.profile_name,
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        rpath = self.object_url.replace(self.prefix_url, "")
+        # with tempfile.NamedTemporaryFile(
+        #     suffix=".txt", mode="w", delete=False
+        # ) as temp_file:
+        #     with open(temp_file.name, "w") as temp_file_cursor:
+        #         temp_file_cursor.write()
+
+        self.workspace.dbfs.put(path=rpath, contents="test dbfs text")
+        os.environ["DATABRICKS_TOKEN"] = "wrong token"
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises(PermissionError):
+            data_item.delete()
+
+    def test_rm_file_not_found(self):
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

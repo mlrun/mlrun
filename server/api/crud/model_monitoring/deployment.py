@@ -745,13 +745,11 @@ class MonitoringDeployment:
                     self.project,
                     function_name,
                     self.auth_info,
-                    delete_app_stream_resources=True
-                    if function_name
+                    delete_app_stream_resources=function_name
                     not in [
                         mm_constants.MonitoringFunctionNames.STREAM,
                         mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-                    ]
-                    else False,
+                    ],
                     access_key=self.model_monitoring_access_key,
                 )
                 tasks.append(task)

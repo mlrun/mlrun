@@ -566,7 +566,7 @@ class ModelEndpoints:
     def _delete_model_monitoring_stream_resources(
         project_name: str,
         db_session: sqlalchemy.orm.Session,
-        model_monitoring_applications: typing.Optional[list[str]] = None,
+        model_monitoring_applications: typing.Optional[list[str]],
         stream_paths: typing.Optional[list[str]] = None,
     ) -> None:
         """

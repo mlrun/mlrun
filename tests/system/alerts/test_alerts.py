@@ -137,7 +137,7 @@ class TestAlerts(TestMLRunSystem):
             mm_constants.WriterEvent.DATA: json.dumps(
                 {
                     mm_constants.ResultData.RESULT_NAME: result_name,
-                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.custom.value,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.mm_app_anomaly.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.9,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(

@@ -275,6 +275,12 @@ class Artifacts(
         if "spec" in artifact and "inline" in artifact["spec"]:
             validate_inline_artifact_body_size(artifact["spec"]["inline"])
 
+    @staticmethod
+    def _is_single_file(target_path):
+        if target_path:
+            return target_path.endswith(".parquet") or target_path.endswith(".pq")
+        return False
+
     def _delete_artifact_data(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -301,15 +307,22 @@ class Artifacts(
                 object_uid=object_uid,
             )
 
-            # Data artifacts that are ModelArtifact, DirArtifact, or DatasetArtifact
-            # must not be removed because we do not yet support the deletion of artifacts that contain multiple files
+            path = artifact["spec"]["target_path"]
+
+            # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet
+            # support the deletion of artifacts that contain multiple files
+            # We support deleting DatasetArtifact data that contains one file
             # TODO: must be removed once it is supported
             artifact_kind = artifact["kind"]
-            if artifact_kind in ["model", "dataset", "dir"]:
+            if artifact_kind in ["model", "dir"]:
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            path = artifact["spec"]["target_path"]
+            if artifact_kind == "dataset" and not self._is_single_file(path):
+                raise mlrun.errors.MLRunNotImplementedServerError(
+                    "Deleting artifact data kind dataset is currently available for a single file"
+                )
+
             server.api.crud.Files().delete_artifact_data(
                 auth_info, project, path, secrets=secrets
             )

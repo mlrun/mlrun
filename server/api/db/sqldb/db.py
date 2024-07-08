@@ -1394,10 +1394,8 @@ class SQLDB(DBInterface):
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
             artifacts = set()
             for *artifact, _ in results:
-                if with_entities:
-                    artifacts.add(tuple(artifact))
-                else:
-                    artifacts.add(artifact[0])
+                artifacts.add(tuple(artifact) if with_entities else artifact[0])
+
             return list(artifacts)
 
         return results

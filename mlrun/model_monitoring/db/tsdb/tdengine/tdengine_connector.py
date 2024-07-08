@@ -143,7 +143,7 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connector.TDEngineTargetStoreyWrapper",
+                "mlrun.model_monitoring.db.tsdb.tdengine.TDEngineTargetStoreyWrapper",
                 name=name,
                 after=after,
                 supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,

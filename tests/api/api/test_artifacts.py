@@ -294,7 +294,7 @@ def test_fails_deleting_artifact_data_by_artifact_kind(
     artifact_kind, db: Session, unversioned_client: TestClient
 ):
     _create_project(unversioned_client)
-    artifact = artifact_kind(key=KEY, body="123", target_path="dummy-path/")
+    artifact = artifact_kind(key=KEY, body="123", target_path="dummy-path")
 
     resp = unversioned_client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),

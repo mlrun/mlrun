@@ -713,9 +713,9 @@ class MonitoringDeployment:
         Disable model monitoring application controller, writer, stream, histogram data drift application
         and the user's applications functions, according to the given params.
 
-        :param delete_resources:                    If True, it would delete the model monitoring controller & writer
-                                                    functions. Default True
-        :param delete_stream_function:              If True, it would delete model monitoring stream function,
+        :param delete_resources:                    If True, delete the model monitoring controller & writer functions.
+                                                    Default True.
+        :param delete_stream_function:              If True, delete model monitoring stream function,
                                                     need to use wisely because if you're deleting this function
                                                     this can cause data loss in case you will want to
                                                     enable the model monitoring capability to the project.
@@ -753,8 +753,7 @@ class MonitoringDeployment:
                     self.project,
                     function_name,
                     self.auth_info,
-                    delete_v3io_stream=not mlrun.mlconf.is_ce_mode()
-                    and function_name
+                    delete_app_stream_resources=function_name
                     not in [
                         mm_constants.MonitoringFunctionNames.STREAM,
                         mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -827,7 +826,7 @@ class MonitoringDeployment:
         project_name: str,
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        delete_v3io_stream: bool,
+        delete_app_stream_resources: bool,
         access_key: str,
     ):
         background_task_name = str(uuid.uuid4())
@@ -845,7 +844,7 @@ class MonitoringDeployment:
             function_name,
             auth_info,
             background_task_name,
-            delete_v3io_stream,
+            delete_app_stream_resources,
             access_key,
         )
 
@@ -856,19 +855,19 @@ class MonitoringDeployment:
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,
         background_task_name: str,
-        delete_v3io_stream: bool,
+        delete_app_stream_resources: bool,
         access_key: str,
-    ):
+    ) -> None:
         """
         Delete the model monitoring function and its resources.
 
-        :param db_session:              A session that manages the current dialog with the database.
-        :param project:                 The name of the project.
-        :param function_name:           The name of the function to delete.
-        :param auth_info:               The auth info of the request.
-        :param background_task_name:    The name of the background task.
-        :param delete_v3io_stream:      If True, delete the V3IO stream.
-        :param access_key:              Model monitoring access key.
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param project:                     The name of the project.
+        :param function_name:               The name of the function to delete.
+        :param auth_info:                   The auth info of the request.
+        :param background_task_name:        The name of the background task.
+        :param delete_app_stream_resources: If True, delete the stream resources (e.g., v3io stream or kafka  topics).
+        :param access_key:                  Model monitoring access key, relevant only for V3IO stream.
         """
         await server.api.api.utils._delete_function(
             db_session=db_session,
@@ -877,10 +876,27 @@ class MonitoringDeployment:
             auth_info=auth_info,
             background_task_name=background_task_name,
         )
-        if delete_v3io_stream:
-            import v3io.dataplane
-            import v3io.dataplane.response
+        if delete_app_stream_resources:
+            MonitoringDeployment._delete_model_monitoring_stream_resources(
+                project=project,
+                function_names=[function_name],
+                access_key=access_key,
+            )
 
+    @staticmethod
+    def _delete_model_monitoring_stream_resources(
+        project: str,
+        function_names: list[str],
+        access_key: typing.Optional[str] = None,
+    ) -> None:
+        """
+        :param project:        The name of the project.
+        :param function_names: A list of functions that their resources should be deleted.
+        :param access_key:     If the stream is V3IO, the access key is required.
+
+        """
+        stream_paths = []
+        for function_name in function_names:
             for i in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
@@ -899,10 +915,23 @@ class MonitoringDeployment:
                     logger.debug(f"{function_name} pod found, retrying")
                     time.sleep(5)
 
-            v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
-            stream_paths = server.api.crud.model_monitoring.get_stream_path(
-                project=project, function_name=function_name
+            stream_paths.extend(
+                server.api.crud.model_monitoring.get_stream_path(
+                    project=project, function_name=function_name
+                )
             )
+
+        if not stream_paths:
+            # No stream paths to delete
+            return
+
+        elif stream_paths[0].startswith("v3io"):
+            # Delete V3IO stream
+            import v3io.dataplane
+            import v3io.dataplane.response
+
+            v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+
             for stream_path in stream_paths:
                 _, container, stream_path = (
                     mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
@@ -914,12 +943,45 @@ class MonitoringDeployment:
                     v3io_client.stream.delete(
                         container, stream_path, access_key=access_key
                     )
+                    logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:
                     logger.warning(
-                        f"Can't delete {function_name}'s stream",
+                        "Can't delete v3io stream",
                         stream_path=stream_path,
-                        error=e,
+                        error=mlrun.errors.err_to_str(e),
                     )
+        elif stream_paths[0].startswith("kafka://"):
+            # Delete Kafka topics
+            import kafka
+            import kafka.errors
+
+            topics = []
+
+            topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_paths[0])
+            topics.append(topic)
+
+            for stream_path in stream_paths[1:]:
+                topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+                topics.append(topic)
+
+            try:
+                kafka_client = kafka.KafkaAdminClient(
+                    bootstrap_servers=brokers,
+                    client_id=project,
+                )
+                kafka_client.delete_topics(topics)
+                logger.debug("Deleted kafka topics", topics=topics)
+            except kafka.errors.TopicAuthorizationFailedError as e:
+                logger.warning(
+                    "Can't delete kafka topics",
+                    topics=topics,
+                    error=mlrun.errors.err_to_str(e),
+                )
+        else:
+            logger.warning(
+                "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
+                stream_path=stream_paths[0],
+            )
 
     def check_if_credentials_are_set(self, only_project_secrets: bool = False):
         """

@@ -22,11 +22,11 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-from mlrun.utils.helpers import validate_inline_artifact_body_size
 
 
 class Artifacts(
@@ -273,11 +273,9 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            validate_inline_artifact_body_size(artifact["spec"]["inline"])
-
-    @staticmethod
-    def _is_artifact_data_single_file(target_path):
-        return target_path.endswith((".parquet", ".pq")) if target_path else False
+            mlrun.utils.helpers.validate_inline_artifact_body_size(
+                artifact["spec"]["inline"]
+            )
 
     def _delete_artifact_data(
         self,
@@ -316,7 +314,7 @@ class Artifacts(
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            if artifact_kind == "dataset" and not self._is_artifact_data_single_file(
+            if artifact_kind == "dataset" and not mlrun.utils.helpers.is_parquet_file(
                 path
             ):
                 raise mlrun.errors.MLRunNotImplementedServerError(

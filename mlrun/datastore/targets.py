@@ -549,7 +549,7 @@ class BaseStoreTarget(DataTargetBase):
                     os.makedirs(dir, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
-            if not target_path.endswith((".parquet", ".pq")):  # directory
+            if not mlrun.utils.helpers.is_parquet_file(target_path):  # directory
                 partition_cols = []
                 if timestamp_key and (
                     self.partitioned or self.time_partitioning_granularity
@@ -916,10 +916,8 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if (
-            not self.partitioned
-            and not self.get_target_path().endswith(".parquet")
-            and not self.get_target_path().endswith(".pq")
+        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
+            self.get_target_path()
         ):
             partition_cols = []
 
@@ -1038,9 +1036,7 @@ class ParquetTarget(BaseStoreTarget):
         return result
 
     def is_single_file(self):
-        if self.path:
-            return self.path.endswith(".parquet") or self.path.endswith(".pq")
-        return False
+        return mlrun.utils.helpers.is_parquet_file(self.path)
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns

@@ -276,10 +276,8 @@ class Artifacts(
             validate_inline_artifact_body_size(artifact["spec"]["inline"])
 
     @staticmethod
-    def _is_single_file(target_path):
-        if target_path:
-            return target_path.endswith(".parquet") or target_path.endswith(".pq")
-        return False
+    def _is_artifact_data_single_file(target_path):
+        return target_path.endswith((".parquet", ".pq")) if target_path else False
 
     def _delete_artifact_data(
         self,
@@ -318,7 +316,9 @@ class Artifacts(
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            if artifact_kind == "dataset" and not self._is_single_file(path):
+            if artifact_kind == "dataset" and not self._is_artifact_data_single_file(
+                path
+            ):
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     "Deleting artifact data kind dataset is currently available for a single file"
                 )

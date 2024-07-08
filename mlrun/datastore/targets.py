@@ -549,9 +549,7 @@ class BaseStoreTarget(DataTargetBase):
                     os.makedirs(dir, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
-            if not target_path.endswith(".parquet") and not target_path.endswith(
-                ".pq"
-            ):  # directory
+            if not target_path.endswith((".parquet", ".pq")):  # directory
                 partition_cols = []
                 if timestamp_key and (
                     self.partitioned or self.time_partitioning_granularity

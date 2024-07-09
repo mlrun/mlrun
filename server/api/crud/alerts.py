@@ -144,8 +144,7 @@ class Alerts(
             server.api.crud.Events().remove_event_configuration(project, kind, alert.id)
 
         server.api.utils.singletons.db.get_db().delete_alert(session, project, name)
-        if alert.id in self._states:
-            self._states.pop(alert.id)
+        self._clear_alert_states(alert)
 
     def process_event(
         self,
@@ -170,9 +169,10 @@ class Alerts(
 
                 if state_obj is None:
                     state_obj = {"events": [event_data.timestamp]}
+                else:
+                    state_obj["events"].append(event_data.timestamp)
 
                 if alert.criteria.period is not None:
-                    state_obj["events"].append(event_data.timestamp)
                     # adjust the sliding window of events
                     self._normalize_events(
                         state_obj,
@@ -362,6 +362,7 @@ class Alerts(
             session, project, name, last_updated=None
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
+        self._clear_alert_states(alert)
 
     def _delete_notifications(self, alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:
@@ -387,3 +388,7 @@ class Alerts(
             )
             for cooldown, notification in zip(cooldowns, notifications)
         ]
+
+    def _clear_alert_states(self, alert):
+        if alert.id in self._states:
+            self._states.pop(alert.id)

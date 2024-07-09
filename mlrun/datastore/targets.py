@@ -29,7 +29,10 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.snowflake_utils import (
+    get_snowflake_password,
+    get_snowflake_spark_options,
+)
 from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
@@ -1249,7 +1252,31 @@ class SnowflakeTarget(BaseStoreTarget):
         return spark_options
 
     def purge(self):
-        pass
+        import snowflake.connector
+
+        missing = [
+            key
+            for key in ["database", "db_schema", "table", "url", "user", "warehouse"]
+            if self.attributes.get(key) is None
+        ]
+        if missing:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {', '.join(missing)}"
+            )
+        account = self.attributes["url"].replace(".snowflakecomputing.com", "")
+
+        with snowflake.connector.connect(
+            account=account,
+            user=self.attributes["user"],
+            password=get_snowflake_password(),
+            warehouse=self.attributes["warehouse"],
+        ) as snowflake_connector:
+            drop_statement = (
+                f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"
+                f".{self.attributes['table']}"
+            )
+            snowflake_connector.execute_string(drop_statement)
 
     def as_df(
         self,

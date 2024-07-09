@@ -207,6 +207,12 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
+
+        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
+        # if labels are {} then we do want to overwrite them
+        if labels is None:
+            labels = {label.name: label.value for label in db_schedule.labels}
+
         labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
         )

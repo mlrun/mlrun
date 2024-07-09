@@ -89,7 +89,6 @@ async def grafana_list_endpoints(
         )
     endpoint_list = await run_in_threadpool(
         server.api.crud.ModelEndpoints().list_model_endpoints,
-        auth_info=auth_info,
         project=project,
         model=model,
         function=function,

@@ -103,18 +103,6 @@ class ModelEndpointSpec(ObjectSpec):
             json_parse_values=json_parse_values,
         )
 
-    @validator("monitor_configuration")
-    @classmethod
-    def set_name(cls, monitor_configuration):
-        return monitor_configuration or {
-            EventFieldType.DRIFT_DETECTED_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
-            ),
-            EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
-            ),
-        }
-
     @validator("model_uri")
     @classmethod
     def validate_model_uri(cls, model_uri):

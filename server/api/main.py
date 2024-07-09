@@ -25,6 +25,7 @@ import fastapi.concurrency
 import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.errors
@@ -274,8 +275,10 @@ async def _verify_log_collection_started_on_startup(
     Verifies that log collection was started on startup for all runs which might have started before the API
     initialization or after upgrade.
     In that case we want to make sure that all runs which are in non-terminal state will have their logs collected
-    with the new log collection method and runs which might have reached terminal state while the API was down will
-    have their logs collected as well.
+    by the log-collector and runs which might have reached terminal state while the API was down will have their
+    logs collected as well.
+    If the amount of runs which require logs collection on startup exceeds the configured limit, we will skip the rest
+    but mark them as requested logs collection, to not get the API stuck in an endless loop of trying to collect logs.
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
@@ -283,27 +286,28 @@ async def _verify_log_collection_started_on_startup(
         logger.debug(
             "Getting all runs which are in non terminal state and require logs collection"
         )
-        runs = await fastapi.concurrency.run_in_threadpool(
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[None, False],
-            only_uids=False,
+            only_uids=True,
             states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
         )
         logger.debug(
             "Getting all runs which might have reached terminal state while the API was down",
             api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
         )
-        runs.extend(
+        runs_uids.extend(
             await fastapi.concurrency.run_in_threadpool(
                 get_db().list_distinct_runs_uids,
                 db_session,
                 requested_logs_modes=[None, False],
-                only_uids=False,
+                # get only uids as there might be many runs which reached terminal state while the API was down, the
+                # run objects will be fetched in the next step
+                only_uids=True,
                 # We take the minimum between the api_downtime_grace_period and the
-                # runtime_resources_deletion_grace_period because we want to make sure that we don't miss any runs
-                # which might have reached terminal state while the API was down, and their runtime resources
-                # are not deleted
+                # runtime_resources_deletion_grace_period because we want to make sure that we don't miss any runs which
+                # might have reached terminal state while the API was down, and their runtime resources are not deleted
                 last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
                 - datetime.timedelta(
                     seconds=min(
@@ -314,18 +318,46 @@ async def _verify_log_collection_started_on_startup(
                 states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
         )
-        if runs:
+        if runs_uids:
+            skipped_run_uids = []
+            if len(runs_uids) > int(
+                mlrun.mlconf.log_collector.start_logs_startup_run_limit
+            ):
+                logger.warning(
+                    "Amount of runs requiring logs collection on startup exceeds configured limit, "
+                    "skipping the rest but marking them as requested",
+                    total_runs_count=len(runs_uids),
+                    start_logs_startup_run_limit=mlrun.mlconf.log_collector.start_logs_startup_run_limit,
+                )
+                skipped_run_uids = runs_uids[
+                    int(mlrun.mlconf.log_collector.start_logs_startup_run_limit) :
+                ]
+                runs_uids = runs_uids[
+                    : int(mlrun.mlconf.log_collector.start_logs_startup_run_limit)
+                ]
+
             logger.debug(
                 "Found runs which require logs collection on startup",
-                runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
+                runs_count=len(runs_uids),
             )
 
             # we're using best_effort=True so the api will mark the runs as requested logs collection even in cases
             # where the log collection failed (e.g. when the pod is not found for runs that might have reached terminal
             # state while the API was down)
             await _start_log_and_update_runs(
-                start_logs_limit, db_session, runs, best_effort=True
+                start_logs_limit=start_logs_limit,
+                db_session=db_session,
+                runs_uids=runs_uids,
+                best_effort=True,
             )
+
+            if skipped_run_uids:
+                await fastapi.concurrency.run_in_threadpool(
+                    get_db().update_runs_requested_logs,
+                    db_session,
+                    uids=skipped_run_uids,
+                    requested_logs=True,
+                )
     finally:
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
@@ -343,19 +375,23 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
 
         # list all the runs in the system which we didn't request logs collection for yet
-        runs = await fastapi.concurrency.run_in_threadpool(
+        runs_uids = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
             requested_logs_modes=[False],
-            only_uids=False,
+            only_uids=True,
             states=run_states,
         )
-        if runs:
+        if runs_uids:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
+                runs_uids=runs_uids,
             )
-            await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+            await _start_log_and_update_runs(
+                start_logs_limit=start_logs_limit,
+                db_session=db_session,
+                runs_uids=runs_uids,
+            )
 
     finally:
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
@@ -364,11 +400,18 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
 async def _start_log_and_update_runs(
     start_logs_limit: asyncio.Semaphore,
     db_session: sqlalchemy.orm.Session,
-    runs: list,
+    runs_uids: list[str],
     best_effort: bool = False,
 ):
-    if not runs:
+    if not runs_uids:
         return
+
+    # get the runs from the DB
+    runs = await fastapi.concurrency.run_in_threadpool(
+        get_db().list_runs,
+        db_session,
+        uid=runs_uids,
+    )
 
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection
     # basically represents the grace period before the run's resources are deleted
@@ -422,7 +465,6 @@ async def _start_log_and_update_runs(
         logger.debug(
             "Updating runs to indicate that we requested logs collection for them",
             runs_uids=runs_to_mark_as_requested_logs,
-            start_log_request_counters_len=len(_run_uid_start_log_request_counters),
         )
         # update the runs to indicate that we have requested log collection for them
         await fastapi.concurrency.run_in_threadpool(
@@ -902,7 +944,7 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
             logger.debug("No runs to stop logs for", project=project_name)
             continue
 
-        # if we wont chunk the run uids, the grpc message might include many uids which will overflow the max message
+        # if we won't chunk the run uids, the grpc message might include many uids which will overflow the max message
         # size.
         for chunked_run_uids in mlrun.utils.helpers.iterate_list_by_chunks(
             run_uids, chunk_size

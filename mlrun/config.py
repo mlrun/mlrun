@@ -508,7 +508,6 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -665,7 +664,9 @@ default_config = {
         "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
-        "concurrent_start_logs_workers": 15,
+        "concurrent_start_logs_workers": 50,
+        # the number of runs for which to start logs on api startup
+        "start_logs_startup_run_limit": 150,
         # the time in hours in which to start log collection from.
         # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
@@ -1097,6 +1098,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1118,6 +1120,12 @@ class Config:
         """
 
         if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project, **kwargs)
             if (
                 function_name
                 and function_name

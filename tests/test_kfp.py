@@ -136,11 +136,16 @@ def test_merge_node_selectors_from_function_and_project_on_kfp_pod():
 
     # mock get_project method to return a project with node selector
     mock_return_value = unittest.mock.MagicMock()
-    mock_return_value.spec.default_function_node_selector = {project_node_selector: project_val}
+    mock_return_value.spec.default_function_node_selector = {
+        project_node_selector: project_val
+    }
     function._get_db().get_project = unittest.mock.Mock(return_value=mock_return_value)
 
     cop = function.as_step()
-    assert cop.node_selector == {function_node_selector: function_val, project_node_selector: project_val}
+    assert cop.node_selector == {
+        function_node_selector: function_val,
+        project_node_selector: project_val,
+    }
 
 
 def _assert_output_dir(output_dir, name, iterations=1):

@@ -263,7 +263,7 @@ def _enrich_node_selector_from_project(function):
     function_node_selector = getattr(function.spec, "node_selector") or {}
     project = function._get_db().get_project(function.metadata.project)
     if project:
-        logger.info(
+        logger.debug(
             "Enriching node selector from project",
             project_node_selector=project.spec.default_function_node_selector,
         )

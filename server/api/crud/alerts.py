@@ -165,12 +165,9 @@ class Alerts(
             send_notification = False
 
             if alert.criteria is not None:
-                state_obj = self._states.get(alert.id, None)
-
-                if state_obj is None:
-                    state_obj = {"events": [event_data.timestamp]}
-                else:
-                    state_obj["events"].append(event_data.timestamp)
+                state_obj = self._states.get(alert.id, None) or {}
+                state_obj.setdefault("events", [])
+                state_obj["events"].append(event_data.timestamp)
 
                 if alert.criteria.period is not None:
                     # adjust the sliding window of events

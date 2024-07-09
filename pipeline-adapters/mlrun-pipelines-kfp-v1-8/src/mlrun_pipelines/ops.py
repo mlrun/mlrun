@@ -247,8 +247,7 @@ def add_function_node_selection_attributes(
 ) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         enriched_node_selector = _enrich_node_selector_from_project(function)
-        logger.info("Enriched !!!!", enriched_node_selector=enriched_node_selector)
-        if getattr(function.spec, "node_selector") or enriched_node_selector:
+        if enriched_node_selector:
             container_op.node_selector = enriched_node_selector
 
         if getattr(function.spec, "tolerations"):
@@ -261,21 +260,19 @@ def add_function_node_selection_attributes(
 
 
 def _enrich_node_selector_from_project(function):
-    logger.info(
-        "Innnnn!! yael", function=type(function), project=function.metadata.project
-    )
+    function_node_selector = getattr(function.spec, "node_selector") or {}
     project = function._get_db().get_project(function.metadata.project)
-    logger.info(
-        "get projectttt!! yael",
-        function=type(function),
-        proj_ns=project.spec.default_function_node_selector,
-        project=project,
-    )
-    return to_non_empty_values_dict(
-        merge_with_precedence(
-            project.spec.default_function_node_selector, function.spec.node_selector
+    if project:
+        logger.info(
+            "Enriching node selector from project",
+            project_node_selector=project.spec.default_function_node_selector,
         )
-    )
+        return to_non_empty_values_dict(
+            merge_with_precedence(
+                project.spec.default_function_node_selector, function_node_selector
+            )
+        )
+    return to_non_empty_values_dict(function_node_selector)
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):

@@ -15,6 +15,7 @@
 import csv
 import json
 import os
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -124,6 +125,22 @@ def test_kfp_function_run_with_hyper_params(kfp_dirs):
     assert result.output("accuracy") == expected_accuracy
     assert result.output("loss") == expected_loss
     assert result.status.state == "completed"
+
+
+def test_merge_node_selectors_from_function_and_project_on_kfp_pod():
+    function = new_function(kfp=True, kind="job", project="test")
+    function_node_selector, function_val = "ns1", "val1"
+
+    project_node_selector, project_val = "ns2", "val2"
+    function.spec.node_selector = {function_node_selector: function_val}
+
+    # mock get_project method to return a project with node selector
+    mock_return_value = unittest.mock.MagicMock()
+    mock_return_value.spec.default_function_node_selector = {project_node_selector: project_val}
+    function._get_db().get_project = unittest.mock.Mock(return_value=mock_return_value)
+
+    cop = function.as_step()
+    assert cop.node_selector == {function_node_selector: function_val, project_node_selector: project_val}
 
 
 def _assert_output_dir(output_dir, name, iterations=1):

@@ -14,7 +14,6 @@
 #
 import os
 import os.path
-import tempfile
 import uuid
 
 import dask.dataframe as dd

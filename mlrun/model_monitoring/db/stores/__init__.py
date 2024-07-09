@@ -121,7 +121,10 @@ def get_store_object(
             mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
         )
     else:
-        store_type = None
+        raise mlrun.errors.MLRunInvalidMMStoreType(
+            "You must provide a valid store connection by using "
+            "set_model_monitoring_credentials API."
+        )
     # Get store type value from ObjectStoreFactory enum class
     store_type_fact = ObjectStoreFactory(store_type)
 

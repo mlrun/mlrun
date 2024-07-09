@@ -91,7 +91,10 @@ def get_tsdb_connector(
     elif tsdb_connection_string and tsdb_connection_string == "v3io":
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     else:
-        tsdb_connector_type = None
+        raise mlrun.errors.MLRunInvalidMMStoreType(
+            "You must provide a valid tsdb store connection by using "
+            "set_model_monitoring_credentials API."
+        )
 
     # Get connector type value from ObjectTSDBFactory enum class
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)

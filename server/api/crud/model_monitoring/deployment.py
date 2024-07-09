@@ -1115,7 +1115,7 @@ class MonitoringDeployment:
                 and not endpoint_store_connection.startswith("mysql")
                 and not endpoint_store_connection.startswith("sqlite")
             ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
+                raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
                 )
@@ -1123,7 +1123,7 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunInvalidMMStoreType(
                 "You must provide a valid endpoint store connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
@@ -1141,13 +1141,13 @@ class MonitoringDeployment:
                 stream_path = ""
             else:
                 if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
+                    raise mlrun.errors.MLRunInvalidMMStoreType(
                         "Custom kafka topic is not allowed"
                     )
                 elif not stream_path.startswith("kafka://") and (
                     stream_path != "v3io" or stream_path != ""
                 ):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
+                    raise mlrun.errors.MLRunInvalidMMStoreType(
                         "Currently only Kafka connection is supported for non-v3io stream,"
                         "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
                     )
@@ -1155,7 +1155,7 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunInvalidMMStoreType(
                 "You must provide a valid stream path connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
@@ -1169,7 +1169,7 @@ class MonitoringDeployment:
             if tsdb_connection != "v3io" and not tsdb_connection.startswith(
                 "taosws://"
             ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
+                raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
                 )
@@ -1177,7 +1177,7 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
             ] = tsdb_connection
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunInvalidMMStoreType(
                 "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )

@@ -21,7 +21,6 @@ import v3io_frames.client
 
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.db import TSDBConnector
@@ -575,34 +574,6 @@ class V3IOTSDBConnector(TSDBConnector):
             query.write(";")
             return query.getvalue()
 
-    @staticmethod
-    def _str_to_millis(time_string: str) -> int:
-        """Python reimplementation of https://github.com/v3io/v3io-tsdb/blob/v0.14.1/pkg/utils/timeutils.go#L80
-        without support for 'now'"""
-        try:
-            return int(time_string)
-        except ValueError:
-            pass
-
-        return int(datetime.fromisoformat(time_string).timestamp() * 1000)
-
-    @staticmethod
-    def _round_up_time(timestamp: Union[datetime, str]) -> int:
-        if isinstance(timestamp, datetime):
-            timestamp_in_millis = timestamp.timestamp() * 1000
-        else:
-            timestamp_in_millis = V3IOTSDBConnector._str_to_millis(timestamp)
-
-        millis_in_ten_minutes = (
-            1000
-            * 60
-            * mm_constants.PredictionsQueryConstants.DEFAULT_AGGREGATION_GRANULARITY_MINUTES
-        )
-
-        return (
-            int(timestamp_in_millis / millis_in_ten_minutes + 1) * millis_in_ten_minutes
-        )
-
     def read_predictions(
         self,
         *,
@@ -615,9 +586,6 @@ class V3IOTSDBConnector(TSDBConnector):
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
     ]:
-        # ML-6940
-        end = str(self._round_up_time(end))
-
         if (agg_funcs and not aggregation_window) or (
             aggregation_window and not agg_funcs
         ):
@@ -630,7 +598,6 @@ class V3IOTSDBConnector(TSDBConnector):
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],
             filter_query=f"endpoint_id=='{endpoint_id}'",
-            interval=aggregation_window,
             agg_funcs=agg_funcs,
             sliding_window_step=aggregation_window,
         )

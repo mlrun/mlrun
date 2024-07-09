@@ -306,16 +306,15 @@ def make_kaniko_pod(
         assume_instance_role = not config.httpdb.builder.docker_registry_secret
         configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
 
-        # project secret might conflict with the attached instance role
+        # project secret might conflict with the attached instance role/docker registry secret
         # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
         # due to credentials conflict / lack of permission on given credentials
-        if assume_instance_role:
-            kpod.pod.spec.containers[0].env.extend(
-                [
-                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
-                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
-                ]
-            )
+        kpod.pod.spec.containers[0].env.extend(
+            [
+                client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
+                client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
+            ]
+        )
 
     # mount regular docker config secret
     elif secret_name:

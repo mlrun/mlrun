@@ -152,20 +152,21 @@ class MLRunPatcher:
 
     def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
-        mlrun_docker_registry = self._config["DOCKER_REGISTRY"]
+        mlrun_docker_registry = self._config["DOCKER_REGISTRY"].rstrip("/")
         mlrun_docker_repo = self._config.get("DOCKER_REPO", "")
 
-        if not mlrun_docker_registry.endswith("/"):
-            mlrun_docker_registry += "/"
+        if mlrun_docker_repo:
+            mlrun_docker_registry = (
+                f"{mlrun_docker_registry}/{mlrun_docker_repo.rstrip('/')}"
+            )
 
         env = {
             "MLRUN_VERSION": image_tag,
-            "MLRUN_DOCKER_REGISTRY": mlrun_docker_registry,
-            "MLRUN_DOCKER_REPO": mlrun_docker_repo,
+            "MLRUN_DOCKER_REPO": mlrun_docker_registry,
         }
         cmd = ["make", target]
         self._exec_local(cmd, live=True, env=env)
-        return f"{mlrun_docker_registry}{mlrun_docker_repo}/{image_name}:{image_tag}"
+        return f"{mlrun_docker_registry}/{image_name}:{image_tag}"
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")

@@ -14,7 +14,6 @@
 
 import concurrent.futures
 import json
-import os
 import pickle
 import time
 import typing
@@ -100,29 +99,22 @@ class _V3IORecordsChecker:
     @classmethod
     def custom_setup(cls, project_name: str) -> None:
         # By default, the TSDB connection is based on V3IO TSDB
-        # To use TDEngine, set the `TSDB_CONNECTION` environment variable to the TDEngine connection string,
+        # To use TDEngine, set the `MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION`
+        # environment variable to the TDEngine connection string,
         # e.g. "taosws://user:password@host:port"
 
-        if os.getenv(mm_constants.ProjectSecretKeys.TSDB_CONNECTION):
-            project = mlrun.get_or_create_project(
-                project_name, "./", allow_cross_project=True
-            )
-            project.set_model_monitoring_credentials(
-                tsdb_connection=os.getenv(
-                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
-                )
-            )
+        project = mlrun.get_or_create_project(
+            project_name, "./", allow_cross_project=True
+        )
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
-            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name,
-                TSDB_CONNECTION=os.getenv(
-                    mm_constants.ProjectSecretKeys.TSDB_CONNECTION
-                ),
-            )
-        else:
-            cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name
-            )
+        cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
+            project=project_name,
+        )
         cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
@@ -340,6 +332,7 @@ class _V3IORecordsChecker:
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -392,6 +385,58 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def custom_setup(cls) -> None:
         _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
+
+    @classmethod
+    def custom_teardown(self):
+        # validate that stream resources were deleted as expected
+        stream_path = self._test_env[
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
+        ]
+
+        func_to_validate = [
+            "model-monitoring-writer",
+            "histogram-data-drift",
+            "evidently-app-test-v2",
+        ]
+
+        if stream_path.startswith("v3io:///"):
+            from v3io.dataplane.response import HttpResponseError
+
+            from mlrun.utils.v3io_clients import get_v3io_client
+
+            client = get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+
+            for func in func_to_validate:
+                with pytest.raises(HttpResponseError):
+                    client.object.get(
+                        container="projects",
+                        path=f"{self.project_name}/model-endpoints/stream-{func}/serving-state.json",
+                    )
+
+            # validate that the monitoring stream was deleted
+            with pytest.raises(HttpResponseError):
+                client.object.get(
+                    container="projects",
+                    path=f"{self.project_name}/model-endpoints/stream/serving-state.json",
+                )
+
+        elif stream_path.startswith("kafka://"):
+            import kafka
+
+            _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=brokers,
+            )
+            topics = consumer.topics()
+
+            project_topics_list = [f"monitoring_stream_{self.project_name}"]
+            for func in func_to_validate:
+                project_topics_list.append(
+                    f"monitoring_stream_{self.project_name}_{func}"
+                )
+
+            for topic in project_topics_list:
+                assert topic not in topics
 
     def _submit_controller_and_deploy_writer(
         self, deploy_histogram_data_drift_app
@@ -534,13 +579,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         if not with_training_set and _DefaultDataDriftAppData in self.apps_data:
             self.apps_data.remove(_DefaultDataDriftAppData)
 
+        self._submit_controller_and_deploy_writer(
+            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data,
+            # workaround for ML-5997
+        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(
-                self._submit_controller_and_deploy_writer,
-                deploy_histogram_data_drift_app=_DefaultDataDriftAppData
-                in self.apps_data,
-                # workaround for ML-5997
-            )
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving, with_training_set)
 
@@ -571,6 +614,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
     # TODO : delete in 1.9.0 (V1 app deprecation)
     project_name = "test-app-flow-v1"
@@ -606,6 +650,7 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
@@ -719,13 +764,23 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelMonitoringInitialize(TestMLRunSystem):
+    """Test model monitoring infrastructure initialization and cleanup, including the usage of
+    disable the model monitoring and delete a specific model monitoring application."""
+
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
     def test_model_monitoring_crud(self) -> None:
-        import v3io.dataplane
+        # Main validations:
+        # 1 - Deploy model monitoring infrastructure and validate controller cron trigger
+        # 2 - Validate that all the model monitoring functions are deployed
+        # 3 - Update the controller cron trigger and validate the change
+        # 4 - Disable model monitoring and validate the related resources are deleted
+        # 5 - Disable the monitoring stream pod and validate the stream resource is not deleted
+        # 6 - Delete the histogram data drift application and validate the related resources are deleted
 
         all_functions = mm_constants.MonitoringFunctionNames.list() + [
             mm_constants.HistogramDataDriftApplicationConstants.NAME
@@ -734,9 +789,14 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             self.project.update_model_monitoring_controller(
                 image=self.image or "mlrun/mlrun"
             )
-
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun", wait_for_deployment=True
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
         )
 
         controller = self.project.get_function(
@@ -795,66 +855,43 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
         )
 
         self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
-        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
 
-        # controller and writer(with hus stream) should be deleted
-        for name in mm_constants.MonitoringFunctionNames.list():
-            stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-                project=self.project.name, function_name=name
-            )
-            _, container, stream_path = (
-                mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                    stream_path
+        stream_path = self._test_env[
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
+        ]
+        if stream_path.startswith("v3io:///"):
+            import v3io.dataplane
+
+            v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+
+            # controller and writer(with has stream) should be deleted
+            for name in mm_constants.MonitoringFunctionNames.list():
+                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                    project=self.project.name, function_name=name
                 )
-            )
-            if name != mm_constants.MonitoringFunctionNames.STREAM:
-                with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
+                    )
+                )
+                if name != mm_constants.MonitoringFunctionNames.STREAM:
+                    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                        self.project.get_function(
+                            key=name,
+                            ignore_cache=True,
+                        )
+                    with pytest.raises(v3io.dataplane.response.HttpResponseError):
+                        v3io_client.stream.describe(container, stream_path)
+                else:
                     self.project.get_function(
                         key=name,
                         ignore_cache=True,
                     )
-                with pytest.raises(v3io.dataplane.response.HttpResponseError):
                     v3io_client.stream.describe(container, stream_path)
-            else:
-                self.project.get_function(
-                    key=name,
-                    ignore_cache=True,
-                )
-                v3io_client.stream.describe(container, stream_path)
 
-        self.project.disable_model_monitoring(
-            delete_histogram_data_drift_app=False, delete_stream_function=True
-        )
+            self._disable_stream_function()
 
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            self.project.get_function(
-                key=mm_constants.MonitoringFunctionNames.STREAM,
-                ignore_cache=True,
-            )
-
-        # check that the stream of the stream pod is not deleted
-        stream_path = mlrun.model_monitoring.helpers.get_stream_path(
-            project=self.project.name,
-            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-        )
-        _, container, stream_path = (
-            mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
-                stream_path
-            )
-        )
-        v3io_client.stream.describe(container, stream_path)
-
-        self.project.delete_model_monitoring_function(
-            mm_constants.HistogramDataDriftApplicationConstants.NAME
-        )
-        # check that the histogram data drift app and it's stream is deleted
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            self.project.get_function(
-                key=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-                ignore_cache=True,
-            )
-
-        with pytest.raises(v3io.dataplane.response.HttpResponseError):
+            # check that the stream of the stream resource is not deleted
             stream_path = mlrun.model_monitoring.helpers.get_stream_path(
                 project=self.project.name,
                 function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
@@ -866,9 +903,94 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
             )
             v3io_client.stream.describe(container, stream_path)
 
+            # check that the stream of the histogram data drift app is deleted
+            self._delete_histogram_app()
+
+            with pytest.raises(v3io.dataplane.response.HttpResponseError):
+                stream_path = mlrun.model_monitoring.helpers.get_stream_path(
+                    project=self.project.name,
+                    function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                )
+                _, container, stream_path = (
+                    mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+                        stream_path
+                    )
+                )
+                v3io_client.stream.describe(container, stream_path)
+
+        elif stream_path.startswith("kafka://"):
+            import kafka
+
+            _, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=brokers,
+            )
+            topics = consumer.topics()
+
+            with pytest.raises(mlrun.errors.MLRunNotFoundError):
+                self.project.get_function(
+                    key=mm_constants.MonitoringFunctionNames.WRITER,
+                    ignore_cache=True,
+                )
+            assert (
+                f"monitoring_stream_{self.project_name}_{mm_constants.MonitoringFunctionNames.WRITER}"
+                not in topics
+            )
+
+            self.project.get_function(
+                key=mm_constants.MonitoringFunctionNames.STREAM,
+                ignore_cache=True,
+            )
+
+            assert f"monitoring_stream_{self.project_name}" in topics
+
+            self._disable_stream_function()
+
+            # check that the topic of the stream resource is not deleted
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=brokers,
+            )
+            topics = consumer.topics()
+            assert f"monitoring_stream_{self.project_name}" in topics
+
+            self._delete_histogram_app()
+
+            # check that the topic of the histogram data drift app is deleted
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=brokers,
+            )
+            topics = consumer.topics()
+            assert (
+                f"monitoring_stream_{self.project_name}_{mm_constants.HistogramDataDriftApplicationConstants.NAME}"
+                not in topics
+            )
+
+    def _disable_stream_function(self):
+        self.project.disable_model_monitoring(
+            delete_histogram_data_drift_app=False, delete_stream_function=True
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.MonitoringFunctionNames.STREAM,
+                ignore_cache=True,
+            )
+
+    def _delete_histogram_app(self):
+        self.project.delete_model_monitoring_function(
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        )
+        # check that the histogram data drift app and it's stream is deleted
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_function(
+                key=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+                ignore_cache=True,
+            )
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -1014,6 +1136,11 @@ class TestAllKindOfServing(TestMLRunSystem):
         }
 
     def test_all(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,
@@ -1078,6 +1205,11 @@ class TestTracking(TestAllKindOfServing):
         }
 
     def test_tracking(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,

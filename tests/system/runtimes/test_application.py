@@ -54,3 +54,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.deploy(with_mlrun=False)
 
         assert function.invoke("/", verify=False)
+
+        # application runtime function is created without external url
+        # check that empty string is not added to func.status.external_invocation_urls
+        assert "" not in function.status.external_invocation_urls

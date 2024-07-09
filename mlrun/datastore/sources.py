@@ -217,9 +217,12 @@ class CSVSource(BaseSourceDriver):
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
+        url = store.spark_url + path
+        if url.startswith("v3io:///"):
+            url = "v3io:" + url[len("v3io:/") :]
         spark_options.update(
             {
-                "path": store.spark_url + path,
+                "path": url,
                 "format": "csv",
                 "header": "true",
                 "inferSchema": "true",
@@ -402,9 +405,12 @@ class ParquetSource(BaseSourceDriver):
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
         spark_options = store.get_spark_options()
+        url = store.spark_url + path
+        if url.startswith("v3io:///"):
+            url = "v3io:" + url[len("v3io:/"):]
         spark_options.update(
             {
-                "path": store.spark_url + path,
+                "path": url,
                 "format": "parquet",
             }
         )

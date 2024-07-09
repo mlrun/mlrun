@@ -5,10 +5,10 @@ from mlrun.genai.config import get_llm, logger
 from mlrun.genai.schema import PipelineEvent
 
 _refine_prompt_template = """
-You are a helpful AI assistant, given the following conversation and a follow up request, 
-rephrase the follow up request to be a standalone request, keeping the same user language. 
-Your rephrasing must include any relevant history element to get a precise standalone request 
-and not losing previous context.
+You are a helpful AI assistant, given the following conversation and a follow up request,
+ rephrase the follow up request to be a standalone request, keeping the same user language.
+Your rephrasing must include any relevant history element to get a precise standalone request
+ and not losing previous context.
 
 Chat History:
 {chat_history}

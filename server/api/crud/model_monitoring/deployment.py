@@ -1057,7 +1057,7 @@ class MonitoringDeployment:
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
         _default_secrets_v3io: typing.Optional[str] = None,
-    ):
+    ) -> None:
         """
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
@@ -1089,8 +1089,16 @@ class MonitoringDeployment:
         """
         try:
             self.check_if_credentials_are_set(only_project_secrets=True)
+            if self._is_the_same_cred(
+                endpoint_store_connection, stream_path, tsdb_connection
+            ):
+                logger.warning(
+                    "The same credentials are already set for the project",
+                    project=self.project,
+                )
+                return
             raise mlrun.errors.MLRunConflictError(
-                f"For {self.project} the credentials are already set.\n"
+                f"For {self.project} the credentials are already set, and they can't be modified.\n"
                 f"This API can run only once for a project."
             )
         except mlrun.errors.MLRunBadRequestError:
@@ -1202,6 +1210,41 @@ class MonitoringDeployment:
                 secrets=secrets_dict,
             ),
         )
+
+    def _is_the_same_cred(
+        self, endpoint_store_connection, stream_path, tsdb_connection
+    ):
+        credentials_dict = {
+            key: server.api.crud.Secrets().get_project_secret(
+                project=self.project,
+                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+                secret_key=key,
+                allow_secrets_from_k8s=True,
+            )
+            for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
+        }
+
+        for key, val in credentials_dict.items():
+            if (
+                key
+                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ):
+                if val != endpoint_store_connection:
+                    return False
+            elif (
+                key
+                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            ):
+                val = val if val is not None else "v3io"  # TODO : del in 1.9.0
+                if val != stream_path:
+                    return False
+            elif (
+                key
+                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ):
+                if val != tsdb_connection:
+                    return False
+        return True
 
 
 def get_endpoint_features(

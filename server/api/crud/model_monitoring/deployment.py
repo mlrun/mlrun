@@ -750,11 +750,10 @@ class MonitoringDeployment:
                 task = await run_in_threadpool(
                     server.api.db.session.run_function_with_new_db_session,
                     MonitoringDeployment._create_monitoring_function_deletion_background_task,
-                    background_tasks,
-                    self.db_session,
-                    self.project,
-                    function_name,
-                    self.auth_info,
+                    background_tasks=background_tasks,
+                    project_name=self.project,
+                    function_name=function_name,
+                    auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
                     not in [
                         mm_constants.MonitoringFunctionNames.STREAM,

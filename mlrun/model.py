@@ -737,8 +737,17 @@ class Notification(ModelObj):
             self.kind
         ).get_notification()
 
-        secret_params = self.secret_params
-        params = self.params
+        secret_params = self.secret_params or {}
+        params = self.params or {}
+
+        # if the secret_params are already masked - no need to validate
+        params_secret = secret_params.get("secret", "")
+        if params_secret:
+            if len(secret_params) > 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "When the 'secret' key is present, 'secret_params' should not contain any other keys."
+                )
+            return
 
         if not secret_params and not params:
             raise mlrun.errors.MLRunInvalidArgumentError(

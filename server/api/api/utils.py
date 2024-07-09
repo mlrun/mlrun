@@ -385,13 +385,14 @@ def delete_notification_params_secret(
             "Not running in k8s environment, cannot delete notification params secret"
         )
 
-    server.api.crud.Secrets().delete_project_secret(
-        project,
-        mlrun.common.schemas.SecretProviderName.kubernetes,
-        secret_key=params_secret,
-        allow_internal_secrets=True,
-        allow_secrets_from_k8s=True,
-    )
+    if server.api.crud.Secrets().is_internal_project_secret_key(params_secret):
+        server.api.crud.Secrets().delete_project_secret(
+            project,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            secret_key=params_secret,
+            allow_internal_secrets=True,
+            allow_secrets_from_k8s=True,
+        )
 
 
 def validate_and_mask_notification_list(

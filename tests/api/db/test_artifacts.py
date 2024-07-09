@@ -15,6 +15,7 @@
 import copy
 import datetime
 import tempfile
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -613,6 +614,46 @@ class TestArtifacts:
         assert len(artifacts) == 1
         db.del_artifacts(db_session, tag=artifact_2_tag)
         artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+        assert len(artifacts) == 0
+
+    def test_delete_artifacts_failure(self, db: DBInterface, db_session: Session):
+        artifact_1_key = "artifact_key_1"
+        artifact_2_key = "artifact_key_2"
+        artifact_1_body = self._generate_artifact(artifact_1_key)
+        artifact_2_body = self._generate_artifact(artifact_2_key)
+        artifact_1_tag = "artifact-tag-one"
+        artifact_2_tag = "artifact-tag-two"
+
+        db.store_artifact(
+            db_session,
+            artifact_1_key,
+            artifact_1_body,
+            tag=artifact_1_tag,
+        )
+        db.store_artifact(
+            db_session,
+            artifact_2_key,
+            artifact_2_body,
+            tag=artifact_2_tag,
+        )
+        with (
+            unittest.mock.patch.object(db, "_delete_multi_objects", return_value=0),
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            db.del_artifacts(db_session)
+        assert "Failed to delete 2 artifacts" in str(exc.value)
+
+        with (
+            unittest.mock.patch.object(db, "_delete_multi_objects", return_value=1),
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            db.del_artifacts(db_session)
+        assert "Failed to delete 1 artifacts" in str(exc.value)
+
+        artifacts = db.list_artifacts(db_session, as_records=True)
+        assert len(artifacts) == 2
+        db.del_artifacts(db_session)
+        artifacts = db.list_artifacts(db_session)
         assert len(artifacts) == 0
 
     def test_delete_artifacts_with_specific_iteration(

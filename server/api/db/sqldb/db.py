@@ -845,19 +845,18 @@ class SQLDB(DBInterface):
         producer_id=None,
     ):
         project = project or config.default_project
-        distinct_keys_and_uids = {
-            (artifact.key, artifact.uid)
-            for artifact in self._find_artifacts(
-                session=session,
-                project=project,
-                name=name,
-                ids=ids,
-                tag=tag,
-                labels=labels,
-                producer_id=producer_id,
-            )
-        }
-        failed_to_delete_keys = []
+        distinct_keys_and_uids = self._find_artifacts(
+            session=session,
+            project=project,
+            name=name,
+            ids=ids,
+            tag=tag,
+            labels=labels,
+            producer_id=producer_id,
+            with_entities=[ArtifactV2.key, ArtifactV2.uid],
+        )
+
+        artifact_column_identifiers = {}
         for key, uid in distinct_keys_and_uids:
             artifact_column_identifier, column_value = self._delete_tagged_object(
                 session,
@@ -872,26 +871,28 @@ class SQLDB(DBInterface):
                 # record was not found
                 continue
 
-            # we do best effort deletion
-            try:
-                if artifact_column_identifier == "id":
-                    # deleting tags, because in sqlite the relationships aren't necessarily cascading
-                    self._delete(session, ArtifactV2.Tag, obj_id=column_value)
-                    self._delete(session, ArtifactV2, id=column_value)
-                else:
-                    # it's the artifact's key
-                    # deleting tags, because in sqlite the relationships aren't necessarily cascading
-                    self._delete(
-                        session, ArtifactV2.Tag, project=project, obj_name=column_value
-                    )
-                    self._delete(session, ArtifactV2, project=project, key=column_value)
-            except Exception as exc:
-                logger.warning(f"Failed to delete artifact {key}", exc_info=str(exc))
-                failed_to_delete_keys.append(key)
+            artifact_column_identifiers.setdefault(
+                artifact_column_identifier, []
+            ).append(column_value)
 
-        if failed_to_delete_keys:
+        failed_deletions_count = 0
+        for (
+            artifact_column_identifier,
+            column_values,
+        ) in artifact_column_identifiers.items():
+            deletions_count = self._delete_multi_objects(
+                session=session,
+                main_table=ArtifactV2,
+                related_tables=[ArtifactV2.Tag, ArtifactV2.Label],
+                project=project,
+                main_table_identifier=getattr(ArtifactV2, artifact_column_identifier),
+                main_table_identifier_values=column_values,
+            )
+            failed_deletions_count += len(column_values) - deletions_count
+
+        if failed_deletions_count:
             raise mlrun.errors.MLRunInternalServerError(
-                f"Failed to delete artifacts: {failed_to_delete_keys}"
+                f"Failed to delete {failed_deletions_count} artifacts"
             )
 
     def list_artifact_tags(
@@ -1294,10 +1295,8 @@ class SQLDB(DBInterface):
         most_recent: bool = False,
         attach_tags: bool = False,
         limit: int = None,
-    ) -> typing.Union[
-        list[tuple[ArtifactV2, str]],
-        list[ArtifactV2],
-    ]:
+        with_entities: list[Any] = None,
+    ) -> typing.Union[list[Any],]:
         """
         Find artifacts by the given filters.
 
@@ -1317,8 +1316,13 @@ class SQLDB(DBInterface):
         :param best_iteration: Filter by best iteration artifacts
         :param most_recent: Filter by most recent artifacts
         :param attach_tags: Whether to return a list of tuples of (ArtifactV2, tag_name). If False, only ArtifactV2
+        :param limit: Maximum number of artifacts to return
+        :param with_entities: List of columns to return
 
-        :return: a list of tuples of (ArtifactV2, tag_name) or a list of ArtifactV2 (if attach_tags is False)
+        :return: May return:
+            1. a list of tuples of (ArtifactV2, tag_name)
+            2. a list of ArtifactV2 - if attach_tags is False
+            3. a list of unique columns sets - if with_entities is given
         """
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1381,16 +1385,21 @@ class SQLDB(DBInterface):
         # then join the outer query on the subquery to select the correct columns of the table.
         subquery = query.subquery()
         outer_query = session.query(ArtifactV2, subquery.c.name)
-        outer_query = outer_query.select_from(ArtifactV2)
+        if with_entities:
+            outer_query = outer_query.with_entities(*with_entities, subquery.c.name)
+
         outer_query = outer_query.join(subquery, ArtifactV2.id == subquery.c.id)
 
-        artifacts_and_tags = outer_query.all()
-
+        results = outer_query.all()
         if not attach_tags:
             # we might have duplicate records due to the tagging mechanism, so we need to deduplicate
-            return list({artifact for artifact, _ in artifacts_and_tags})
+            artifacts = set()
+            for *artifact, _ in results:
+                artifacts.add(tuple(artifact) if with_entities else artifact[0])
 
-        return artifacts_and_tags
+            return list(artifacts)
+
+        return results
 
     def _find_artifacts_for_producer_id(
         self,
@@ -1834,7 +1843,8 @@ class SQLDB(DBInterface):
             main_table=Function,
             related_tables=[Function.Tag, Function.Label],
             project=project,
-            names=names,
+            main_table_identifier=Function.name,
+            main_table_identifier_values=names,
         )
 
     def update_function(
@@ -2279,7 +2289,8 @@ class SQLDB(DBInterface):
             main_table=Schedule,
             related_tables=[Schedule.Label],
             project=project,
-            names=names,
+            main_table_identifier=Schedule.name,
+            main_table_identifier_values=names,
         )
 
     @staticmethod
@@ -2288,17 +2299,36 @@ class SQLDB(DBInterface):
         main_table: mlrun.utils.db.BaseModel,
         related_tables: list[mlrun.utils.db.BaseModel],
         project: str,
-        names: typing.Union[str, list[str]],
-    ):
-        if not names:
+        main_table_identifier: str,
+        main_table_identifier_values: typing.Union[str, list[str]] = None,
+    ) -> int:
+        """
+        Delete multiple objects from the DB, including related tables.
+        :param session: SQLAlchemy session.
+        :param main_table: The main table to delete from.
+        :param related_tables: Related tables to delete from, will be joined with the main table by the identifiers
+            since in SQLite the deletion is not always cascading.
+        :param project: The project to delete from.
+        :param main_table_identifier: The main table attribute to filter by.
+        :param main_table_identifier_values: The values corresponding to main_table_identifier to filter by.
+
+        :return: The amount of deleted rows from the main table.
+        """
+        if not main_table_identifier_values:
             logger.debug(
-                "No names provided, skipping deletion",
+                "No identifier values provided, skipping deletion",
                 project=project,
                 tables=[main_table] + related_tables,
             )
-            return
+            return 0
         for cls in related_tables:
-            logger.debug(f"Removing from {cls}", project=project, name=names)
+            logger.debug(
+                "Removing objects",
+                cls=cls,
+                project=project,
+                main_table_identifier=main_table_identifier,
+                main_table_identifier_values=main_table_identifier_values,
+            )
 
             # The select is mandatory for sqlalchemy 1.4 because
             # query.delete does not support multiple-table criteria within DELETE
@@ -2309,7 +2339,10 @@ class SQLDB(DBInterface):
                     .where(
                         and_(
                             main_table.project == project,
-                            or_(main_table.name == name for name in names),
+                            or_(
+                                main_table_identifier == value
+                                for value in main_table_identifier_values
+                            ),
                         )
                     )
                     .subquery()
@@ -2318,7 +2351,12 @@ class SQLDB(DBInterface):
                 subquery = (
                     select(cls.id)
                     .join(main_table)
-                    .where(or_(main_table.name == name for name in names))
+                    .where(
+                        or_(
+                            main_table_identifier == value
+                            for value in main_table_identifier_values
+                        )
+                    )
                     .subquery()
                 )
             stmt = (
@@ -2330,31 +2368,44 @@ class SQLDB(DBInterface):
             # Execute the delete statement
             execution_obj = session.execute(stmt)
             logger.debug(
-                f"Removed {execution_obj.rowcount} rows from {cls} table",
+                "Removed rows from related table",
+                rowcount=execution_obj.rowcount,
+                cls=cls,
+                main_table=main_table,
                 project=project,
-                names=names,
-                names_count=len(names),
             )
         if project != "*":
             query = session.query(main_table).filter(
                 and_(
                     main_table.project == project,
-                    or_(main_table.name == name for name in names),
+                    or_(
+                        main_table_identifier == value
+                        for value in main_table_identifier_values
+                    ),
                 )
             )
         else:
             query = session.query(main_table).filter(
-                or_(main_table.name == name for name in names),
+                or_(
+                    main_table_identifier == value
+                    for value in main_table_identifier_values
+                ),
             )
 
-        count = query.delete(synchronize_session=False)
-        logger.debug(
-            f"Removed {count} rows from {main_table} table",
-            project=project,
-            names=names,
-            names_count=len(names),
-        )
+        deletions_count = query.delete(synchronize_session=False)
+        log_kwargs = {
+            "deletions_count": deletions_count,
+            "main_table": main_table,
+            "project": project,
+            "main_table_identifier": main_table_identifier,
+            "main_table_identifier_values_count": len(main_table_identifier_values),
+        }
+        if deletions_count != len(main_table_identifier_values):
+            logger.warning("Removed less rows than expected from table", **log_kwargs)
+        else:
+            logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
+        return deletions_count
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True

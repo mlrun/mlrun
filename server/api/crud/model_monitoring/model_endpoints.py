@@ -554,7 +554,9 @@ class ModelEndpoints:
             return
 
         try:
-            if self.verify_project_has_no_model_endpoints(project_name=project_name):
+            self.verify_project_has_no_model_endpoints(project_name=project_name)
+        except mlrun.errors.MLRunPreconditionFailedError:
+            try:
                 # Delete model monitoring store resources
                 endpoint_store = (
                     server.api.crud.model_monitoring.helpers.get_store_object(
@@ -571,13 +573,13 @@ class ModelEndpoints:
                     ),
                 )
                 tsdb_connector.delete_tsdb_resources()
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
-            logger.debug(
-                "Failed to delete model endpoints resources because tsdb connection is not defined."
-                " Returning without deleting the model endpoints resources.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
-            )
-            pass
+            except mlrun.errors.MLRunInvalidMMStoreType as e:
+                logger.debug(
+                    "Failed to delete model endpoints resources because tsdb connection is not defined."
+                    " Returning without deleting the model endpoints resources.\n"
+                    f"Error: {mlrun.errors.err_to_str(e)}"
+                )
+                pass
 
         # Delete model monitoring stream resources
         self._delete_model_monitoring_stream_resources(

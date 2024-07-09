@@ -1,5 +1,4 @@
-from langchain.chains.qa_with_sources.retrieval import \
-    RetrievalQAWithSourcesChain
+from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.prompts import PromptTemplate
 

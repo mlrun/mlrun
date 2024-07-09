@@ -61,7 +61,7 @@ class HistorySaver(ChainRunner):
         answer_key: str = None,
         question_key: str = None,
         save_sources: str = True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.answer_key = answer_key

@@ -119,7 +119,7 @@ async def update_collection(name, owner, description, category, labels):
             owner_name=owner,
             category=category,
             labels=labels,
-        ),
+        )
 
 
 @router.get("/session/{session_id}")

@@ -2,9 +2,15 @@ import uuid
 from pathlib import Path
 
 from langchain_community.document_loaders import (
-    CSVLoader, PyMuPDFLoader, TextLoader, UnstructuredHTMLLoader,
-    UnstructuredMarkdownLoader, UnstructuredPowerPointLoader,
-    UnstructuredWordDocumentLoader, WebBaseLoader)
+    CSVLoader,
+    PyMuPDFLoader,
+    TextLoader,
+    UnstructuredHTMLLoader,
+    UnstructuredMarkdownLoader,
+    UnstructuredPowerPointLoader,
+    UnstructuredWordDocumentLoader,
+    WebBaseLoader,
+)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from mlrun.genai.config import AppConfig, get_vector_db, logger

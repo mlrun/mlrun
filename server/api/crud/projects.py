@@ -44,10 +44,6 @@ class Projects(
     project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def __init__(self) -> None:
-        super().__init__()
-        self._project_resource_counters_cache = {}
-
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
@@ -214,15 +210,14 @@ class Projects(
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
-        if not self._project_resource_counters_cache:
-            await self.refresh_project_resources_counters_cache(session)
-
-        project_summaries = []
-        project_names = names or self._project_resource_counters_cache.keys()
-        for project_name in project_names:
-            project_summaries.append(
-                self._project_resource_counters_cache.get(project_name)
-            )
+        project_summaries = await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().list_project_summaries,
+            session,
+            owner,
+            labels,
+            state,
+            names,
+        )
 
         return mlrun.common.schemas.ProjectSummariesOutput(
             project_summaries=project_summaries
@@ -233,10 +228,11 @@ class Projects(
     ) -> mlrun.common.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
         await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
-        if not self._project_resource_counters_cache:
-            await self.refresh_project_resources_counters_cache(session)
-
-        return self._project_resource_counters_cache.get(name)
+        return await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().get_project_summary,
+            session,
+            project=name,
+        )
 
     def _verify_project_has_no_external_resources(
         self,
@@ -311,9 +307,9 @@ class Projects(
             project_to_running_pipelines_count,
         ) = results[1]
 
-        new_project_resource_counters_cache = {}
+        project_summaries = []
         for project_name in projects_output.projects:
-            new_project_resource_counters_cache[project_name] = (
+            project_summaries.append(
                 mlrun.common.schemas.ProjectSummary(
                     name=project_name,
                     files_count=project_to_files_count.get(project_name, 0),
@@ -352,7 +348,11 @@ class Projects(
                     ],
                 )
             )
-        self._project_resource_counters_cache = new_project_resource_counters_cache
+        await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().refresh_project_summaries,
+            session,
+            project_summaries,
+        )
         logger.debug(
             "Project resources counters cache refreshed",
             elapsed_time=time.perf_counter_ns() - start_time,

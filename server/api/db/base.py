@@ -519,6 +519,26 @@ class DBInterface(ABC):
     ):
         pass
 
+    def get_project_summary(
+        self, session, project: str
+    ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        pass
+
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
+    ):
+        pass
+
     @abstractmethod
     def create_feature_set(
         self,

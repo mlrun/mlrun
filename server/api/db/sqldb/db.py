@@ -92,6 +92,7 @@ from server.api.db.sqldb.models import (
     Log,
     PaginationCache,
     Project,
+    ProjectSummary,
     Run,
     Schedule,
     User,
@@ -2532,6 +2533,67 @@ class SQLDB(DBInterface):
                     )
                 )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
+
+    def get_project_summary(
+        self, session, project: str
+    ) -> mlrun.common.schemas.ProjectSummary:
+        project_summary_record = self._query(
+            session,
+            ProjectSummary,
+            project=project,
+        ).one_or_none()
+        if not project_summary_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Project summary not found: project={project}"
+            )
+
+        return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
+
+    def list_project_summaries(
+        self,
+        session: Session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        project_query = self._query(session, Project.name)
+        if owner:
+            project_query = project_query.filter(Project.owner == owner)
+        if state:
+            project_query = project_query.filter(Project.state == state)
+        if labels:
+            project_query = self._add_labels_filter(
+                session, project_query, Project, labels
+            )
+        if names:
+            project_query = project_query.filter(Project.name.in_(names))
+
+        project_subquery = project_query.subquery()
+        project_alias = aliased(Project, project_subquery)
+
+        query = self._query(session, ProjectSummary)
+        query = query.join(project_alias, ProjectSummary.project == project_alias.name)
+
+        project_summaries = query.all()
+        return [
+            mlrun.common.schemas.ProjectSummary(**project_summary.summary)
+            for project_summary in project_summaries
+        ]
+
+    def refresh_project_summaries(
+        self,
+        session: Session,
+        project_summaries: list[mlrun.common.schemas.ProjectSummary],
+    ):
+        self._query(session, ProjectSummary).delete()
+        for project_summary_schema in project_summaries:
+            project_summary = ProjectSummary(
+                project=project_summary_schema.name,
+                summary=project_summary_schema.dict(),
+            )
+            session.add(project_summary)
+        session.commit()
 
     async def get_project_resources_counters(
         self,

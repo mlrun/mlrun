@@ -414,9 +414,14 @@ async def test_list_project_summaries(
         distinct_scheduled_jobs_pending_count=3,
         distinct_scheduled_pipelines_pending_count=4,
     )
-    server.api.crud.Projects()._project_resource_counters_cache[
-        project.metadata.name
-    ] = project_summary
+    created_project, _ = projects_follower.store_project(
+        db,
+        project.metadata.name,
+        project,
+    )
+    server.api.utils.singletons.db.get_db().refresh_project_summaries(
+        db, [project_summary]
+    )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert (

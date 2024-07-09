@@ -407,7 +407,7 @@ class ParquetSource(BaseSourceDriver):
         spark_options = store.get_spark_options()
         url = store.spark_url + path
         if url.startswith("v3io:///"):
-            url = "v3io:" + url[len("v3io:/"):]
+            url = "v3io:" + url[len("v3io:/") :]
         spark_options.update(
             {
                 "path": url,

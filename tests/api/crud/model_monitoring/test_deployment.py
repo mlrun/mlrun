@@ -92,7 +92,7 @@ class TestAppDeployment:
                 only_project_secrets=True
             )
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        with pytest.raises(mlrun.errors.MLRunInvalidMMStoreType):
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
                 stream_path="kafka://stream",

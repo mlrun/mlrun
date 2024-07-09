@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def sources_to_text(sources):
     """Convert a list of sources to a string."""
     if not sources:

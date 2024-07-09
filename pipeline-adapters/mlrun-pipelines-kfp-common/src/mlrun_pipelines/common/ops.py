@@ -597,9 +597,7 @@ def write_kfpmeta(struct):
             pass
 
     text = "# Run Report\n"
-    if "iterations" in struct["status"]:
-        del struct["status"]["iterations"]
-
+    _sanitize_ui_metadata(struct)
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
     metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
@@ -657,3 +655,9 @@ def get_kfp_outputs(artifacts, labels, project):
                 outputs += [meta]
 
     return outputs, out_dict
+
+
+def _sanitize_ui_metadata(struct):
+    status_fields_to_remove = ["iterations", "artifacts"]
+    for field in status_fields_to_remove:
+        struct["status"].pop(field, None)

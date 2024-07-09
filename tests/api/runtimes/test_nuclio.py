@@ -603,6 +603,23 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
         )
 
+    def test_deploy_mlrun_requirements(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        mlrun.utils.update_in(
+            function.spec.config,
+            "spec.build.baseImage",
+            "mlrun/mlrun:0.6.0",
+        )
+        function.spec.build.requirements = ["some-requirements"]
+        build_function(db, auth_info, function)
+        assert "mlrun[complete]==0.6.0" in function.spec.build.requirements
+
     def test_deploy_with_global_service_account(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):

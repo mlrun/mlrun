@@ -47,3 +47,4 @@ sqlalchemy~=1.4
 dask~=2023.9.0
 distributed~=2023.9.0
 taos-ws-py~=0.3.2
+snowflake-connector-python~=3.7

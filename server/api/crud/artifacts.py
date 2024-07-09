@@ -22,11 +22,11 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-from mlrun.utils.helpers import validate_inline_artifact_body_size
 
 
 class Artifacts(
@@ -57,6 +57,12 @@ class Artifacts(
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
+
+        # TODO: remove this in 1.8.0
+        if mlrun.utils.helpers.is_legacy_artifact(artifact):
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -267,7 +273,9 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            validate_inline_artifact_body_size(artifact["spec"]["inline"])
+            mlrun.utils.helpers.validate_inline_artifact_body_size(
+                artifact["spec"]["inline"]
+            )
 
     def _delete_artifact_data(
         self,
@@ -295,15 +303,24 @@ class Artifacts(
                 object_uid=object_uid,
             )
 
-            # Data artifacts that are ModelArtifact, DirArtifact, or DatasetArtifact
-            # must not be removed because we do not yet support the deletion of artifacts that contain multiple files
+            path = artifact["spec"]["target_path"]
+
+            # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet
+            # support the deletion of artifacts that contain multiple files
+            # We support deleting DatasetArtifact data that contains one file
             # TODO: must be removed once it is supported
             artifact_kind = artifact["kind"]
-            if artifact_kind in ["model", "dataset", "dir"]:
+            if artifact_kind in ["model", "dir"]:
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            path = artifact["spec"]["target_path"]
+            if artifact_kind == "dataset" and not mlrun.utils.helpers.is_parquet_file(
+                path
+            ):
+                raise mlrun.errors.MLRunNotImplementedServerError(
+                    "Deleting artifact data of kind 'dataset' is currently supported for a single file only"
+                )
+
             server.api.crud.Files().delete_artifact_data(
                 auth_info, project, path, secrets=secrets
             )

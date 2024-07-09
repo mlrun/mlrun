@@ -49,10 +49,20 @@ _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_mon
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "pr-endpoints-operations"
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
     def test_clear_endpoint(self):
         """Validates the process of create and delete a basic model endpoint"""
@@ -96,25 +106,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert endpoint_before_update.status.state == "null"
 
-        # Check default drift thresholds
-        assert endpoint_before_update.spec.monitor_configuration == {
-            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
-            ),
-            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
-            ),
-        }
-
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
         current_stats = {
-            "tvd_sum": 2.2,
-            "tvd_mean": 0.5,
-            "hellinger_sum": 3.6,
-            "hellinger_mean": 0.9,
-            "kld_sum": 24.2,
-            "kld_mean": 6.0,
             "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
             "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
         }
@@ -174,7 +168,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             endpoint_details = self._mock_random_endpoint()
 
             if i < 1:
-                endpoint_details.spec.model = "filterme"
+                endpoint_details.spec.model = "filterme:latest"
 
             if i < 2:
                 endpoint_details.spec.function_uri = "test/filterme"

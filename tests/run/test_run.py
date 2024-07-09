@@ -331,3 +331,15 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"
+
+
+def test_verify_tag_exists_in_run_output_uri():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
+    )
+    run = project.run_function("test", params={"tag": "v1"}, local=True)
+    uri = run.output("file_result")
+
+    # Verify that the tag exists in the URI
+    assert ":v1" in uri

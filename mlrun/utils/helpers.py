@@ -1698,6 +1698,12 @@ def format_alert_summary(
     return result
 
 
+def is_parquet_file(file_path, format_=None):
+    return (file_path and file_path.endswith((".parquet", ".pq"))) or (
+        format_ == "parquet"
+    )
+
+
 def _reload(module, max_recursion_depth):
     """Recursively reload modules."""
     if max_recursion_depth <= 0:

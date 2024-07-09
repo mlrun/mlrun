@@ -30,7 +30,8 @@ import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 from mlrun.config import config
-from mlrun.utils import get_in
+from mlrun.utils import get_in, logger
+from mlrun.utils.helpers import merge_with_precedence, to_non_empty_values_dict
 
 # Disable the warning about reusing components
 dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
@@ -245,8 +246,10 @@ def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        if getattr(function.spec, "node_selector"):
-            container_op.node_selector = function.spec.node_selector
+        enriched_node_selector = _enrich_node_selector_from_project(function)
+        logger.info("Enriched !!!!", enriched_node_selector=enriched_node_selector)
+        if getattr(function.spec, "node_selector") or enriched_node_selector:
+            container_op.node_selector = enriched_node_selector
 
         if getattr(function.spec, "tolerations"):
             container_op.tolerations = function.spec.tolerations
@@ -255,6 +258,24 @@ def add_function_node_selection_attributes(
             container_op.affinity = function.spec.affinity
 
     return container_op
+
+
+def _enrich_node_selector_from_project(function):
+    logger.info(
+        "Innnnn!! yael", function=type(function), project=function.metadata.project
+    )
+    project = function._get_db().get_project(function.metadata.project)
+    logger.info(
+        "get projectttt!! yael",
+        function=type(function),
+        proj_ns=project.spec.default_function_node_selector,
+        project=project,
+    )
+    return to_non_empty_values_dict(
+        merge_with_precedence(
+            project.spec.default_function_node_selector, function.spec.node_selector
+        )
+    )
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):

@@ -90,7 +90,7 @@ class Secrets(
     def validate_internal_project_secret_key_allowed(
         self, key: str, allow_internal_secrets: bool = False
     ):
-        if self._is_internal_project_secret_key(key) and not allow_internal_secrets:
+        if self.is_internal_project_secret_key(key) and not allow_internal_secrets:
             raise mlrun.errors.MLRunAccessDeniedError(
                 f"Not allowed to create/update internal secrets (key starts with "
                 f"{self.internal_secrets_key_prefix})"
@@ -216,7 +216,7 @@ class Secrets(
         if not allow_internal_secrets:
             if secrets:
                 for secret_key in secrets:
-                    if self._is_internal_project_secret_key(secret_key):
+                    if self.is_internal_project_secret_key(secret_key):
                         raise mlrun.errors.MLRunAccessDeniedError(
                             f"Not allowed to delete internal secrets (key starts with "
                             f"{self.internal_secrets_key_prefix})"
@@ -298,7 +298,7 @@ class Secrets(
         if not allow_internal_secrets:
             secret_keys = list(
                 filter(
-                    lambda key: not self._is_internal_project_secret_key(key),
+                    lambda key: not self.is_internal_project_secret_key(key),
                     secret_keys,
                 )
             )
@@ -341,7 +341,7 @@ class Secrets(
             secrets_data = {
                 key: value
                 for key, value in secrets_data.items()
-                if not self._is_internal_project_secret_key(key)
+                if not self.is_internal_project_secret_key(key)
             }
         return mlrun.common.schemas.SecretsData(provider=provider, secrets=secrets_data)
 
@@ -414,6 +414,9 @@ class Secrets(
             allow_internal_secrets,
         )
         return secrets_data.secrets.get(secret_key)
+
+    def is_internal_project_secret_key(self, key: str) -> bool:
+        return key.startswith(self.internal_secrets_key_prefix)
 
     def _resolve_project_secret_key(
         self,
@@ -535,9 +538,6 @@ class Secrets(
     def _is_project_secret_stored_in_key_map(self, key: str) -> bool:
         # Key map are only used for invalid keys
         return not self.validate_project_secret_key_regex(key, raise_on_failure=False)
-
-    def _is_internal_project_secret_key(self, key: str) -> bool:
-        return key.startswith(self.internal_secrets_key_prefix)
 
     def _is_key_map_project_secret_key(self, key: str) -> bool:
         return key.startswith(self.key_map_secrets_key_prefix)

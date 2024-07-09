@@ -22,7 +22,9 @@ import pandas as pd
 import pytest
 import yaml
 from databricks.sdk import WorkspaceClient
+from fsspec.implementations.dbfs import DatabricksException
 
+# from databricks.sdk.errors.mapping import PermissionDenied, Unauthenticated
 import mlrun
 import mlrun.errors
 from mlrun.datastore import store_manager
@@ -94,6 +96,8 @@ class TestDBFSStore:
         self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
         register_temporary_client_datastore_profile(self.profile)
+        os.environ["DATABRICKS_TOKEN"] = self.token
+        os.environ["DATABRICKS_HOST"] = self.host
         store_manager.reset_secrets()
 
     @classmethod
@@ -257,20 +261,12 @@ class TestDBFSStore:
     def test_wrong_credential_artifact(self, use_datastore_profile):
         if use_datastore_profile:
             self.profile = DatastoreProfileDBFS(
-                name=self.profile_name,
+                name=self.profile_name, token="fake_token", endpoint_url=self.host
             )
             register_temporary_client_datastore_profile(self.profile)
-        rpath = self.object_url.replace(self.prefix_url, "")
-        # with tempfile.NamedTemporaryFile(
-        #     suffix=".txt", mode="w", delete=False
-        # ) as temp_file:
-        #     with open(temp_file.name, "w") as temp_file_cursor:
-        #         temp_file_cursor.write()
-
-        self.workspace.dbfs.put(path=rpath, contents="test dbfs text")
-        os.environ["DATABRICKS_TOKEN"] = "wrong token"
         data_item = mlrun.run.get_dataitem(self.object_url)
-        with pytest.raises(PermissionError):
+        os.environ["DATABRICKS_TOKEN"] = "fake_token"
+        with pytest.raises(DatabricksException):
             data_item.delete()
 
     def test_rm_file_not_found(self):

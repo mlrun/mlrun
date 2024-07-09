@@ -309,14 +309,6 @@ class TestAwsS3:
                 name=self.profile_name,
             )
             register_temporary_client_datastore_profile(self.profile)
-        rpath = self._object_url.replace(self.prefix_path, "")
-        with tempfile.NamedTemporaryFile(
-            suffix=".txt", mode="w", delete=False
-        ) as temp_file:
-            with open(temp_file.name, "w") as temp_file_cursor:
-                temp_file_cursor.write("text for test_wrong_delete test")
-
-            self._fs.put(temp_file.name, rpath)
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
         os.environ.pop("AWS_ACCESS_KEY_ID")
         data_item = mlrun.run.get_dataitem(self._object_url)

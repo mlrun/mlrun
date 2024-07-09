@@ -385,13 +385,17 @@ def test_validate_v3io_consumer_group(value, expected):
         {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
         {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
         {
+            "image": "python:3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        {
             "image": "some-repo/some-image",
-            "expected_output": "ghcr.io/some-repo/some-image",
+            "expected_output": "dummy-repo/some-repo/some-image",
             "images_to_enrich_registry": "some-repo/some-image",
         },
         {
             "image": "some-repo/some-image:some-tag",
-            "expected_output": "ghcr.io/some-repo/some-image:some-tag",
+            "expected_output": "dummy-repo/some-repo/some-image:some-tag",
             "images_to_enrich_registry": "some-repo/some-image",
         },
         {
@@ -579,6 +583,7 @@ def test_enrich_image(case):
     default_images_to_enrich_registry = config.images_to_enrich_registry
     config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
     config.images_registry = case.get("images_registry", "ghcr.io/")
+    config.vendor_images_registry = case.get("vendor_images_registry", "dummy-repo/")
     config.images_to_enrich_registry = case.get(
         "images_to_enrich_registry", default_images_to_enrich_registry
     )

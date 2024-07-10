@@ -1559,8 +1559,8 @@ class RunObject(RunTemplate):
         if not self.status.artifacts:
             return None
 
-        # find the first artifact that matches the given key and does not have the tag
-        # or None if no such artifact is found
+        # Find the first artifact that matches the given key and tag is not 'latest'
+        # Or None if no such artifact is found
         return next(
             (
                 a

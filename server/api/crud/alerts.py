@@ -149,7 +149,6 @@ class Alerts(
     def process_event(
         self,
         session: sqlalchemy.orm.Session,
-        project: str,
         alert_id: int,
         event_data: mlrun.common.schemas.Event,
     ):
@@ -264,9 +263,7 @@ class Alerts(
         for alert in server.api.utils.singletons.db.get_db().get_all_alerts(session):
             for config_event_name in alert.trigger.events:
                 if config_event_name == event_name:
-                    self.process_event(
-                        alert.project, event_name, alert.name, event_data
-                    )
+                    self.process_event(session, alert.id, event_data)
 
     @staticmethod
     def _event_entity_matches(alert_entity, event_entity):

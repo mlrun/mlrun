@@ -58,7 +58,9 @@ class ParallelRunner:
 
         return TrackerManager()
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         return handler
 
     def _get_dask_client(self, options):
@@ -86,7 +88,7 @@ class ParallelRunner:
         handler = runobj.spec.handler
         self._force_handler(handler)
         set_paths(self.spec.pythonpath)
-        handler = self._get_handler(handler, execution)
+        handler = self._get_handler(handler, execution, embed_in_sys=False)
 
         client, function_name = self._get_dask_client(generator.options)
         parallel_runs = generator.options.parallel_runs or 4
@@ -224,12 +226,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def is_deployed(self):
         return True
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         command = self.spec.command
         if not command and self.spec.build.functionSourceCode:
             # if the code is embedded in the function object extract or find it
             command, _ = mlrun.run.load_func_code(self)
-        return load_module(command, handler, context)
+        return load_module(command, handler, context, embed_in_sys=embed_in_sys)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         workdir = self.spec.workdir

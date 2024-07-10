@@ -2605,9 +2605,8 @@ class SQLDB(DBInterface):
                 f"Project summary not found: project={project}"
             )
 
-        return mlrun.common.schemas.ProjectSummary(
-            updated=project_summary_record.updated, **project_summary_record.summary
-        )
+        project_summary_record.summary["updated"] = project_summary_record.updated
+        return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
     def list_project_summaries(
         self,
@@ -2636,12 +2635,14 @@ class SQLDB(DBInterface):
         query = query.join(project_alias, ProjectSummary.project == project_alias.name)
 
         project_summaries = query.all()
-        return [
-            mlrun.common.schemas.ProjectSummary(
-                updated=project_summary.updated, **project_summary.summary
+        project_summaries_results = []
+        for project_summary in project_summaries:
+            project_summary.summary["updated"] = project_summary.updated
+            project_summaries_results.append(
+                mlrun.common.schemas.ProjectSummary(**project_summary.summary)
             )
-            for project_summary in project_summaries
-        ]
+
+        return project_summaries_results
 
     def refresh_project_summaries(
         self,

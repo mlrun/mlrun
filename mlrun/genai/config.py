@@ -42,7 +42,7 @@ class AppConfig(BaseModel):
 
     # Default LLM
     default_llm: dict = {
-        "class_name": "langchain_community.chat_models.ChatOpenAI",
+        "class_name": "langchain_openai.ChatOpenAI",
         "temperature": 0,
         "model_name": "gpt-3.5-turbo",
     }
@@ -112,7 +112,7 @@ vector_db_shortcuts = {
 }
 
 llm_shortcuts = {
-    "chat": "langchain_community.chat_models.ChatOpenAI",
+    "chat": "langchain_openai.ChatOpenAI",
     "gpt": "langchain_community.chat_models.GPT",
 }
 

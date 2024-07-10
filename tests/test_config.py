@@ -459,6 +459,7 @@ def test_gpu_validation(config):
 # EO Unit Test Memory Sharing Tests #
 #####################################
 
+
 def test_get_parsed_igz_version():
     # open source - version not set
     mlconf.config.igz_version = None

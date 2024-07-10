@@ -180,6 +180,10 @@
       "title": "Predictions/s (5 Minute Average)",
       "transformations": [
         {
+          "id": "merge",
+          "options": {}
+        },
+        {
           "id": "extractFields",
           "options": {
             "source": "metrics"
@@ -264,6 +268,10 @@
       ],
       "title": "Average Latency (Last Hour)",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "extractFields",
           "options": {
@@ -353,6 +361,12 @@
         }
       ],
       "title": "Errors",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
@@ -624,6 +638,10 @@
       ],
       "title": "Models",
       "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
         {
           "id": "organize",
           "options": {

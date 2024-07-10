@@ -1530,7 +1530,7 @@ class RunObject(RunTemplate):
             )
         return outputs
 
-    def artifact(self, key) -> mlrun.DataItem:
+    def artifact(self, key) -> "mlrun.DataItem":
         """Return artifact DataItem by key."""
         self._outputs_wait_for_completion()
         artifact = self._artifact(key)

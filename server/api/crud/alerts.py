@@ -165,8 +165,7 @@ class Alerts(
             send_notification = False
 
             if alert.criteria is not None:
-                state_obj = self._states.get(alert.id, None) or {}
-                state_obj.setdefault("events", [])
+                state_obj = self._states.get(alert.id, {"events": []})
                 state_obj["events"].append(event_data.timestamp)
 
                 if alert.criteria.period is not None:

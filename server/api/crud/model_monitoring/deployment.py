@@ -1095,8 +1095,8 @@ class MonitoringDeployment:
             if self._is_the_same_cred(
                 endpoint_store_connection, stream_path, tsdb_connection
             ):
-                logger.warning(
-                    "The same credentials are already set for the project",
+                logger.debug(
+                    "The same credentials are already set for the project - aborting with no error",
                     project=self.project,
                 )
                 return

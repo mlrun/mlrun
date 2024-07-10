@@ -27,6 +27,7 @@ from mlrun_pipelines.common.ops import PipelineRunType
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
+import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.utils import get_in, logger
 
@@ -109,8 +110,9 @@ def add_function_node_selection_attributes(
     function, task: dsl.PipelineTask
 ) -> dsl.PipelineTask:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        if getattr(function.spec, "node_selector"):
-            for k, v in function.spec.node_selector.items():
+        enriched_node_selector = _enrich_node_selector_from_project(function)
+        if enriched_node_selector:
+            for k, v in enriched_node_selector.items():
                 task = kfp_k8s.add_node_selector(task, k, v)
 
     if getattr(function.spec, "tolerations"):
@@ -141,6 +143,24 @@ def add_function_node_selection_attributes(
         )
 
     return task
+
+
+def _enrich_node_selector_from_project(function):
+    function_node_selector = getattr(function.spec, "node_selector") or {}
+    project = mlrun.get_current_project()
+    if function.metadata.project != project.metadata.name:
+        project = function._get_db().get_project(function.metadata.project)
+    if project:
+        logger.debug(
+            "Enriching node selector from project",
+            project_node_selector=project.spec.default_function_node_selector,
+        )
+        return mlrun.utils.helpers.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_with_precedence(
+                project.spec.default_function_node_selector, function_node_selector
+            )
+        )
+    return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
 def add_annotations(

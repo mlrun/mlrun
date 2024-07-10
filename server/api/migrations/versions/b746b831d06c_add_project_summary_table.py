@@ -23,6 +23,7 @@ Create Date: 2024-07-09 11:27:28.255723
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = "b746b831d06c"
@@ -40,6 +41,7 @@ def upgrade():
             "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
         ),
         sa.Column("summary", sa.JSON(), nullable=True),
+        sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", name="_project_summaries_uc"),
     )

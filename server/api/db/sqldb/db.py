@@ -2604,7 +2604,9 @@ class SQLDB(DBInterface):
                 f"Project summary not found: project={project}"
             )
 
-        return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
+        return mlrun.common.schemas.ProjectSummary(
+            updated=project_summary_record.updated, **project_summary_record.summary
+        )
 
     def list_project_summaries(
         self,
@@ -2634,7 +2636,9 @@ class SQLDB(DBInterface):
 
         project_summaries = query.all()
         return [
-            mlrun.common.schemas.ProjectSummary(**project_summary.summary)
+            mlrun.common.schemas.ProjectSummary(
+                updated=project_summary.updated, **project_summary.summary
+            )
             for project_summary in project_summaries
         ]
 
@@ -2643,14 +2647,17 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        self._query(session, ProjectSummary).delete()
-        for project_summary_schema in project_summaries:
-            project_summary = ProjectSummary(
-                project=project_summary_schema.name,
-                summary=project_summary_schema.dict(),
-            )
-            session.add(project_summary)
-        session.commit()
+        # Do the whole operation in a single transaction
+        with session.no_autoflush:
+            self._query(session, ProjectSummary).delete()
+            for project_summary_schema in project_summaries:
+                project_summary = ProjectSummary(
+                    project=project_summary_schema.name,
+                    summary=project_summary_schema.dict(),
+                    updated=datetime.now(timezone.utc),
+                )
+                session.add(project_summary)
+            session.commit()
 
     async def get_project_resources_counters(
         self,

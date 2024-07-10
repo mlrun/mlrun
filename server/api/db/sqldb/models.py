@@ -737,6 +737,7 @@ with warnings.catch_warnings():
         project = Column(
             String(255, collation=SQLTypesUtil.collation()), nullable=False
         )
+        updated = Column(SQLTypesUtil.timestamp())
         summary = Column(JSON)
 
 

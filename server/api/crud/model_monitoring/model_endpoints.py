@@ -317,10 +317,19 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = (
-            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
-        )
-
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to delete model endpoint because store connection is not defined."
+                " Returning without deleting the model endpoint.\n"
+                f"Error: {mlrun.errors.err_to_str(e)}"
+            )
+            return
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
@@ -364,9 +373,19 @@ class ModelEndpoints:
         )
 
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
-        model_endpoint_store = (
-            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
-        )
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to get model endpoint because store connection is not defined."
+                " Returning an empty model endpoint object.\n"
+                f"Error: {mlrun.errors.err_to_str(e)}"
+            )
+            return mlrun.common.schemas.ModelEndpoint()
 
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
@@ -484,6 +503,7 @@ class ModelEndpoints:
                 # Add the `ModelEndpoint` object into the model endpoints list
                 endpoint_list.endpoints.append(endpoint_obj)
         except mlrun.errors.MLRunInvalidMMStoreType as e:
+            #
             logger.debug(
                 "Failed to list model endpoints because store connection is not defined."
                 " Returning an empty list of model endpoints.\n"
@@ -502,7 +522,8 @@ class ModelEndpoints:
 
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
-
+        # TODO : check v3io store if cred is not defined and not in ce
+        #  (can be done inside list_model_endpoints/ get mep) for BC.
         endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
@@ -526,6 +547,7 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
+        # TODO : adjust for ce scenario
         stream_paths = server.api.crud.model_monitoring.get_stream_path(
             project=project_name,
         )
@@ -535,24 +557,31 @@ class ModelEndpoints:
             return
 
         try:
+            self.verify_project_has_no_model_endpoints(project_name=project_name)
+        except mlrun.errors.MLRunPreconditionFailedError:
             # Delete model monitoring store resources
-            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-                project=project_name
-            )
-
-            endpoint_store.delete_model_endpoints_resources()
-
-            # Delete model monitoring TSDB resources
-            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                project=project_name,
-                secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                    project=project_name
-                ),
-            )
-            tsdb_connector.delete_tsdb_resources()
-        except mlrun.errors.MLRunInvalidArgumentError:
-            # store not found, there is nothing to delete
-            pass
+            try:
+                endpoint_store = (
+                    server.api.crud.model_monitoring.helpers.get_store_object(
+                        project=project_name
+                    )
+                )
+                endpoint_store.delete_model_endpoints_resources()
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
+                pass
+            try:
+                # Delete model monitoring TSDB resources
+                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                    project=project_name,
+                    secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                        project=project_name
+                    ),
+                )
+                tsdb_connector.delete_tsdb_resources()
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
+                pass
 
         # Delete model monitoring stream resources
         self._delete_model_monitoring_stream_resources(
@@ -688,12 +717,20 @@ class ModelEndpoints:
         if model_endpoint_object.status.metrics is None:
             model_endpoint_object.status.metrics = {}
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=model_endpoint_object.metadata.project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=model_endpoint_object.metadata.project
-            ),
-        )
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=model_endpoint_object.metadata.project,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=model_endpoint_object.metadata.project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to add real time metrics because tsdb connection is not defined."
+                " Returning without adding real time metrics.\n"
+                f"Error: {mlrun.errors.err_to_str(e)}"
+            )
+            return model_endpoint_object
 
         endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=model_endpoint_object.metadata.uid,

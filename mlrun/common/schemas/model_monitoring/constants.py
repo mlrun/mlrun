@@ -187,6 +187,12 @@ class ProjectSecretKeys:
         ]
 
 
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
+
+
 class ModelMonitoringStoreKinds:
     ENDPOINTS = "endpoints"
     EVENTS = "events"

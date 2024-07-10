@@ -492,17 +492,14 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
         env.to_dict() for env in pod_spec.containers[0].env
     ]
 
-    # ensure both envvars are set without values, so they won't interfere with the iam policy
+    # ensure both envvars are not set, so they won't interfere with the iam policy/docker registry secret
     for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
-        assert {"name": env_name, "value": "", "value_from": None} in [
-            env.to_dict() for env in pod_spec.containers[0].env
-        ]
+        assert env_name not in (env.name for env in pod_spec.containers[0].env)
 
     # 1 for the AWS_SDK_LOAD_CONFIG=true
-    # 2 for the AWS_ACCESS_KEY_ID="" and AWS_SECRET_ACCESS_KEY=""
     # 1 for the project secret
-    # == 4
-    assert len(pod_spec.containers[0].env) == 4, "expected 4 env items"
+    # == 2
+    assert len(pod_spec.containers[0].env) == 2, "expected 2 env items"
 
     assert len(pod_spec.init_containers) == 2
     for init_container in pod_spec.init_containers:

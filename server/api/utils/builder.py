@@ -302,20 +302,7 @@ def make_kaniko_pod(
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
 
-        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
-        assume_instance_role = not config.httpdb.builder.docker_registry_secret
-        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
-
-        # project secret might conflict with the attached instance role
-        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
-        # due to credentials conflict / lack of permission on given credentials
-        if assume_instance_role:
-            kpod.pod.spec.containers[0].env.extend(
-                [
-                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
-                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
-                ]
-            )
+        configure_kaniko_ecr_env_and_init_container(kpod, registry, repo)
 
     # mount regular docker config secret
     elif secret_name:
@@ -325,9 +312,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(
-    kpod, registry, repo, assume_instance_role=True
-):
+def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
+    # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+    assume_instance_role = not config.httpdb.builder.docker_registry_secret
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -339,6 +326,15 @@ def configure_kaniko_ecr_init_container(
     init_container_env = {}
 
     kpod.env = kpod.env or []
+
+    # project secret might conflict with the attached instance role/docker registry secret
+    # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+    # due to credentials conflict / lack of permission on given credentials
+    kpod.env = kpod.env = [
+        env_var
+        for env_var in kpod.env
+        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    ]
 
     if assume_instance_role:
         # assume instance role has permissions to register and store a container image

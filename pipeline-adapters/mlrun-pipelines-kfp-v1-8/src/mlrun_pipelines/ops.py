@@ -17,6 +17,7 @@ import os
 import os.path
 
 import inflection
+import mlrun_pipelines.common.ops
 from kfp import dsl
 from kubernetes import client as k8s_client
 from mlrun_pipelines.common.helpers import (
@@ -246,7 +247,9 @@ def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        enriched_node_selector = _enrich_node_selector_from_project(function)
+        enriched_node_selector = (
+            mlrun_pipelines.common.ops._enrich_node_selector_from_project(function)
+        )
         if enriched_node_selector:
             container_op.node_selector = enriched_node_selector
 

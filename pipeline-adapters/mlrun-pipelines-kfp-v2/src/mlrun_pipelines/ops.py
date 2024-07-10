@@ -15,7 +15,7 @@
 
 import os
 
-import mlrun_pipelines.common
+import mlrun_pipelines.common.ops
 from kfp import dsl
 from kfp import kubernetes as kfp_k8s
 from mlrun_pipelines.common.helpers import (

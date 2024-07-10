@@ -25,7 +25,6 @@ import mlrun
     ["", "file://"],
 )
 class TestFileStore:
-
     def test_put_stat_delete(self, prefix):
         try:
             with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp_file:
@@ -46,4 +45,3 @@ class TestFileStore:
         not_exist_url = f"{prefix}/path/to/file/not_exist_file.txt"
         data_item = mlrun.run.get_dataitem(not_exist_url)
         data_item.delete()
-

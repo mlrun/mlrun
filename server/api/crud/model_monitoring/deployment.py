@@ -1122,7 +1122,9 @@ class MonitoringDeployment:
             )
         if endpoint_store_connection:
             if not endpoint_store_connection.startswith(
-                mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
+                tuple(
+                    mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
+                )
             ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
@@ -1231,8 +1233,6 @@ class MonitoringDeployment:
         if old_store != endpoint_store_connection:
             logger.debug(
                 "User provided different endpoint store connection",
-                old_store=old_store,
-                new_store=endpoint_store_connection,
             )
             return False
         old_stream = credentials_dict[
@@ -1244,8 +1244,6 @@ class MonitoringDeployment:
         if old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
-                old_stream=old_stream,
-                new_stream=stream_path,
             )
             return False
         old_tsdb = credentials_dict[
@@ -1254,8 +1252,6 @@ class MonitoringDeployment:
         if old_tsdb == tsdb_connection:
             logger.debug(
                 "User provided different tsdb connection",
-                old_tsdb=old_tsdb,
-                new_tsdb=tsdb_connection,
             )
             return False
         return True

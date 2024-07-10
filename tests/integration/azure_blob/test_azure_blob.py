@@ -69,12 +69,17 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
 
 
 # Apply parametrization to all tests in this file. Skip test if auth method is not configured.
-@pytest.mark.parametrize(
-    "auth_method ,use_datastore_profile", generated_pytest_parameters
-)
 @pytest.mark.skipif(
     not config.get("env", {}).get("AZURE_CONTAINER"),
     reason="AZURE_CONTAINER is not set",
+)
+@pytest.mark.skipif(
+    not config.get("env", {}).get("AZURE_STORAGE_CONNECTION_STRING"),
+    reason="AZURE_STORAGE_CONNECTION_STRING is not set",
+)
+@pytest.mark.skipif(
+    not config.get("env", {}).get("connection_string"),
+    reason="connection_string is not set",
 )
 @pytest.mark.skipif(
     not os.path.exists(str(config_file_path)),
@@ -114,12 +119,11 @@ class TestAzureBlob:
     def create_fs(cls, storage_options):
         # Create filesystem object only once
         if not cls._azure_fs:
-            azure_fs = AzureBlobFileSystem(storage_options)
+            azure_fs = AzureBlobFileSystem(**storage_options)
             azure_fs.info(cls.bucket_name)  # in order to check connection ...
             cls._azure_fs = azure_fs
 
-    @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile, auth_method):
+    def setup_before_test(self, use_datastore_profile, auth_method):
         self.object_file = f"/file_{uuid.uuid4()}.txt"
         store_manager.reset_secrets()
         self.storage_options = {}
@@ -166,7 +170,13 @@ class TestAzureBlob:
             raise ValueError("auth_method not known")
         self.create_fs(storage_options=self.storage_options)
 
-    def test_azure_blob(self):
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
+    def test_azure_blob(self, use_datastore_profile, auth_method):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         data_item = mlrun.run.get_dataitem(
             self.object_url, secrets=self.storage_options
         )
@@ -189,7 +199,13 @@ class TestAzureBlob:
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
-    def test_list_dir_rm(self, use_datastore_profile):
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
+    def test_list_dir_rm(self, use_datastore_profile, auth_method):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
@@ -205,13 +221,21 @@ class TestAzureBlob:
         assert self.object_file.split("/")[-1] not in dir_dataitem.listdir()
         file_dataitem.delete()  # should not raise an error
 
-    def test_blob_upload(self):
+    @pytest.mark.parametrize("use_datastore_profile", (True, False))
+    def test_blob_upload(self, use_datastore_profile):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile,
+            auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
+        )
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()
         assert response.decode() == self.test_string
 
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",
         [
@@ -226,7 +250,12 @@ class TestAzureBlob:
         pd_reader: callable,
         dd_reader: callable,
         reader_args: dict,
+        use_datastore_profile,
+        auth_method,
     ):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
+        )
         filename = f"df_{uuid.uuid4()}.{file_format}"
         dataframe_url = f"{self.run_dir_url}/{filename}"
         local_file_path = os.path.join(self.assets_path, f"test_data.{file_format}")
@@ -244,6 +273,7 @@ class TestAzureBlob:
         response = upload_data_item.as_df(**reader_args, df_module=dd)
         dd.assert_eq(source, response)
 
+    @pytest.mark.parametrize("use_datastore_profile", (True, False))
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reset_index",
         [
@@ -252,12 +282,12 @@ class TestAzureBlob:
         ],
     )
     def test_as_df_directory(
-        self,
-        file_format,
-        pd_reader,
-        dd_reader,
-        reset_index,
+        self, file_format, pd_reader, dd_reader, reset_index, use_datastore_profile
     ):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile,
+            auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
+        )
         dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self.run_dir_url}{dataframes_dir}"
         df1_path = os.path.join(self.assets_path, f"test_data.{file_format}")

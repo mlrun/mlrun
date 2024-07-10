@@ -1033,6 +1033,7 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         """Delete an artifact.
 
@@ -1051,6 +1052,7 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "tree": tree,
             "uid": uid,
+            "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
         error = f"del artifact {project}/{key}"

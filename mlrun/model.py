@@ -1495,14 +1495,14 @@ class RunObject(RunTemplate):
         return ""
 
     def output(self, key):
-        """return the value of a specific result or artifact by key"""
+        """Return the value of a specific result or artifact by key."""
         self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self._artifact(key)
-        if artifact:
-            return get_artifact_target(artifact, self.metadata.project)
-        return None
+        return (
+            get_artifact_target(artifact, self.metadata.project) if artifact else None
+        )
 
     @property
     def ui_url(self) -> str:
@@ -1518,22 +1518,26 @@ class RunObject(RunTemplate):
         outputs = {}
         self._outputs_wait_for_completion()
         if self.status.results:
-            outputs = {k: v for k, v in self.status.results.items()}
+            outputs.update(self.status.results)
         if self.status.artifacts:
-            for a in self.status.artifacts:
-                key = a["metadata"]["key"]
-                outputs[key] = get_artifact_target(a, self.metadata.project)
+            # Ignore artifact with tag 'latest'
+            outputs.update(
+                {
+                    a["metadata"]["key"]: get_artifact_target(a, self.metadata.project)
+                    for a in self.status.artifacts
+                    if a["metadata"]["tag"] != "latest"
+                }
+            )
         return outputs
 
-    def artifact(self, key) -> "mlrun.DataItem":
-        """return artifact DataItem by key"""
+    def artifact(self, key) -> mlrun.DataItem:
+        """Return artifact DataItem by key."""
         self._outputs_wait_for_completion()
         artifact = self._artifact(key)
-        if artifact:
-            uri = get_artifact_target(artifact, self.metadata.project)
-            if uri:
-                return mlrun.get_dataitem(uri)
-        return None
+        if not artifact:
+            return None
+        uri = get_artifact_target(artifact, self.metadata.project)
+        return mlrun.get_dataitem(uri) if uri else None
 
     def _outputs_wait_for_completion(
         self,
@@ -1551,12 +1555,20 @@ class RunObject(RunTemplate):
             )
 
     def _artifact(self, key):
-        """return artifact DataItem by key"""
-        if self.status.artifacts:
-            for a in self.status.artifacts:
-                if a["metadata"]["key"] == key:
-                    return a
-        return None
+        """Return artifact DataItem by key."""
+        if not self.status.artifacts:
+            return None
+
+        # find the first artifact that matches the given key and does not have the tag
+        # or None if no such artifact is found
+        return next(
+            (
+                a
+                for a in self.status.artifacts
+                if a["metadata"]["key"] == key and a["metadata"]["tag"] != "latest"
+            ),
+            None,
+        )
 
     def uid(self):
         """run unique id"""

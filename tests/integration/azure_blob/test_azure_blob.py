@@ -189,7 +189,7 @@ class TestAzureBlob:
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
-    def test_list_dir(self):
+    def test_list_dir_rm(self, use_datastore_profile):
         file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
@@ -203,6 +203,7 @@ class TestAzureBlob:
         assert self.object_file.split("/")[-1] in dir_dataitem.listdir()
         file_dataitem.delete()
         assert self.object_file.split("/")[-1] not in dir_dataitem.listdir()
+        file_dataitem.delete()  # should not raise an error
 
     def test_blob_upload(self):
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)

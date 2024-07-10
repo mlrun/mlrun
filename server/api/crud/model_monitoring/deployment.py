@@ -1212,8 +1212,8 @@ class MonitoringDeployment:
         )
 
     def _is_the_same_cred(
-        self, endpoint_store_connection, stream_path, tsdb_connection
-    ):
+        self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str
+    ) -> bool:
         credentials_dict = {
             key: server.api.crud.Secrets().get_project_secret(
                 project=self.project,
@@ -1224,26 +1224,26 @@ class MonitoringDeployment:
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
-        for key, val in credentials_dict.items():
-            if (
-                key
-                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ):
-                if val != endpoint_store_connection:
-                    return False
-            elif (
-                key
-                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ):
-                val = val if val is not None else "v3io"  # TODO : del in 1.9.0
-                if val != stream_path:
-                    return False
-            elif (
-                key
-                == mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ):
-                if val != tsdb_connection:
-                    return False
+        if (
+            credentials_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            ]
+            != endpoint_store_connection
+        ):
+            return False
+        val = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+        ]
+        val = val if val is not None else "v3io"  # TODO : del in 1.9.0
+        if val != stream_path:
+            return False
+        if (
+            credentials_dict[
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+            ]
+            == tsdb_connection
+        ):
+            return False
         return True
 
 

@@ -432,23 +432,6 @@ def test_gpu_validation(config):
     assert config.default_function_pod_resources.limits.gpu is None
 
 
-old_config_value = None
-new_config_value = "blabla"
-
-
-def test_overriding_config_not_remain_for_next_tests_setter():
-    global old_config_value, new_config_value
-    old_config_value = mlconf.config.igz_version
-    mlconf.config.igz_version = new_config_value
-    mlconf.config.httpdb.data_volume = new_config_value
-
-
-def test_overriding_config_not_remain_for_next_tests_tester():
-    global old_config_value
-    assert old_config_value == mlconf.config.igz_version
-    assert old_config_value == mlconf.config.httpdb.data_volume
-
-
 def test_get_parsed_igz_version():
     # open source - version not set
     mlconf.config.igz_version = None

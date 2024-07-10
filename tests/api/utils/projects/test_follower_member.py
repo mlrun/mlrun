@@ -442,17 +442,22 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     nop_leader: server.api.utils.projects.remotes.leader.Member,
 ):
     project_name = "project-name"
-    _generate_project(name=project_name)
+    project = _generate_project(name=project_name)
     server.api.utils.singletons.db.get_db().list_projects = unittest.mock.Mock(
         return_value=mlrun.common.schemas.ProjectsOutput(projects=[project_name])
     )
     server.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunNotFoundError("not found")
     )
-
+    created_project, _ = projects_follower.store_project(
+        db,
+        project_name,
+        project,
+    )
     server.api.utils.singletons.db.get_db().get_project_resources_counters = (
         unittest.mock.AsyncMock(return_value=tuple({project_name: i} for i in range(9)))
     )
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
     assert project_summaries.project_summaries[0].name == project_name

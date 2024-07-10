@@ -552,6 +552,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
 
+        for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
+            assert isinstance(
+                ep.status.drift_measures.pop(measure, None), float
+            ), f"Expected '{measure}' in drift measures"
+
         drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
         assert set(drift_table.columns) == {
             "hellinger",

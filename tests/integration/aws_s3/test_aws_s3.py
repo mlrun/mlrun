@@ -302,14 +302,26 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    def test_wrong_credential_artifact(self, use_datastore_profile):
-        if use_datastore_profile:
-            self.profile = DatastoreProfileS3(
-                name=self.profile_name,
-            )
-            register_temporary_client_datastore_profile(self.profile)
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
         os.environ.pop("AWS_SECRET_ACCESS_KEY")
         os.environ.pop("AWS_ACCESS_KEY_ID")
+
+        credentials_dict = (
+            {"secret_key": fake_token, "access_key_id": self.access_key_id}
+            if fake_token
+            else {}
+        )
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name, **credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
+                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+
         data_item = mlrun.run.get_dataitem(self._object_url)
         with pytest.raises(PermissionError):
             data_item.delete()

@@ -462,6 +462,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--forked \
 		-rf \
 		tests
 

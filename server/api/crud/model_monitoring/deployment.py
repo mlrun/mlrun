@@ -1087,7 +1087,7 @@ class MonitoringDeployment:
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
-                                          provided new creds.
+                                          provided different creds.
         :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
         """
         try:

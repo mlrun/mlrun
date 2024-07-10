@@ -258,16 +258,30 @@ class TestDBFSStore:
         )
         assert data_item.store.to_dict() != test_data_item._store.to_dict()
 
-    def test_wrong_credential_artifact(self, use_datastore_profile):
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+        credentials_dict = (
+            {"token": fake_token, "endpoint_url": self.host} if fake_token else {}
+        )
+        os.environ.pop("DATABRICKS_TOKEN")
+        os.environ.pop("DATABRICKS_HOST")
         if use_datastore_profile:
             self.profile = DatastoreProfileDBFS(
-                name=self.profile_name, token="fake_token", endpoint_url=self.host
+                name=self.profile_name, **credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["DATABRICKS_TOKEN"] = fake_token
+                os.environ["DATABRICKS_HOST"] = self.host
+
         data_item = mlrun.run.get_dataitem(self.object_url)
-        os.environ["DATABRICKS_TOKEN"] = "fake_token"
-        with pytest.raises(DatabricksException):
-            data_item.delete()
+        if fake_token:
+            with pytest.raises(DatabricksException):
+                data_item.delete()
+        else:
+            with pytest.raises(TypeError):
+                data_item.delete()
 
     def test_rm_file_not_found(self):
         not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"

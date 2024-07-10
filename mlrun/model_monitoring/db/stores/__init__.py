@@ -100,7 +100,9 @@ def get_store_object(
     :param store_connection_string: Optional explicit connection string of the store.
 
     :return: `StoreBase` object. Using this object, the user can apply different operations such as write, update, get
-    and delete a model endpoint record.
+             and delete a model endpoint record.
+    :raise: `MLRunInvalidMMStoreType` if the user didn't provide store connection
+             or the provided store connection is invalid.
     """
 
     store_connection_string = (

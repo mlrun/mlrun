@@ -76,6 +76,8 @@ def get_tsdb_connector(
 
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
+    :raise: `MLRunInvalidMMStoreType` if the user didn't provide TSDB connection
+            or the provided TSDB connection is invalid.
     """
 
     tsdb_connection_string = (

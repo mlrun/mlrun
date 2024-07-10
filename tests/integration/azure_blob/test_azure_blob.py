@@ -317,3 +317,5 @@ class TestAzureBlob:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    #  TODO add test_wrong_credential_rm test.

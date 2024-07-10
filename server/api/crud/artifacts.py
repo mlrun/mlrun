@@ -212,6 +212,7 @@ class Artifacts(
         project: str = None,
         object_uid: str = None,
         producer_id: str = None,
+        iteration: int = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
@@ -226,19 +227,26 @@ class Artifacts(
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             self._delete_artifact_data(
-                db_session,
-                key,
-                tag,
-                project,
-                object_uid,
-                producer_id,
-                deletion_strategy,
-                secrets,
-                auth_info,
+                db_session=db_session,
+                key=key,
+                tag=tag,
+                project=project,
+                object_uid=object_uid,
+                producer_id=producer_id,
+                iteration=iteration,
+                deletion_strategy=deletion_strategy,
+                secrets=secrets,
+                auth_info=auth_info,
             )
 
         return server.api.utils.singletons.db.get_db().del_artifact(
-            db_session, key, tag, project, object_uid, producer_id=producer_id
+            session=db_session,
+            key=key,
+            tag=tag,
+            project=project,
+            uid=object_uid,
+            producer_id=producer_id,
+            iter=iteration,
         )
 
     def delete_artifacts(
@@ -285,6 +293,7 @@ class Artifacts(
         project: str = None,
         object_uid: str = None,
         producer_id: str = None,
+        iteration: int = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
@@ -301,6 +310,7 @@ class Artifacts(
                 project=project,
                 producer_id=producer_id,
                 object_uid=object_uid,
+                iter=iteration,
             )
 
             path = artifact["spec"]["target_path"]

@@ -154,6 +154,7 @@ class RunDBInterface(ABC):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         pass
 

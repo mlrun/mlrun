@@ -178,6 +178,12 @@ class ProjectSecretKeys:
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
 
+
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
+
     @classmethod
     def mandatory_secrets(cls):
         return [

@@ -503,6 +503,7 @@ class ModelEndpoints:
                 # Add the `ModelEndpoint` object into the model endpoints list
                 endpoint_list.endpoints.append(endpoint_obj)
         except mlrun.errors.MLRunInvalidMMStoreType as e:
+            #
             logger.debug(
                 "Failed to list model endpoints because store connection is not defined."
                 " Returning an empty list of model endpoints.\n"
@@ -521,7 +522,8 @@ class ModelEndpoints:
 
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
-
+        # TODO : check v3io store if cred is not defined and not in ce
+        #  (can be done inside list_model_endpoints/ get mep) for BC.
         endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
@@ -545,6 +547,7 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
+        # TODO : adjust for ce scenario
         stream_paths = server.api.crud.model_monitoring.get_stream_path(
             project=project_name,
         )
@@ -556,15 +559,18 @@ class ModelEndpoints:
         try:
             self.verify_project_has_no_model_endpoints(project_name=project_name)
         except mlrun.errors.MLRunPreconditionFailedError:
+            # Delete model monitoring store resources
             try:
-                # Delete model monitoring store resources
                 endpoint_store = (
                     server.api.crud.model_monitoring.helpers.get_store_object(
                         project=project_name
                     )
                 )
                 endpoint_store.delete_model_endpoints_resources()
-
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
+                pass
+            try:
                 # Delete model monitoring TSDB resources
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                     project=project_name,
@@ -573,12 +579,8 @@ class ModelEndpoints:
                     ),
                 )
                 tsdb_connector.delete_tsdb_resources()
-            except mlrun.errors.MLRunInvalidMMStoreType as e:
-                logger.debug(
-                    "Failed to delete model endpoints resources because tsdb connection is not defined."
-                    " Returning without deleting the model endpoints resources.\n"
-                    f"Error: {mlrun.errors.err_to_str(e)}"
-                )
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
                 pass
 
         # Delete model monitoring stream resources

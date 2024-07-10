@@ -1086,6 +1086,9 @@ class MonitoringDeployment:
                                              for example taosws://<username>:<password>@<host>:<port>.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
+        :raise MLRunConflictError:        If the credentials are already set for the project and the user
+                                          provided new creds.
+        :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
         """
         try:
             self.check_if_credentials_are_set(only_project_secrets=True)
@@ -1118,10 +1121,8 @@ class MonitoringDeployment:
                 or _default_secrets_v3io
             )
         if endpoint_store_connection:
-            if (
-                endpoint_store_connection != "v3io"
-                and not endpoint_store_connection.startswith("mysql")
-                and not endpoint_store_connection.startswith("sqlite")
+            if not endpoint_store_connection.startswith(
+                mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
             ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
@@ -1224,25 +1225,38 @@ class MonitoringDeployment:
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
 
-        if (
-            credentials_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ]
-            != endpoint_store_connection
-        ):
+        old_store = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+        ]
+        if old_store != endpoint_store_connection:
+            logger.debug(
+                "User provided different endpoint store connection",
+                old_store=old_store,
+                new_store=endpoint_store_connection,
+            )
             return False
-        val = credentials_dict[
+        old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
-        val = val if val is not None else "v3io"  # TODO : del in 1.9.0
-        if val != stream_path:
+        old_stream = (
+            old_stream if old_stream is not None else "v3io"
+        )  # TODO : del in 1.9.0
+        if old_stream != stream_path:
+            logger.debug(
+                "User provided different stream path",
+                old_stream=old_stream,
+                new_stream=stream_path,
+            )
             return False
-        if (
-            credentials_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ]
-            == tsdb_connection
-        ):
+        old_tsdb = credentials_dict[
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+        ]
+        if old_tsdb == tsdb_connection:
+            logger.debug(
+                "User provided different tsdb connection",
+                old_tsdb=old_tsdb,
+                new_tsdb=tsdb_connection,
+            )
             return False
         return True
 

@@ -515,24 +515,26 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
+	@timestamp=$(shell date +'%Y%m%d%H%M%S'); \
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 	MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL=$(MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL) \
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/system_tests_report.html \
+		--html=/tmp/$${timestamp}_system_tests_report.html \
 		--self-contained-html \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
+	@timestamp=$(shell date +'%Y%m%d%H%M%S'); \
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/system_tests_opensource_report.html \
+		--html=/tmp/$${timestamp}_system_tests_opensource_report.html \
 		--self-contained-html \
 		-rf \
 		-m "not enterprise" \

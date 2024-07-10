@@ -41,6 +41,7 @@ import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
+import server.api.db.session
 import server.api.utils.background_tasks
 import server.api.utils.functions
 import server.api.utils.singletons.k8s
@@ -747,12 +748,12 @@ class MonitoringDeployment:
         for function_name in function_to_delete:
             if self._check_if_already_deployed(function_name):
                 task = await run_in_threadpool(
+                    server.api.db.session.run_function_with_new_db_session,
                     MonitoringDeployment._create_monitoring_function_deletion_background_task,
-                    background_tasks,
-                    self.db_session,
-                    self.project,
-                    function_name,
-                    self.auth_info,
+                    background_tasks=background_tasks,
+                    project_name=self.project,
+                    function_name=function_name,
+                    auth_info=self.auth_info,
                     delete_app_stream_resources=function_name
                     not in [
                         mm_constants.MonitoringFunctionNames.STREAM,
@@ -821,8 +822,8 @@ class MonitoringDeployment:
 
     @staticmethod
     def _create_monitoring_function_deletion_background_task(
-        background_tasks: BackgroundTasks,
         db_session: sqlalchemy.orm.Session,
+        background_tasks: BackgroundTasks,
         project_name: str,
         function_name: str,
         auth_info: mlrun.common.schemas.AuthInfo,

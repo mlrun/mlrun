@@ -330,13 +330,11 @@ def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
     # project secret might conflict with the attached instance role/docker registry secret
     # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
     # due to credentials conflict / lack of permission on given credentials
-    kpod.env = list(
-        filter(
-            lambda env_var: env_var.name
-            not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
-            kpod.env,
-        )
-    )
+    kpod.env = kpod.env = [
+        env_var
+        for env_var in kpod.env
+        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    ]
 
     if assume_instance_role:
         # assume instance role has permissions to register and store a container image

@@ -494,7 +494,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
 
     # ensure both envvars are not set, so they won't interfere with the iam policy/docker registry secret
     for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
-        assert env_name not in [env.name for env in pod_spec.containers[0].env]
+        assert env_name not in (env.name for env in pod_spec.containers[0].env)
 
     # 1 for the AWS_SDK_LOAD_CONFIG=true
     # 1 for the project secret

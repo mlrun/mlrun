@@ -599,7 +599,6 @@ class V3IOTSDBConnector(TSDBConnector):
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],
             filter_query=f"endpoint_id=='{endpoint_id}'",
-            interval=aggregation_window,
             agg_funcs=agg_funcs,
             sliding_window_step=aggregation_window,
         )

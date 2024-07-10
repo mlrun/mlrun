@@ -820,7 +820,7 @@ class SQLDB(DBInterface):
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None
+        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
     ):
         project = project or config.default_project
         self._delete_tagged_object(
@@ -831,6 +831,7 @@ class SQLDB(DBInterface):
             uid=uid,
             key=key,
             producer_id=producer_id,
+            iteration=iter,
         )
 
     def del_artifacts(
@@ -4202,10 +4203,12 @@ class SQLDB(DBInterface):
                 "Neither name nor key specified when deleting an object."
             )
 
-        object_id = None
         obj_name = name or key
-        if uid:
-            object_record = self._query(
+        object_id = None
+
+        if uid or tag:
+            # try to find the object by given arguments
+            query = self._query(
                 session,
                 cls,
                 project=project,
@@ -4213,17 +4216,21 @@ class SQLDB(DBInterface):
                 name=name,
                 key=key,
                 **kwargs,
-            ).one_or_none()
+            )
+
+            # join on tags if given
+            if tag and tag != "*":
+                query = query.join(cls.Tag, cls.Tag.obj_id == cls.id)
+                query = query.filter(cls.Tag.name == tag)
+
+            object_record = query.one_or_none()
+
             if object_record is None:
+                # object not found, nothing to delete
                 return None, None
+
+            # get the object id from the object record
             object_id = object_record.id
-        elif tag and tag != "*":
-            tag_record = self._query(
-                session, cls.Tag, project=project, name=tag, obj_name=obj_name
-            ).one_or_none()
-            if tag_record is None:
-                return None, None
-            object_id = tag_record.obj_id
 
         if object_id:
             if not commit:

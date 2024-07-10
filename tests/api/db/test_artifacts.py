@@ -656,6 +656,85 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session)
         assert len(artifacts) == 0
 
+    def test_delete_artifacts_with_specific_iteration(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        num_of_iterations = 5
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # make sure all artifacts were created
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations
+
+        # delete the artifact with iteration 3
+        db.del_artifact(
+            db_session, project=project, key=artifact_key, iter=3, tag="latest"
+        )
+
+        # make sure the artifact with iteration 3 was deleted
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations - 1
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key, project=project, iter=3)
+
+    def test_delete_artifacts_with_specific_uid(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        num_of_iterations = 3
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # make sure all artifacts were created
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations
+
+        # take the uid of the first artifact
+        uid = artifacts[0]["metadata"]["uid"]
+
+        # delete the artifact with the specific uid
+        db.del_artifact(db_session, project=project, key=artifact_key, uid=uid)
+
+        # make sure the artifact with the specific uid was deleted
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations - 1
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key, project=project, uid=uid)
+
     def test_delete_artifact_tag_filter(self, db: DBInterface, db_session: Session):
         project = "artifact_project"
         artifact_1_key = "artifact_key_1"

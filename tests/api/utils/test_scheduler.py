@@ -18,6 +18,7 @@ import random
 import time
 import typing
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -457,7 +458,7 @@ async def test_create_schedule_failure_too_frequent_cron_trigger(
                 do_nothing,
                 cron_trigger,
             )
-        assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
+        assert "Cron trigger too frequent. No more than one job" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -516,7 +517,70 @@ async def test_validate_cron_trigger_multi_checks(db: Session, scheduler: Schedu
     )
     with pytest.raises(ValueError) as excinfo:
         scheduler._validate_cron_trigger(cron_trigger, now)
-    assert "Cron trigger too frequent. no more than one job" in str(excinfo.value)
+    assert (
+        "Cron trigger too frequent. No more than one job per 10 minutes is allowed. "
+        "Runs at 2020-02-03 05:00:00 and 2020-02-03 05:01:00 are too close."
+    ) in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "minute, expectation",
+    [
+        ("*/1", pytest.raises(ValueError)),
+        ("*/2", pytest.raises(ValueError)),
+        ("*/3", pytest.raises(ValueError)),
+        ("*/4", pytest.raises(ValueError)),
+        ("*/5", pytest.raises(ValueError)),
+        ("*/6", pytest.raises(ValueError)),
+        ("*/7", pytest.raises(ValueError)),
+        ("*/8", pytest.raises(ValueError)),
+        ("*/9", pytest.raises(ValueError)),
+        ("*/10", does_not_raise()),
+        ("*/11", pytest.raises(ValueError)),
+        ("*/12", does_not_raise()),
+        ("*/13", pytest.raises(ValueError)),
+        ("*/14", pytest.raises(ValueError)),
+        ("*/15", does_not_raise()),
+        ("*/16", does_not_raise()),
+        ("*/17", pytest.raises(ValueError)),
+        ("*/18", pytest.raises(ValueError)),
+        ("*/19", pytest.raises(ValueError)),
+        ("*/20", does_not_raise()),
+        ("*/21", does_not_raise()),
+        ("*/22", does_not_raise()),
+        ("*/23", does_not_raise()),
+        ("*/24", does_not_raise()),
+        ("*/25", does_not_raise()),
+        ("*/26", pytest.raises(ValueError)),
+        ("*/27", pytest.raises(ValueError)),
+        ("*/28", pytest.raises(ValueError)),
+        ("*/29", pytest.raises(ValueError)),
+        ("*/30", does_not_raise()),
+    ],
+)
+async def test_validate_cron_trigger_determinism(
+    db: Session, scheduler: Scheduler, minute, expectation
+):
+    """
+    minute=*/X notation means on every Xth minute.
+    For example, minute=*/13 means every 13th minute and therefore will run on: 0, 13, 26, 39, 52.
+    The difference between the run at the 52nd minute and the run at the 0th minute is 8 minutes, which is less
+    than the 10 minutes limit, so it should fail validation.
+    """
+    scheduler._min_allowed_interval = "10 minutes"
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=minute)
+    now = datetime(
+        year=2020,
+        month=2,
+        day=3,
+        hour=4,
+        minute=0,
+        second=0,
+        tzinfo=cron_trigger.timezone,
+    )
+    with expectation:
+        scheduler._validate_cron_trigger(cron_trigger, now)
 
 
 @pytest.mark.asyncio

@@ -704,8 +704,9 @@ class Scheduler:
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f"Cron trigger too frequent. no more than one job "
-                    f"per {self._min_allowed_interval} is allowed"
+                    f"Cron trigger too frequent. No more than one job "
+                    f"per {self._min_allowed_interval} is allowed. Runs at {next_run_time.replace(tzinfo=None)} and "
+                    f"{second_next_run_time.replace(tzinfo=None)} are too close."
                 )
 
     def _create_schedule_in_scheduler(

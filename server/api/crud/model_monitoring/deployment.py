@@ -254,14 +254,9 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-
-            # Adding label to the function - will be used to identify the writer pod
-            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.WRITER}
-
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-
             logger.debug(
                 "Submitted the writer deployment",
                 writer_data=fn.to_dict(),
@@ -348,7 +343,6 @@ class MonitoringDeployment:
                                monitoring stream nuclio function.
 
         :return:               A function object from a mlrun runtime class
-
         """
 
         # Initialize Stream Processor object

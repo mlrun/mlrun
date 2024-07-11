@@ -1494,8 +1494,18 @@ class RunObject(RunTemplate):
             )
         return ""
 
-    def output(self, key):
-        """Return the value of a specific result or artifact by key."""
+    def output(self, key: str):
+        """
+        Return the value of a specific result or artifact by key.
+
+        This method waits for the outputs to complete and retrieves the value corresponding to the provided key.
+        If the key exists in the results, it returns the corresponding result value.
+        If not found in results, it attempts to find and return the artifact URI corresponding to the key.
+        If no artifact or result is found for the key, returns None.
+
+        :param key: The key of the result or artifact to retrieve.
+        :return: The value of the result or the artifact URI corresponding to the key, or None if not found.
+        """
         self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)

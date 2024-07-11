@@ -348,7 +348,9 @@ def test_verify_tag_exists_in_run_output_uri():
         func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
     )
     run = project.run_function("test", params={"tag": "v1"}, local=True)
-    uri = run.output("file_result")
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
 
     # Verify that the tag exists in the URI
-    assert ":v1" in uri
+    assert ":v1" in output_uri
+    assert ":v1" in outputs_uri

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -354,7 +355,7 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
 
     def __str__(self) -> str:

@@ -378,3 +378,6 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]

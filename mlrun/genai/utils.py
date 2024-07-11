@@ -18,8 +18,7 @@ def sources_to_text(sources):
     if not sources:
         return ""
     return "\nSource documents:\n" + "\n".join(
-        f"- {get_title(source.metadata)} ({source.metadata['source']})"
-        for source in sources
+        f"- {get_title(source)} ({source['source']})" for source in sources
     )
 
 
@@ -42,3 +41,18 @@ def get_title(metadata):
     if "page" in metadata:
         return f"{metadata.get('title', '')} - page {metadata['page']}"
     return metadata.get("title", "")
+
+
+def fill_params(params, params_dict=None):
+    params_dict = params_dict or {}
+    for param in params:
+        i = param.find("=")
+        if i == -1:
+            continue
+        key, value = param[:i].strip(), param[i + 1 :].strip()
+        if key is None:
+            raise ValueError(f"cannot find param key in line ({param})")
+        params_dict[key] = value
+    if not params_dict:
+        return None
+    return params_dict

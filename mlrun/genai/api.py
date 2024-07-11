@@ -22,6 +22,7 @@ from mlrun.genai.client import Client
 from mlrun.genai.config import config
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
 from mlrun.genai.schema import QueryItem
+from mlrun.genai.utils import fill_params
 
 app = FastAPI()
 
@@ -153,18 +154,3 @@ def list_sessions(username, mode, last=None, created: str = None):
         created_after=created,
     )
     return data
-
-
-def fill_params(params, params_dict=None):
-    params_dict = params_dict or {}
-    for param in params:
-        i = param.find("=")
-        if i == -1:
-            continue
-        key, value = param[:i].strip(), param[i + 1 :].strip()
-        if key is None:
-            raise ValueError(f"cannot find param key in line ({param})")
-        params_dict[key] = value
-    if not params_dict:
-        return None
-    return params_dict

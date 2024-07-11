@@ -23,6 +23,7 @@ import pandas as pd
 import pytest
 import yaml
 from adlfs.spec import AzureBlobFileSystem
+from azure.core.exceptions import ClientAuthenticationError
 
 import mlrun
 import mlrun.errors
@@ -61,6 +62,16 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "fsspec_credential": ["credential"],
 }
 
+SECRETS_KEYS = [
+    "AZURE_STORAGE_CONNECTION_STRING",
+    "AZURE_STORAGE_SAS_TOKEN",
+    "AZURE_STORAGE_ACCOUNT_KEY",
+    "AZURE_STORAGE_CLIENT_SECRET",
+    "connection_string",
+    "sas_token",
+    "account_key",
+    "client_secret",
+]
 generated_pytest_parameters = []
 for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
     generated_pytest_parameters.append((authentication_method, False))
@@ -123,21 +134,26 @@ class TestAzureBlob:
             azure_fs.info(cls.bucket_name)  # in order to check connection ...
             cls._azure_fs = azure_fs
 
-    def setup_before_test(self, use_datastore_profile, auth_method):
+    def build_object_url(self, use_datastore_profile):
         self.object_file = f"/file_{uuid.uuid4()}.txt"
-        store_manager.reset_secrets()
-        self.storage_options = {}
-        for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
-            for env_var in env_vars:
-                os.environ.pop(env_var, None)
-
-        test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
         if use_datastore_profile:
             self._bucket_url = f"ds://{self.profile_name}/{self.bucket_name}"
         else:
             self._bucket_url = f"az://{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
+
+    def pop_env(self):
+        for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
+            for env_var in env_vars:
+                os.environ.pop(env_var, None)
+
+    def setup_before_test(self, use_datastore_profile, auth_method, fake_secrets=False):
+        store_manager.reset_secrets()
+        self.storage_options = {}
+        self.pop_env()
+        self.build_object_url(use_datastore_profile)
+        test_params = AUTH_METHODS_AND_REQUIRED_PARAMS.get(auth_method)
 
         if not test_params:
             pytest.skip(f"Auth method {auth_method} not configured.")
@@ -148,7 +164,11 @@ class TestAzureBlob:
                     f"Auth method {auth_method} does not support profiles."
                 )
             for env_var in test_params:
-                env_value = config["env"].get(env_var)
+                env_value = (
+                    "fake_secret"
+                    if fake_secrets and env_var in SECRETS_KEYS
+                    else config["env"].get(env_var)
+                )
                 if not env_value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 os.environ[env_var] = env_value
@@ -156,7 +176,11 @@ class TestAzureBlob:
             logger.info(f"Testing auth method {auth_method}")
         elif auth_method.startswith("fsspec"):
             for var in test_params:
-                value = config["env"].get(var)
+                value = (
+                    "fake_secret"
+                    if fake_secrets and var in SECRETS_KEYS
+                    else config["env"].get(var)
+                )
                 if not value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 self.storage_options[var] = value
@@ -168,7 +192,8 @@ class TestAzureBlob:
                 register_temporary_client_datastore_profile(self.profile)
         else:
             raise ValueError("auth_method not known")
-        self.create_fs(storage_options=self.storage_options)
+        if not fake_secrets:
+            self.create_fs(storage_options=self.storage_options)
 
     @pytest.mark.parametrize(
         "auth_method ,use_datastore_profile", generated_pytest_parameters
@@ -318,4 +343,26 @@ class TestAzureBlob:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    #  TODO add test_wrong_credential_rm test.
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
+    def test_wrong_credential_rm(self, auth_method, use_datastore_profile):
+        self.setup_before_test(
+            use_datastore_profile=use_datastore_profile,
+            auth_method=auth_method,
+            fake_secrets=True,
+        )
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises((ValueError, ClientAuthenticationError)):
+            data_item.delete()
+
+    @pytest.mark.parametrize("use_datastore_profile", [True, False])
+    def test_empty_credential_rm(self, use_datastore_profile):
+        self.pop_env()
+        self.build_object_url(use_datastore_profile)
+        if use_datastore_profile:
+            profile = DatastoreProfileAzureBlob(name=self.profile_name)
+            register_temporary_client_datastore_profile(profile)
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises(ValueError):
+            data_item.delete()

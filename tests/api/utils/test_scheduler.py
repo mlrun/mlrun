@@ -564,9 +564,9 @@ async def test_validate_cron_trigger_determinism(
 ):
     """
     minute=*/X notation means on every Xth minute.
-    For example, minute=*/13 means every 13th minute and therefore will run on: 0, 13, 26, 39, 52.
-    The difference between the run at the 52nd minute and the run at the 0th minute is 8 minutes, which is less
-    than the 10 minutes limit, so it should fail validation.
+    For example, minute=*/13 means every 13th minute and therefore will run on: 0, 13, 26, 39, 52, 0, 13 and so on..
+    The difference between the run at the 52nd minute and the run at the 0th minute after that is 8 minutes,
+    which is less than the 10 minutes limit, so it should fail validation.
     """
     scheduler._min_allowed_interval = "10 minutes"
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=minute)

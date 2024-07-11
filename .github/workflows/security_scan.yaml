@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Scan image
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v4
         id: scan
         with:
           image: ${{ steps.resolve_image_name.outputs.image_name }}
@@ -145,7 +145,7 @@ jobs:
           fi
 
       - name: Scan fs
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v4
         id: scan
         with:
           path: "."

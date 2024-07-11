@@ -1514,24 +1514,39 @@ class RunObject(RunTemplate):
 
     @property
     def outputs(self):
-        """return a dict of outputs, result values and artifact uris"""
+        """
+        Return a dictionary of outputs, including result values and artifact URIs.
+
+        This method ensures that only artifacts with deterministic tags (excluding "latest") are included.
+
+        :return: Dictionary
+        """
         outputs = {}
         self._outputs_wait_for_completion()
         if self.status.results:
             outputs.update(self.status.results)
         if self.status.artifacts:
-            # Ignore artifact with tag 'latest'
+            # Exclude artifacts tagged as 'latest' to ensure a deterministic tag is returned for the artifact
             outputs.update(
                 {
-                    a["metadata"]["key"]: get_artifact_target(a, self.metadata.project)
-                    for a in self.status.artifacts
-                    if a["metadata"]["tag"] != "latest"
+                    artifact["metadata"]["key"]: get_artifact_target(
+                        artifact, self.metadata.project
+                    )
+                    for artifact in self.status.artifacts
+                    if artifact["metadata"].get("tag", None) != "latest"
                 }
             )
         return outputs
 
-    def artifact(self, key) -> "mlrun.DataItem":
-        """Return artifact DataItem by key."""
+    def artifact(self, key: str) -> "mlrun.DataItem":
+        """Return artifact DataItem by key.
+
+        This method waits for the outputs to complete, searches for the artifact matching the given key,
+        and returns a DataItem if the artifact is found.
+
+        :param key: The key of the artifact to find.
+        :return: A DataItem corresponding to the artifact with the given key, or None if no such artifact is found.
+        """
         self._outputs_wait_for_completion()
         artifact = self._artifact(key)
         if not artifact:
@@ -1559,13 +1574,12 @@ class RunObject(RunTemplate):
         if not self.status.artifacts:
             return None
 
-        # Find the first artifact that matches the given key and tag is not 'latest'
-        # Or None if no such artifact is found
+        # Find the first artifact that matches the given or None if no such artifact is found
         return next(
             (
-                a
-                for a in self.status.artifacts
-                if a["metadata"]["key"] == key and a["metadata"]["tag"] != "latest"
+                artifact
+                for artifact in self.status.artifacts
+                if artifact["metadata"]["key"] == key
             ),
             None,
         )

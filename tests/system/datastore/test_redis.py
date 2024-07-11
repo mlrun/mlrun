@@ -35,7 +35,6 @@ class TestRedisDataStore:
     def setup_before_test(self, use_datastore_profile, redis_endpoint):
         file = f"file_{uuid.uuid4()}.txt"
         if use_datastore_profile:
-            #  TODO check change
             profile = DatastoreProfileRedis(
                 name=self.profile_name, endpoint_url=redis_endpoint
             )

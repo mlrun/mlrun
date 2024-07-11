@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 import unittest.mock
 
@@ -424,9 +425,18 @@ async def test_list_project_summaries(
     )
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
+
+    db_project_summary = project_summaries.project_summaries[0].dict()
+
+    # cannot compare exact datetime objects, so assert that the difference from now is less than 10 seconds
+    # and then remove the updated field for comparison.
+    assert datetime.datetime.utcnow() - db_project_summary[
+        "updated"
+    ] < datetime.timedelta(seconds=10)
+    db_project_summary["updated"] = None
     assert (
         deepdiff.DeepDiff(
-            project_summaries.project_summaries[0].dict(),
+            db_project_summary,
             project_summary.dict(),
             ignore_order=True,
         )

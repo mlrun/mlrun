@@ -41,7 +41,7 @@ def upgrade():
             "project", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
         ),
         sa.Column("summary", sa.JSON(), nullable=True),
-        sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
+        sa.Column("updated", mysql.DATETIME(timezone=True, fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", name="_project_summaries_uc"),
     )

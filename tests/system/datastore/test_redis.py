@@ -25,8 +25,7 @@ from mlrun.datastore.datastore_profile import (
     register_temporary_client_datastore_profile,
 )
 
-# redis_endpoint = ("redis://", "redis://localhost:6379")
-redis_endpoint = "redis://localhost:6379"
+redis_endpoint = ("redis://", "redis://localhost:6379")
 
 
 @pytest.mark.parametrize("use_datastore_profile", [True, False])

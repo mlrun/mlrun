@@ -92,6 +92,7 @@ from server.api.db.sqldb.models import (
     Log,
     PaginationCache,
     Project,
+    ProjectSummary,
     Run,
     Schedule,
     User,
@@ -2591,6 +2592,75 @@ class SQLDB(DBInterface):
                 )
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
+    def get_project_summary(
+        self, session, project: str
+    ) -> mlrun.common.schemas.ProjectSummary:
+        project_summary_record = self._query(
+            session,
+            ProjectSummary,
+            project=project,
+        ).one_or_none()
+        if not project_summary_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Project summary not found: project={project}"
+            )
+
+        project_summary_record.summary["updated"] = project_summary_record.updated
+        return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
+
+    def list_project_summaries(
+        self,
+        session: Session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        project_query = self._query(session, Project.name)
+        if owner:
+            project_query = project_query.filter(Project.owner == owner)
+        if state:
+            project_query = project_query.filter(Project.state == state)
+        if labels:
+            project_query = self._add_labels_filter(
+                session, project_query, Project, labels
+            )
+        if names:
+            project_query = project_query.filter(Project.name.in_(names))
+
+        project_subquery = project_query.subquery()
+        project_alias = aliased(Project, project_subquery)
+
+        query = self._query(session, ProjectSummary)
+        query = query.join(project_alias, ProjectSummary.project == project_alias.name)
+
+        project_summaries = query.all()
+        project_summaries_results = []
+        for project_summary in project_summaries:
+            project_summary.summary["updated"] = project_summary.updated
+            project_summaries_results.append(
+                mlrun.common.schemas.ProjectSummary(**project_summary.summary)
+            )
+
+        return project_summaries_results
+
+    def refresh_project_summaries(
+        self,
+        session: Session,
+        project_summaries: list[mlrun.common.schemas.ProjectSummary],
+    ):
+        # Do the whole operation in a single transaction
+        with session.no_autoflush:
+            self._query(session, ProjectSummary).delete()
+            for project_summary_schema in project_summaries:
+                project_summary = ProjectSummary(
+                    project=project_summary_schema.name,
+                    summary=project_summary_schema.dict(),
+                    updated=datetime.now(timezone.utc),
+                )
+                session.add(project_summary)
+            session.commit()
+
     async def get_project_resources_counters(
         self,
     ) -> tuple[
@@ -2812,37 +2882,6 @@ class SQLDB(DBInterface):
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
         )
-
-    async def generate_projects_summaries(
-        self, session: Session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        (
-            project_to_function_count,
-            project_to_schedule_count,
-            project_to_feature_set_count,
-            project_to_models_count,
-            project_to_recent_failed_runs_count,
-            project_to_running_runs_count,
-        ) = await self._get_project_resources_counters(session)
-        project_summaries = []
-        for project in projects:
-            project_summaries.append(
-                mlrun.common.schemas.ProjectSummary(
-                    name=project,
-                    functions_count=project_to_function_count.get(project, 0),
-                    schedules_count=project_to_schedule_count.get(project, 0),
-                    feature_sets_count=project_to_feature_set_count.get(project, 0),
-                    models_count=project_to_models_count.get(project, 0),
-                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
-                        project, 0
-                    ),
-                    runs_running_count=project_to_running_runs_count.get(project, 0),
-                    # This is a mandatory field - filling here with 0, it will be filled with the real number in the
-                    # crud layer
-                    pipelines_running_count=0,
-                )
-            )
-        return project_summaries
 
     def _update_project_record_from_project(
         self,

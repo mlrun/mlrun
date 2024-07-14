@@ -1315,7 +1315,7 @@ class RunTemplate(ModelObj):
 
             task.with_input("data", "/file-dir/path/to/file")
             task.with_input("data", "s3://<bucket>/path/to/file")
-            task.with_input("data", "v3io://[<remote-host>]/<data-container>/path/to/file")
+            task.with_input("data", "v3io://<data-container>/path/to/file")
         """
         if not self.spec.inputs:
             self.spec.inputs = {}

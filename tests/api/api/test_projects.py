@@ -299,7 +299,8 @@ def test_delete_project_with_resources(
     )
 
 
-def test_list_and_get_project_summaries(
+@pytest.mark.asyncio
+async def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     # create empty project
@@ -417,6 +418,8 @@ def test_list_and_get_project_summaries(
         project_name,
     )
 
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
+
     # list project summaries
     response = client.get("project-summaries")
     project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
@@ -460,7 +463,8 @@ def test_list_and_get_project_summaries(
     )
 
 
-def test_list_project_summaries_different_installation_modes(
+@pytest.mark.asyncio
+async def test_list_project_summaries_different_installation_modes(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     """
@@ -481,6 +485,8 @@ def test_list_project_summaries_different_installation_modes(
     mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"
     mlrun.mlconf.kfp_url = "https://somekfp-url.com"
     mlrun.mlconf.namespace = "default-tenant"
+
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
@@ -1484,11 +1490,20 @@ def _assert_db_resources_in_project(
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
             if (
-                # Artifact table is deprecated, we are using ArtifactV2 instead
-                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
-            ) or (
-                # PaginationCache is not a project-level table
-                cls.__name__ == "PaginationCache"
+                (
+                    # Artifact table is deprecated, we are using ArtifactV2 instead
+                    cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+                )
+                or (
+                    # PaginationCache is not a project-level table
+                    cls.__name__ == "PaginationCache"
+                )
+                or (
+                    # Although project summaries are related to projects, their lifecycle is related
+                    # to the project summary calculation cycle and not to the creation/deletion of projects
+                    # (In each cycle the table is wiped clean and re-populated with only the existing projects)
+                    cls.__name__ == "ProjectSummary"
+                )
             ):
                 continue
 

@@ -444,12 +444,6 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_projects_summaries(
-        self, session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        pass
-
-    @abstractmethod
     def delete_project_related_resources(self, session, name: str):
         pass
 
@@ -522,6 +516,26 @@ class DBInterface(ABC):
         session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+    ):
+        pass
+
+    def get_project_summary(
+        self, session, project: str
+    ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        pass
+
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
     ):
         pass
 

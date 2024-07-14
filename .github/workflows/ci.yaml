@@ -285,7 +285,7 @@ jobs:
         with:
           name: ${{ env.UUID }}-tests-report
           path:
-            /tmp/$BC*{{ env.UUID }}_test_report.html
+            /tmp/BC*${{ env.UUID }}_test_report.html
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

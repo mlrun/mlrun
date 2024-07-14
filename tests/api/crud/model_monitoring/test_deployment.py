@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
 import typing
 from collections.abc import Iterator
 from pathlib import Path
@@ -104,4 +105,42 @@ class TestAppDeployment:
                 endpoint_store_connection="v3io",
                 stream_path="kafka://stream",
                 tsdb_connection="taosws://",
+            )
+
+    @pytest.mark.skipif(
+        os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None,
+        reason="Configure Framsed to access V3IO store targets",
+    )
+    def test_cred_v3io(
+        self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str
+    ) -> None:
+        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+            monitoring_deployment.check_if_credentials_are_set(
+                only_project_secrets=True
+            )
+
+        with pytest.raises(mlrun.errors.MLRunInvalidMMStoreType):
+            monitoring_deployment.set_credentials(
+                endpoint_store_connection="v3io",
+                stream_path="kafka://stream",
+                tsdb_connection="promitheus",
+            )
+
+        monitoring_deployment.set_credentials(
+            endpoint_store_connection=store_connection,
+            stream_path="v3io",
+            tsdb_connection="v3io",
+        )
+
+        monitoring_deployment.set_credentials(
+            endpoint_store_connection=store_connection,
+            stream_path="v3io",
+            tsdb_connection="v3io",
+        )
+
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            monitoring_deployment.set_credentials(
+                endpoint_store_connection="v3io",
+                stream_path="v3io",
+                tsdb_connection="v3io",
             )

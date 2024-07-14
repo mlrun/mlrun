@@ -167,7 +167,7 @@ jobs:
         with:
           name: ${{ env.UUID }}-tests-report
           path:
-            /tmp/${{ env.UUID }}_report.html
+            /tmp/${{ env.UUID }}_test_report.html
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})

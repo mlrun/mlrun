@@ -483,7 +483,7 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/integration_test_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		tests/integration \

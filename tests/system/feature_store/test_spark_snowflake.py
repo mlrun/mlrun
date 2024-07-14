@@ -14,6 +14,7 @@
 #
 import os
 import random
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -22,7 +23,7 @@ import snowflake.connector
 
 import mlrun.errors
 import mlrun.feature_store as fstore
-from mlrun.datastore.sources import SnowflakeSource
+from mlrun.datastore.sources import ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
@@ -60,7 +61,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Remote)
+        cls.configure_image_deployment(Deployment.Local)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
@@ -225,3 +226,71 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             match=".*some attributes are missing.*",
         ):
             fake_target.purge()
+
+    def test_storey_source_error(self):
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = SnowflakeSource(
+            "snowflake_source_for_ingest",
+            query=f"select * from {self.source_table} order by ID limit 10",
+            schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        target = ParquetTarget(
+            "snowflake_target_for_ingest",
+            path=f"v3io:///projects/{self.project_name}/result.parquet",
+        )
+        self.generate_snowflake_source_table()
+
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match="SnowflakeSource supports spark engine only",
+        ):
+            feature_set.ingest(
+                source,
+                targets=[target],
+                run_config=fstore.RunConfig(
+                    local=self.run_local,
+                ),
+            )
+
+    def test_storey_target_error(self):
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        v3io_parquet_source_path = (
+            f"v3io:///projects/{self.project_name}/df_source_{uuid.uuid4()}.parquet"
+        )
+        df.to_parquet(v3io_parquet_source_path)
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = ParquetSource(
+            "snowflake_source_for_ingest",
+            path=v3io_parquet_source_path,
+        )
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=f"result_{self.current_time}",
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match="SnowflakeTarget does not support storey engine",
+        ):
+            feature_set.ingest(
+                source,
+                targets=[target],
+                run_config=fstore.RunConfig(
+                    local=self.run_local,
+                ),
+            )

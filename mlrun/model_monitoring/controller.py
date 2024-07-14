@@ -334,7 +334,7 @@ class MonitoringApplicationController:
 
         :param event:   trigger event
         """
-        logger.info("Start running monitoring controller")
+        self.context.logger.info("Start running monitoring controller")
         try:
             applications_names = []
             endpoints = self.db.list_model_endpoints()
@@ -391,7 +391,7 @@ class MonitoringApplicationController:
                     == mm_constants.EndpointType.ROUTER
                 ):
                     # Router endpoint has no feature stats
-                    logger.info(
+                    self.context.logger.info(
                         f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                     )
                     continue
@@ -561,7 +561,7 @@ class MonitoringApplicationController:
                             # Delete directory
                             fs.rmdir(path=directory["name"])
                 except FileNotFoundError:
-                    logger.info(
+                    self.context.logger.info(
                         "Application parquet directory is empty, "
                         "probably parquets have not yet been created for this app",
                         endpoint=endpoint[mm_constants.EventFieldType.UID],

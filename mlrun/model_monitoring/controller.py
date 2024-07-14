@@ -273,26 +273,20 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
-    def __init__(
-        self,
-        mlrun_context: mlrun.run.MLClientCtx,
-        project: str,
-    ):
+    def __init__(self) -> None:
         """
-        Initialize Monitoring Application Processor object.
-
-        :param mlrun_context:               An MLRun context.
-        :param project:                     Project name.
+        Initialize Monitoring Application Controller.
         """
-        self.context = mlrun_context
-        self.project = project
-        self.project_obj = mlrun.get_or_create_project(project)
+        logger.info("Initializing monitoring app controller")
+        self.context = mlrun.get_or_create_ctx("model_monitoring_controller")
+        self.project = self.context.project
+        self.project_obj = mlrun.get_or_create_project(self.project)
 
-        mlrun_context.logger.debug(
-            f"Initializing {self.__class__.__name__}", project=project
+        self.context.logger.debug(
+            f"Initializing {self.__class__.__name__}", project=self.project
         )
 
-        self.db = mlrun.model_monitoring.get_store_object(project=project)
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project)
 
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=json.loads(
@@ -682,14 +676,4 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     :param context: the Nuclio context
     :param event:   trigger event
     """
-    context.user_data.monitor_app_controller.run(event)
-
-
-def init_context(context):
-    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
-    mlrun_context.logger.info("Initialize monitoring app controller")
-    monitor_app_controller = MonitoringApplicationController(
-        mlrun_context=mlrun_context,
-        project=mlrun_context.project,
-    )
-    setattr(context.user_data, "monitor_app_controller", monitor_app_controller)
+    MonitoringApplicationController().run(event)

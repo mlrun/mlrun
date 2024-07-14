@@ -18,8 +18,7 @@ def sources_to_text(sources):
     if not sources:
         return ""
     return "\nSource documents:\n" + "\n".join(
-        f"- {get_title(source.metadata)} ({source.metadata['source']})"
-        for source in sources
+        f"- {get_title(source)} ({source['source']})" for source in sources
     )
 
 

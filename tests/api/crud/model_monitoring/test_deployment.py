@@ -97,7 +97,7 @@ class TestAppDeployment:
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
                 stream_path="kafka://stream",
-                tsdb_connection="promitheus",
+                tsdb_connection="wrong",
             )
 
         with pytest.raises(taosws.QueryError):
@@ -123,7 +123,7 @@ class TestAppDeployment:
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
                 stream_path="kafka://stream",
-                tsdb_connection="promitheus",
+                tsdb_connection="wrong",
             )
 
         monitoring_deployment.set_credentials(

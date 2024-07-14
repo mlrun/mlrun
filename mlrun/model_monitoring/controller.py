@@ -673,3 +673,23 @@ class MonitoringApplicationController:
             ),
         )
         return offline_response
+
+
+def handler(context: nuclio.Context, event: nuclio.Event) -> None:
+    """
+    Run model monitoring application processor
+
+    :param context: the Nuclio context
+    :param event:   trigger event
+    """
+    context.user_data.monitor_app_controller.run(event)
+
+
+def init_context(context):
+    mlrun_context = mlrun.get_or_create_ctx("model_monitoring_controller")
+    mlrun_context.logger.info("Initialize monitoring app controller")
+    monitor_app_controller = MonitoringApplicationController(
+        mlrun_context=mlrun_context,
+        project=mlrun_context.project,
+    )
+    setattr(context.user_data, "monitor_app_controller", monitor_app_controller)

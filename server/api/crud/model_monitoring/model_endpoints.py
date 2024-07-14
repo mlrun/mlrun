@@ -365,6 +365,7 @@ class ModelEndpoints:
                                            be added to the output of the resulting object.
 
         :return: A `ModelEndpoint` object.
+        :raise: `MLRunNotFoundError` if the model endpoint is not found.
         """
 
         logger.info(
@@ -385,7 +386,7 @@ class ModelEndpoints:
                 " Returning an empty model endpoint object.\n"
                 f"Error: {mlrun.errors.err_to_str(e)}"
             )
-            return mlrun.common.schemas.ModelEndpoint()
+            raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,

@@ -411,6 +411,7 @@ async def _start_log_and_update_runs(
         get_db().list_runs,
         db_session,
         uid=runs_uids,
+        project="*",
     )
 
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection

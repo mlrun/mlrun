@@ -326,6 +326,18 @@ class MonitoringApplicationController:
         """
         Main method for run all the relevant monitoring applications on each endpoint
         """
+        with self.context:  # use a context manager to close the context
+            self._activate_applications()
+
+    def _activate_applications(self) -> None:
+        """
+        This method handles the following:
+        1. List model endpoints
+        2. List applications
+        3. Check model monitoring windows
+        4. Send data to applications
+        5. Delete old parquets
+        """
         self.context.logger.info("Start running monitoring controller")
         try:
             applications_names = []

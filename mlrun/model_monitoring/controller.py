@@ -278,7 +278,7 @@ class MonitoringApplicationController:
         Initialize Monitoring Application Controller.
         """
         logger.info("Initializing monitoring app controller")
-        self.context = mlrun.get_or_create_ctx("model_monitoring_controller")
+        self.context = mlrun.get_or_create_ctx("model-monitoring-controller")
         self.project = self.context.project
         self.project_obj = mlrun.get_or_create_project(self.project)
 

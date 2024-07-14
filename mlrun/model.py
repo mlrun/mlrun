@@ -1507,12 +1507,7 @@ class RunObject(RunTemplate):
         :return: The value of the result or the artifact URI corresponding to the key, or None if not found.
         """
         self._outputs_wait_for_completion()
-        if self.status.results and key in self.status.results:
-            return self.status.results.get(key)
-        artifact = self._artifact(key)
-        return (
-            get_artifact_target(artifact, self.metadata.project) if artifact else None
-        )
+        return self.status.results.get(key) or self.status.artifact_uris.get(key)
 
     @property
     def ui_url(self) -> str:
@@ -1527,25 +1522,17 @@ class RunObject(RunTemplate):
         """
         Return a dictionary of outputs, including result values and artifact URIs.
 
-        This method ensures that only artifacts with deterministic tags (excluding "latest") are included.
+        This method waits for the outputs to complete and combines result values
+        and artifact URIs into a single dictionary.
 
-        :return: Dictionary
+        :return: Dictionary containing result values and artifact URIs.
         """
         outputs = {}
         self._outputs_wait_for_completion()
         if self.status.results:
             outputs.update(self.status.results)
-        if self.status.artifacts:
-            # Exclude artifacts tagged as 'latest' to ensure a deterministic tag is returned for the artifact
-            outputs.update(
-                {
-                    artifact["metadata"]["key"]: get_artifact_target(
-                        artifact, self.metadata.project
-                    )
-                    for artifact in self.status.artifacts
-                    if artifact["metadata"].get("tag", None) != "latest"
-                }
-            )
+        if self.status.artifact_uris:
+            outputs.update(self.status.artifact_uris)
         return outputs
 
     def artifact(self, key: str) -> "mlrun.DataItem":

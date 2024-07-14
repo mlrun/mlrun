@@ -449,6 +449,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
@@ -475,6 +476,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -511,6 +513,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
 		-t \
 		--rm \
 		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
@@ -524,7 +527,7 @@ test-system: ## Run mlrun system tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$(MLRUN_SYSTEM_TESTS_COMPONENT)_$${timestamp}_system_tests_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
@@ -536,7 +539,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_opensource_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		-m "not enterprise" \
@@ -698,6 +701,7 @@ endif
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
 	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
+	    --env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 

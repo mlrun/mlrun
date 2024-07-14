@@ -49,7 +49,7 @@ def fill_params(params, params_dict=None):
         i = param.find("=")
         if i == -1:
             continue
-        key, value = param[:i].strip(), param[i + 1:].strip()
+        key, value = param[:i].strip(), param[i + 1 :].strip()
         if key is None:
             raise ValueError(f"cannot find param key in line ({param})")
         params_dict[key] = value

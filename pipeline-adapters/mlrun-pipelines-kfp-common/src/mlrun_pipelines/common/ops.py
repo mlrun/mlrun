@@ -15,6 +15,7 @@
 
 import json
 import os
+import warnings
 from copy import deepcopy
 from typing import Union
 
@@ -109,7 +110,7 @@ def mlrun_op(
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
+    :param rundb:    Deprecated. use 'MLRUN_DBPATH' env instead.
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
     :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
@@ -167,6 +168,13 @@ def mlrun_op(
     """
     from mlrun_pipelines.ops import generate_pipeline_node
 
+    if rundb:
+        warnings.warn(
+            "rundb parameter is deprecated and will be removed in 1.9.0. "
+            "use 'MLRUN_DBPATH' env instead.",
+            DeprecationWarning,
+        )
+
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
@@ -177,7 +185,6 @@ def mlrun_op(
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
-    rundb = rundb or mlrun.db.get_or_set_dburl()
     cmd = [
         "python",
         "-m",
@@ -200,7 +207,6 @@ def mlrun_op(
                 command = command or function.spec.command
                 more_args = more_args or function.spec.args
                 mode = mode or function.spec.mode
-                rundb = rundb or function.spec.rundb
                 code_env = str(function.spec.build.functionSourceCode)
             else:
                 runtime = str(function.to_dict())

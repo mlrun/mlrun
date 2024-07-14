@@ -92,13 +92,6 @@ def ingest(path, loader, metadata, version, collection, from_file):
 
 @click.command()
 @click.argument("question", type=str)
-@click.option(
-    "-f",
-    "--filter",
-    type=(str, str),
-    multiple=True,
-    help="Search filter Key value pair",
-)
 @click.option("-c", "--collection", type=str, help="Vector DB collection name")
 @click.option("-u", "--user", type=str, help="Username")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose mode")
@@ -106,11 +99,10 @@ def ingest(path, loader, metadata, version, collection, from_file):
 @click.option(
     "-n", "--pipeline-name", type=str, default="default", help="Pipeline name"
 )
-def query(question, filter, collection, user, verbose, session, pipeline_name):
+def query(question, collection, user, verbose, session, pipeline_name):
     """Run a chat query on the vector database collection"""
     click.echo(f"Running Query for: {question}")
 
-    search_args = {"filter": dict(filter)} if filter else {}
     app_server.verbose = verbose or config.verbose
     app_server.add_pipeline("default", pipe_graph)
 

@@ -61,7 +61,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Local)
+        cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(

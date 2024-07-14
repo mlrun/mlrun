@@ -1507,7 +1507,21 @@ class RunObject(RunTemplate):
         :return: The value of the result or the artifact URI corresponding to the key, or None if not found.
         """
         self._outputs_wait_for_completion()
-        return self.status.results.get(key) or self.status.artifact_uris.get(key)
+
+        # Check results first
+        if self.status.results and key in self.status.results:
+            return self.status.results[key]
+
+        # Check artifact URIs next
+        if self.status.artifact_uris and key in self.status.artifact_uris:
+            return self.status.artifact_uris[key]
+
+        # If not found in results or artifact_uris, try to fetch artifact target
+        artifact = self._artifact(key)
+        if artifact:
+            return get_artifact_target(artifact, self.metadata.project)
+
+        return None
 
     @property
     def ui_url(self) -> str:
@@ -1523,16 +1537,28 @@ class RunObject(RunTemplate):
         Return a dictionary of outputs, including result values and artifact URIs.
 
         This method waits for the outputs to complete and combines result values
-        and artifact URIs into a single dictionary.
+        and artifact URIs into a single dictionary. If artifacts without URIs are
+        found, their targets are fetched and added to the dictionary.
 
         :return: Dictionary containing result values and artifact URIs.
         """
-        outputs = {}
         self._outputs_wait_for_completion()
+        outputs = {}
+
+        # Add results if available
         if self.status.results:
             outputs.update(self.status.results)
+
+        # Add artifact URIs if available
         if self.status.artifact_uris:
             outputs.update(self.status.artifact_uris)
+
+        # Add artifacts with targets if available
+        elif self.status.artifacts:
+            for artifact in self.status.artifacts:
+                key = artifact["metadata"]["key"]
+                outputs[key] = get_artifact_target(artifact, self.metadata.project)
+
         return outputs
 
     def artifact(self, key: str) -> "mlrun.DataItem":

@@ -354,3 +354,19 @@ def test_verify_tag_exists_in_run_output_uri():
     # Verify that the tag exists in the URI
     assert ":v1" in output_uri
     assert ":v1" in outputs_uri
+
+
+def test_verify_latest_not_exists_in_run_output_uri():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
+    )
+
+    # run function locally
+    run = project.run_function("test", local=True)
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    # Verify that the tag exists in the URI
+    assert ":latest" not in output_uri
+    assert ":latest" not in outputs_uri

@@ -17,11 +17,16 @@ import os
 import mlrun
 
 
-def myhandler(context: mlrun.MLClientCtx, tag):
+def myhandler(context: mlrun.MLClientCtx, tag=None):
     print(f"Run: {context.name} (uid={context.uid})")
-    context.log_artifact(
-        "file_result", body=b"abc123", local_path="result.txt", tag=tag
-    )
+    artifact_params = {
+        "item": "file_result",
+        "body": b"abc123",
+        "local_path": "result.txt",
+    }
+    if tag:
+        artifact_params["tag"] = tag
+    context.log_artifact(**artifact_params)
 
 
 def handler2(context: mlrun.MLClientCtx):

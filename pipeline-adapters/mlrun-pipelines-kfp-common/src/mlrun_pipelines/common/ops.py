@@ -141,16 +141,14 @@ def mlrun_op(
                     command = '/User/kubeflow/training.py',
                     params = {'p1':p1, 'p2':p2},
                     outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
+                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/')
 
     # use data from the first step
     def mlrun_validate(modelfile):
         return mlrun_op('validation',
                     command = '/User/kubeflow/validation.py',
                     inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
+                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/')
 
     @dsl.pipeline(
         name='My MLRUN pipeline', description='Shows how to use mlrun.'
@@ -447,9 +445,7 @@ def get_default_reg():
     return ""
 
 
-def format_summary_from_kfp_run(
-    kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
-):
+def format_summary_from_kfp_run(kfp_run, project=None):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
     override_project = project if project and project != "*" else None
@@ -459,13 +455,8 @@ def format_summary_from_kfp_run(
     run_id = kfp_run.id
     logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
-    # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
-    if not run_db:
-        run_db = mlrun.db.get_run_db()
-
     # enrich DAG with mlrun run info
-    runs = run_db.list_runs(project=project, labels=f"workflow={run_id}")
-
+    runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
     for run in runs:
         step = get_in(
             run,

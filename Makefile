@@ -523,7 +523,7 @@ test-system: ## Run mlrun system tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_report.html \
+		--html=/tmp/$(MLRUN_SYSTEM_TESTS_COMPONENT)_$${timestamp}_system_tests_report.html \
 		--self-contained-html \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)

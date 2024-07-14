@@ -925,5 +925,6 @@ class RunDBInterface(ABC):
         self,
         project: str,
         credentials: dict[str, str],
+        force: bool,
     ) -> None:
         pass

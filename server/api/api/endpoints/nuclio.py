@@ -506,6 +506,7 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
+            monitoring_deployment.set_credentials_after_server_upgrade()
             monitoring_deployment.check_if_credentials_are_set()
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:

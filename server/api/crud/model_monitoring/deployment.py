@@ -119,6 +119,7 @@ class MonitoringDeployment:
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
+        self.set_credentials_after_server_upgrade()
         self.check_if_credentials_are_set()
 
         self.deploy_model_monitoring_controller(
@@ -984,17 +985,7 @@ class MonitoringDeployment:
                 stream_path=stream_paths[0],
             )
 
-    def check_if_credentials_are_set(self, only_project_secrets: bool = False):
-        """
-        Check if the model monitoring credentials are set. If not, raise an error.
-        :param only_project_secrets:  set to true only when setting new credentials.
-        :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
-        """
-        # for each cred from : [store, tsdb, stream]
-        # 1. Check in project secrets.
-        # 2. Check if stream is on or if there is already part of the secrets set.
-        #    a. if True, set the cred in to the project secret (from exist cred/ from sys config / v3io by default).
-
+    def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
         credentials_dict = {
             key: server.api.crud.Secrets().get_project_secret(
                 project=self.project,
@@ -1004,6 +995,16 @@ class MonitoringDeployment:
             )
             for key in mlrun.common.schemas.model_monitoring.ProjectSecretKeys.mandatory_secrets()
         }
+
+        return credentials_dict
+
+    def check_if_credentials_are_set(self):
+        """
+        Check if the model monitoring credentials are set. If not, raise an error.
+        :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
+        """
+
+        credentials_dict = self._get_monitoring_mandatory_project_secrets()
         # check if all the credentials are set (stream is not mandatory for now for BC, Todo: del in 1.9.0)
         if all(
             [
@@ -1016,40 +1017,68 @@ class MonitoringDeployment:
         ):
             return
 
-        if not only_project_secrets:  # for upgrade case
-            need_to_set = False
+        raise mlrun.errors.MLRunBadRequestError(
+            "Model monitoring credentials are not set.\n"
+            "Please set them using the set_model_monitoring_credentials API/SDK "
+            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+        )
+
+    def set_credentials_after_server_upgrade(self) -> bool:
+        """
+        Set the model monitoring credentials for an old project that had model monitoring on it  after
+        the upgrade process.
+        :return: True if the credentials are set, otherwise False.
+        """
+        credentials_dict = self._get_monitoring_mandatory_project_secrets()
+        mm_enabled = False
+        store_connector: mlrun.model_monitoring.db.StoreBase = mlrun.model_monitoring.get_store_object(
+            project=self.project,
+            store_connection_string=credentials_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+            )
+            or "v3io",  # in case they use the default v3io
+        )
+
+        if store_connector.list_model_endpoints():
+            # if there are model endpoints, the project has monitoring
+            mm_enabled = True
+        else:
             try:
                 server.api.crud.Functions().get_function(
                     name=mm_constants.MonitoringFunctionNames.STREAM,
                     db_session=self.db_session,
                     project=self.project,
                 )
-                need_to_set = True
+                # if stream pod is on, the project has monitoring
+                mm_enabled = True
             except mlrun.errors.MLRunNotFoundError:
+                # if one of the cred is already set, the project has monitoring
                 if any(
-                    [val is not None for val in credentials_dict.values()]
-                ):  # check if one of the cred is already set
-                    need_to_set = True
-            finally:
-                if need_to_set and None in credentials_dict.values():
-                    self.set_credentials(
-                        endpoint_store_connection=credentials_dict.get(
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-                        ),
-                        stream_path=credentials_dict.get(
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-                        ),
-                        tsdb_connection=credentials_dict.get(
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-                        ),
-                        _default_secrets_v3io="v3io",
-                    )
+                    [
+                        val is not None
+                        for key, val in credentials_dict.items()
+                        if key
+                        != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                    ]
+                    # stream is not mandatory for now for BC, Todo: del in 1.9.0
+                ):
+                    mm_enabled = True
 
-        raise mlrun.errors.MLRunBadRequestError(
-            "Model monitoring credentials are not set.\n"
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
-        )
+        if mm_enabled and None in credentials_dict.values():
+            self.set_credentials(
+                endpoint_store_connection=credentials_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ),
+                stream_path=credentials_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                ),
+                tsdb_connection=credentials_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                ),
+                _default_secrets_v3io="v3io",
+                force=True,
+            )
+        return mm_enabled
 
     def set_credentials(
         self,
@@ -1057,6 +1086,7 @@ class MonitoringDeployment:
         endpoint_store_connection: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
+        force: bool = False,
         _default_secrets_v3io: typing.Optional[str] = None,
     ) -> None:
         """
@@ -1085,29 +1115,37 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
+        :param force:                     If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
         """
-        try:
-            self.check_if_credentials_are_set(only_project_secrets=True)
-            if self._is_the_same_cred(
-                endpoint_store_connection, stream_path, tsdb_connection
-            ):
-                logger.debug(
-                    "The same credentials are already set for the project - aborting with no error",
-                    project=self.project,
+        if not force:
+            try:
+                self.check_if_credentials_are_set()
+                if self._is_the_same_cred(
+                    endpoint_store_connection, stream_path, tsdb_connection
+                ):
+                    logger.debug(
+                        "The same credentials are already set for the project - aborting with no error",
+                        project=self.project,
+                    )
+                    return
+                raise mlrun.errors.MLRunConflictError(
+                    f"For {self.project} the credentials are already set, if you want to set new credentials, "
+                    f"please set force=True"
                 )
-                return
-            raise mlrun.errors.MLRunConflictError(
-                f"For {self.project} the credentials are already set, and they can't be modified.\n"
-                f"This API can run only once for a project."
-            )
-        except mlrun.errors.MLRunBadRequestError:
-            # the credentials are not set
-            pass
+            except mlrun.errors.MLRunBadRequestError:
+                # the credentials are not set
+                pass
+
+            if self.set_credentials_after_server_upgrade():
+                raise mlrun.errors.MLRunConflictError(
+                    f"For {self.project} the credentials are already set, if you want to set new credentials, "
+                    f"please set force=True"
+                )
 
         secrets_dict = {}
         if access_key:

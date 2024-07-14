@@ -54,6 +54,7 @@ export PYTHONPATH=$ROOT_DIR
 python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--durations=100 \
 		-rf \
 		${ROOT_DIR}/server/api/migrations/tests/*

@@ -322,11 +322,9 @@ class MonitoringApplicationController:
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )
 
-    def run(self, event: nuclio.Event):
+    def run(self) -> None:
         """
         Main method for run all the relevant monitoring applications on each endpoint
-
-        :param event:   trigger event
         """
         self.context.logger.info("Start running monitoring controller")
         try:
@@ -676,4 +674,4 @@ def handler(context: nuclio.Context, event: nuclio.Event) -> None:
     :param context: the Nuclio context
     :param event:   trigger event
     """
-    MonitoringApplicationController().run(event)
+    MonitoringApplicationController().run()

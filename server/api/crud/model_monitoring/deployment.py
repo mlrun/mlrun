@@ -1239,7 +1239,7 @@ class MonitoringDeployment:
         old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
-        old_stream = old_stream if old_stream else "v3io"  # TODO : del in 1.9.0
+        old_stream = old_stream or "v3io"  # TODO : del in 1.9.0
         if old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",

@@ -319,11 +319,7 @@ class DataStore:
                                 dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return df_module.concat(dfs)
 
-        elif (
-            file_url.endswith(".parquet")
-            or file_url.endswith(".pq")
-            or format == "parquet"
-        ):
+        elif mlrun.utils.helpers.is_parquet_file(file_url, format):
             if columns:
                 kwargs["columns"] = columns
 

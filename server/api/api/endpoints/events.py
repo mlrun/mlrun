@@ -61,7 +61,7 @@ async def post_event(
             project=project, name=name, request=request, json=data
         )
 
-    logger.debug("Got event", project=project, name=name)
+    logger.debug("Got event", project=project, name=name, id=event_data.entity.ids[0])
 
     if not server.api.crud.Events().is_valid_event(project, event_data):
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST.value)

@@ -78,8 +78,6 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
-    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
-    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     TIME = "time"
     TABLE_COLUMN = "table_column"
@@ -187,6 +185,12 @@ class ProjectSecretKeys:
             cls.STREAM_PATH,
             cls.TSDB_CONNECTION,
         ]
+
+
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
 
 
 class ModelMonitoringStoreKinds:
@@ -335,7 +339,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
-    custom = 4
+    mm_app_anomaly = 4
 
 
 class ResultStatusApp(IntEnum):

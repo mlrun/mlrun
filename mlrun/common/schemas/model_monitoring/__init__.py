@@ -25,6 +25,7 @@ from .constants import (
     FunctionURI,
     MetricData,
     ModelEndpointTarget,
+    ModelEndpointTargetSchemas,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,

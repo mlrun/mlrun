@@ -58,7 +58,9 @@ class ParallelRunner:
 
         return TrackerManager()
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         return handler
 
     def _get_dask_client(self, options):
@@ -86,7 +88,7 @@ class ParallelRunner:
         handler = runobj.spec.handler
         self._force_handler(handler)
         set_paths(self.spec.pythonpath)
-        handler = self._get_handler(handler, execution)
+        handler = self._get_handler(handler, execution, embed_in_sys=False)
 
         client, function_name = self._get_dask_client(generator.options)
         parallel_runs = generator.options.parallel_runs or 4
@@ -224,12 +226,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def is_deployed(self):
         return True
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         command = self.spec.command
         if not command and self.spec.build.functionSourceCode:
             # if the code is embedded in the function object extract or find it
             command, _ = mlrun.run.load_func_code(self)
-        return load_module(command, handler, context)
+        return load_module(command, handler, context, embed_in_sys=embed_in_sys)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         workdir = self.spec.workdir
@@ -372,8 +376,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return run_obj_dict
 
 
-def load_module(file_name, handler, context):
-    """Load module from file name"""
+def load_module(
+    file_name: str,
+    handler: str,
+    context: MLClientCtx,
+    embed_in_sys: bool = True,
+):
+    """
+    Load module from filename
+    :param file_name:       The module path to load
+    :param handler:         The callable to load
+    :param context:         Execution context
+    :param embed_in_sys:    Embed the file-named module in sys.modules. This is not persistent with remote
+                            environments and therefore can effect pickling.
+    """
     module = None
     if file_name:
         path = Path(file_name)
@@ -384,7 +400,8 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
-        sys.modules[mod_name] = module
+        if embed_in_sys:
+            sys.modules[mod_name] = module
         spec.loader.exec_module(module)
 
     class_args = {}

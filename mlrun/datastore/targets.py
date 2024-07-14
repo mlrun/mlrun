@@ -29,7 +29,10 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.snowflake_utils import (
+    get_snowflake_password,
+    get_snowflake_spark_options,
+)
 from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
@@ -546,9 +549,7 @@ class BaseStoreTarget(DataTargetBase):
                     os.makedirs(dir, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
-            if not target_path.endswith(".parquet") and not target_path.endswith(
-                ".pq"
-            ):  # directory
+            if not mlrun.utils.helpers.is_parquet_file(target_path):  # directory
                 partition_cols = []
                 if timestamp_key and (
                     self.partitioned or self.time_partitioning_granularity
@@ -915,10 +916,8 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if (
-            not self.partitioned
-            and not self.get_target_path().endswith(".parquet")
-            and not self.get_target_path().endswith(".pq")
+        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
+            self.get_target_path()
         ):
             partition_cols = []
 
@@ -1037,9 +1036,7 @@ class ParquetTarget(BaseStoreTarget):
         return result
 
     def is_single_file(self):
-        if self.path:
-            return self.path.endswith(".parquet") or self.path.endswith(".pq")
-        return False
+        return mlrun.utils.helpers.is_parquet_file(self.path)
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns
@@ -1249,7 +1246,31 @@ class SnowflakeTarget(BaseStoreTarget):
         return spark_options
 
     def purge(self):
-        pass
+        import snowflake.connector
+
+        missing = [
+            key
+            for key in ["database", "db_schema", "table", "url", "user", "warehouse"]
+            if self.attributes.get(key) is None
+        ]
+        if missing:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {', '.join(missing)}"
+            )
+        account = self.attributes["url"].replace(".snowflakecomputing.com", "")
+
+        with snowflake.connector.connect(
+            account=account,
+            user=self.attributes["user"],
+            password=get_snowflake_password(),
+            warehouse=self.attributes["warehouse"],
+        ) as snowflake_connector:
+            drop_statement = (
+                f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"
+                f".{self.attributes['table']}"
+            )
+            snowflake_connector.execute_string(drop_statement)
 
     def as_df(
         self,

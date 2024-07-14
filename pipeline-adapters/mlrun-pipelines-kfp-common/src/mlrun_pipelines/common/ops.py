@@ -597,9 +597,7 @@ def write_kfpmeta(struct):
             pass
 
     text = "# Run Report\n"
-    if "iterations" in struct["status"]:
-        del struct["status"]["iterations"]
-
+    _sanitize_ui_metadata(struct)
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
     metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
@@ -657,3 +655,27 @@ def get_kfp_outputs(artifacts, labels, project):
                 outputs += [meta]
 
     return outputs, out_dict
+
+
+def _sanitize_ui_metadata(struct):
+    status_fields_to_remove = ["iterations", "artifacts"]
+    for field in status_fields_to_remove:
+        struct["status"].pop(field, None)
+
+
+def _enrich_node_selector_from_project(function):
+    function_node_selector = getattr(function.spec, "node_selector") or {}
+    project = mlrun.get_current_project()
+    if function.metadata.project != project.metadata.name:
+        project = function._get_db().get_project(function.metadata.project)
+    if project:
+        logger.debug(
+            "Enriching node selector from project",
+            project_node_selector=project.spec.default_function_node_selector,
+        )
+        return mlrun.utils.helpers.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_with_precedence(
+                project.spec.default_function_node_selector, function_node_selector
+            )
+        )
+    return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)

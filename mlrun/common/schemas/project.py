@@ -126,6 +126,7 @@ class ProjectSummary(pydantic.BaseModel):
     pipelines_completed_recent_count: typing.Optional[int] = None
     pipelines_failed_recent_count: typing.Optional[int] = None
     pipelines_running_count: typing.Optional[int] = None
+    updated: typing.Optional[datetime.datetime] = None
 
 
 class IguazioProject(pydantic.BaseModel):

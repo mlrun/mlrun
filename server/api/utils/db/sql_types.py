@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import sqlalchemy
 import sqlalchemy.dialects.mysql
 
@@ -19,33 +19,45 @@ from .mysql import MySQLUtil
 
 
 class SQLTypesUtil:
-    class Collations:
+    class _Collations:
         # with sqlite we use the default collation
         sqlite = None
         mysql = "utf8mb3_bin"
 
-    class Timestamp:
+    class _Timestamp:
         sqlite = sqlalchemy.TIMESTAMP
         mysql = sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3)
 
-    class Blob:
+    class _Datetime:
+        sqlite = sqlalchemy.DATETIME(timezone=True)
+        mysql = sqlalchemy.dialects.mysql.DATETIME(timezone=True, fsp=3)
+
+    class _Blob:
         sqlite = sqlalchemy.BLOB
         mysql = sqlalchemy.dialects.mysql.MEDIUMBLOB
 
-    @staticmethod
-    def collation():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Collations)
+    @classmethod
+    def collation(cls):
+        return cls._return_type(cls._Collations)
+
+    @classmethod
+    def timestamp(cls):
+        """
+        Use `SQLTypesUtil.datetime()` in new columns.
+        See ML-6921.
+        """
+        return cls._return_type(cls._Timestamp)
+
+    @classmethod
+    def datetime(cls):
+        return cls._return_type(cls._Datetime)
+
+    @classmethod
+    def blob(cls):
+        return cls._return_type(cls._Blob)
 
     @staticmethod
-    def timestamp():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Timestamp)
-
-    @staticmethod
-    def blob():
-        return SQLTypesUtil._return_type(SQLTypesUtil.Blob)
-
-    @staticmethod
-    def _return_type(type_cls):
+    def _return_type(type_cls: type):
         mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
         if mysql_dsn_data:
             return type_cls.mysql

@@ -89,7 +89,16 @@ def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
         function.run(local=True, schedule="* * * * *")
-    assert "local and schedule cannot be used together" in str(excinfo.value)
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        function.run(schedule="* * * * *")
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
 
 
 def test_invalid_name():
@@ -331,3 +340,15 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     )
     context = mlrun.get_or_create_ctx("ctx")
     assert context.labels.get("kind") == "spark"
+
+
+def test_verify_tag_exists_in_run_output_uri():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
+    )
+    run = project.run_function("test", params={"tag": "v1"}, local=True)
+    uri = run.output("file_result")
+
+    # Verify that the tag exists in the URI
+    assert ":v1" in uri

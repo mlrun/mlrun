@@ -449,7 +449,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
@@ -476,7 +476,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -513,7 +513,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
-		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID)
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		-t \
 		--rm \
 		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)

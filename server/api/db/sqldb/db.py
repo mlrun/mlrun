@@ -2328,7 +2328,7 @@ class SQLDB(DBInterface):
                 cls=cls,
                 project=project,
                 main_table_identifier=main_table_identifier,
-                main_table_identifier_values=main_table_identifier_values,
+                main_table_identifier_values_count=len(main_table_identifier_values),
             )
 
             # The select is mandatory for sqlalchemy 1.4 because

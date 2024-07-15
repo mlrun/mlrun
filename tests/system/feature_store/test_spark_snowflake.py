@@ -246,7 +246,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         with pytest.raises(
             mlrun.errors.MLRunRuntimeError,
-            match="SnowflakeSource supports only spark engine ",
+            match="SnowflakeSource supports only spark engine",
         ):
             feature_set.ingest(
                 source,

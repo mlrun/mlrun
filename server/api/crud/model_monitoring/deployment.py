@@ -160,18 +160,12 @@ class MonitoringDeployment:
                     db_session=self.db_session, project=self.project
                 )
             )
-
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
-
-            # Adding label to the function - will be used to identify the stream pod
-            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.STREAM}
-
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-
             logger.debug(
                 "Submitted the stream deployment",
                 stream_data=fn.to_dict(),
@@ -254,14 +248,9 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-
-            # Adding label to the function - will be used to identify the writer pod
-            fn.metadata.labels = {"type": mm_constants.MonitoringFunctionNames.WRITER}
-
             fn, ready = server.api.utils.functions.build_function(
                 db_session=self.db_session, auth_info=self.auth_info, function=fn
             )
-
             logger.debug(
                 "Submitted the writer deployment",
                 writer_data=fn.to_dict(),
@@ -348,7 +337,6 @@ class MonitoringDeployment:
                                monitoring stream nuclio function.
 
         :return:               A function object from a mlrun runtime class
-
         """
 
         # Initialize Stream Processor object
@@ -371,6 +359,8 @@ class MonitoringDeployment:
                 filename=_STREAM_PROCESSING_FUNCTION_PATH,
                 kind=mlrun.run.RuntimeKinds.serving,
                 image=stream_image,
+                # The label is used to identify the stream function in Prometheus
+                labels={"type": mm_constants.MonitoringFunctionNames.STREAM},
             ),
         )
         function.set_db_connection(
@@ -1239,9 +1229,7 @@ class MonitoringDeployment:
         old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
-        old_stream = (
-            old_stream if old_stream is not None else "v3io"
-        )  # TODO : del in 1.9.0
+        old_stream = old_stream or "v3io"  # TODO: del in 1.9.0
         if old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
@@ -1250,7 +1238,7 @@ class MonitoringDeployment:
         old_tsdb = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
         ]
-        if old_tsdb == tsdb_connection:
+        if old_tsdb != tsdb_connection:
             logger.debug(
                 "User provided different tsdb connection",
             )

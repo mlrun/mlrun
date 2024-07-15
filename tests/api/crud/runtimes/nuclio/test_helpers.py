@@ -37,7 +37,7 @@ def test_compiled_function_config_nuclio_golang():
         "py"
     ), "runtime not set"
     assert (
-        mlrun.utils.get_in(config, "spec.handler") == "training:my_hand"
+        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
     ), "wrong handler"
 
 
@@ -57,7 +57,7 @@ def test_compiled_function_config_nuclio_python():
         "py"
     ), "runtime not set"
     assert (
-        mlrun.utils.get_in(config, "spec.handler") == "training:my_hand"
+        mlrun.utils.get_in(config, "spec.handler") == "training-nuclio:my_hand"
     ), "wrong handler"
 
 

@@ -837,7 +837,7 @@ class SnowflakeSource(BaseSourceDriver):
         additional_filters=None,
     ):
         raise mlrun.errors.MLRunRuntimeError(
-            f"{type(self).__name__} supports spark engine only"
+            f"{type(self).__name__} supports only spark engine "
         )
 
 

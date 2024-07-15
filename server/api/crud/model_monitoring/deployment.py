@@ -119,8 +119,7 @@ class MonitoringDeployment:
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
-        self.set_credentials_after_server_upgrade()
-        self.check_if_credentials_are_set()
+        self.check_if_credentials_are_set(with_upgrade_case_check=True)
 
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period, overwrite=rebuild_images
@@ -998,7 +997,7 @@ class MonitoringDeployment:
 
         return credentials_dict
 
-    def check_if_credentials_are_set(self):
+    def check_if_credentials_are_set(self, with_upgrade_case_check: bool = False):
         """
         Check if the model monitoring credentials are set. If not, raise an error.
         :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
@@ -1016,17 +1015,20 @@ class MonitoringDeployment:
             ]
         ):
             return
+        if with_upgrade_case_check:
+            with_upgrade_case_check = self._set_credentials_after_server_upgrade()
 
-        raise mlrun.errors.MLRunBadRequestError(
-            "Model monitoring credentials are not set.\n"
-            "Please set them using the set_model_monitoring_credentials API/SDK "
-            "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
-        )
+        if not with_upgrade_case_check:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Model monitoring credentials are not set.\n"
+                "Please set them using the set_model_monitoring_credentials API/SDK "
+                "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            )
 
-    def set_credentials_after_server_upgrade(self) -> bool:
+    def _set_credentials_after_server_upgrade(self) -> bool:
         """
-        Set the model monitoring credentials for an old project that had model monitoring on it  after
-        the upgrade process.
+        Check and Set the model monitoring credentials for old project that had model monitoring on it before the server
+        upgrade.
         :return: True if the credentials are set, otherwise False.
         """
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
@@ -1141,7 +1143,7 @@ class MonitoringDeployment:
                 # the credentials are not set
                 pass
 
-            if self.set_credentials_after_server_upgrade():
+            if self._set_credentials_after_server_upgrade():
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "
                     f"please set force=True"

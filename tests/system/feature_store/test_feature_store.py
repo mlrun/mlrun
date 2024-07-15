@@ -4993,9 +4993,7 @@ class TestFeatureStore(TestMLRunSystem):
         snowflake_spark_parameters = get_snowflake_spark_parameters()
         schema = os.environ["SNOWFLAKE_SCHEMA"]
         now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        config_parameters = (
-            {} if local else {"image": "mlrun/mlrun"}
-        )
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
 
         feature_set = fstore.FeatureSet(
@@ -5028,9 +5026,7 @@ class TestFeatureStore(TestMLRunSystem):
         snowflake_spark_parameters = get_snowflake_spark_parameters()
         schema = os.environ["SNOWFLAKE_SCHEMA"]
         now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        config_parameters = (
-            {} if local else {"image": "mlrun/mlrun"}
-        )
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
         run_config = fstore.RunConfig(local=local, **config_parameters)
 
         df = pd.DataFrame(

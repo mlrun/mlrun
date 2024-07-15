@@ -34,16 +34,6 @@ from tests.system.feature_store.utils import (
     get_snowflake_spark_parameters,
 )
 
-SNOWFLAKE_ENV_PARAMETERS = [
-    "SNOWFLAKE_URL",
-    "SNOWFLAKE_USER",
-    "SNOWFLAKE_PASSWORD",
-    "SNOWFLAKE_DATABASE",
-    "SNOWFLAKE_SCHEMA",
-    "SNOWFLAKE_WAREHOUSE",
-    "SNOWFLAKE_TABLE_NAME",
-]
-
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
@@ -71,7 +61,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         cls.snowflake_connector = snowflake.connector.connect(
             account=account,
             user=cls.snowflake_spark_parameters["user"],
-            password=cls.snowflake_spark_parameters["password"],
+            password=cls.env["SNOWFLAKE_PASSWORD"],
             warehouse=cls.snowflake_spark_parameters["warehouse"],
         )
         cls.schema = cls.env.get("SNOWFLAKE_SCHEMA")

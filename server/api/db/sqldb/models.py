@@ -644,7 +644,7 @@ with warnings.catch_warnings():
         page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
 
@@ -655,11 +655,11 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
         last_updated = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)
@@ -728,6 +728,17 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+    class ProjectSummary(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "project_summaries"
+        __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        updated = Column(SQLTypesUtil.datetime())
+        summary = Column(JSON)
 
 
 # Must be after all table definitions

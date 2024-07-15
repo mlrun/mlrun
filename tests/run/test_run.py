@@ -89,7 +89,16 @@ def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
         function.run(local=True, schedule="* * * * *")
-    assert "local and schedule cannot be used together" in str(excinfo.value)
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        function.run(schedule="* * * * *")
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
 
 
 def test_invalid_name():

@@ -38,7 +38,8 @@ NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None
-        self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
+        login = auth_info.username
+        self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
 

@@ -299,18 +299,25 @@ class _V3IORecordsChecker:
         run_db: mlrun.db.httpdb.HTTPRunDB,
     ) -> None:
         cls._logger.debug("Checking GET /metrics-values API")
-        names_query = f"?name={'&name='.join(results_full_names)}"
-        response = run_db.api_call(
-            method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{names_query}",
-        )
-        for result_values in json.loads(response.content.decode()):
-            assert result_values[
-                "data"
-            ], f"No data for result {result_values['full_name']}"
-            assert result_values[
-                "values"
-            ], f"The values list is empty for result {result_values['full_name']}"
+
+        # ML-6940
+        end = int(time.time() * 1000)
+        start = end - 1000 * 60 * 60 * 24 * 30  # 30 days in the past
+        base_query = f"?name={'&name='.join(results_full_names)}"
+        query_with_start_and_end_times = f"{base_query}&start={start}&end={end}"
+
+        for query in (base_query, query_with_start_and_end_times):
+            response = run_db.api_call(
+                method=mlrun.common.types.HTTPMethod.GET,
+                path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
+            )
+            for result_values in json.loads(response.content.decode()):
+                assert result_values[
+                    "data"
+                ], f"No data for result {result_values['full_name']}"
+                assert result_values[
+                    "values"
+                ], f"The values list is empty for result {result_values['full_name']}"
 
     @classmethod
     def _test_api(cls, ep_id: str) -> None:
@@ -551,6 +558,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         }, "The endpoint's current stats is different than expected"
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
+
+        for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
+            assert isinstance(
+                ep.status.drift_measures.pop(measure, None), float
+            ), f"Expected '{measure}' in drift measures"
 
         drift_table = pd.DataFrame.from_dict(ep.status.drift_measures, orient="index")
         assert set(drift_table.columns) == {

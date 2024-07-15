@@ -76,6 +76,8 @@ def get_tsdb_connector(
 
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
+    :raise: `MLRunInvalidMMStoreType` if the user didn't provide TSDB connection
+            or the provided TSDB connection is invalid.
     """
 
     tsdb_connection_string = (
@@ -91,7 +93,10 @@ def get_tsdb_connector(
     elif tsdb_connection_string and tsdb_connection_string == "v3io":
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     else:
-        tsdb_connector_type = None
+        raise mlrun.errors.MLRunInvalidMMStoreType(
+            "You must provide a valid tsdb store connection by using "
+            "set_model_monitoring_credentials API."
+        )
 
     # Get connector type value from ObjectTSDBFactory enum class
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)

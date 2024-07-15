@@ -236,6 +236,7 @@ async def move_api_to_online():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
             _start_periodic_pagination_cache_monitoring()
+            _start_periodic_project_summaries_calculation()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 
@@ -384,7 +385,7 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         if runs_uids:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=runs_uids,
+                runs_uids=len(runs_uids),
             )
             await _start_log_and_update_runs(
                 start_logs_limit=start_logs_limit,
@@ -410,6 +411,7 @@ async def _start_log_and_update_runs(
         get_db().list_runs,
         db_session,
         uid=runs_uids,
+        project="*",
     )
 
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection
@@ -572,6 +574,21 @@ def _start_periodic_pagination_cache_monitoring():
             False,
             server.api.db.session.run_function_with_new_db_session,
             server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+        )
+
+
+def _start_periodic_project_summaries_calculation():
+    interval = int(config.monitoring.projects.summaries.cache_interval)
+    if interval > 0:
+        logger.info(
+            "Starting periodic project summaries calculation", interval=interval
+        )
+        run_function_periodically(
+            interval,
+            server.api.crud.projects.Projects().refresh_project_resources_counters_cache.__name__,
+            False,
+            server.api.db.session.run_async_function_with_new_db_session,
+            server.api.crud.projects.Projects().refresh_project_resources_counters_cache,
         )
 
 

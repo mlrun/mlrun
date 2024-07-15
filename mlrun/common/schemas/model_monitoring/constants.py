@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -187,6 +188,12 @@ class ProjectSecretKeys:
         ]
 
 
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
+
+
 class ModelMonitoringStoreKinds:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
@@ -348,7 +355,7 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
 
     def __str__(self) -> str:
@@ -371,3 +378,6 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]

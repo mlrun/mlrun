@@ -85,3 +85,6 @@ class InMemoryStore(DataStore):
             kwargs.pop(field, None)
 
         return reader(item, **kwargs)
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        self._items.pop(path, None)

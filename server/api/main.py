@@ -385,7 +385,7 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         if runs_uids:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=runs_uids,
+                runs_uids=len(runs_uids),
             )
             await _start_log_and_update_runs(
                 start_logs_limit=start_logs_limit,

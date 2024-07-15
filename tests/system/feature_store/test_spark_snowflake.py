@@ -25,6 +25,7 @@ import mlrun.errors
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
+from mlrun.runtimes.utils import RunError
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
@@ -228,6 +229,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             fake_target.purge()
 
     def test_storey_source_error(self):
+        config_parameters = {} if self.run_local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=self.run_local, **config_parameters)
+
         feature_set = fstore.FeatureSet(
             name="snowflake_feature_set",
             entities=[fstore.Entity("ID")],
@@ -243,20 +247,15 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             path=f"v3io:///projects/{self.project_name}/result.parquet",
         )
         self.generate_snowflake_source_table()
-
+        error_type = mlrun.errors.MLRunRuntimeError if self.run_local else RunError
         with pytest.raises(
-            mlrun.errors.MLRunRuntimeError,
-            match="SnowflakeSource supports only spark engine",
+            error_type, match=".*SnowflakeSource supports only spark engine.*"
         ):
-            feature_set.ingest(
-                source,
-                targets=[target],
-                run_config=fstore.RunConfig(
-                    local=self.run_local,
-                ),
-            )
+            feature_set.ingest(source, targets=[target], run_config=run_config)
 
     def test_storey_target_error(self):
+        config_parameters = {} if self.run_local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=self.run_local, **config_parameters)
         df = pd.DataFrame(
             {
                 "key": [1, 2, 3, 4, 5, 6, 7],
@@ -283,14 +282,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
+        error_type = mlrun.errors.MLRunRuntimeError if self.run_local else RunError
         with pytest.raises(
-            mlrun.errors.MLRunRuntimeError,
-            match="SnowflakeTarget does not support storey engine",
+            error_type,
+            match=".*SnowflakeTarget does not support storey engine.*",
         ):
-            feature_set.ingest(
-                source,
-                targets=[target],
-                run_config=fstore.RunConfig(
-                    local=self.run_local,
-                ),
-            )
+            feature_set.ingest(source, targets=[target], run_config=run_config)

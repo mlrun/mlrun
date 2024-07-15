@@ -377,6 +377,10 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        # force ssl redirect so that the application is only accessible via https
+        api_gateway.with_force_ssl_redirect()
+
+        # add authentication if required
         authentication_mode = (
             authentication_mode
             or mlrun.mlconf.function.application.default_authentication_mode

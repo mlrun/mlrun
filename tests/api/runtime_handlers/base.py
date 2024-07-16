@@ -387,7 +387,9 @@ class TestRuntimeHandlerBase:
     def _mock_list_namespaced_pods(list_pods_call_responses: list[list[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
-            pods = client.V1PodList(items=list_pods_call_response)
+            pods = client.V1PodList(
+                items=list_pods_call_response, metadata=client.V1ListMeta()
+            )
             calls.append(pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
             side_effect=calls
@@ -518,6 +520,9 @@ class TestRuntimeHandlerBase:
         get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
             get_k8s_helper().resolve_namespace(),
             label_selector=expected_label_selector,
+            watch=False,
+            limit=int(mlrun.mlconf.kubernetes.pagination.list_pods_limit),
+            _continue=None,
         )
 
     @staticmethod
@@ -535,6 +540,9 @@ class TestRuntimeHandlerBase:
             get_k8s_helper().resolve_namespace(),
             crd_plural,
             label_selector=runtime_handler._get_default_label_selector(),
+            watch=False,
+            limit=int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit),
+            _continue=None,
         )
 
     @staticmethod

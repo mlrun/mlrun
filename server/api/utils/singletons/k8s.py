@@ -127,7 +127,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     @raise_for_status_code
     def list_pods_paginated(self, namespace=None, selector="", states=None):
-        _continue = ""
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
+        if limit <= 0:
+            limit = None
         logger.debug(
             "Listing namespaced pods with pagination",
             selector=selector,
@@ -135,34 +138,26 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             states=states,
         )
         while True:
-            if not _continue:
-                pods_list = self.v1api.list_namespaced_pod(
-                    self.resolve_namespace(namespace),
-                    label_selector=selector,
-                    watch=False,
-                    limit=200,
-                )
-            else:
-                pods_list = self.v1api.list_namespaced_pod(
-                    self.resolve_namespace(namespace),
-                    label_selector=selector,
-                    watch=False,
-                    limit=200,
-                    _continue=_continue,
-                )
+            pods_list = self.v1api.list_namespaced_pod(
+                self.resolve_namespace(namespace),
+                label_selector=selector,
+                watch=False,
+                limit=limit,
+                _continue=_continue,
+            )
 
             for item in pods_list.items:
                 if not states or item.status.phase in states:
                     yield item
 
-            _continue = pods_list._metadata._continue
+            _continue = pods_list.metadata._continue
 
             if _continue is None:
                 break
 
             logger.debug(
                 "Getting next pods",
-                remaining_item_count=pods_list._metadata.remaining_item_count,
+                remaining_item_count=pods_list.metadata.remaining_item_count,
             )
         logger.debug("Finished listing pods")
 
@@ -176,7 +171,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         selector="",
         states=None,
     ):
-        _continue = ""
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
+        if limit <= 0:
+            limit = None
         logger.debug(
             "Listing namespaced crds with pagination",
             selector=selector,
@@ -186,51 +184,34 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         while True:
             crd_objects = {}
             crd_items = []
-            if not _continue:
-                try:
-                    crd_objects = self.crdapi.list_namespaced_custom_object(
-                        crd_group,
-                        crd_version,
-                        self.resolve_namespace(namespace),
-                        crd_plural,
-                        label_selector=selector,
-                        limit=200,
-                    )
-                except ApiException as exc:
-                    # ignore error if crd is not defined
-                    if exc.status != 404:
-                        raise
-                else:
-                    crd_items = crd_objects["items"]
-            else:
-                try:
-                    crd_objects = self.crdapi.list_namespaced_custom_object(
-                        crd_group,
-                        crd_version,
-                        self.resolve_namespace(namespace),
-                        crd_plural,
-                        label_selector=selector,
-                        limit=200,
-                        _continue=_continue,
-                    )
-                except ApiException as exc:
-                    # ignore error if crd is not defined
-                    if exc.status != 404:
-                        raise
+            try:
+                crd_objects = self.crdapi.list_namespaced_custom_object(
+                    crd_group,
+                    crd_version,
+                    self.resolve_namespace(namespace),
+                    crd_plural,
+                    label_selector=selector,
+                    limit=limit,
+                    _continue=_continue,
+                )
+            except ApiException as exc:
+                # ignore error if crd is not defined
+                if exc.status != 404:
+                    raise
 
-                else:
-                    crd_items = crd_objects["items"]
+            else:
+                crd_items = crd_objects["items"]
 
             yield from crd_items
 
-            _continue = crd_objects["_metadata"]["_continue"] if crd_objects else None
+            _continue = crd_objects["metadata"]["_continue"] if crd_objects else None
 
             if _continue is None:
                 break
 
             logger.debug(
                 "Getting next crds",
-                remaining_item_count=crd_objects["_metadata"]["remaining_item_count"],
+                remaining_item_count=crd_objects["metadata"]["remaining_item_count"],
             )
         logger.debug("Finished listing crds")
 

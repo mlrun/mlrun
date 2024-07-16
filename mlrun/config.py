@@ -53,6 +53,7 @@ default_config = {
         "kubeconfig_path": "",  # local path to kubeconfig file (for development purposes),
         # empty by default as the API already running inside k8s cluster
         "pagination": {
+            # pagination config for interacting with k8s API
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },

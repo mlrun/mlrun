@@ -624,15 +624,9 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = crd_group and crd_version and crd_plural
         if runtime_resource_is_crd:
-            for runtime_resource in self._list_crd_objects_paginated(
-                namespace, label_selector
-            ):
-                yield runtime_resource
+            yield from self._list_crd_objects_paginated(namespace, label_selector)
         else:
-            for runtime_resource in self._list_pods_paginated(
-                namespace, label_selector
-            ):
-                yield runtime_resource
+            yield from self._list_pods_paginated(namespace, label_selector)
 
     def _add_object_label_selector_if_needed(
         self,

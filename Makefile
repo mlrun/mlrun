@@ -449,6 +449,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
 .PHONY: test
@@ -457,7 +458,7 @@ test: clean ## Run mlrun tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/unit_test_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		--ignore=tests/integration \
 		--ignore=tests/system \
@@ -475,6 +476,7 @@ test-integration-dockerized: build-test ## Run mlrun integration tests in docker
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
 .PHONY: test-integration
@@ -483,7 +485,7 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/integration_test_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		tests/integration \
@@ -498,6 +500,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
@@ -510,6 +513,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
 		--env MLRUN_VERSION=$(MLRUN_VERSION) \
+		--env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 		-t \
 		--rm \
 		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
@@ -523,7 +527,7 @@ test-system: ## Run mlrun system tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
@@ -535,7 +539,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_opensource_report.html \
+		--html=/tmp/${MLRUN_TESTS_REPORT_UUID}_test_report.html \
 		--self-contained-html \
 		-rf \
 		-m "not enterprise" \
@@ -697,6 +701,7 @@ endif
 	    -v /var/run/docker.sock:/var/run/docker.sock \
 	    --env MLRUN_BC_TESTS_BASE_CODE_PATH=$(MLRUN_BC_TESTS_BASE_CODE_PATH) \
 	    --env MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH=$(shell pwd) \
+	    --env MLRUN_TESTS_REPORT_UUID=$(MLRUN_TESTS_REPORT_UUID) \
 	    --workdir=$(shell pwd) \
 	    $(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-backward-compatibility
 
@@ -710,9 +715,9 @@ ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/backword_compatibility_report.html --self-contained-html $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/BC_1_${MLRUN_TESTS_REPORT_UUID}_test_report.html --self-contained-html $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/backword_compatibility_report.html --self-contained-html tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/BC_2_${MLRUN_TESTS_REPORT_UUID}_test_report.html --self-contained-html tests/api/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 

@@ -21,10 +21,10 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import get_offline_target
 from mlrun.utils.helpers import additional_filters_warning
 
+from ...data_types.to_pandas import toPandas
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
-from .conversion import PandasConversionMixin
 
 
 def spark_df_to_pandas(spark_df):
@@ -46,12 +46,12 @@ def spark_df_to_pandas(spark_df):
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
 
-        df = PandasConversionMixin.toPandas(spark_df)
+        df = toPandas(spark_df)
         if type_conversion_dict:
             df = df.astype(type_conversion_dict)
         return df
     else:
-        return PandasConversionMixin.toPandas(spark_df)
+        return toPandas(spark_df)
 
 
 class SparkFeatureMerger(BaseMerger):

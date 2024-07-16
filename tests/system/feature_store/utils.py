@@ -13,9 +13,20 @@
 # limitations under the License.
 
 
+import os
 from typing import Union
 
 import pandas as pd
+
+SNOWFLAKE_ENV_PARAMETERS = [
+    "SNOWFLAKE_URL",
+    "SNOWFLAKE_USER",
+    "SNOWFLAKE_PASSWORD",
+    "SNOWFLAKE_DATABASE",
+    "SNOWFLAKE_SCHEMA",
+    "SNOWFLAKE_WAREHOUSE",
+    "SNOWFLAKE_TABLE_NAME",
+]
 
 
 def sort_df(df: pd.DataFrame, sort_columns: Union[str, list[str]]):
@@ -24,3 +35,18 @@ def sort_df(df: pd.DataFrame, sort_columns: Union[str, list[str]]):
         .sort_values(by=sort_columns)
         .reset_index(drop=True)
     )
+
+
+def get_missing_snowflake_spark_parameters():
+    snowflake_missing_keys = [
+        key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
+    ]
+    return snowflake_missing_keys
+
+
+def get_snowflake_spark_parameters():
+    url = os.environ.get("SNOWFLAKE_URL")
+    user = os.environ.get("SNOWFLAKE_USER")
+    database = os.environ.get("SNOWFLAKE_DATABASE")
+    warehouse = os.environ.get("SNOWFLAKE_WAREHOUSE")
+    return dict(url=url, user=user, database=database, warehouse=warehouse)

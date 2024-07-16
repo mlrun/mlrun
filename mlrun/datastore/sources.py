@@ -826,6 +826,20 @@ class SnowflakeSource(BaseSourceDriver):
         spark_options["query"] = self.attributes.get("query")
         return spark_options
 
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} supports only spark engine"
+        )
+
 
 class CustomSource(BaseSourceDriver):
     kind = "custom"

@@ -726,6 +726,10 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         featureset_status=None,
     ):
+        if not self.support_storey:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
         raise NotImplementedError()
 
     def purge(self):
@@ -768,6 +772,10 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
+        if not self.support_spark:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support spark engine"
+            )
         raise NotImplementedError()
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
@@ -1283,7 +1291,9 @@ class SnowflakeTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        raise NotImplementedError()
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} does not support storey engine"
+        )
 
     @property
     def source_spark_attributes(self) -> dict:

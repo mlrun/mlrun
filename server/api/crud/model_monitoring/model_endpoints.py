@@ -326,8 +326,8 @@ class ModelEndpoints:
         except mlrun.errors.MLRunInvalidMMStoreType as e:
             logger.debug(
                 "Failed to delete model endpoint because store connection is not defined."
-                " Returning without deleting the model endpoint.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning without deleting the model endpoint.",
+                error=mlrun.errors.err_to_str(e),
             )
             return
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
@@ -389,6 +389,7 @@ class ModelEndpoints:
             )
             model_endpoint_store = mlrun.model_monitoring.get_store_object(
                 project=project, store_connection_string="v3io"
+
             )
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
@@ -735,8 +736,8 @@ class ModelEndpoints:
         except mlrun.errors.MLRunInvalidMMStoreType as e:
             logger.debug(
                 "Failed to add real time metrics because tsdb connection is not defined."
-                " Returning without adding real time metrics.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning without adding real time metrics.",
+                error=mlrun.errors.err_to_str(e),
             )
             return model_endpoint_object
 

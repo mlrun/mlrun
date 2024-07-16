@@ -266,6 +266,7 @@ class ApplicationRuntime(RemoteRuntime):
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = False,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -285,6 +286,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
+        :param ssl_redirect:            Set True to force SSL redirect
+
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -326,6 +329,7 @@ class ApplicationRuntime(RemoteRuntime):
             ports=ports,
             authentication_mode=authentication_mode,
             authentication_creds=authentication_creds,
+            ssl_redirect=ssl_redirect,
         )
 
     def with_source_archive(
@@ -361,13 +365,14 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = False,
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels,
-                annotations=self.metadata.annotations,
+                annotations=self.metadata.annotations or {},
             ),
             APIGatewaySpec(
                 functions=[self],
@@ -377,8 +382,9 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
-        # force ssl redirect so that the application is only accessible via https
-        api_gateway.with_force_ssl_redirect()
+        if ssl_redirect or mlrun.mlconf.is_running_on_iguazio():
+            # force ssl redirect so that the application is only accessible via https
+            api_gateway.with_force_ssl_redirect()
 
         # add authentication if required
         authentication_mode = (

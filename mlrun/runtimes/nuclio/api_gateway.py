@@ -568,6 +568,8 @@ class APIGateway(ModelObj):
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
                 name=api_gateway.spec.name,
+                annotations=api_gateway.metadata.annotations,
+                labels=api_gateway.metadata.labels,
             ),
             spec=APIGatewaySpec(
                 project=project,
@@ -608,7 +610,11 @@ class APIGateway(ModelObj):
                 upstreams[i].port = port
 
         api_gateway = schemas.APIGateway(
-            metadata=schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
+            metadata=schemas.APIGatewayMetadata(
+                name=self.metadata.name,
+                labels={},
+                annotations=self.metadata.annotations,
+            ),
             spec=schemas.APIGatewaySpec(
                 name=self.metadata.name,
                 description=self.spec.description,

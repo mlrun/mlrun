@@ -389,7 +389,6 @@ class ModelEndpoints:
             )
             model_endpoint_store = mlrun.model_monitoring.get_store_object(
                 project=project, store_connection_string="v3io"
-
             )
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,

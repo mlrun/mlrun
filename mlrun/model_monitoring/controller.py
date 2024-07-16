@@ -282,9 +282,7 @@ class MonitoringApplicationController:
         self.project = self.context.project
         self.project_obj = mlrun.get_or_create_project(self.project)
 
-        self.context.logger.debug(
-            f"Initializing {self.__class__.__name__}", project=self.project
-        )
+        logger.debug(f"Initializing {self.__class__.__name__}", project=self.project)
 
         self.db = mlrun.model_monitoring.get_store_object(project=self.project)
 
@@ -323,13 +321,7 @@ class MonitoringApplicationController:
 
     def run(self) -> None:
         """
-        Main method for run all the relevant monitoring applications on each endpoint
-        """
-        with self.context:  # use a context manager to close the context
-            self._activate_applications()
-
-    def _activate_applications(self) -> None:
-        """
+        Main method for run all the relevant monitoring applications on each endpoint.
         This method handles the following:
         1. List model endpoints
         2. List applications
@@ -337,14 +329,12 @@ class MonitoringApplicationController:
         4. Send data to applications
         5. Delete old parquets
         """
-        self.context.logger.info("Start running monitoring controller")
+        logger.info("Start running monitoring controller")
         try:
             applications_names = []
             endpoints = self.db.list_model_endpoints()
             if not endpoints:
-                self.context.logger.info(
-                    "No model endpoints found", project=self.project
-                )
+                logger.info("No model endpoints found", project=self.project)
                 return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
@@ -362,17 +352,15 @@ class MonitoringApplicationController:
                     }
                 )
             if not applications_names:
-                self.context.logger.info(
-                    "No monitoring functions found", project=self.project
-                )
+                logger.info("No monitoring functions found", project=self.project)
                 return
-            self.context.logger.info(
+            logger.info(
                 "Starting to iterate over the applications",
                 applications=applications_names,
             )
 
         except Exception as e:
-            self.context.logger.error(
+            logger.error(
                 "Failed to list endpoints and monitoring applications",
                 exc=err_to_str(e),
             )
@@ -394,7 +382,7 @@ class MonitoringApplicationController:
                     == mm_constants.EndpointType.ROUTER
                 ):
                     # Router endpoint has no feature stats
-                    self.context.logger.info(
+                    logger.info(
                         f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                     )
                     continue
@@ -413,7 +401,7 @@ class MonitoringApplicationController:
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
             if result:
-                self.context.log_results(result)
+                log_results(result)
 
         self._delete_old_parquet(endpoints=endpoints)
 
@@ -564,7 +552,7 @@ class MonitoringApplicationController:
                             # Delete directory
                             fs.rmdir(path=directory["name"])
                 except FileNotFoundError:
-                    self.context.logger.info(
+                    logger.info(
                         "Application parquet directory is empty, "
                         "probably parquets have not yet been created for this app",
                         endpoint=endpoint[mm_constants.EventFieldType.UID],

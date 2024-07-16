@@ -316,10 +316,9 @@ class MonitoringApplicationController:
         return access_key
 
     def _initialize_v3io_configurations(self) -> None:
-        self.v3io_framesd = mlrun.mlconf.v3io_framesd
-        self.v3io_api = mlrun.mlconf.v3io_api
         self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+            v3io_access_key=self.model_monitoring_access_key,
+            v3io_api=mlrun.mlconf.v3io_api,
         )
 
     def run(self) -> None:

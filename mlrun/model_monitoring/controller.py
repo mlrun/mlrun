@@ -274,13 +274,9 @@ class MonitoringApplicationController:
     """
 
     def __init__(self) -> None:
-        """
-        Initialize Monitoring Application Controller.
-        """
-        logger.info("Initializing monitoring app controller")
-        self.context = mlrun.get_or_create_ctx("model-monitoring-controller")
-        self.project = self.context.project
-        self.project_obj = mlrun.get_or_create_project(self.project)
+        """Initialize Monitoring Application Controller"""
+        self.project = cast(str, mlrun.mlconf.default_project)
+        self.project_obj = mlrun.load_project(name=self.project, url=self.project)
 
         logger.debug(f"Initializing {self.__class__.__name__}", project=self.project)
 

@@ -54,6 +54,7 @@ from mlrun.datastore.sources import (
     DataFrameSource,
     KafkaSource,
     ParquetSource,
+    SnowflakeSource,
     StreamSource,
 )
 from mlrun.datastore.targets import (
@@ -62,6 +63,7 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
     RedisNoSqlTarget,
+    SnowflakeTarget,
     TargetTypes,
     get_offline_target,
     get_online_target,
@@ -73,8 +75,13 @@ from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
+from mlrun.runtimes import RunError
 from tests.system.base import TestMLRunSystem
-from tests.system.feature_store.utils import sort_df
+from tests.system.feature_store.utils import (
+    get_missing_snowflake_spark_parameters,
+    get_snowflake_spark_parameters,
+    sort_df,
+)
 
 from .data_sample import quotes, stocks, trades
 
@@ -4974,6 +4981,86 @@ class TestFeatureStore(TestMLRunSystem):
         expected = sort_df(expected.query("bad == 95"), "patient_id")
         result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+
+    #  In the following snowflake tests, PySpark is not required because the test is looking for an error:
+    @pytest.mark.parametrize("local", [True, False])
+    def test_snowflake_storey_source_error(self, local):
+        snowflake_missing_keys = get_missing_snowflake_spark_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
+        snowflake_spark_parameters = get_snowflake_spark_parameters()
+        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = SnowflakeSource(
+            "snowflake_source_for_ingest",
+            query=f"select * from source_{now} order by ID limit 10",
+            schema=schema,
+            **snowflake_spark_parameters,
+        )
+        target = ParquetTarget(
+            "snowflake_target_for_ingest",
+            path=f"v3io:///projects/{self.project_name}/result.parquet",
+        )
+        error_type = mlrun.errors.MLRunRuntimeError if local else RunError
+        with pytest.raises(
+            error_type, match=".*SnowflakeSource supports only spark engine.*"
+        ):
+            feature_set.ingest(source, targets=[target], run_config=run_config)
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_snowflake_target_error(self, local):
+        snowflake_missing_keys = get_missing_snowflake_spark_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
+        snowflake_spark_parameters = get_snowflake_spark_parameters()
+        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        v3io_parquet_source_path = (
+            f"v3io:///projects/{self.project_name}/df_source_{uuid.uuid4()}.parquet"
+        )
+        df.to_parquet(v3io_parquet_source_path)
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = ParquetSource(
+            "snowflake_source_for_ingest",
+            path=v3io_parquet_source_path,
+        )
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=f"result_{now}",
+            db_schema=schema,
+            **snowflake_spark_parameters,
+        )
+        error_type = mlrun.errors.MLRunRuntimeError if local else RunError
+        with pytest.raises(
+            error_type,
+            match=".*SnowflakeTarget does not support storey engine.*",
+        ):
+            feature_set.ingest(source, targets=[target], run_config=run_config)
 
 
 def verify_purge(fset, targets):

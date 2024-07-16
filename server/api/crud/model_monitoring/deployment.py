@@ -721,6 +721,7 @@ class MonitoringDeployment:
                                                     in order to delete the desired application.
         :param background_tasks:                    Fastapi Background tasks.
         """
+        self._set_credentials_after_server_upgrade()
         function_to_delete = []
         if delete_resources:
             function_to_delete = mm_constants.MonitoringFunctionNames.list()

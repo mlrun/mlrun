@@ -215,6 +215,11 @@ class DataStore:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "When providing start_time or end_time, must provide time_column"
                 )
+            if start_time and end_time and start_time.tzinfo != end_time.tzinfo:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "start_time and end_time must have the same time zone"
+                )
+
             if start_time or end_time or additional_filters:
                 partitions_time_attributes = find_partitions(url, file_system)
                 set_filters(
@@ -232,13 +237,17 @@ class DataStore:
                     ):
                         raise ex
 
-                    # TODO: fix timezone issue (ML-6308)
-                    if start_time.tzinfo:
-                        start_time_inner = start_time.replace(tzinfo=None)
-                        end_time_inner = end_time.replace(tzinfo=None)
-                    else:
-                        start_time_inner = start_time.replace(tzinfo=pytz.utc)
-                        end_time_inner = end_time.replace(tzinfo=pytz.utc)
+                    start_time_inner = None
+                    if start_time:
+                        start_time_inner = start_time.replace(
+                            tzinfo=None if start_time.tzinfo else pytz.utc
+                        )
+
+                    end_time_inner = None
+                    if end_time:
+                        end_time_inner = end_time.replace(
+                            tzinfo=None if end_time.tzinfo else pytz.utc
+                        )
 
                     set_filters(
                         partitions_time_attributes,

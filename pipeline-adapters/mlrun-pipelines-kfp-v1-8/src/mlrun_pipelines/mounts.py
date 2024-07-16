@@ -305,17 +305,20 @@ def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pip
         train = train_op(...)
         train.apply(mount_pvc("claim-name", "pipeline", "/mnt/pipeline"))
     """
-    if "MLRUN_PVC_MOUNT" in os.environ:
-        mount = os.environ.get("MLRUN_PVC_MOUNT")
-        items = mount.split(":")
-        if len(items) != 2:
-            raise MLRunInvalidArgumentError(
-                "MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>"
-            )
-        pvc_name = items[0]
-        volume_mount_path = items[1]
+    if not pvc_name:
+        # Try to get the PVC mount configuration from the environment variable
+        if "MLRUN_PVC_MOUNT" in os.environ:
+            mount = os.environ.get("MLRUN_PVC_MOUNT")
+            items = mount.split(":")
+            if len(items) != 2:
+                raise MLRunInvalidArgumentError(
+                    "MLRUN_PVC_MOUNT should include <pvc-name>:<mount-path>"
+                )
+            pvc_name = items[0]
+            volume_mount_path = items[1]
 
     if not pvc_name:
+        # The PVC name is still not set, raise an error
         raise MLRunInvalidArgumentError(
             "No PVC name: use the pvc_name parameter or configure the MLRUN_PVC_MOUNT environment variable"
         )

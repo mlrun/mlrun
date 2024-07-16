@@ -372,7 +372,7 @@ class ApplicationRuntime(RemoteRuntime):
                 name=name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels,
-                annotations=self.metadata.annotations or {},
+                annotations=self.metadata.annotations,
             ),
             APIGatewaySpec(
                 functions=[self],

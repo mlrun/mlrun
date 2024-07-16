@@ -1443,9 +1443,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             )
 
     # ML-5726
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()),
+        reason="HDFS host and ports are not defined",
+    )
     def test_ingest_and_get_offline_features_with_hdfs(self):
-        if not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()):
-            pytest.skip("HDFS host and ports are not defined")
         key = "patient_id"
 
         register_temporary_client_datastore_profile(

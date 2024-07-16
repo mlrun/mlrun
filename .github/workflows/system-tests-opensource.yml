@@ -84,7 +84,6 @@ jobs:
           -r extras-requirements.txt \
         && pip install -e .
         sudo apt-get install curl jq
-        && apt-get install -y uuid-runtime
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests
     - name: Extract git branch

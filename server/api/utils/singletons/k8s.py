@@ -193,6 +193,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     label_selector=selector,
                     limit=limit,
                     _continue=_continue,
+                    watch=False,
                 )
             except ApiException as exc:
                 # ignore error if crd is not defined

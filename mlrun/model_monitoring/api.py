@@ -569,10 +569,10 @@ def _create_model_monitoring_function_base(
             "please use `ModelMonitoringApplicationBaseV2`. It will be removed in 1.9.0.",
             FutureWarning,
         )
-    if name in mm_constants.MonitoringFunctionNames.list():
+    if name in mm_constants._RESERVED_FUNCTION_NAMES:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"An application cannot have the following names: "
-            f"{mm_constants.MonitoringFunctionNames.list()}"
+            "An application cannot have the following names: "
+            f"{mm_constants._RESERVED_FUNCTION_NAMES}"
         )
     if func is None:
         func = ""

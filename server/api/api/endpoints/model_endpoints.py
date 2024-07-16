@@ -355,8 +355,8 @@ async def get_model_endpoint_monitoring_metrics(
     except mlrun.errors.MLRunInvalidMMStoreType as e:
         logger.debug(
             "Failed to list model endpoint metrics because store connection is not defined."
-            " Returning an empty list of metrics.\n"
-            f"Error: {mlrun.errors.err_to_str(e)}"
+            " Returning an empty list of metrics",
+            error=mlrun.errors.err_to_str(e),
         )
         return []
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
@@ -505,8 +505,8 @@ async def get_model_endpoint_monitoring_metrics_values(
     except mlrun.errors.MLRunInvalidMMStoreType as e:
         logger.debug(
             "Failed to retrieve model endpoint metrics-values because tsdb connection is not defined."
-            " Returning an empty list of metric-values.\n"
-            f"Error: {mlrun.errors.err_to_str(e)}"
+            " Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
         )
         return []
 

@@ -247,7 +247,7 @@ default_config = {
         },
         "application": {
             "default_sidecar_internal_port": 8050,
-            "default_authentication_mode": "none",
+            "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
         },
     },
     # TODO: function defaults should be moved to the function spec config above

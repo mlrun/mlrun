@@ -362,42 +362,35 @@ class MonitoringApplicationController:
             )
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-        pool = concurrent.futures.ProcessPoolExecutor(
-            max_workers=min(len(endpoints), 10),
-        )
-        futures = []
-        for endpoint in endpoints:
-            if (
-                endpoint[mm_constants.EventFieldType.ACTIVE]
-                and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                == mm_constants.ModelMonitoringMode.enabled.value
-            ):
-                # Skip router endpoint:
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=min(len(endpoints), 10)
+        ) as pool:
+            for endpoint in endpoints:
                 if (
-                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                    == mm_constants.EndpointType.ROUTER
+                    endpoint[mm_constants.EventFieldType.ACTIVE]
+                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                    == mm_constants.ModelMonitoringMode.enabled.value
                 ):
-                    # Router endpoint has no feature stats
-                    logger.info(
-                        f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
+                    # Skip router endpoint:
+                    if (
+                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                        == mm_constants.EndpointType.ROUTER
+                    ):
+                        # Router endpoint has no feature stats
+                        logger.info(
+                            f"{endpoint[mm_constants.EventFieldType.UID]} is router, skipping"
+                        )
+                        continue
+                    pool.submit(
+                        MonitoringApplicationController.model_endpoint_process,
+                        endpoint=endpoint,
+                        applications_names=applications_names,
+                        batch_window_generator=self._batch_window_generator,
+                        project=self.project,
+                        parquet_directory=self.parquet_directory,
+                        storage_options=self.storage_options,
+                        model_monitoring_access_key=self.model_monitoring_access_key,
                     )
-                    continue
-                future = pool.submit(
-                    MonitoringApplicationController.model_endpoint_process,
-                    endpoint=endpoint,
-                    applications_names=applications_names,
-                    batch_window_generator=self._batch_window_generator,
-                    project=self.project,
-                    parquet_directory=self.parquet_directory,
-                    storage_options=self.storage_options,
-                    model_monitoring_access_key=self.model_monitoring_access_key,
-                )
-                futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result:
-                log_results(result)
 
         self._delete_old_parquet(endpoints=endpoints)
 

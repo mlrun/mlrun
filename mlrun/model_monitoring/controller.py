@@ -404,7 +404,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[dict[str, list[str]]]:
+    ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -417,10 +417,8 @@ class MonitoringApplicationController:
         :param parquet_directory:           (str) Directory to store application parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
-
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
-        start_times: set[datetime.datetime] = set()
         try:
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
@@ -498,15 +496,11 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-                    start_times.add(start_infer_time)
         except Exception:
             logger.exception(
                 "Encountered an exception",
                 endpoint_id=endpoint[mm_constants.EventFieldType.UID],
             )
-
-        if start_times:
-            return {endpoint_id: [str(t) for t in sorted(list(start_times))]}
 
     def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
         """

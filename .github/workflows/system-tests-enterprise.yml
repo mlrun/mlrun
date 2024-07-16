@@ -363,12 +363,6 @@ jobs:
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
           make install-requirements install-complete-requirements update-version-file
 
-    - name: Generate UUID for test report
-      id: generate-uuid
-      run: |
-        UUID=$(uuidgen)
-        echo "UUID=$UUID" >> $GITHUB_ENV
-        echo "Generated UUID: $UUID"
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
@@ -376,13 +370,4 @@ jobs:
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
         MLRUN_SYSTEM_TESTS_BRANCH="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-        MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
           make test-system
-
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.UUID }}-tests-report
-        path:
-          /tmp/${{ env.UUID }}_test_report.html

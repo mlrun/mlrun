@@ -192,28 +192,12 @@ jobs:
         # it will wait until the user disconnects before finishing up the job.
         detached: true
 
-    - name: Generate UUID for test report
-      id: generate-uuid
-      run: |
-        UUID=$(uuidgen)
-        echo "UUID=$UUID" >> $GITHUB_ENV
-        echo "Generated UUID: $UUID"
-
     - name: Run system tests
       timeout-minutes: 180
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
-        MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
           make test-system-open-source
-
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.UUID }}-tests-report
-        path:
-          /tmp/${{ env.UUID }}_test_report.html
 
     - name: Output some logs in case of failure
       if: ${{ failure() }}

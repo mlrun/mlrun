@@ -342,28 +342,34 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     assert context.labels.get("kind") == "spark"
 
 
-def test_verify_tag_exists_in_run_output_uri():
+@pytest.fixture
+def setup_project():
     project = mlrun.get_or_create_project("dummy-project")
     project.set_function(
         func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
     )
-    run = project.run_function("test", params={"tag": "v1"}, local=True)
+    return project
+
+
+def test_verify_run_output_uri(setup_project):
+    run = setup_project.run_function("test", params={"tag": "v1"}, local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 
-    # Verify that the tag exists in the URI
+    # Verify that the expected tag exists in the URI
     assert ":v1" in output_uri
     assert ":v1" in outputs_uri
 
 
-def test_verify_latest_not_exists_in_run_output_uri():
-    project = mlrun.get_or_create_project("dummy-project")
-    project.set_function(
-        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
-    )
-
-    # run function locally
-    run = project.run_function("test", local=True)
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"tag": "latest"},
+        {},
+    ],
+)
+def test_verify_latest_not_exists_in_run_output_uri(setup_project, params):
+    run = setup_project.run_function("test", params=params, local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 

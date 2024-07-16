@@ -1508,18 +1508,19 @@ class RunObject(RunTemplate):
         """
         self._outputs_wait_for_completion()
 
-        # Check results first
+        # Check if the key exists in results and return the result value
         if self.status.results and key in self.status.results:
             return self.status.results[key]
 
-        # Check artifact URIs next
-        if self.status.artifact_uris and key in self.status.artifact_uris:
-            return self.status.artifact_uris[key]
-
-        # If not found in results or artifact_uris, try to fetch artifact target
+        # Fetch the artifact for the key if available
+        # There are cases when `status.artifact_uri` does not exist in the run (e.g., when running locally).
         artifact = self._artifact(key)
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
+
+        # There are cases when `status.artifacts` does not exist in the run (e.g., when listing runs).
+        if self.status.artifact_uris and key in self.status.artifact_uris:
+            return self.status.artifact_uris[key]
 
         return None
 
@@ -1537,8 +1538,9 @@ class RunObject(RunTemplate):
         Return a dictionary of outputs, including result values and artifact URIs.
 
         This method waits for the outputs to complete and combines result values
-        and artifact URIs into a single dictionary. If artifacts without URIs are
-        found, their targets are fetched and added to the dictionary.
+        and artifact URIs into a single dictionary. If there are multiple artifacts
+        for the same key, only include the artifact that does not have the "latest" tag.
+        If there is no other tag, include the "latest" tag as a fallback.
 
         :return: Dictionary containing result values and artifact URIs.
         """
@@ -1549,15 +1551,19 @@ class RunObject(RunTemplate):
         if self.status.results:
             outputs.update(self.status.results)
 
-        # Add artifact URIs if available
-        if self.status.artifact_uris:
-            outputs.update(self.status.artifact_uris)
-
         # Add artifacts with targets if available
-        elif self.status.artifacts:
+        # There are cases when `status.artifact_uri` does not exist in the run (e.g., when running locally).
+        if self.status.artifacts:
             for artifact in self.status.artifacts:
                 key = artifact["metadata"]["key"]
-                outputs[key] = get_artifact_target(artifact, self.metadata.project)
+                tag = artifact["metadata"].get("tag")
+                if (tag != "latest") or (key not in outputs):
+                    outputs[key] = get_artifact_target(artifact, self.metadata.project)
+
+        # Add artifact URIs if artifacts are not present
+        # There are cases when `status.artifacts` does not exist in the run (e.g., when listing runs).
+        elif self.status.artifact_uris:
+            outputs.update(self.status.artifact_uris)
 
         return outputs
 

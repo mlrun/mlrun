@@ -351,28 +351,19 @@ def setup_project():
     return project
 
 
-def test_verify_run_output_uri(setup_project):
-    run = setup_project.run_function("test", params={"tag": "v1"}, local=True)
-    output_uri = run.output("file_result")
-    outputs_uri = run.outputs["file_result"]
-
-    # Verify that the expected tag exists in the URI
-    assert ":v1" in output_uri
-    assert ":v1" in outputs_uri
-
-
 @pytest.mark.parametrize(
-    "params",
+    "params, expected",
     [
-        {"tag": "latest"},
-        {},
+        ({"tag": "v1"}, ":v1"),
+        ({"tag": "latest"}, ":latest"),
+        ({}, ":latest"),
     ],
 )
-def test_verify_latest_not_exists_in_run_output_uri(setup_project, params):
+def test_verify_run_output_uri(setup_project, params, expected):
     run = setup_project.run_function("test", params=params, local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 
-    # Verify that the tag exists in the URI
-    assert ":latest" not in output_uri
-    assert ":latest" not in outputs_uri
+    # Verify that the expected tag exists in the URI
+    assert expected in output_uri
+    assert expected in outputs_uri

@@ -160,17 +160,23 @@ class TestHistogramGeneralDriftResultEvent:
             "mlrun.utils.v3io_clients.get_v3io_client",
             Mock(return_value=mock_v3io_client),
         ):
-            writer = Mock(spec=ModelMonitoringWriter)
-            writer.project = TEST_PROJECT
-            writer._tsdb_connector = Mock(
-                spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
-            )
-            writer._custom_notifier = Mock(spec=CustomNotificationPusher)
-            writer._app_result_store = mlrun.model_monitoring.get_store_object(
-                store_connection_string="v3io", project=TEST_PROJECT
-            )
-            writer._reconstruct_event = ModelMonitoringWriter._reconstruct_event
-            yield writer
+            with patch(
+                "mlrun.model_monitoring.get_store_object",
+                return_value=mlrun.model_monitoring.get_store_object(
+                    store_connection_string="v3io", project=TEST_PROJECT
+                ),
+            ):
+                with patch(
+                    "mlrun.model_monitoring.get_tsdb_connector",
+                    return_value=Mock(
+                        spec=mlrun.model_monitoring.db.tsdb.v3io.V3IOTSDBConnector
+                    ),
+                ):
+                    writer = ModelMonitoringWriter(project=TEST_PROJECT)
+                    writer._app_result_store = mlrun.model_monitoring.get_store_object(
+                        store_connection_string="v3io", project=TEST_PROJECT
+                    )
+                    yield writer
 
     @staticmethod
     def test_update_model_endpoint(
@@ -178,7 +184,7 @@ class TestHistogramGeneralDriftResultEvent:
         mock_v3io_client: V3IOClient,
         writer: ModelMonitoringWriter,
     ) -> None:
-        ModelMonitoringWriter.do(self=writer, event=general_drift_event)
+        writer.do(event=general_drift_event)
         update_mock = mock_v3io_client.kv.update
         assert update_mock.call_count == 2, (
             "Expects two update calls - one for the results KV, "

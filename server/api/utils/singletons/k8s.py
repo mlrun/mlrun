@@ -221,8 +221,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 else:
                     crd_items = crd_objects["items"]
 
-            for item in crd_items:
-                yield item
+            yield from crd_items
 
             _continue = crd_objects["_metadata"]["_continue"] if crd_objects else None
 

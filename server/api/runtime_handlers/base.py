@@ -847,12 +847,9 @@ class BaseRuntimeHandler(ABC):
         self, namespace: str, label_selector: str = None
     ) -> list:
         crd_group, crd_version, crd_plural = self._get_crd_info()
-        for (
-            crd_object
-        ) in server.api.utils.singletons.k8s.get_k8s_helper().list_crds_paginated(
+        yield from server.api.utils.singletons.k8s.get_k8s_helper().list_crds_paginated(
             crd_group, crd_version, crd_plural, namespace, selector=label_selector
-        ):
-            yield crd_object
+        )
 
     def _wait_for_pods_deletion(
         self,

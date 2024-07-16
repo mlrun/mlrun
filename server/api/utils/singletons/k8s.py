@@ -204,14 +204,16 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
             yield from crd_items
 
-            _continue = crd_objects["metadata"]["_continue"] if crd_objects else None
+            _continue = crd_objects["metadata"]["continue"] if crd_objects else None
 
             if _continue is None:
                 break
 
             logger.debug(
                 "Getting next crds",
-                remaining_item_count=crd_objects["metadata"]["remaining_item_count"],
+                remaining_item_count=crd_objects["metadata"].get(
+                    "remaining_item_count"
+                ),
             )
         logger.debug("Finished listing crds")
 

@@ -21,13 +21,14 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import get_offline_target
 from mlrun.utils.helpers import additional_filters_warning
 
-from ...data_types.to_pandas import toPandas
 from ...runtimes import RemoteSparkRuntime
 from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
 
 
 def spark_df_to_pandas(spark_df):
+    from ...data_types.to_pandas import toPandas
+
     # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
     # when we upgrade pyspark, we should check whether this workaround is still necessary
     # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe

@@ -32,6 +32,8 @@ in_memory_store = InMemoryStore()
 
 
 def parse_url(url):
+    if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
+        url = url.replace("v3io://", "v3io:///", 1)
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
     endpoint = parsed_url.hostname
@@ -207,7 +209,7 @@ class StoreManager:
     ) -> (DataStore, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
-        store_key = f"{schema}://{endpoint}"
+        store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)

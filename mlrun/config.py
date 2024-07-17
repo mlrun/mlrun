@@ -274,7 +274,7 @@ default_config = {
                 "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
-                "features": {
+                "feature_gates": {
                     "scheduler": "enabled",
                     "project_sync": "enabled",
                     "cleanup": "enabled",

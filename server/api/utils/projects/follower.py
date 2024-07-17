@@ -52,7 +52,7 @@ class Member(
         self._should_sync = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
-            and mlrun.mlconf.httpdb.clusterization.chief.features.project_sync
+            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
             == "enabled"
         )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader

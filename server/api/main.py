@@ -221,7 +221,7 @@ async def move_api_to_online():
     if (
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
-        and config.httpdb.clusterization.chief.features.scheduler == "enabled"
+        and config.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
     ):
         await initialize_scheduler()
 
@@ -238,23 +238,26 @@ async def move_api_to_online():
         server.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-            if config.httpdb.clusterization.chief.features.cleanup == "enabled":
+            if config.httpdb.clusterization.chief.feature_gates.cleanup == "enabled":
                 _start_periodic_cleanup()
-            if config.httpdb.clusterization.chief.features.runs_monitoring == "enabled":
+            if (
+                config.httpdb.clusterization.chief.feature_gates.runs_monitoring
+                == "enabled"
+            ):
                 _start_periodic_runs_monitoring()
             if (
-                config.httpdb.clusterization.chief.features.pagination_cache
+                config.httpdb.clusterization.chief.feature_gates.pagination_cache
                 == "enabled"
             ):
                 _start_periodic_pagination_cache_monitoring()
             if (
-                config.httpdb.clusterization.chief.features.project_summaries
+                config.httpdb.clusterization.chief.feature_gates.project_summaries
                 == "enabled"
             ):
                 _start_periodic_project_summaries_calculation()
-            if config.httpdb.clusterization.chief.features.start_logs == "enabled":
+            if config.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
                 await _start_periodic_logs_collection()
-            if config.httpdb.clusterization.chief.features.stop_logs == "enabled":
+            if config.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
                 await _start_periodic_stop_logs()
 
 

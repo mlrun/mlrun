@@ -279,6 +279,16 @@ default_config = {
                 "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
+                "feature_gates": {
+                    "scheduler": "enabled",
+                    "project_sync": "enabled",
+                    "cleanup": "enabled",
+                    "runs_monitoring": "enabled",
+                    "pagination_cache": "enabled",
+                    "project_summaries": "enabled",
+                    "start_logs": "enabled",
+                    "stop_logs": "enabled",
+                },
             },
             "worker": {
                 "sync_with_chief": {

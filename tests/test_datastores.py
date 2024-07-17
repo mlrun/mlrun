@@ -310,7 +310,7 @@ def test_verify_data_stores_are_cached_when_not_api():
     # if no secrets provided then store is cached
     obj3 = store.object(url=user3_objpath)
     assert len(store._stores) == 1
-    assert store._stores["v3io://some-system"] is not None
+    assert store._stores["v3io://"] is not None
     assert obj3._store._secrets == {}
 
     # if secrets provided then store is not cached
@@ -319,7 +319,7 @@ def test_verify_data_stores_are_cached_when_not_api():
     assert obj2._store._secrets == user2_secrets
     # the store is not cached so the secrets are not updated, because this is the same store type as the one cached,
     # so we verify that the secrets are not updated
-    assert store._stores["v3io://some-system"]._secrets == {}
+    assert store._stores["v3io://"]._secrets == {}
 
 
 def test_object_from_empty_url():

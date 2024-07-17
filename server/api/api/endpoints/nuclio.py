@@ -509,10 +509,10 @@ def _deploy_nuclio_runtime(
             monitoring_deployment.check_if_credentials_are_set()
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
-                err_txt = f"Can't deploy model monitoring application due to: {exc}"
+                err_txt = f"Can not deploy model monitoring application due to: {exc}"
             else:
                 err_txt = (
-                    f"Can't deploy serving function with track models due to: {exc}"
+                    f"Can not deploy serving function with track models due to: {exc}"
                 )
             server.api.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,

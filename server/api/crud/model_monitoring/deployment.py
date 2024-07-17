@@ -33,7 +33,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.api
 import mlrun.model_monitoring.applications
-import mlrun.model_monitoring.controller_handler
+import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
@@ -53,7 +53,7 @@ from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
-    mlrun.model_monitoring.controller_handler.__file__
+    mlrun.model_monitoring.controller.__file__
 )
 _MONITORING_WRITER_FUNCTION_PATH = mlrun.model_monitoring.writer.__file__
 _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
@@ -1036,7 +1036,7 @@ class MonitoringDeployment:
                     )
 
         raise mlrun.errors.MLRunBadRequestError(
-            "Model monitoring credentials are not set.\n"
+            "Model monitoring credentials are not set. "
             "Please set them using the set_model_monitoring_credentials API/SDK "
             "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
         )

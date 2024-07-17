@@ -753,10 +753,6 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
-        if secret_params and params and secret_params != params:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both 'secret_params' and 'params' are defined but they contain different values"
-            )
 
         notification_class.validate_params(secret_params or params)
 
@@ -1315,7 +1311,7 @@ class RunTemplate(ModelObj):
 
             task.with_input("data", "/file-dir/path/to/file")
             task.with_input("data", "s3://<bucket>/path/to/file")
-            task.with_input("data", "v3io://[<remote-host>]/<data-container>/path/to/file")
+            task.with_input("data", "v3io://<data-container>/path/to/file")
         """
         if not self.spec.inputs:
             self.spec.inputs = {}

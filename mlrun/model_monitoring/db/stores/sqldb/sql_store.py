@@ -28,6 +28,7 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
+from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import datetime_now, logger
 
@@ -291,8 +292,14 @@ class SQLStoreBase(StoreBase):
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
-            query = session.query(self.model_endpoints_table).filter_by(
-                project=self.project
+            query = (
+                session.query(self.model_endpoints_table)
+                .options(
+                    # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                    self.model_endpoints_table.defer(EventFieldType.FEATURE_STATS),
+                    self.model_endpoints_table.defer(EventFieldType.CURRENT_STATS),
+                )
+                .filter_by(project=self.project)
             )
 
             # Apply filters

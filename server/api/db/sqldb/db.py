@@ -2609,7 +2609,7 @@ class SQLDB(DBInterface):
         ).one_or_none()
         if not project_summary_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Project summary not found: project={project}"
+                f"Project summary not found: {project=}"
             )
 
         project_summary_record.summary["name"] = project_summary_record.project

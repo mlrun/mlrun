@@ -534,9 +534,6 @@ class DBInterface(ABC):
     ):
         pass
 
-    def create_project_summary(self, session, project: str):
-        pass
-
     def refresh_project_summaries(
         self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
     ):

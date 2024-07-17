@@ -22,3 +22,9 @@ class Augment:
         event.body["more_stuff"] = 5
         event.body["path"] = event.path
         return event
+
+
+class AugmentEventless:
+    def do(self, x):
+        x["more_stuff"] = 5
+        return x

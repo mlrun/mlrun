@@ -201,7 +201,10 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         )
 
         graph.add_step(
-            name="otherchild", class_name="Augment", after="q1", function="otherchild"
+            name="otherchild",
+            class_name="AugmentEventless",
+            after="q1",
+            function="otherchild",
         )
 
         graph["out"].after_step("otherchild")

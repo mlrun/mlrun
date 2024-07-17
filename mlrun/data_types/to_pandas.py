@@ -15,6 +15,8 @@
 import warnings
 from collections import Counter
 
+import pandas as pd
+import semver
 from pyspark.sql.types import (
     BooleanType,
     ByteType,
@@ -48,7 +50,6 @@ def _toPandas(spark_df):
     require_minimum_pandas_version()
 
     import numpy as np
-    import pandas as pd
 
     timezone = spark_df.sql_ctx._conf.sessionLocalTimeZone()
 

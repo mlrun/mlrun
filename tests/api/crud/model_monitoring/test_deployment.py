@@ -17,6 +17,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import kafka.errors
 import pytest
 import taosws
 
@@ -86,7 +87,9 @@ class TestAppDeployment:
         return f"sqlite:///{tmp_path / 'test.db'}"
 
     @pytest.mark.skipif(
-        os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None,
+        os.getenv("V3IO_FRAMESD") is None
+        or os.getenv("V3IO_ACCESS_KEY") is None
+        or os.getenv("V3IO_API") is None,
         reason="Configure Framsed to access V3IO store targets",
     )
     def test_credentials(
@@ -111,8 +114,15 @@ class TestAppDeployment:
             with pytest.raises(taosws.QueryError):
                 monitoring_deployment.set_credentials(
                     endpoint_store_connection="v3io",
-                    stream_path="kafka://stream",
+                    stream_path="v3io",
                     tsdb_connection="taosws://",
+                )
+
+            with pytest.raises(kafka.errors.NoBrokersAvailable):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection="v3io",
+                    stream_path="kafka://stream",
+                    tsdb_connection="v3io",
                 )
 
             monitoring_deployment.set_credentials(
@@ -146,7 +156,7 @@ class TestAppDeployment:
                     tsdb_connection="v3io",
                 )
             monitoring_deployment.set_credentials(
-                stream_path="kafka://stream",
+                endpoint_store_connection="v3io",
                 force=True,
             )
 
@@ -155,13 +165,7 @@ class TestAppDeployment:
                 secrets[
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
                 ]
-                == store_connection
-            )
-            assert (
-                secrets[
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-                ]
-                == "kafka://stream"
+                == "v3io"
             )
         # existing project - upgrade from 1.6.0 case
         monitoring_deployment.project = "1.6.0_project"

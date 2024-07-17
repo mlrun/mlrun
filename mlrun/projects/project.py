@@ -3236,6 +3236,10 @@ class MlrunProject(ModelObj):
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
         :param force:                     If True, will override the existing credentials.
+                                          Please keep in mind that if you already enabled model monitoring on
+                                          your project this action can cause data loose and will require redeploying
+                                          all model monitoring functions & model monitoring infra
+                                          & tracked model server.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.set_model_monitoring_credentials(
@@ -3251,9 +3255,10 @@ class MlrunProject(ModelObj):
         if force:
             logger.info(
                 "Model monitoring credentials were set successfully. "
-                "Please take in mind that if you already had model monitoring functions "
-                "/ model monitoring infra deployed on your project, you will need to redeploy them."
-                "For redeploying the model monitoring infra, please use the `enable_model_monitoring` Api "
+                "Please keep in mind that if you already had model monitoring functions "
+                "/ model monitoring infra / tracked model server "
+                "deployed on your project, you will need to redeploy them."
+                "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
                 "and set `rebuild_images=True`"
             )
 

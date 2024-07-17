@@ -176,7 +176,7 @@ class TestProject(TestMLRunSystem):
         )
         out = _stdout.getvalue()
         assert (
-            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "[mlrun:warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
             "If you wish to use the default configured registry, no protocol prefix is required "
             "(note that you can also use '.<image-name>' instead of the full URL "
             "where <image-name> is a placeholder). "

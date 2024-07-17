@@ -202,9 +202,10 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         graph.add_step(
             name="otherchild",
-            class_name="AugmentEventless",
+            class_name="Augment",
             after="q1",
             function="otherchild",
+            full_event=True,
         )
 
         graph["out"].after_step("otherchild")
@@ -248,7 +249,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         record1, record2 = resp.output.records
 
         expected_record = b'{"hello": "world"}'
-        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
         assert (
             record1.data == expected_record and record2.data == expected_other_record

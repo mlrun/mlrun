@@ -391,7 +391,10 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        try:
+            self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def _is_dd(df_module):

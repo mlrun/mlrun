@@ -277,7 +277,7 @@ async def _verify_log_collection_started_on_startup(
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     log_collection_cycle_tracker = (
         server.api.utils.time_window_tracker.TimeWindowTracker(
-            key="log_collection_cycle",
+            key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
             max_window_size_seconds=min(
                 int(config.log_collector.api_downtime_grace_period),
                 int(config.runtime_resources_deletion_grace_period),
@@ -768,7 +768,7 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
     try:
         runs_monitoring_cycle_tracker = (
             server.api.utils.time_window_tracker.TimeWindowTracker(
-                key="runs_monitoring_cycle",
+                key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
                 max_window_size_seconds=int(
                     config.runtime_resources_deletion_grace_period
                 ),

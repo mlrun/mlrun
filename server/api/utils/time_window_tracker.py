@@ -17,7 +17,13 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.types
 import server.api.utils.singletons.db
+
+
+class TimeWindowTrackerKeys(mlrun.common.types.StrEnum):
+    run_monitoring = "run_monitoring"
+    log_collection = "log_collection"
 
 
 class TimeWindowTracker:
@@ -65,6 +71,8 @@ class TimeWindowTracker:
         if not time_window_tracker_record:
             return
 
+        # Ensure the timestamp is timezone-aware, it might return as naive from the DB
+        # though it was saved as timezone-aware
         self._updated = time_window_tracker_record.updated.replace(
             tzinfo=datetime.timezone.utc
         )

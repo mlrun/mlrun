@@ -969,7 +969,7 @@ class MonitoringDeployment:
                     error=mlrun.errors.err_to_str(e),
                 )
             except kafka.errors.UnknownTopicOrPartitionError as e:
-                logger.warning(
+                logger.info(
                     "Kafka model monitoring topics not found, probably not created",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),

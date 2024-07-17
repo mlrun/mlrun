@@ -44,6 +44,8 @@ from mlrun.model_monitoring.helpers import (
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import datetime_now
 
+TEST_PROJECT = "my-project"
+
 
 class _HistLen(NamedTuple):
     counts_len: int
@@ -180,7 +182,13 @@ class TestBatchInterval:
             "mlrun.utils.v3io_clients.get_v3io_client",
             return_value=mock,
         ):
-            yield
+            with patch(
+                "mlrun.model_monitoring.get_store_object",
+                return_value=mlrun.model_monitoring.get_store_object(
+                    store_connection_string="v3io", project=TEST_PROJECT
+                ),
+            ):
+                yield
 
     @staticmethod
     @pytest.fixture
@@ -268,10 +276,9 @@ class TestBatchInterval:
         first_request: Optional[int],
         expected_last_analyzed: Optional[int],
     ) -> None:
-        mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
         assert (
             _BatchWindow(
-                project="my-project",
+                project=TEST_PROJECT,
                 endpoint="some-endpoint",
                 application="special-app",
                 timedelta_seconds=timedelta_seconds,

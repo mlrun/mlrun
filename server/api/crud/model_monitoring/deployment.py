@@ -1010,11 +1010,11 @@ class MonitoringDeployment:
             with_upgrade_case_check = self._set_credentials_after_server_upgrade()
 
         if not with_upgrade_case_check:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Model monitoring credentials are not set.\n"
-                "Please set them using the set_model_monitoring_credentials API/SDK "
-                "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
-            )
+          raise mlrun.errors.MLRunBadRequestError(
+              "Model monitoring credentials are not set. "
+              "Please set them using the set_model_monitoring_credentials API/SDK "
+              "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+          )
 
     def _set_credentials_after_server_upgrade(self) -> bool:
         """
@@ -1078,6 +1078,7 @@ class MonitoringDeployment:
                 force=True,
             )
         return mm_enabled
+
 
     def set_credentials(
         self,

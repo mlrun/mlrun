@@ -610,8 +610,8 @@ class BaseRuntimeHandler(ABC):
         Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
         consume too much memory.
         :param label_selector: Labels to filter by
-        :param namespace: Namespace to search
-        :return: List of crd objects or pods
+        :param namespace:       Namespace to search
+        :return: List of pod dictionaries or crd object dictionaries
         """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -792,9 +792,9 @@ class BaseRuntimeHandler(ABC):
         """
         Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
         consume too much memory.
-        :param namespace: Namespace to search
-        :param label_selector: Labels to filter by
-        :return: List of pods
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of pod dictionaries
         """
         pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
             namespace, selector=label_selector
@@ -814,9 +814,9 @@ class BaseRuntimeHandler(ABC):
         """
         Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
         consume too much memory.
-        :param label_selector: Labels to filter by
-        :param namespace: Namespace to search
-        :return: List of crd objects
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of crd object dictionaries
         """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_objects = []

@@ -266,7 +266,7 @@ class ApplicationRuntime(RemoteRuntime):
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
-        ssl_redirect: bool = False,
+        ssl_redirect: bool = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -286,7 +286,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
-        :param ssl_redirect:            Set True to force SSL redirect
+        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Default is determined by
+                                        mlrun configuration
 
         :return: True if the function is ready (deployed)
         """
@@ -365,7 +366,7 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
-        ssl_redirect: bool = False,
+        ssl_redirect: bool = None,
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
@@ -382,7 +383,9 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
-        if ssl_redirect or mlrun.mlconf.is_running_on_iguazio():
+        if ssl_redirect is None:
+            ssl_redirect = mlrun.mlconf.force_ssl_redirect()
+        if ssl_redirect:
             # force ssl redirect so that the application is only accessible via https
             api_gateway.with_force_ssl_redirect()
 

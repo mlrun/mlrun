@@ -913,13 +913,6 @@ class _RemoteRunner(_PipelineRunner):
             notifiers = mlrun.utils.notifications.CustomNotificationPusher(
                 local_project_notifiers
             )
-            return _KFPRunner.get_run_status(
-                project,
-                run,
-                timeout,
-                expected_statuses,
-                notifiers=notifiers,
-            )
 
         elif inner_engine.engine == _LocalRunner.engine:
             mldb = mlrun.db.get_run_db(secrets=project._secrets)
@@ -936,6 +929,14 @@ class _RemoteRunner(_PipelineRunner):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported inner runner engine: {inner_engine.engine}"
             )
+
+        return _KFPRunner.get_run_status(
+            project,
+            run,
+            timeout,
+            expected_statuses,
+            notifiers=notifiers,
+        )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

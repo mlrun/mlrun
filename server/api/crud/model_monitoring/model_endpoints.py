@@ -326,8 +326,8 @@ class ModelEndpoints:
         except mlrun.errors.MLRunInvalidMMStoreType as e:
             logger.debug(
                 "Failed to delete model endpoint because store connection is not defined."
-                " Returning without deleting the model endpoint.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning without deleting the model endpoint.",
+                error=mlrun.errors.err_to_str(e),
             )
             return
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
@@ -383,8 +383,8 @@ class ModelEndpoints:
         except mlrun.errors.MLRunInvalidMMStoreType as e:
             logger.debug(
                 "Failed to get model endpoint because store connection is not defined."
-                " Returning an empty model endpoint object.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning an empty model endpoint object.",
+                error=mlrun.errors.err_to_str(e),
             )
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
@@ -504,11 +504,10 @@ class ModelEndpoints:
                 # Add the `ModelEndpoint` object into the model endpoints list
                 endpoint_list.endpoints.append(endpoint_obj)
         except mlrun.errors.MLRunInvalidMMStoreType as e:
-            #
             logger.debug(
                 "Failed to list model endpoints because store connection is not defined."
-                " Returning an empty list of model endpoints.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning an empty list of model endpoints.",
+                error=mlrun.errors.err_to_str(e),
             )
             endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
 
@@ -728,8 +727,8 @@ class ModelEndpoints:
         except mlrun.errors.MLRunInvalidMMStoreType as e:
             logger.debug(
                 "Failed to add real time metrics because tsdb connection is not defined."
-                " Returning without adding real time metrics.\n"
-                f"Error: {mlrun.errors.err_to_str(e)}"
+                " Returning without adding real time metrics.",
+                error=mlrun.errors.err_to_str(e),
             )
             return model_endpoint_object
 

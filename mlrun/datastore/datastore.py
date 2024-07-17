@@ -96,7 +96,7 @@ def schema_to_store(schema):
         from .dbfs_store import DBFSStore
 
         return DBFSStore
-    elif schema == "hdfs":
+    elif schema in ["hdfs", "webhdfs"]:
         from .hdfs import HdfsStore
 
         return HdfsStore

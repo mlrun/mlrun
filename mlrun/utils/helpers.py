@@ -1620,19 +1620,23 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
-def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
+def merge_with_precedence(
+    first_dict: dict, second_dict: dict, third_dict: dict = None
+) -> dict:
     """
-    Merge two dictionaries with precedence given to keys from the second dictionary.
+    Merge three dictionaries with precedence given to keys from the later dictionaries.
 
-    This function merges two dictionaries, `first_dict` and `second_dict`, where keys from `second_dict`
-    take precedence in case of conflicts. If both dictionaries contain the same key,
-    the value from `second_dict` will overwrite the value from `first_dict`.
+    This function merges three dictionaries, `first_dict`, `second_dict`, and `third_dict`, where keys from
+    `second_dict` take precedence over `first_dict`, and keys from `third_dict` take precedence over both.
+    If all dictionaries contain the same key, the value from `third_dict` will overwrite the value from
+    `second_dict`, which will overwrite the value from `first_dict`.
 
     Example:
         >>> first_dict = {"key1": "value1", "key2": "value2"}
         >>> second_dict = {"key2": "new_value2", "key3": "value3"}
-        >>> merge_with_precedence(first_dict, second_dict)
-        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'value3'}
+        >>> third_dict = {"key3": "new_value3", "key4": "value4"}
+        >>> merge_with_precedence(first_dict, second_dict, third_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'new_value3', 'key4': 'value4'}
 
     Note:
     - The merge operation uses the ** operator in Python, which combines key-value pairs
@@ -1641,6 +1645,7 @@ def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
     return {
         **(first_dict or {}),
         **(second_dict or {}),
+        **(third_dict or {}),
     }
 
 

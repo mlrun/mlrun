@@ -262,8 +262,8 @@ class TestKubejobRuntime(TestRuntimeBase):
             # No node selectors provided at any level
             ({}, {}, {}, {}),
             # Only common node selector provided
-            ({"zone": "us-east"}, {}, {}, {"zone": "us-east"}),
-            # Only project node selector provided
+            ({"zone": "us-east"}, {}, {}, {}),
+            # # Only project node selector provided
             ({}, {"gpu": "false"}, {}, {"gpu": "false"}),
             # Only function node selector provided
             ({}, {}, {"test": "user"}, {"test": "user"}),
@@ -275,7 +275,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "false"},
             ),
             # Common and user node selectors provided
-            ({"zone": "us-east"}, {}, {"test": "user"}, {"test": "user"}),
+            (
+                {"zone": "us-east"},
+                {},
+                {"test": "user"},
+                {"zone": "us-east", "test": "user"},
+            ),
             # Project and user node selectors provided
             ({}, {"gpu": "false"}, {"test": "user"}, {"gpu": "false", "test": "user"}),
             # All node selectors provided

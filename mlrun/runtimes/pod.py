@@ -216,7 +216,7 @@ class KubeResourceSpec(FunctionSpec):
         )
         self.node_name = node_name
         self.node_selector = (
-            node_selector or mlrun.mlconf.get_default_function_node_selector()
+            node_selector or {}
         )
         self._affinity = affinity
         self.priority_class_name = (

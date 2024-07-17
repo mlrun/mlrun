@@ -226,13 +226,17 @@ class ServerSideLauncher(launcher.BaseLauncher):
         """
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
-            if project.spec.default_function_node_selector:
+            project_node_selector = project.spec.default_function_node_selector
+            config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+            if project_node_selector or config_node_selector:
                 mlrun.utils.logger.debug(
-                    "Enriching run node selector from project",
+                    "Enriching run node selector from project and mlrun config",
                     project_name=run.metadata.project,
-                    project_node_selector=project.spec.default_function_node_selector,
+                    project_node_selector=project_node_selector,
+                    config_node_selector=config_node_selector,
                 )
                 run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
+                    mlrun.mlconf.get_default_function_node_selector(),
                     project.spec.default_function_node_selector,
                     runtime.spec.node_selector,
                 )

@@ -991,7 +991,7 @@ class DBInterface(ABC):
         self,
         session,
         key: str,
-        updated: typing.Optional[datetime.datetime] = None,
+        timestamp: typing.Optional[datetime.datetime] = None,
         max_window_size_seconds: typing.Optional[int] = None,
     ):
         pass

@@ -33,7 +33,7 @@ class TimeWindowTracker:
         max_window_size_seconds: typing.Optional[int] = None,
     ):
         self._key = key
-        self._updated = None
+        self._timestamp = None
         self._max_window_size_seconds = max_window_size_seconds
 
         self._db = server.api.utils.singletons.db.get_db()
@@ -42,23 +42,25 @@ class TimeWindowTracker:
         time_window_tracker_record = self._refresh_from_db(
             session, raise_on_not_found=False
         )
-        self._updated = self._updated or datetime.datetime.now(datetime.timezone.utc)
+        self._timestamp = self._timestamp or datetime.datetime.now(
+            datetime.timezone.utc
+        )
         if not time_window_tracker_record:
             self._db.store_time_window_tracker_record(
-                session, self._key, self._updated, self._max_window_size_seconds
+                session, self._key, self._timestamp, self._max_window_size_seconds
             )
 
     def update_window(
         self, session: sqlalchemy.orm.Session, timestamp: datetime.datetime = None
     ):
-        self._updated = timestamp or datetime.datetime.now(datetime.timezone.utc)
+        self._timestamp = timestamp or datetime.datetime.now(datetime.timezone.utc)
         self._db.store_time_window_tracker_record(
-            session, self._key, self._updated, self._max_window_size_seconds
+            session, self._key, self._timestamp, self._max_window_size_seconds
         )
 
     def get_window(self, session: sqlalchemy.orm.Session) -> datetime.datetime:
         self._refresh_from_db(session, raise_on_not_found=True)
-        return self._updated
+        return self._timestamp
 
     def _refresh_from_db(
         self, session: sqlalchemy.orm.Session, raise_on_not_found: bool = True
@@ -73,18 +75,18 @@ class TimeWindowTracker:
 
         # Ensure the timestamp is timezone-aware, it might return as naive from the DB
         # though it was saved as timezone-aware
-        self._updated = time_window_tracker_record.updated.replace(
+        self._timestamp = time_window_tracker_record.timestamp.replace(
             tzinfo=datetime.timezone.utc
         )
         self._max_window_size_seconds = (
             time_window_tracker_record.max_window_size_seconds
         )
         if time_window_tracker_record.max_window_size_seconds is not None:
-            self._updated = max(
-                self._updated,
+            self._timestamp = max(
+                self._timestamp,
                 datetime.datetime.now(datetime.timezone.utc)
                 - datetime.timedelta(seconds=self._max_window_size_seconds),
             )
-            self.update_window(session, self._updated)
+            self.update_window(session, self._timestamp)
 
         return time_window_tracker_record

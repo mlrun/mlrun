@@ -5745,7 +5745,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         key: str,
-        updated: typing.Optional[datetime] = None,
+        timestamp: typing.Optional[datetime] = None,
         max_window_size_seconds: typing.Optional[int] = None,
     ) -> TimeWindowTracker:
         time_window_tracker_record = self.get_time_window_tracker_record(
@@ -5754,8 +5754,8 @@ class SQLDB(DBInterface):
         if not time_window_tracker_record:
             time_window_tracker_record = TimeWindowTracker(key=key)
 
-        if updated:
-            time_window_tracker_record.updated = updated
+        if timestamp:
+            time_window_tracker_record.timestamp = timestamp
         if max_window_size_seconds:
             time_window_tracker_record.max_window_size_seconds = max_window_size_seconds
 

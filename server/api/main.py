@@ -275,14 +275,12 @@ async def _verify_log_collection_started_on_startup(
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
-    log_collection_cycle_tracker = (
-        server.api.utils.time_window_tracker.TimeWindowTracker(
-            key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
-            max_window_size_seconds=min(
-                int(config.log_collector.api_downtime_grace_period),
-                int(config.runtime_resources_deletion_grace_period),
-            ),
-        )
+    log_collection_cycle_tracker = server.api.utils.time_window_tracker.TimeWindowTracker(
+        key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+        max_window_size_seconds=min(
+            int(config.log_collector.api_downtime_grace_period),
+            int(config.runtime_resources_deletion_grace_period),
+        ),
     )
     await fastapi.concurrency.run_in_threadpool(
         log_collection_cycle_tracker.initialize, db_session
@@ -766,29 +764,19 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        runs_monitoring_cycle_tracker = (
-            server.api.utils.time_window_tracker.TimeWindowTracker(
-                key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
-                max_window_size_seconds=int(
-                    config.runtime_resources_deletion_grace_period
-                ),
-            )
+        runs_monitoring_cycle_tracker = server.api.utils.time_window_tracker.TimeWindowTracker(
+            key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
+            max_window_size_seconds=int(config.runtime_resources_deletion_grace_period),
         )
-        await fastapi.concurrency.run_in_threadpool(
-            runs_monitoring_cycle_tracker.initialize, db_session
-        )
-        last_update_time = await fastapi.concurrency.run_in_threadpool(
-            runs_monitoring_cycle_tracker.get_window, db_session
-        )
+        runs_monitoring_cycle_tracker.initialize(db_session)
+        last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
             _generate_event_on_failed_runs(db, db_session, last_update_time)
         _push_terminal_run_notifications(db, db_session, last_update_time)
 
-        await fastapi.concurrency.run_in_threadpool(
-            runs_monitoring_cycle_tracker.update_window, db_session, now
-        )
+        runs_monitoring_cycle_tracker.update_window(db_session, now)
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",

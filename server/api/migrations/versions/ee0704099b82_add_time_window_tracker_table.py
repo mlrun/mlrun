@@ -38,7 +38,7 @@ def upgrade():
         sa.Column(
             "key", sa.String(length=255, collation="utf8mb3_bin"), nullable=False
         ),
-        sa.Column("updated", mysql.DATETIME(timezone=True, fsp=3), nullable=False),
+        sa.Column("timestamp", mysql.DATETIME(timezone=True, fsp=3), nullable=False),
         sa.Column("max_window_size_seconds", sa.Integer(), nullable=True),
         sa.PrimaryKeyConstraint("key"),
     )

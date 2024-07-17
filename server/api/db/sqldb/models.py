@@ -744,7 +744,7 @@ with warnings.catch_warnings():
         __tablename__ = "time_window_trackers"
 
         key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
-        updated = Column(
+        timestamp = Column(
             SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
         )
         max_window_size_seconds = Column(Integer)

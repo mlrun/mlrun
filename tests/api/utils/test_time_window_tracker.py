@@ -26,26 +26,26 @@ def test_time_window_tracker(db: server.api.db.base.DBInterface):
         "test_key", max_window_size_seconds
     )
     time_tracker.initialize(db_session)
-    updated_1 = time_tracker.get_window(db_session)
+    timestamp_1 = time_tracker.get_window(db_session)
     # work happens here
     time_tracker.update_window(db_session)
 
     # assert initial value is not None
-    assert updated_1 is not None
-    stored_value = time_tracker._updated
+    assert timestamp_1 is not None
+    stored_value = time_tracker._timestamp
 
-    updated_2 = time_tracker.get_window(db_session)
+    timestamp_2 = time_tracker.get_window(db_session)
     # work happens here
     time_tracker.update_window(db_session)
 
     # Check that the window is updated
-    assert updated_2 > updated_1
-    assert updated_2 == stored_value
-    stored_value = time_tracker._updated
+    assert timestamp_2 > timestamp_1
+    assert timestamp_2 == stored_value
+    stored_value = time_tracker._timestamp
 
     time.sleep(max_window_size_seconds + 1)
-    updated_3 = time_tracker.get_window(db_session)
+    timestamp_3 = time_tracker.get_window(db_session)
 
-    # Check that we got now - max_window_size_seconds and not the previously stored updated value
-    assert updated_3 > updated_2
-    assert updated_3 > stored_value
+    # Check that we got now - max_window_size_seconds and not the previously stored timestamp value
+    assert timestamp_3 > timestamp_2
+    assert timestamp_3 > stored_value

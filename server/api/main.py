@@ -284,8 +284,12 @@ async def _verify_log_collection_started_on_startup(
             ),
         )
     )
-    log_collection_cycle_tracker.initialize(db_session)
-    last_update_time = log_collection_cycle_tracker.get_window(db_session)
+    await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.initialize, db_session
+    )
+    last_update_time = await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.get_window, db_session
+    )
     now = datetime.datetime.now(datetime.timezone.utc)
     try:
         logger.debug(
@@ -355,7 +359,9 @@ async def _verify_log_collection_started_on_startup(
                     requested_logs=True,
                 )
     finally:
-        log_collection_cycle_tracker.update_window(db_session, now)
+        await fastapi.concurrency.run_in_threadpool(
+            log_collection_cycle_tracker.update_window, db_session, now
+        )
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
@@ -768,15 +774,21 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
                 ),
             )
         )
-        runs_monitoring_cycle_tracker.initialize(db_session)
-        last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
+        await fastapi.concurrency.run_in_threadpool(
+            runs_monitoring_cycle_tracker.initialize, db_session
+        )
+        last_update_time = await fastapi.concurrency.run_in_threadpool(
+            runs_monitoring_cycle_tracker.get_window, db_session
+        )
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
             _generate_event_on_failed_runs(db, db_session, last_update_time)
         _push_terminal_run_notifications(db, db_session, last_update_time)
 
-        runs_monitoring_cycle_tracker.update_window(db_session, now)
+        await fastapi.concurrency.run_in_threadpool(
+            runs_monitoring_cycle_tracker.update_window, db_session, now
+        )
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",

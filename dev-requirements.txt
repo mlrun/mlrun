@@ -30,3 +30,4 @@ sqlalchemy-utils~=0.39.0
 scikit-learn~=1.4.0
 lightgbm~=3.0; platform_machine != 'arm64'
 xgboost~=1.1
+transformers~=4.31.0

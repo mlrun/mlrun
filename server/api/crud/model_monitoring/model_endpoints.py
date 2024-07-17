@@ -535,6 +535,7 @@ class ModelEndpoints:
         project_name: str,
         db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete all model endpoints resources, including the store data, time series data, and stream resources.
@@ -543,6 +544,8 @@ class ModelEndpoints:
         :param db_session:                    A session that manages the current dialog with the database.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
         """
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
@@ -589,6 +592,7 @@ class ModelEndpoints:
             db_session=db_session,
             model_monitoring_applications=model_monitoring_applications,
             stream_paths=stream_paths,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
     @staticmethod
@@ -597,6 +601,7 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]],
         stream_paths: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
@@ -607,11 +612,11 @@ class ModelEndpoints:
                                               be deleted.
         :param stream_paths:                  A list of stream paths to delete. If using Kafka, the stream path
                                               represents the related topic.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
         """
 
-        model_monitoring_access_key = None
-
-        if stream_paths[0].startswith("v3io"):
+        if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
             model_monitoring_access_key = (
                 server.api.api.endpoints.nuclio.process_model_monitoring_secret(

@@ -125,6 +125,99 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 items.append(i)
         return items
 
+    @raise_for_status_code
+    def list_pods_paginated(self, namespace=None, selector="", states=None):
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
+        if limit <= 0:
+            limit = None
+        logger.debug(
+            "Listing namespaced pods with pagination",
+            selector=selector,
+            namespace=namespace,
+            states=states,
+        )
+        while True:
+            pods_list = self.v1api.list_namespaced_pod(
+                self.resolve_namespace(namespace),
+                label_selector=selector,
+                watch=False,
+                limit=limit,
+                _continue=_continue,
+            )
+
+            for item in pods_list.items:
+                if not states or item.status.phase in states:
+                    yield item
+
+            _continue = pods_list.metadata._continue
+
+            if not _continue:
+                break
+
+            logger.debug(
+                "Getting next pods",
+                remaining_item_count=pods_list.metadata.remaining_item_count,
+            )
+        logger.debug("Finished listing pods")
+
+    @raise_for_status_code
+    def list_crds_paginated(
+        self,
+        crd_group,
+        crd_version,
+        crd_plural,
+        namespace=None,
+        selector="",
+        states=None,
+    ):
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
+        if limit <= 0:
+            limit = None
+        logger.debug(
+            "Listing namespaced crds with pagination",
+            selector=selector,
+            namespace=namespace,
+            states=states,
+        )
+        while True:
+            crd_objects = {}
+            crd_items = []
+            try:
+                crd_objects = self.crdapi.list_namespaced_custom_object(
+                    crd_group,
+                    crd_version,
+                    self.resolve_namespace(namespace),
+                    crd_plural,
+                    label_selector=selector,
+                    limit=limit,
+                    _continue=_continue,
+                    watch=False,
+                )
+            except ApiException as exc:
+                # ignore error if crd is not defined
+                if exc.status != 404:
+                    raise
+
+            else:
+                crd_items = crd_objects["items"]
+
+            yield from crd_items
+
+            _continue = crd_objects["metadata"]["continue"] if crd_objects else None
+
+            if not _continue:
+                break
+
+            logger.debug(
+                "Getting next crds",
+                remaining_item_count=crd_objects["metadata"].get(
+                    "remaining_item_count"
+                ),
+            )
+        logger.debug("Finished listing crds")
+
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod

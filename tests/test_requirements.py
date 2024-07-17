@@ -144,6 +144,7 @@ def test_requirement_specifiers_convention():
         # used in tests
         "aioresponses": {"~=0.7"},
         "scikit-learn": {"~=1.4.0"},
+        "v3io": {"~=0.6.6, !=0.6.7"},  # A workaround for IG-22956
     }
 
     for (

@@ -954,12 +954,11 @@ class MonitoringDeployment:
             for stream_path in stream_paths[1:]:
                 topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
                 topics.append(topic)
-            print('[EYAL]: kafka topics are: ', topics)
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=brokers,
                     client_id=project,
-                ) # check python library that parse the requirements for open source
+                )  # check python library that parse the requirements for open source
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
             except kafka.errors.TopicAuthorizationFailedError as e:
@@ -972,7 +971,8 @@ class MonitoringDeployment:
                 logger.warning(
                     "Kafka model monitoring topics not found, probably not created",
                     topics=topics,
-                    error=mlrun.errors.err_to_str(e),)
+                    error=mlrun.errors.err_to_str(e),
+                )
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",

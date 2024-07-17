@@ -753,6 +753,10 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
+        if secret_params and params and secret_params != params:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both 'secret_params' and 'params' are defined but they contain different values"
+            )
 
         notification_class.validate_params(secret_params or params)
 

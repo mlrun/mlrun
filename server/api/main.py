@@ -43,6 +43,7 @@ import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
 import server.api.utils.notification_pusher
+import server.api.utils.time_window_tracker
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -67,14 +68,6 @@ from server.api.utils.singletons.scheduler import get_scheduler, initialize_sche
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 V2_API_PREFIX = f"{API_PREFIX}/v2"
-
-# When pushing notifications, push notifications only for runs that entered a terminal state
-# since the last time we pushed notifications.
-# On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
-# and their notifications haven't been sent yet.
-# TODO: find better solution than a global variable for chunking the list of runs
-#      for which to push notifications
-_last_update_time: typing.Optional[datetime.datetime] = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -282,6 +275,18 @@ async def _verify_log_collection_started_on_startup(
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    log_collection_cycle_tracker = (
+        server.api.utils.time_window_tracker.TimeWindowTracker(
+            key="log_collection_cycle",
+            max_window_size_seconds=min(
+                int(config.log_collector.api_downtime_grace_period),
+                int(config.runtime_resources_deletion_grace_period),
+            ),
+        )
+    )
+    log_collection_cycle_tracker.initialize(db_session)
+    last_update_time = log_collection_cycle_tracker.get_window(db_session)
+    now = datetime.datetime.now(datetime.timezone.utc)
     try:
         logger.debug(
             "Getting all runs which are in non terminal state and require logs collection"
@@ -305,16 +310,7 @@ async def _verify_log_collection_started_on_startup(
                 # get only uids as there might be many runs which reached terminal state while the API was down, the
                 # run objects will be fetched in the next step
                 only_uids=True,
-                # We take the minimum between the api_downtime_grace_period and the
-                # runtime_resources_deletion_grace_period because we want to make sure that we don't miss any runs which
-                # might have reached terminal state while the API was down, and their runtime resources are not deleted
-                last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(
-                    seconds=min(
-                        int(config.log_collector.api_downtime_grace_period),
-                        int(config.runtime_resources_deletion_grace_period),
-                    )
-                ),
+                last_update_time_from=last_update_time,
                 states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
         )
@@ -359,6 +355,7 @@ async def _verify_log_collection_started_on_startup(
                     requested_logs=True,
                 )
     finally:
+        log_collection_cycle_tracker.update_window(db_session, now)
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
@@ -763,14 +760,23 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        global _last_update_time
+        runs_monitoring_cycle_tracker = (
+            server.api.utils.time_window_tracker.TimeWindowTracker(
+                key="runs_monitoring_cycle",
+                max_window_size_seconds=int(
+                    config.runtime_resources_deletion_grace_period
+                ),
+            )
+        )
+        runs_monitoring_cycle_tracker.initialize(db_session)
+        last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
-            _generate_event_on_failed_runs(db, db_session, _last_update_time)
-        _push_terminal_run_notifications(db, db_session, _last_update_time)
+            _generate_event_on_failed_runs(db, db_session, last_update_time)
+        _push_terminal_run_notifications(db, db_session, last_update_time)
 
-        _last_update_time = now
+        runs_monitoring_cycle_tracker.update_window(db_session, now)
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",

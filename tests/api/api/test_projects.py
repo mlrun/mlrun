@@ -1504,6 +1504,10 @@ def _assert_db_resources_in_project(
                     # (In each cycle the table is wiped clean and re-populated with only the existing projects)
                     cls.__name__ == "ProjectSummary"
                 )
+                or (
+                    # TimeWindowTracker is not a project-level table
+                    cls.__name__ == "TimeWindowTracker"
+                )
             ):
                 continue
 

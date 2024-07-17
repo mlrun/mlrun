@@ -740,6 +740,15 @@ with warnings.catch_warnings():
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
 
+    class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "time_window_trackers"
+
+        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
+        updated = Column(
+            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+        )
+        max_window_size_seconds = Column(Integer)
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

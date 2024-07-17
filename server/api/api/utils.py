@@ -37,7 +37,6 @@ import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
-import server.api.api.endpoints.nuclio
 import server.api.constants
 import server.api.crud
 import server.api.crud.runtimes.nuclio

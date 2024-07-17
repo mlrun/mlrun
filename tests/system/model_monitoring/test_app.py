@@ -114,8 +114,12 @@ class _V3IORecordsChecker:
 
         cls._tsdb_storage = mlrun.model_monitoring.get_tsdb_connector(
             project=project_name,
+            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
-        cls._kv_storage = mlrun.model_monitoring.get_store_object(project=project_name)
+        cls._kv_storage = mlrun.model_monitoring.get_store_object(
+            project=project_name,
+            store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+        )
         cls._v3io_container = f"users/pipelines/{project_name}/monitoring-apps/"
 
     @classmethod
@@ -1174,7 +1178,10 @@ class TestAllKindOfServing(TestMLRunSystem):
 
         futures_2 = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
+            self.db = mlrun.model_monitoring.get_store_object(
+                project=self.project_name,
+                store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            )
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:
                 future = executor.submit(
@@ -1222,6 +1229,10 @@ class TestTracking(TestAllKindOfServing):
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
+        self.db = mlrun.model_monitoring.get_store_object(
+            project=self.project_name,
+            store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+        )
         self.project.enable_model_monitoring(
             image=self.image or "mlrun/mlrun",
             base_period=1,
@@ -1236,14 +1247,12 @@ class TestTracking(TestAllKindOfServing):
             )
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
-        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
         endpoints = self.db.list_model_endpoints()
         assert len(endpoints) == 0
 
         for model_name, model_dict in self.models.items():
             self._deploy_model_serving(**model_dict, enable_tracking=True)
 
-        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
         endpoints = self.db.list_model_endpoints()
         assert len(endpoints) == 1
         endpoint = endpoints[0]
@@ -1267,7 +1276,6 @@ class TestTracking(TestAllKindOfServing):
         for model_name, model_dict in self.models.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
-        self.db = mlrun.model_monitoring.get_store_object(project=self.project_name)
         endpoints = self.db.list_model_endpoints()
         assert len(endpoints) == 1
         endpoint = endpoints[0]

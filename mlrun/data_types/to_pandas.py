@@ -17,18 +17,6 @@ from collections import Counter
 
 import pandas as pd
 import semver
-from pyspark.sql.types import (
-    BooleanType,
-    ByteType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    IntegralType,
-    LongType,
-    MapType,
-    ShortType,
-    TimestampType,
-)
 
 
 def _toPandas(spark_df):
@@ -42,6 +30,12 @@ def _toPandas(spark_df):
     This modification adds the missing unit to the dtype.
     """
     from pyspark.sql.dataframe import DataFrame
+    from pyspark.sql.types import (
+        BooleanType,
+        IntegralType,
+        MapType,
+        TimestampType,
+    )
 
     assert isinstance(spark_df, DataFrame)
 
@@ -218,6 +212,16 @@ def _toPandas(spark_df):
 
 def _to_corrected_pandas_type(dt):
     import numpy as np
+    from pyspark.sql.types import (
+        BooleanType,
+        ByteType,
+        DoubleType,
+        FloatType,
+        IntegerType,
+        LongType,
+        ShortType,
+        TimestampType,
+    )
 
     if type(dt) == ByteType:
         return np.int8

@@ -1483,7 +1483,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             },
         )
-        run_config = run_config
         measurements.ingest(
             source,
             spark_context=self.spark_service,

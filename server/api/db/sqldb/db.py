@@ -2483,9 +2483,13 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, [project_record])
 
-        self.create_project_summary(session, name=project.metadata.name)
+        project_summary = ProjectSummary(
+            project=project.metadata.name,
+            summary=collections.defaultdict(int),
+            updated=datetime.now(timezone.utc),
+        )
+        self._upsert(session, [project_record, project_summary])
 
     @retry_on_conflict
     def store_project(
@@ -2664,19 +2668,6 @@ class SQLDB(DBInterface):
                 )
                 session.add(project_summary)
             session.commit()
-
-    def create_project_summary(
-        self,
-        session: Session,
-        name: str,
-    ):
-        logger.debug("Creating project summary in DB", project_name=name)
-        project_summary = ProjectSummary(
-            project=name,
-            summary=collections.defaultdict(int),
-            updated=datetime.now(timezone.utc),
-        )
-        self._upsert(session, [project_summary])
 
     async def get_project_resources_counters(
         self,

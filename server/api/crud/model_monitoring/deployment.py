@@ -1010,11 +1010,11 @@ class MonitoringDeployment:
             with_upgrade_case_check = self._set_credentials_after_server_upgrade()
 
         if not with_upgrade_case_check:
-          raise mlrun.errors.MLRunBadRequestError(
-              "Model monitoring credentials are not set. "
-              "Please set them using the set_model_monitoring_credentials API/SDK "
-              "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
-          )
+            raise mlrun.errors.MLRunBadRequestError(
+                "Model monitoring credentials are not set. "
+                "Please set them using the set_model_monitoring_credentials API/SDK "
+                "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
+            )
 
     def _set_credentials_after_server_upgrade(self) -> bool:
         """
@@ -1065,20 +1065,10 @@ class MonitoringDeployment:
 
         if mm_enabled and None in credentials_dict.values():
             self.set_credentials(
-                endpoint_store_connection=credentials_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-                ),
-                stream_path=credentials_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-                ),
-                tsdb_connection=credentials_dict.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-                ),
                 _default_secrets_v3io="v3io",
                 force=True,
             )
         return mm_enabled
-
 
     def set_credentials(
         self,
@@ -1148,15 +1138,21 @@ class MonitoringDeployment:
                 )
 
         secrets_dict = {}
+        old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
         if access_key:
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
+            ] = access_key or old_secrets_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+            )
 
         # endpoint_store_connection
         if not endpoint_store_connection:
             endpoint_store_connection = (
-                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                )
+                or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
                 or _default_secrets_v3io
             )
         if endpoint_store_connection:
@@ -1181,7 +1177,10 @@ class MonitoringDeployment:
         # stream_path
         if not stream_path:
             stream_path = (
-                mlrun.mlconf.model_endpoint_monitoring.stream_connection
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                )
+                or mlrun.mlconf.model_endpoint_monitoring.stream_connection
                 or mlrun.mlconf.model_endpoint_monitoring.store_prefixes.stream  # TODO: Delete in 1.9.0
                 or _default_secrets_v3io
             )
@@ -1212,7 +1211,10 @@ class MonitoringDeployment:
 
         if not tsdb_connection:
             tsdb_connection = (
-                mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
+                old_secrets_dict.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                )
+                or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
                 or _default_secrets_v3io
             )
         if tsdb_connection:

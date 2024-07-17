@@ -2485,6 +2485,8 @@ class SQLDB(DBInterface):
         update_labels(project_record, labels)
         self._upsert(session, [project_record])
 
+        self.create_project_summary(session, name=project.metadata.name)
+
     @retry_on_conflict
     def store_project(
         self, session: Session, name: str, project: mlrun.common.schemas.Project
@@ -2550,6 +2552,7 @@ class SQLDB(DBInterface):
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
         self._delete(session, Project, name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     def list_projects(
         self,
@@ -2605,6 +2608,7 @@ class SQLDB(DBInterface):
                 f"Project summary not found: project={project}"
             )
 
+        project_summary_record.summary["name"] = project_summary_record.project
         project_summary_record.summary["updated"] = project_summary_record.updated
         return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
@@ -2660,6 +2664,19 @@ class SQLDB(DBInterface):
                 )
                 session.add(project_summary)
             session.commit()
+
+    def create_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Creating project summary in DB", project_name=name)
+        project_summary = ProjectSummary(
+            project=name,
+            summary=collections.defaultdict(int),
+            updated=datetime.now(timezone.utc),
+        )
+        self._upsert(session, [project_summary])
 
     async def get_project_resources_counters(
         self,

@@ -1271,7 +1271,7 @@ class MonitoringDeployment:
         old_store = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
         ]
-        if old_store != endpoint_store_connection:
+        if endpoint_store_connection and old_store != endpoint_store_connection:
             logger.debug(
                 "User provided different endpoint store connection",
             )
@@ -1280,7 +1280,7 @@ class MonitoringDeployment:
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
         old_stream = old_stream or "v3io"  # TODO: del in 1.9.0
-        if old_stream != stream_path:
+        if stream_path and old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
             )
@@ -1288,7 +1288,7 @@ class MonitoringDeployment:
         old_tsdb = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
         ]
-        if old_tsdb != tsdb_connection:
+        if tsdb_connection and old_tsdb != tsdb_connection:
             logger.debug(
                 "User provided different tsdb connection",
             )

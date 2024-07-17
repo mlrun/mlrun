@@ -97,6 +97,7 @@ class TestAppDeployment:
             "server.api.crud.Functions.get_function",
             side_effect=mlrun.errors.MLRunNotFoundError,
         ):
+            mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
             with pytest.raises(mlrun.errors.MLRunBadRequestError):
                 monitoring_deployment.check_if_credentials_are_set()
 
@@ -117,7 +118,6 @@ class TestAppDeployment:
             monitoring_deployment.set_credentials(
                 endpoint_store_connection=store_connection,
                 stream_path="v3io",
-                tsdb_connection="v3io",
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
@@ -127,10 +127,15 @@ class TestAppDeployment:
                 ]
                 == store_connection
             )
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                ]
+                == "v3io"
+            )
 
             monitoring_deployment.set_credentials(
                 endpoint_store_connection=store_connection,
-                stream_path="v3io",
                 tsdb_connection="v3io",
             )
 
@@ -141,9 +146,7 @@ class TestAppDeployment:
                     tsdb_connection="v3io",
                 )
             monitoring_deployment.set_credentials(
-                endpoint_store_connection="v3io",
-                stream_path="v3io",
-                tsdb_connection="v3io",
+                stream_path="kafka://stream",
                 force=True,
             )
 
@@ -152,7 +155,13 @@ class TestAppDeployment:
                 secrets[
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
                 ]
-                == "v3io"
+                == store_connection
+            )
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                ]
+                == "kafka://stream"
             )
         # existing project - upgrade from 1.6.0 case
         monitoring_deployment.project = "1.6.0_project"

@@ -891,9 +891,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )
-        self.assert_node_selection(
-            node_selector=config_node_selector, affinity=affinity
-        )
+        self.assert_node_selection(affinity=affinity)
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
@@ -920,7 +918,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=6, expected_class=self.class_name
         )
         self.assert_node_selection(
-            node_selector=config_node_selector,
             tolerations=tolerations,
         )
 

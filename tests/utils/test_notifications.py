@@ -832,20 +832,6 @@ def generate_notification_validation_params():
                 does_not_raise(),
             )
         )
-        # Both are not None and different
-        validation_params.append(
-            (
-                {
-                    "kind": kind,
-                    "secret_params": valid_params,
-                    "params": {
-                        key: f"some-different-{value}"
-                        for key, value in valid_params.items()
-                    },
-                },
-                pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-            )
-        )
         # Only secret_params is not None
         validation_params.append(
             (

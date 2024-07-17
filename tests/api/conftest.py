@@ -130,7 +130,7 @@ def client(db) -> Generator:
         mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
+        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client

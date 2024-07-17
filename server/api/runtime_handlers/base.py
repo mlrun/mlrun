@@ -179,14 +179,15 @@ class BaseRuntimeHandler(ABC):
     def monitor_runs(self, db: DBInterface, db_session: Session) -> list[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
-        runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
-            label_selector, namespace
-        )
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        runtime_resource_is_crd = bool(crd_group and crd_version and crd_plural)
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
         stale_runs = []
-        for runtime_resource in runtime_resources:
+        for runtime_resource in self._get_runtime_resources_paginated(
+            namespace, label_selector
+        ):
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
             run_runtime_resources_map.setdefault(project, {})
             run_runtime_resources_map.get(project).update({uid: {"name": name}})
@@ -581,7 +582,7 @@ class BaseRuntimeHandler(ABC):
                 namespace = (
                     server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
                 )
-                runtime_resources, _ = self._get_runtime_resources(
+                runtime_resources = self._get_runtime_resources(
                     label_selector, namespace
                 )
                 if runtime_resources:
@@ -604,15 +605,28 @@ class BaseRuntimeHandler(ABC):
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
-    def _get_runtime_resources(self, label_selector, namespace):
+    def _get_runtime_resources(self, label_selector: str, namespace: str):
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param label_selector: Labels to filter by
+        :param namespace:       Namespace to search
+        :return: List of pod dictionaries or crd object dictionaries
+        """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
-            runtime_resource_is_crd = True
             runtime_resources = self._list_crd_objects(namespace, label_selector)
         else:
-            runtime_resource_is_crd = False
             runtime_resources = self._list_pods(namespace, label_selector)
-        return runtime_resources, runtime_resource_is_crd
+        return runtime_resources
+
+    def _get_runtime_resources_paginated(self, namespace: str, label_selector: str):
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        runtime_resource_is_crd = crd_group and crd_version and crd_plural
+        if runtime_resource_is_crd:
+            yield from self._list_crd_objects_paginated(namespace, label_selector)
+        else:
+            yield from self._list_pods_paginated(namespace, label_selector)
 
     def _add_object_label_selector_if_needed(
         self,
@@ -775,6 +789,13 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> list:
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of pod dictionaries
+        """
         pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
             namespace, selector=label_selector
         )
@@ -783,7 +804,20 @@ class BaseRuntimeHandler(ABC):
         pods = [pod.to_dict() for pod in pods]
         return pods
 
+    def _list_pods_paginated(self, namespace: str, label_selector: str = None) -> list:
+        for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+            namespace, selector=label_selector
+        ):
+            yield pod.to_dict()
+
     def _list_crd_objects(self, namespace: str, label_selector: str = None) -> list:
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of crd object dictionaries
+        """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_objects = []
         if crd_group and crd_version and crd_plural:
@@ -803,6 +837,14 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
+    def _list_crd_objects_paginated(
+        self, namespace: str, label_selector: str = None
+    ) -> list:
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        yield from server.api.utils.singletons.k8s.get_k8s_helper().list_crds_paginated(
+            crd_group, crd_version, crd_plural, namespace, selector=label_selector
+        )
+
     def _wait_for_pods_deletion(
         self,
         namespace: str,
@@ -812,13 +854,14 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
-                namespace, label_selector=label_selector
-            )
-            existing_pod_names = [pod.metadata.name for pod in pods.items]
-            still_in_deletion_pods = set(existing_pod_names).intersection(
-                deleted_pod_names
-            )
+            still_in_deletion_pods = []
+            for (
+                pod
+            ) in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+                namespace, selector=label_selector
+            ):
+                if pod.metadata.name in deleted_pod_names:
+                    still_in_deletion_pods.append(pod.metadata.name)
             if still_in_deletion_pods:
                 raise RuntimeError(
                     f"Pods are still in deletion process: {still_in_deletion_pods}"
@@ -958,13 +1001,10 @@ class BaseRuntimeHandler(ABC):
     ) -> list[dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = (
-            server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
-                namespace, label_selector=label_selector
-            )
-        )
         deleted_pods = []
-        for pod in pods.items:
+        for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+            namespace, selector=label_selector
+        ):
             pod_dict = pod.to_dict()
 
             # best effort - don't let one failure in pod deletion to cut the whole operation

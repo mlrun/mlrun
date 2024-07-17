@@ -117,6 +117,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):
         endpoint, stream_path = parse_path(stream_path)
+        endpoint = endpoint or kwargs.pop("endpoint", None)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)

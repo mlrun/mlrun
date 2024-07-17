@@ -1317,12 +1317,23 @@ class MonitoringDeployment:
             return False
         return True
 
-    def _create_stream_output(self, stream_path: str = None):
+    def _create_stream_output(self, stream_path: str = None, access_key: str = None):
         stream_path_list = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, stream_uri=stream_path
         )
-        for stream_path in stream_path_list:
-            output_stream = mlrun.datastore.get_stream_pusher(stream_path=stream_path)
+        access_keys = [
+            os.getenv("V3IO_ACCESS_KEY"),
+            access_key or self.model_monitoring_access_key,
+        ]
+        for i in range(len(stream_path_list)):
+            logger.info(
+                "[DAVID] Creating stream output", stream_path=stream_path_list[i]
+            )
+            output_stream = mlrun.datastore.get_stream_pusher(
+                stream_path=stream_path_list[i],
+                endpoint=mlrun.mlconf.v3io_api,
+                access_key=access_keys[i],
+            )
             if hasattr(output_stream, "_lazy_init"):
                 output_stream._lazy_init()
 

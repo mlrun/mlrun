@@ -954,11 +954,12 @@ class MonitoringDeployment:
             for stream_path in stream_paths[1:]:
                 topic, _ = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
                 topics.append(topic)
+
             try:
                 kafka_client = kafka.KafkaAdminClient(
                     bootstrap_servers=brokers,
                     client_id=project,
-                )  # check python library that parse the requirements for open source
+                )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
             except kafka.errors.TopicAuthorizationFailedError as e:

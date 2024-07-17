@@ -152,7 +152,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
             _continue = pods_list.metadata._continue
 
-            if _continue:
+            if not _continue:
                 break
 
             logger.debug(
@@ -207,7 +207,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
             _continue = crd_objects["metadata"]["continue"] if crd_objects else None
 
-            if _continue:
+            if not _continue:
                 break
 
             logger.debug(

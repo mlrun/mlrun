@@ -23,6 +23,7 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
+from gcsfs.retry import HttpError
 
 import mlrun
 import mlrun.errors
@@ -312,3 +313,25 @@ class TestGoogleCloudStorage:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    @pytest.mark.parametrize("credentials_value", [None, "wrong credentials"])
+    def test_wrong_credentials_rm(self, use_datastore_profile, credentials_value):
+        if use_datastore_profile:
+            gcp_credentials_dict = (
+                {"gcp_credentials": credentials_value} if credentials_value else {}
+            )
+            self.profile = DatastoreProfileGCS(
+                name=self.profile_name, **gcp_credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        elif credentials_value:
+            os.environ["GCP_CREDENTIALS"] = credentials_value
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        with pytest.raises(HttpError):
+            data_item.delete()
+
+    def test_rm_file_not_found(self, use_datastore_profile):
+        self._setup_by_serialized_json_content(use_datastore_profile, False)
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

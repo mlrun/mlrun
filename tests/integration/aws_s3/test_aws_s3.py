@@ -111,12 +111,12 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
-            prefix_path = f"ds://{self.profile_name}/"
+            self.prefix_path = f"ds://{self.profile_name}/"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
-            prefix_path = "s3://"
-        self._bucket_path = f"{prefix_path}{self.bucket_name}"
+            self.prefix_path = "s3://"
+        self._bucket_path = f"{self.prefix_path}{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self._object_url = f"{self.run_dir_url}{object_file}"
@@ -301,3 +301,32 @@ class TestAwsS3:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_ACCESS_KEY_ID")
+
+        credentials_dict = (
+            {"secret_key": fake_token, "access_key_id": self.access_key_id}
+            if fake_token
+            else {}
+        )
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name, **credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
+                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        with pytest.raises(PermissionError):
+            data_item.delete()
+
+    def test_rm_file_not_found(self):
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

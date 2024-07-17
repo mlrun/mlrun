@@ -1022,6 +1022,12 @@ class MonitoringDeployment:
         upgrade.
         :return: True if the credentials are set, otherwise False.
         """
+        # Check if:
+        #   1. There is model endpoints.
+        #   2. Stream pod is on
+        #   3. There is already part of the secrets set.
+        #  if True, set the cred in to the project secret (from exist cred/ from sys config / v3io by default).
+
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
         mm_enabled = False
         store_connector: mlrun.model_monitoring.db.StoreBase = mlrun.model_monitoring.get_store_object(

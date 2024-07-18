@@ -24,7 +24,6 @@ import v3io.dataplane.response
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.utils.v3io_clients
-from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import logger
 
@@ -285,8 +284,8 @@ class KVStoreBase(StoreBase):
                 endpoint_id=endpoint_id,
             )
             # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
-            endpoint_dict.pop(EventFieldType.FEATURE_STATS)
-            endpoint_dict.pop(EventFieldType.CURRENT_STATS)
+            endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+            endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
             if labels and not self._validate_labels(
                 endpoint_dict=endpoint_dict, labels=labels

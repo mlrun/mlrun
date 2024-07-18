@@ -28,7 +28,6 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.stores.sqldb.models
 import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
-from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import StoreBase
 from mlrun.utils import datetime_now, logger
 
@@ -296,8 +295,8 @@ class SQLStoreBase(StoreBase):
                 session.query(self.model_endpoints_table)
                 .options(
                     # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
-                    sqlalchemy.orm.defer(EventFieldType.FEATURE_STATS),
-                    sqlalchemy.orm.defer(EventFieldType.CURRENT_STATS),
+                    sqlalchemy.orm.defer(mm_schemas.EventFieldType.FEATURE_STATS),
+                    sqlalchemy.orm.defer(mm_schemas.EventFieldType.CURRENT_STATS),
                 )
                 .filter_by(project=self.project)
             )

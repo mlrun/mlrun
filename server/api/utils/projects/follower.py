@@ -197,19 +197,25 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy, auth_info, background_task_name
+                session=db_session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                auth_info=auth_info,
+                background_task_name=background_task_name,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         else:
             return self._leader_client.delete_project(
-                auth_info.session,
-                name,
-                deletion_strategy,
-                wait_for_completion,
+                session=auth_info.session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                wait_for_completion=wait_for_completion,
             )
         return False
 

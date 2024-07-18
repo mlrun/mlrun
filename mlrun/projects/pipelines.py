@@ -65,10 +65,10 @@ def get_workflow_engine(engine_kind, local=False):
     )
 
 
-def generate_text_from_run(run_id, had_errors, state):
+def generate_text_from_run(run_id, errors_counter, state):
     text = f"Workflow {run_id} finished"
-    if had_errors:
-        text += f" with {had_errors} errors"
+    if errors_counter:
+        text += f" with {errors_counter} errors"
     if state:
         text += f", state={state}"
     return text
@@ -644,19 +644,19 @@ class _KFPRunner(_PipelineRunner):
         runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
 
         # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
-        had_errors = 0
+        errors_counter = 0
         for r in runs:
             if r["status"].get("state", "") == "error":
-                had_errors += 1
+                errors_counter += 1
 
-        text = generate_text_from_run(run.run_id, had_errors, run._state)
+        text = generate_text_from_run(run.run_id, errors_counter, run._state)
 
         notifiers = notifiers or project.notifiers
         notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
-        return state, had_errors, text
+        return state, errors_counter, text
 
 
 class _LocalRunner(_PipelineRunner):
@@ -937,12 +937,12 @@ class _RemoteRunner(_PipelineRunner):
             )
             run._exc = pipeline_runner_run.status.error
 
-            had_errors = 0
+            errors_counter = 0
             if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded:
-                had_errors = 1
+                errors_counter = 1
 
-            text = generate_text_from_run(run.run_id, had_errors, run._state)
-            return run._state, had_errors, text
+            text = generate_text_from_run(run.run_id, errors_counter, run._state)
+            return run._state, errors_counter, text
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

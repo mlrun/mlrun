@@ -38,7 +38,11 @@ def ollama_check_skip():
     """
     Check if ollama is installed
     """
-    result = subprocess.run(["ollama", "--help"], stdout=PIPE)
+    try:
+        result = subprocess.run(["ollama", "--help"], stdout=PIPE)
+    except Exception as e:
+        print(f"Error checking ollama: {e}")
+        return 0
     return result.returncode != 0
 
 

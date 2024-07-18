@@ -277,6 +277,8 @@ async def _verify_log_collection_started_on_startup(
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     log_collection_cycle_tracker = server.api.utils.time_window_tracker.TimeWindowTracker(
         key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+        # If the API was down for more than the grace period, we will only collect logs for runs which reached
+        # terminal state within the grace period and not since the API actually went down.
         max_window_size_seconds=min(
             int(config.log_collector.api_downtime_grace_period),
             int(config.runtime_resources_deletion_grace_period),

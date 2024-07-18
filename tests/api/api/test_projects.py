@@ -174,6 +174,16 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.fixture()
+def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
+    with unittest.mock.patch(
+        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
+        return_value="some_access_key",
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.parametrize(
     "api_version,successful_delete_response_code",
     [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
@@ -1104,15 +1114,6 @@ def test_delete_project_not_found_in_leader(
             f"v1/projects/{online_project.metadata.name}",
         )
         assert response.status_code == HTTPStatus.OK.value
-
-
-@pytest.fixture()
-def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
-    with unittest.mock.patch(
-        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
-        return_value="some_access_key",
-    ):
-        yield
 
 
 # Test should not run more than a few seconds because we test that if the background task fails,

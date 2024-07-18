@@ -1173,6 +1173,12 @@ class MonitoringDeployment:
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
                 )
+            if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith(
+                "v3io"
+            ):
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only MySQL/SQLite connections are supported for endpoint store"
+                )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
@@ -1196,7 +1202,11 @@ class MonitoringDeployment:
                 )  # TODO: Delete in 1.9.0
             )
         if stream_path or stream_path == "":
-            if stream_path == "v3io":
+            if stream_path == "v3io" and mlrun.mlconf.is_ce_mode():
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only kafka stream are supported for stream path"
+                )
+            elif stream_path == "v3io":
                 # TODO: Delete in 1.9.0 (for BC)
                 stream_path = ""
             elif stream_path:
@@ -1235,6 +1245,10 @@ class MonitoringDeployment:
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
+                )
+            elif tsdb_connection == "v3io" and mlrun.mlconf.is_ce_mode():
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only TDEngine websocket connection is supported for TSDB"
                 )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION

@@ -382,13 +382,15 @@ class ModelEndpoints:
             )
 
         except mlrun.errors.MLRunInvalidMMStoreType:
-            # for BC trying get the mep from v3io store
+            # TODO: delete in 1.9.0 - for BC trying get the mep from v3io store
             logger.debug(
                 "Failed to get model endpoint because store connection is not defined."
                 " Trying use v3io."
             )
             model_endpoint_store = mlrun.model_monitoring.get_store_object(
-                project=project, store_connection_string="v3io"
+                project=project,
+                store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or "v3io",
             )
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
@@ -481,13 +483,15 @@ class ModelEndpoints:
                 project=project
             )
         except mlrun.errors.MLRunInvalidMMStoreType:
-            # for BC trying list the meps from v3io store
+            # TODO: delete in 1.9.0 - for BC trying list the meps from v3io store
             logger.debug(
                 "Failed to list model endpoints because store connection is not defined."
                 " Trying use v3io."
             )
             endpoint_store = mlrun.model_monitoring.get_store_object(
-                project=project, store_connection_string="v3io"
+                project=project,
+                store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or "v3io",
             )
 
         endpoint_dictionary_list = endpoint_store.list_model_endpoints(
@@ -570,9 +574,11 @@ class ModelEndpoints:
                     )
                 )
             except mlrun.errors.MLRunInvalidMMStoreType:
-                # for BC trying to delete from v3io store
+                # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
                 endpoint_store = mlrun.model_monitoring.get_store_object(
-                    project=project_name, store_connection_string="v3io"
+                    project=project_name,
+                    store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                    or "v3io",
                 )
             endpoint_store.delete_model_endpoints_resources()
             try:
@@ -585,9 +591,10 @@ class ModelEndpoints:
                 )
 
             except mlrun.errors.MLRunInvalidMMStoreType:
-                # for BC trying to delete from v3io store
+                # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                    project=project_name, tsdb_connection_string="v3io"
+                    project=project_name,
+                    tsdb_connection_string="v3io",
                 )
             tsdb_connector.delete_tsdb_resources()
 

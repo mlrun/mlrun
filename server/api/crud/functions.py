@@ -96,6 +96,7 @@ class Functions(
         page: int = None,
         page_size: int = None,
         format_: str = None,
+        untagged: bool = True,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -110,6 +111,7 @@ class Functions(
             format_=format_,
             page=page,
             page_size=page_size,
+            untagged=untagged,
         )
 
     def get_function_status(

@@ -403,6 +403,62 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     )
 
 
+def test_list_untagged_functions(db: DBInterface, db_session: Session):
+    # create 2 functions, one with tag and one without
+    function_1_name = "function-name-1"
+    function_2_name = "function-name-2"
+    function_1 = _generate_function(function_1_name)
+    function_2 = _generate_function(function_2_name)
+    tag = "some-tag"
+
+    # function 1 should get the tag
+    db.store_function(
+        db_session,
+        function_1.to_dict(),
+        function_1_name,
+        tag=tag,
+        versioned=True,
+    )
+
+    # function 2 should get the "latest" tag
+    func_2_dict = function_2.to_dict()
+    function_2_hash_key = db.store_function(
+        db_session,
+        func_2_dict,
+        function_2_name,
+        versioned=True,
+    )
+
+    # list all functions
+    functions = db.list_functions(db_session)
+    assert len(functions) == 2
+
+    # change something in the second function
+    func_2_dict["spec"]["command"] = "new_command"
+
+    # store the function again, the new instance should get the "latest" tag
+    db.store_function(
+        db_session,
+        func_2_dict,
+        function_2_name,
+        versioned=True,
+    )
+
+    # list all functions
+    functions = db.list_functions(db_session)
+
+    # list only tagged functions
+    tagged_function = db.list_functions(db_session, untagged=False)
+
+    assert len(functions) != len(tagged_function)
+
+    all_hashes = [function["metadata"]["hash"] for function in functions]
+    untagged_hashes = [function["metadata"]["hash"] for function in tagged_function]
+
+    assert function_2_hash_key in all_hashes
+    assert function_2_hash_key not in untagged_hashes
+
+
 def test_delete_functions(db: DBInterface, db_session: Session):
     names = ["some_name", "some_name2", "some_name3"]
     labels = {

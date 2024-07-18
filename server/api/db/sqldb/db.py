@@ -1755,6 +1755,7 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
+        untagged: bool = True,
     ) -> list[dict]:
         project = project or mlrun.mlconf.default_project
         functions = []
@@ -1767,6 +1768,7 @@ class SQLDB(DBInterface):
             hash_key,
             page=page,
             page_size=page_size,
+            untagged=untagged,
         ):
             function_dict = function.struct
             if not function_tag:
@@ -4484,6 +4486,7 @@ class SQLDB(DBInterface):
         hash_key: typing.Optional[str] = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
+        untagged: bool = True,
     ) -> list[tuple[Function, str]]:
         query = session.query(Function, Function.Tag.name)
         query = query.filter(Function.project == project)
@@ -4495,8 +4498,14 @@ class SQLDB(DBInterface):
             query = query.filter(Function.uid == hash_key)
 
         if not tag:
-            # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
-            query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
+            if untagged:
+                # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
+                query = query.outerjoin(
+                    Function.Tag, Function.id == Function.Tag.obj_id
+                )
+            else:
+                # We only want to get functions that have tags
+                query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
         else:
             # If a tag is given, we can just join (faster than outer join) and filter on the tag.
             query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)

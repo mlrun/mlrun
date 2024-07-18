@@ -14,14 +14,18 @@
 
 import asyncio
 import os
+import pathlib
 import subprocess
 from subprocess import PIPE, Popen
-import pathlib
+
 import pytest
 
 import mlrun
+
 relative_asset_path = "mlrun/frameworks/langchain/model_server.py"
-langchain_model_server_path = str(pathlib.Path(__file__).absolute().parent.parent.parent.parent / relative_asset_path)
+langchain_model_server_path = str(
+    pathlib.Path(__file__).absolute().parent.parent.parent.parent / relative_asset_path
+)
 
 
 #: if true, delete the model after the test

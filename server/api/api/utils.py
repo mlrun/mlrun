@@ -1113,24 +1113,26 @@ def get_or_create_project_deletion_background_task(
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
+        if igz_version:
+            # Due to backwards compatibility reasons, the model monitoring access key should be retrieved before the
+            # project deletion. his key will be used to delete the model monitoring resources associated with the
+            # project.
+            model_monitoring_access_key = (
+                server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+                    db_session,
+                    project.metadata.name,
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                )
+            )
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
         )
+
     elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
         # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
         # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
         # therefore doesn't wait for the project deletion to complete.
         wait_for_project_deletion = True
-
-        # Following the last comment, the model monitoring access key should be retrieved before the project deletion.
-        # This key will be used to delete the model monitoring resources associated with the project.
-        model_monitoring_access_key = (
-            server.api.api.endpoints.nuclio.process_model_monitoring_secret(
-                db_session,
-                project.metadata.name,
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-            )
-        )
 
     background_task_kind = background_task_kind_format.format(project.metadata.name)
     try:

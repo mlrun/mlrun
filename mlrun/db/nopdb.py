@@ -738,6 +738,7 @@ class NopDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass
 

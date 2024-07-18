@@ -2606,7 +2606,10 @@ class SQLDB(DBInterface):
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     def get_project_summary(
-        self, session, project: str, raise_on_not_found: bool = True,
+        self,
+        session,
+        project: str,
+        raise_on_not_found: bool = True,
     ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,

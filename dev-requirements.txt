@@ -32,3 +32,4 @@ lightgbm~=3.0; platform_machine != 'arm64'
 xgboost~=1.1
 transformers~=4.31.0
 torch~=2.1.2
+langchain_community~=0.0.17

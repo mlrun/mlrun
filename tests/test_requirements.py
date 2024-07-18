@@ -147,6 +147,7 @@ def test_requirement_specifiers_convention():
         "scikit-learn": {"~=1.4.0"},
         "transformers": {"~=4.31.0"},
         "torch": {"~=2.1.2"},
+        "langchain_community": {"~=0.0.17"},
     }
 
     for (

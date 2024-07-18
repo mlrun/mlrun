@@ -1159,6 +1159,7 @@ class SQLRunDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool = False,
     ) -> None:
         raise NotImplementedError
 

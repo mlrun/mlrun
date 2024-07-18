@@ -968,6 +968,12 @@ class MonitoringDeployment:
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
                 )
+            except kafka.errors.UnknownTopicOrPartitionError as e:
+                logger.info(
+                    "Kafka model monitoring topics not found, probably not created",
+                    topics=topics,
+                    error=mlrun.errors.err_to_str(e),
+                )
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",

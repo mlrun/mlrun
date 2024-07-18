@@ -207,7 +207,6 @@ async def list_functions(
     tag: str = None,
     labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
-    untagged: bool = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -217,12 +216,6 @@ async def list_functions(
 ):
     if project is None:
         project = config.default_project
-
-    if tag and untagged:
-        server.api.api.utils.log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="Cannot specify both 'tag' and 'untagged' parameters",
-        )
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
@@ -245,9 +238,6 @@ async def list_functions(
             auth_info,
         )
 
-    # To keep backward compatibility, we set untagged to True if it is not explicitly set
-    untagged = True if untagged is None else untagged
-
     functions, page_info = await paginator.paginate_permission_filtered_request(
         db_session,
         server.api.crud.Functions().list_functions,
@@ -262,7 +252,6 @@ async def list_functions(
         labels=labels,
         hash_key=hash_key,
         format_=format_,
-        untagged=untagged,
     )
 
     return {

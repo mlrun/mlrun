@@ -339,7 +339,6 @@ class DBInterface(ABC):
         format_: str = None,
         page: int = None,
         page_size: int = None,
-        untagged: bool = True,
     ):
         pass
 

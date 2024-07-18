@@ -448,7 +448,7 @@ def test_list_untagged_functions(db: DBInterface, db_session: Session):
     functions = db.list_functions(db_session)
 
     # list only tagged functions
-    tagged_function = db.list_functions(db_session, untagged=False)
+    tagged_function = db.list_functions(db_session, tag="*")
 
     assert len(functions) != len(tagged_function)
 

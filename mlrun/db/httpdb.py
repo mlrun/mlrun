@@ -1253,16 +1253,13 @@ class HTTPRunDB(RunDBInterface):
                     function_name=name,
                 )
 
-    def list_functions(
-        self, name=None, project=None, tag=None, labels=None, untagged=True
-    ):
+    def list_functions(self, name=None, project=None, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags.
         :param labels: Return functions that have specific labels assigned to them.
-        :param untagged: If `False`, return only tagged functions, default is `True`.
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
@@ -1270,7 +1267,6 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "tag": tag,
             "label": labels or [],
-            "untagged": untagged,
         }
         error = "list functions"
         path = f"projects/{project}/functions"

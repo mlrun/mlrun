@@ -65,7 +65,7 @@ def get_workflow_engine(engine_kind, local=False):
     )
 
 
-def generate_text_from_run(run_id, errors_counter, state):
+def generate_text_for_workflow(run_id, errors_counter, state):
     text = f"Workflow {run_id} finished"
     if errors_counter:
         text += f" with {errors_counter} errors"
@@ -649,7 +649,7 @@ class _KFPRunner(_PipelineRunner):
             if r["status"].get("state", "") == "error":
                 errors_counter += 1
 
-        text = generate_text_from_run(run.run_id, errors_counter, run._state)
+        text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
 
         notifiers = notifiers or project.notifiers
         notifiers.push(text, "info", runs)
@@ -941,7 +941,7 @@ class _RemoteRunner(_PipelineRunner):
             if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded:
                 errors_counter = 1
 
-            text = generate_text_from_run(run.run_id, errors_counter, run._state)
+            text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
             return run._state, errors_counter, text
 
         else:

@@ -218,7 +218,12 @@ async def teardown_api():
 
 async def move_api_to_online():
     logger.info("Moving api to online")
-    await initialize_scheduler()
+    if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+        and config.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
+    ):
+        await initialize_scheduler()
 
     # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
@@ -233,16 +238,27 @@ async def move_api_to_online():
         server.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-            _start_periodic_cleanup()
-            _start_periodic_runs_monitoring()
-            _start_periodic_pagination_cache_monitoring()
+            if config.httpdb.clusterization.chief.feature_gates.cleanup == "enabled":
+                _start_periodic_cleanup()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.runs_monitoring
+                == "enabled"
+            ):
+                _start_periodic_runs_monitoring()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.pagination_cache
+                == "enabled"
+            ):
+                _start_periodic_pagination_cache_monitoring()
             if (
                 config.httpdb.clusterization.chief.feature_gates.project_summaries
                 == "enabled"
             ):
                 _start_periodic_project_summaries_calculation()
-            await _start_periodic_logs_collection()
-            await _start_periodic_stop_logs()
+            if config.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
+                await _start_periodic_logs_collection()
+            if config.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
+                await _start_periodic_stop_logs()
 
 
 async def _start_periodic_logs_collection():

@@ -1262,8 +1262,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags.
         :param labels: Return functions that have specific labels assigned to them.
-        :param since: Return functions updated after this date.
-        :param until: Return functions updated before this date.
+        :param since: Return functions updated after this date (as datetime object).
+        :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
@@ -1271,8 +1271,8 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "tag": tag,
             "label": labels or [],
-            "since": since,
-            "until": until,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list functions"
         path = f"projects/{project}/functions"

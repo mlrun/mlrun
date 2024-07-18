@@ -98,8 +98,8 @@ class Functions(
         page: int = None,
         page_size: int = None,
         format_: str = None,
-        since: datetime = None,
-        until: datetime = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:

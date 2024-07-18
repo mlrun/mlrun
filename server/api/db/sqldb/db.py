@@ -1761,12 +1761,14 @@ class SQLDB(DBInterface):
         project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
-            session,
-            name,
-            project,
-            labels,
-            tag,
-            hash_key,
+            session=session,
+            name=name,
+            project=project,
+            labels=labels,
+            tag=tag,
+            hash_key=hash_key,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         ):

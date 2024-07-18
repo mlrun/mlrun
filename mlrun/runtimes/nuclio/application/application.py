@@ -287,7 +287,7 @@ class ApplicationRuntime(RemoteRuntime):
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
         :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
-                                        mlrun.mlconf.force_ssl_redirect()
+                                        mlrun.mlconf.force_api_gateway_ssl_redirect()
 
         :return: True if the function is ready (deployed)
         """

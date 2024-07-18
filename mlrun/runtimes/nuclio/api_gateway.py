@@ -612,7 +612,7 @@ class APIGateway(ModelObj):
         api_gateway = schemas.APIGateway(
             metadata=schemas.APIGatewayMetadata(
                 name=self.metadata.name,
-                labels={},
+                labels=self.metadata.labels,
                 annotations=self.metadata.annotations,
             ),
             spec=schemas.APIGatewaySpec(

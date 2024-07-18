@@ -122,6 +122,12 @@ class TestCollectRunSLogs:
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
     ):
+        # run the loop once to initialize the time window tracker and set it to the current time before completing the
+        # following runs. (this simulates the first ever startup of the server before any runs are created)
+        await server.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
+
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
@@ -181,6 +187,15 @@ class TestCollectRunSLogs:
         client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
+        # change mlrun config so that the old run will be considered as old
+        mlrun.mlconf.runtime_resources_deletion_grace_period = 2
+
+        # run the loop once to initialize the time window tracker and set it to the current time before completing the
+        # following runs. (this simulates the first ever startup of the server before any runs are created)
+        await server.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
+
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"
@@ -218,9 +233,6 @@ class TestCollectRunSLogs:
         )
         assert len(runs) == 2
 
-        # change mlrun config so that the old run will be considered as old
-        mlrun.mlconf.runtime_resources_deletion_grace_period = 2
-
         log_collector_call_mock = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
         )
@@ -253,6 +265,12 @@ class TestCollectRunSLogs:
         client: fastapi.testclient.TestClient,
         monkeypatch,
     ):
+        # run the loop once to initialize the time window tracker and set it to the current time before completing the
+        # following runs. (this simulates the first ever startup of the server before any runs are created)
+        await server.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
+
         log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
 
         project_name = "some-project"

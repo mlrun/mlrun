@@ -65,6 +65,15 @@ def get_workflow_engine(engine_kind, local=False):
     )
 
 
+def generate_text_from_run(run_id, had_errors, state):
+    text = f"Workflow {run_id} finished"
+    if had_errors:
+        text += f" with {had_errors} errors"
+    if state:
+        text += f", state={state}"
+    return text
+
+
 class WorkflowSpec(mlrun.model.ModelObj):
     """workflow spec and helpers"""
 
@@ -640,11 +649,7 @@ class _KFPRunner(_PipelineRunner):
             if r["status"].get("state", "") == "error":
                 had_errors += 1
 
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
+        text = generate_text_from_run(run.run_id, had_errors, run._state)
 
         notifiers = notifiers or project.notifiers
         notifiers.push(text, "info", runs)
@@ -931,6 +936,14 @@ class _RemoteRunner(_PipelineRunner):
                 pipeline_runner_run.status.state
             )
             run._exc = pipeline_runner_run.status.error
+
+            had_errors = (
+                0
+                if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded
+                else 1
+            )
+            text = generate_text_from_run(run.run_id, had_errors, run._state)
+            return run._state, had_errors, text
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

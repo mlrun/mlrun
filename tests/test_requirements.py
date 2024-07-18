@@ -145,6 +145,8 @@ def test_requirement_specifiers_convention():
         "lightgbm": {">=3.0"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "scikit-learn": {"~=1.4.0"},
+        "transformers": {"~=4.31.0"},
+        "torch": {"~=2.1.2"},
     }
 
     for (

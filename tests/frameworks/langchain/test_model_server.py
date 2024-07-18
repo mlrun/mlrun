@@ -46,6 +46,7 @@ def ollama_check_skip():
     return result.returncode != 0
 
 
+@pytest.mark.skipif(ollama_check_skip(), reason="Ollama not installed")
 @pytest.fixture
 def ollama_fixture():
     """

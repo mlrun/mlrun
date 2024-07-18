@@ -510,9 +510,10 @@ class RemoteRuntime(KubeResource):
                 **kwargs,
             ),
         )
-        logger.warning(f"Setting function replicas to {shards}")
-        self.spec.min_replicas = shards
-        self.spec.max_replicas = shards
+        if self.spec.min_replicas != shards or self.spec.max_replicas != shards:
+            logger.warning(f"Setting function replicas to {shards}")
+            self.spec.min_replicas = shards
+            self.spec.max_replicas = shards
 
     def deploy(
         self,

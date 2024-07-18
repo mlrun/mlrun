@@ -157,7 +157,7 @@ class TestAppDeployment:
                 )
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
-                force=True,
+                replace_creds=True,
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
@@ -189,7 +189,7 @@ class TestAppDeployment:
                 endpoint_store_connection=store_connection,
                 stream_path="v3io",
                 tsdb_connection="v3io",
-                force=True,
+                replace_creds=True,
             )
 
             secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()

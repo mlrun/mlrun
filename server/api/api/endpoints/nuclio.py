@@ -506,7 +506,9 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
-            monitoring_deployment.check_if_credentials_are_set()
+            monitoring_deployment.check_if_credentials_are_set(
+                with_upgrade_case_check=True
+            )
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"

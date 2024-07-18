@@ -236,7 +236,11 @@ async def move_api_to_online():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
             _start_periodic_pagination_cache_monitoring()
-            _start_periodic_project_summaries_calculation()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.project_summaries
+                == "enabled"
+            ):
+                _start_periodic_project_summaries_calculation()
             await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 

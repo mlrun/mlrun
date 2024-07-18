@@ -520,7 +520,7 @@ class DBInterface(ABC):
         pass
 
     def get_project_summary(
-        self, session, project: str
+        self, session, project: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 

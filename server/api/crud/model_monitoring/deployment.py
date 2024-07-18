@@ -1074,7 +1074,7 @@ class MonitoringDeployment:
         if mm_enabled and None in credentials_dict.values():
             self.set_credentials(
                 _default_secrets_v3io="v3io",
-                force=True,
+                replace_creds=True,
             )
         return mm_enabled
 

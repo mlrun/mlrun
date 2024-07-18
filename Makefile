@@ -33,7 +33,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 23.2.1
+MLRUN_PIP_VERSION ?= 24.1
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build

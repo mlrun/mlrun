@@ -65,7 +65,7 @@ RUN conda install -y -n base conda-libmamba-solver && \
     conda config --set solver libmamba && \
     conda clean -aqy
 
-ARG MLRUN_PIP_VERSION=23.2.1
+ARG MLRUN_PIP_VERSION=24.1
 RUN conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

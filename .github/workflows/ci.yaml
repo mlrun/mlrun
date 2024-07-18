@@ -47,7 +47,7 @@ jobs:
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=23.2.1
+        python -m pip install --upgrade pip~=24.1
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint

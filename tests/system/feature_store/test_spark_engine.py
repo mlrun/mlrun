@@ -1529,6 +1529,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target.as_df()
         target.purge()
 
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
     def test_hdfs_wrong_credentials(self):
         host = os.environ.pop("HDFS_HOST")
         try:
@@ -1548,6 +1554,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         finally:
             os.environ["HDFS_HOST"] = host
 
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
     def test_hdfs_empty_credentials(self):
         host = os.environ.pop("HDFS_HOST")
         port = int(os.environ.pop("HDFS_PORT"))

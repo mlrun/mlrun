@@ -296,8 +296,8 @@ class SQLStoreBase(StoreBase):
                 session.query(self.model_endpoints_table)
                 .options(
                     # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
-                    self.model_endpoints_table.defer(EventFieldType.FEATURE_STATS),
-                    self.model_endpoints_table.defer(EventFieldType.CURRENT_STATS),
+                    sqlalchemy.orm.defer(EventFieldType.FEATURE_STATS),
+                    sqlalchemy.orm.defer(EventFieldType.CURRENT_STATS),
                 )
                 .filter_by(project=self.project)
             )

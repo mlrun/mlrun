@@ -1755,16 +1755,20 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
+        since: datetime = None,
+        until: datetime = None,
     ) -> list[dict]:
         project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
-            session,
-            name,
-            project,
-            labels,
-            tag,
-            hash_key,
+            session=session,
+            name=name,
+            project=project,
+            labels=labels,
+            tag=tag,
+            hash_key=hash_key,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         ):
@@ -4504,9 +4508,25 @@ class SQLDB(DBInterface):
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
+        since: datetime = None,
+        until: datetime = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
+        """
+        Query functions from the DB by the given filters.
+
+        :param session: The DB session.
+        :param name: The name of the function to query.
+        :param project: The project of the function to query.
+        :param labels: The labels of the function to query.
+        :param tag: The tag of the function to query.
+        :param hash_key: The hash key of the function to query.
+        :param since: Filter functions that were updated after this time
+        :param until: Filter functions that were updated before this time
+        :param page: The page number to query.
+        :param page_size: The page size to query.
+        """
         query = session.query(Function, Function.Tag.name)
         query = query.filter(Function.project == project)
 
@@ -4515,6 +4535,13 @@ class SQLDB(DBInterface):
 
         if hash_key is not None:
             query = query.filter(Function.uid == hash_key)
+
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(
+                and_(Function.updated >= since, Function.updated <= until)
+            )
 
         if not tag:
             # If no tag is given, we need to outer join to get all functions, even if they don't have tags.

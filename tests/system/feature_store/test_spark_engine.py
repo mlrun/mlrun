@@ -1529,6 +1529,59 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target.as_df()
         target.purge()
 
+    def test_hdfs_wrong_credentials(self):
+        host = os.environ.pop("HDFS_HOST")
+        try:
+            datastore_profile = DatastoreProfileHdfs(
+                name="my-hdfs",
+                host="localhost",
+                port=int(os.getenv("HDFS_PORT")),
+                http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            )
+            register_temporary_client_datastore_profile(datastore_profile)
+            self.project.register_datastore_profile(datastore_profile)
+            target = ParquetTarget(
+                "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+            )
+            with pytest.raises(ConnectionError):
+                target.purge()
+        finally:
+            os.environ["HDFS_HOST"] = host
+
+    def test_hdfs_empty_credentials(self):
+        host = os.environ.pop("HDFS_HOST")
+        port = int(os.environ.pop("HDFS_PORT"))
+        http_port = int(os.environ.pop("HDFS_HTTP_PORT"))
+        try:
+            datastore_profile = DatastoreProfileHdfs(
+                name="my-hdfs",
+            )
+            register_temporary_client_datastore_profile(datastore_profile)
+            self.project.register_datastore_profile(datastore_profile)
+            target = ParquetTarget(
+                "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+            )
+            with pytest.raises(ValueError):
+                target.purge()
+
+            datastore_profile = DatastoreProfileHdfs(
+                name="my-hdfs",
+                port=port,
+                http_port=http_port,
+            )
+            register_temporary_client_datastore_profile(datastore_profile)
+            self.project.register_datastore_profile(datastore_profile)
+            target = ParquetTarget(
+                "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+            )
+            with pytest.raises(ConnectionError):
+                target.purge()
+        finally:
+            os.environ["HDFS_HOST"] = host
+            #  change back to str
+            os.environ["HDFS_PORT"] = str(port)
+            os.environ["HDFS_HTTP_PORT"] = str(http_port)
+
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):
         key = "patient_id"

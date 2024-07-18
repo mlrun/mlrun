@@ -95,6 +95,7 @@ from server.api.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    TimeWindowTracker,
     User,
     _labeled,
     _tagged,
@@ -5739,6 +5740,39 @@ class SQLDB(DBInterface):
         key: str,
     ):
         self._delete(session, PaginationCache, key=key)
+
+    def store_time_window_tracker_record(
+        self,
+        session: Session,
+        key: str,
+        timestamp: typing.Optional[datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self.get_time_window_tracker_record(
+            session, key=key, raise_on_not_found=False
+        )
+        if not time_window_tracker_record:
+            time_window_tracker_record = TimeWindowTracker(key=key)
+
+        if timestamp:
+            time_window_tracker_record.timestamp = timestamp
+        if max_window_size_seconds:
+            time_window_tracker_record.max_window_size_seconds = max_window_size_seconds
+
+        self._upsert(session, [time_window_tracker_record])
+        return time_window_tracker_record
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self._query(
+            session, TimeWindowTracker, key=key
+        ).one_or_none()
+        if not time_window_tracker_record and raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Time window tracker record not found: key={key}"
+            )
+        return time_window_tracker_record
 
     # ---- Utils ----
     def delete_table_records(

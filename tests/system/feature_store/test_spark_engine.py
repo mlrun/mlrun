@@ -1524,6 +1524,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp_df.reset_index(drop=True, inplace=True)
         pd.testing.assert_frame_equal(resp_df[["bad", "department"]], expected_df)
+        target.purge()
+        with pytest.raises(FileNotFoundError):
+            target.as_df()
+        target.purge()
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):

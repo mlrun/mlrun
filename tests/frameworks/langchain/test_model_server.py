@@ -21,7 +21,9 @@ import pytest
 
 import mlrun
 
-langchain_model_server_path = "mlrun/frameworks/langchain/model_server.py"
+langchain_model_server_path = os.path.abspath(
+    "../../../mlrun/frameworks/langchain/model_server.py"
+)
 
 #: if true, delete the model after the test
 _OLLAMA_DELETE_MODEL_POST_TEST = False
@@ -46,8 +48,8 @@ def ollama_check_skip():
     return result.returncode != 0
 
 
-@pytest.mark.skipif(ollama_check_skip(), reason="Ollama not installed")
 @pytest.fixture
+@pytest.mark.skipif(ollama_check_skip(), reason="Ollama not installed")
 def ollama_fixture():
     """
     Do the setup and cleanup for the ollama test

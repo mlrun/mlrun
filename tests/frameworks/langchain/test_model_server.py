@@ -16,14 +16,13 @@ import asyncio
 import os
 import subprocess
 from subprocess import PIPE, Popen
-
+import pathlib
 import pytest
 
 import mlrun
+relative_asset_path = "mlrun/frameworks/langchain/model_server.py"
+langchain_model_server_path = str(pathlib.Path(__file__).absolute().parent.parent.parent.parent / relative_asset_path)
 
-langchain_model_server_path = os.path.abspath(
-    "../../../mlrun/frameworks/langchain/model_server.py"
-)
 
 #: if true, delete the model after the test
 _OLLAMA_DELETE_MODEL_POST_TEST = False
@@ -44,16 +43,14 @@ def ollama_check_skip():
         result = subprocess.run(["ollama", "--help"], stdout=PIPE)
     except Exception as e:
         print(f"Error checking ollama: {e}")
-        return 0
+        return True
     return result.returncode != 0
 
 
 @pytest.fixture
-@pytest.mark.skipif(ollama_check_skip(), reason="Ollama not installed")
 def ollama_fixture():
     """
     Do the setup and cleanup for the ollama test
-    :return:
     """
     # pull or make sure the model is available
     subprocess.run(["ollama", "pull", _OLLAMA_MODEL], stdout=PIPE)

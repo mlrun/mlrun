@@ -3205,7 +3205,7 @@ class MlrunProject(ModelObj):
         endpoint_store_connection: Optional[str] = None,
         stream_path: Optional[str] = None,
         tsdb_connection: Optional[str] = None,
-        force: bool = False,
+        replace_creds: bool = False,
     ):
         """
         Set the credentials that will be used by the project's model monitoring
@@ -3235,7 +3235,7 @@ class MlrunProject(ModelObj):
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
-        :param force:                     If True, will override the existing credentials.
+        :param replace_creds:                     If True, will override the existing credentials.
                                           Please keep in mind that if you already enabled model monitoring on
                                           your project this action can cause data loose and will require redeploying
                                           all model monitoring functions & model monitoring infra
@@ -3250,9 +3250,9 @@ class MlrunProject(ModelObj):
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
             },
-            force=force,
+            replace_creds=replace_creds,
         )
-        if force:
+        if replace_creds:
             logger.info(
                 "Model monitoring credentials were set successfully. "
                 "Please keep in mind that if you already had model monitoring functions "

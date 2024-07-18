@@ -3546,19 +3546,19 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
-        force: bool,
+        replace_creds: bool,
     ) -> None:
         """
         Set the credentials for the model monitoring application.
 
         :param project:     Project name.
         :param credentials: Credentials to set.
-        :param force:       If True, will override the existing credentials.
+        :param replace_creds:       If True, will override the existing credentials.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
-            params={**credentials, "force": force},
+            params={**credentials, "replace_creds": replace_creds},
         )
 
     def create_hub_source(

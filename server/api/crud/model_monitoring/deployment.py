@@ -1078,7 +1078,7 @@ class MonitoringDeployment:
         endpoint_store_connection: typing.Optional[str] = None,
         stream_path: typing.Optional[str] = None,
         tsdb_connection: typing.Optional[str] = None,
-        force: bool = False,
+        replace_creds: bool = False,
         _default_secrets_v3io: typing.Optional[str] = None,
     ) -> None:
         """
@@ -1107,14 +1107,14 @@ class MonitoringDeployment:
                                              pass `v3io` and the system will generate the exact path.
                                           3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                              for example taosws://<username>:<password>@<host>:<port>.
-        :param force:                     If True, the credentials will be set even if they are already set.
+        :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
         """
-        if not force:
+        if not replace_creds:
             try:
                 self.check_if_credentials_are_set()
                 if self._is_the_same_cred(

@@ -296,7 +296,7 @@ def set_model_monitoring_credentials(
     endpoint_store_connection: Optional[str] = None,
     stream_path: Optional[str] = None,
     tsdb_connection: Optional[str] = None,
-    force: bool = False,
+    replace_creds: bool = False,
 ) -> None:
     """
     Set the credentials that will be used by the project's model monitoring
@@ -326,7 +326,7 @@ def set_model_monitoring_credentials(
                                          pass `v3io` and the system will generate the exact path.
                                       3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
                                          for example taosws://<username>:<password>@<host>:<port>.
-    :param force:                     If True, it will force the credentials update. By default, False.
+    :param replace_creds:             If True, it will force the credentials update. By default, False.
     """
     MonitoringDeployment(
         project=commons.project,
@@ -338,5 +338,5 @@ def set_model_monitoring_credentials(
         endpoint_store_connection=endpoint_store_connection,
         stream_path=stream_path,
         tsdb_connection=tsdb_connection,
-        force=force,
+        replace_creds=replace_creds,
     )

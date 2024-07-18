@@ -1444,20 +1444,22 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     # ML-5726
     @pytest.mark.skipif(
-        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()),
-        reason="HDFS host and ports are not defined",
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
     )
     def test_ingest_and_get_offline_features_with_hdfs(self):
         key = "patient_id"
 
-        register_temporary_client_datastore_profile(
-            DatastoreProfileHdfs(
-                name="my-hdfs",
-                host=os.getenv("HDFS_HOST"),
-                port=int(os.getenv("HDFS_PORT")),
-                http_port=int(os.getenv("HDFS_HTTP_PORT")),
-            )
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
         )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
 
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1467,10 +1469,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         self.set_targets(measurements)
+        run_config = fstore.RunConfig(
+            local=self.run_local,
+            kind="remote-spark",
+            extra_spec={
+                "spec": {
+                    "env": [
+                        {
+                            "name": "HADOOP_USER_NAME",
+                            "value": os.environ["HADOOP_USER_NAME"],
+                        }
+                    ]
+                }
+            },
+        )
         measurements.ingest(
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=run_config,
         )
         assert measurements.status.targets[0].run_id is not None
         fv_name = "measurements-fv"
@@ -1492,7 +1508,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+            run_config=run_config,
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()

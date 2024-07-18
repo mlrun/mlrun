@@ -338,6 +338,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
+        # ML-6594
+        assert not endpoint.status.feature_stats
+
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint, model_name=model_name, tag=tag, labels=labels
         )
@@ -1183,7 +1186,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=cls.project_name
+            project=cls.project_name,
+            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
 
         df: pd.DataFrame = tsdb_client._get_records(

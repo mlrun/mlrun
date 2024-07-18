@@ -358,15 +358,19 @@ def unmask_notification_params_secret(
             "Not running in k8s environment, cannot load notification params secret"
         )
 
-    notification_object.secret_params = json.loads(
-        server.api.crud.Secrets().get_project_secret(
-            project,
-            mlrun.common.schemas.SecretProviderName.kubernetes,
-            secret_key=params_secret,
-            allow_internal_secrets=True,
-            allow_secrets_from_k8s=True,
-        )
+    secret = server.api.crud.Secrets().get_project_secret(
+        project,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        secret_key=params_secret,
+        allow_internal_secrets=True,
+        allow_secrets_from_k8s=True,
     )
+
+    if secret is None:
+        # we don't want to provide a message that is too detailed due to security considerations here
+        raise mlrun.errors.MLRunPreconditionFailedError()
+
+    notification_object.secret_params = json.loads(secret)
 
     return notification_object
 

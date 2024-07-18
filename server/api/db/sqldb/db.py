@@ -2483,13 +2483,19 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
+        objects_to_upsert = [project_record]
 
-        project_summary = ProjectSummary(
-            project=project.metadata.name,
-            summary=collections.defaultdict(int),
-            updated=datetime.now(timezone.utc),
+        project_summary = self.get_project_summary(
+            session, project_record.name, raise_on_not_found=False
         )
-        self._upsert(session, [project_record, project_summary])
+        if not project_summary:
+            project_summary = ProjectSummary(
+                project=project.metadata.name,
+                summary=collections.defaultdict(int),
+                updated=datetime.now(timezone.utc),
+            )
+            objects_to_upsert.append(project_summary)
+        self._upsert(session, objects_to_upsert)
 
     @retry_on_conflict
     def store_project(
@@ -2600,14 +2606,16 @@ class SQLDB(DBInterface):
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     def get_project_summary(
-        self, session, project: str
-    ) -> mlrun.common.schemas.ProjectSummary:
+        self, session, project: str, raise_on_not_found: bool = True,
+    ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,
             ProjectSummary,
             project=project,
         ).one_or_none()
         if not project_summary_record:
+            if not raise_on_not_found:
+                return None
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project summary not found: {project=}"
             )

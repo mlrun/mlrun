@@ -1055,7 +1055,7 @@ class Config:
             resource_requirement.pop(gpu)
         return resource_requirement
 
-    def force_ssl_redirect(self):
+    def force_api_gateway_ssl_redirect(self):
         """
         Get the default value for the ssl_redirect configuration.
         In Iguazio we always want to redirect to HTTPS, in other cases we don't.

@@ -286,8 +286,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
-        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Default is determined by
-                                        mlrun configuration
+        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
+                                        mlrun.mlconf.force_ssl_redirect()
 
         :return: True if the function is ready (deployed)
         """
@@ -384,7 +384,7 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         if ssl_redirect is None:
-            ssl_redirect = mlrun.mlconf.force_ssl_redirect()
+            ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
         if ssl_redirect:
             # force ssl redirect so that the application is only accessible via https
             api_gateway.with_force_ssl_redirect()

@@ -937,11 +937,10 @@ class _RemoteRunner(_PipelineRunner):
             )
             run._exc = pipeline_runner_run.status.error
 
-            had_errors = (
-                0
-                if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded
-                else 1
-            )
+            had_errors = 0
+            if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded:
+                had_errors = 1
+
             text = generate_text_from_run(run.run_id, had_errors, run._state)
             return run._state, had_errors, text
 

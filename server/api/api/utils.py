@@ -1117,7 +1117,7 @@ def get_or_create_project_deletion_background_task(
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
-        if not mlrun.mlconf.is_ce_mode():
+        if igz_version:
             # Due to backwards compatibility reasons, the model monitoring access key should be retrieved before the
             # project deletion. his key will be used to delete the model monitoring resources associated with the
             # project.

@@ -2489,9 +2489,12 @@ class SQLDB(DBInterface):
             session, project_record.name, raise_on_not_found=False
         )
         if not project_summary:
+            summary = mlrun.common.schemas.ProjectSummary(
+                name=project.metadata.name,
+            )
             project_summary = ProjectSummary(
                 project=project.metadata.name,
-                summary=collections.defaultdict(int),
+                summary=summary.dict(),
                 updated=datetime.now(timezone.utc),
             )
             objects_to_upsert.append(project_summary)

@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import datetime
+
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -96,6 +98,8 @@ class Functions(
         page: int = None,
         page_size: int = None,
         format_: str = None,
+        since: datetime = None,
+        until: datetime = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -108,6 +112,8 @@ class Functions(
             labels=labels,
             hash_key=hash_key,
             format_=format_,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         )

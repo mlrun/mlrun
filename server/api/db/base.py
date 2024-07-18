@@ -339,6 +339,8 @@ class DBInterface(ABC):
         format_: str = None,
         page: int = None,
         page_size: int = None,
+        since: datetime = None,
+        until: datetime = None,
     ):
         pass
 

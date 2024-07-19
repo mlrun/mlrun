@@ -160,6 +160,7 @@ def make_kaniko_pod(
     extra_args="",
     extra_labels=None,
     project_secrets=None,
+    project_default_fucntion_node_selector=None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -180,6 +181,15 @@ def make_kaniko_pod(
                 runtime_spec.validate_service_account(allowed_service_accounts)
             else:
                 attr_value = default_service_account
+
+        if attribute == "node_selector":
+            attr_value = mlrun.utils.to_non_empty_values_dict(
+                mlrun.utils.helpers.merge_with_precedence(
+                    mlrun.mlconf.get_default_function_node_selector(),
+                    project_default_fucntion_node_selector,
+                    attr_value,
+                )
+            )
 
         if not attr_value:
             continue
@@ -400,6 +410,14 @@ def build_image(
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
 
+    project_default_function_node_selector = {}
+    if runtime and runtime._get_db():
+        project_obj = runtime._get_db().get_project(runtime.metadata.project)
+        if project_obj:
+            project_default_function_node_selector = (
+                project_obj.spec.default_function_node_selector
+            )
+
     extra_args = extra_args or {}
     builder_env = builder_env or {}
 
@@ -534,6 +552,7 @@ def build_image(
             mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
+        project_default_fucntion_node_selector=project_default_function_node_selector,
     )
 
     if to_mount:

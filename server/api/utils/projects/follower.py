@@ -49,11 +49,9 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._should_sync = (
+        self._is_chief = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
-            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
-            == "enabled"
         )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
@@ -74,7 +72,7 @@ class Member(
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        if self._should_sync:
+        if self._is_chief:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
                 # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
@@ -91,7 +89,7 @@ class Member(
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
-        if self._should_sync:
+        if self._is_chief:
             self._stop_periodic_sync()
 
     def create_project(

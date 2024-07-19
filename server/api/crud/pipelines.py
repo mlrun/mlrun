@@ -295,7 +295,6 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
     ) -> list[dict]:
         formatted_runs = []
-        logger.debug("Formatting pipeline runs", runs_len=len(runs), format=format_)
         for run in runs:
             formatted_runs.append(self._format_run(run, format_))
         return formatted_runs

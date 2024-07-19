@@ -298,8 +298,6 @@ class Projects(
     async def refresh_project_resources_counters_cache(
         self, session: sqlalchemy.orm.Session
     ):
-        logger.debug("Recalculating project resources counters cache")
-
         start_time = time.perf_counter_ns()
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
@@ -373,10 +371,6 @@ class Projects(
             server.api.utils.singletons.db.get_db().refresh_project_summaries,
             session,
             project_summaries,
-        )
-        logger.debug(
-            "Project resources counters cache refreshed",
-            elapsed_time=time.perf_counter_ns() - start_time,
         )
 
     @staticmethod

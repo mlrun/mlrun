@@ -298,7 +298,6 @@ class Projects(
     async def refresh_project_resources_counters_cache(
         self, session: sqlalchemy.orm.Session
     ):
-        start_time = time.perf_counter_ns()
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
             session,

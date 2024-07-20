@@ -150,11 +150,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not _continue:
                 break
 
-            logger.debug(
-                "Getting next pods",
-                remaining_item_count=pods_list.metadata.remaining_item_count,
-            )
-
     @raise_for_status_code
     def list_crds_paginated(
         self,

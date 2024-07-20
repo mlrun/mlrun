@@ -87,6 +87,9 @@ class Member(
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+    def start(self):
+        if self._should_sync:
             self._start_periodic_sync()
 
     def shutdown(self):

@@ -218,6 +218,7 @@ async def list_functions(
 ):
     if project is None:
         project = config.default_project
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,

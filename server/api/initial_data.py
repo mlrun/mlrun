@@ -39,7 +39,6 @@ import server.api.utils.db.mysql
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
-from mlrun.model_monitoring import get_store_object
 from mlrun.utils import (
     is_legacy_artifact,
     is_link_artifact,
@@ -219,17 +218,6 @@ def _is_latest_data_version():
     return current_data_version == latest_data_version
 
 
-def _perform_version_7_data_migrations():
-    store_connection_string = mlrun.mlconf.model_monitoring.store_connection_string
-    if store_connection_string and not store_connection_string.start_with("v3io"):
-        store_connector: mlrun.model_monitoring.db.StoreBase = get_store_object(
-            project=mlrun.mlconf.default_project,
-            store_connection_string=mlrun.mlconf.model_monitoring.store_connection_string,
-        )
-
-        store_connector.create_tables()
-
-
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
         db = server.api.db.sqldb.db.SQLDB()
@@ -255,9 +243,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_5_data_migrations(db, db_session)
             if current_data_version < 6:
                 _perform_version_6_data_migrations(db, db_session)
-            if current_data_version < 7:
-                # Initialize MM tables on external sql server
-                _perform_version_7_data_migrations()
             db.create_data_version(db_session, str(latest_data_version))
 
 

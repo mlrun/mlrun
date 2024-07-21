@@ -574,7 +574,7 @@ class ModelEndpoints:
                     )
                 )
             except mlrun.errors.MLRunInvalidMMStoreType:
-                # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
+                # TODO: delete in 1.9.0 - for BC trying to delete from config/v3io store
                 endpoint_store = mlrun.model_monitoring.get_store_object(
                     project=project_name,
                     store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection

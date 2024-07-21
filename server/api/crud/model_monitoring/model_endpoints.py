@@ -317,8 +317,8 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = (
-            server.api.crud.ModelEndpoints()._get_store_object(project=project)
+        model_endpoint_store = server.api.crud.ModelEndpoints()._get_store_object(
+            project=project
         )
         if model_endpoint_store:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)

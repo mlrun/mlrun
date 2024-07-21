@@ -75,11 +75,9 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            if (
-                mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.common.schemas.ClusterizationRole.chief
-            ):
-                self._reload_schedules(db_session)
+            await fastapi.concurrency.run_in_threadpool(
+                self._reload_schedules, db_session
+            )
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 

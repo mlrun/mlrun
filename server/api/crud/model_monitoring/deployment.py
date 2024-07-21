@@ -1140,7 +1140,7 @@ class MonitoringDeployment:
                     return
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "
-                    f"please set force=True"
+                    f"please set replace_creds=True"
                 )
             except mlrun.errors.MLRunBadRequestError:
                 # the credentials are not set
@@ -1149,7 +1149,7 @@ class MonitoringDeployment:
             if self._set_credentials_after_server_upgrade():
                 raise mlrun.errors.MLRunConflictError(
                     f"For {self.project} the credentials are already set, if you want to set new credentials, "
-                    f"please set force=True"
+                    f"please set replace_creds=True"
                 )
 
         secrets_dict = {}

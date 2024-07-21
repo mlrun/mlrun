@@ -63,7 +63,11 @@ from server.api.utils.singletons.project_member import (
     get_project_member,
     initialize_project_member,
 )
-from server.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
+from server.api.utils.singletons.scheduler import (
+    ensure_scheduler,
+    get_scheduler,
+    start_scheduler,
+)
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
@@ -211,17 +215,23 @@ async def teardown_api():
 
 async def move_api_to_online():
     logger.info("Moving api to online")
+
+    # scheduler is needed on both workers and chief
+    # on workers - it allows to us to list/get scheduler(s)
+    # on chief - it allows to us to create/update/delete schedule(s)
+    ensure_scheduler()
     if (
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
         and config.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
     ):
-        await initialize_scheduler()
+        await start_scheduler()
 
     # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
-    initialize_project_member()
+    await fastapi.concurrency.run_in_threadpool(initialize_project_member)
+    get_project_member().start()
 
     # maintenance periodic functions should only run on the chief instance
     if (

@@ -215,7 +215,11 @@ class DataStore:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "When providing start_time or end_time, must provide time_column"
                 )
-            if start_time and end_time and start_time.utcoffset() != end_time.utcoffset():
+            if (
+                start_time
+                and end_time
+                and start_time.utcoffset() != end_time.utcoffset()
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "start_time and end_time must have the same time zone"
                 )

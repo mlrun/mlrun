@@ -1496,7 +1496,8 @@ class RunObject(RunTemplate):
 
         This method waits for the outputs to complete and retrieves the value corresponding to the provided key.
         If the key exists in the results, it returns the corresponding result value.
-        If not found in results, it attempts to find and return the artifact URI corresponding to the key.
+        If not found in results, it attempts to fetch the artifact by key.
+        If the artifact is not found, it tries to fetch the artifact URI by key.
         If no artifact or result is found for the key, returns None.
 
         :param key: The key of the result or artifact to retrieve.
@@ -1595,19 +1596,39 @@ class RunObject(RunTemplate):
             )
 
     def _artifact(self, key):
-        """Return artifact DataItem by key."""
+        """
+        Return the last artifact DataItem that matches the given key.
+
+        If multiple artifacts with the same key exist, return the last one in the list.
+        If there are artifacts with different tags, the method will return the one with a tag other than 'latest'
+        if available.
+        If no artifact with the given key is found, return None.
+
+        :param key: The key of the artifact to retrieve.
+        :return: The last artifact DataItem with the given key, or None if no such artifact is found.
+        """
         if not self.status.artifacts:
             return None
 
-        # Find the first artifact that matches the given or None if no such artifact is found
-        return next(
-            (
-                artifact
-                for artifact in self.status.artifacts
-                if artifact["metadata"]["key"] == key
-            ),
-            None,
-        )
+        # Collect artifacts that match the key
+        matching_artifacts = [
+            artifact
+            for artifact in self.status.artifacts
+            if artifact["metadata"].get("key") == key
+        ]
+
+        if not matching_artifacts:
+            return None
+
+        # Filter out artifacts with 'latest' tag
+        non_latest_artifacts = [
+            artifact
+            for artifact in matching_artifacts
+            if artifact["metadata"].get("tag") != "latest"
+        ]
+
+        # Return the last non-'latest' artifact if available, otherwise return the last artifact
+        return (non_latest_artifacts or matching_artifacts)[-1]
 
     def uid(self):
         """run unique id"""

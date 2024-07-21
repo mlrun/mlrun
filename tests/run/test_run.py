@@ -367,3 +367,19 @@ def test_verify_run_output_uri(setup_project, params, expected):
     # Verify that the expected tag exists in the URI
     assert expected in output_uri
     assert expected in outputs_uri
+
+
+def test_verify_tag_in_output_for_relogged_artifact():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        func=function_path,
+        handler="log_artifact_many_tags",
+        name="test",
+        image="mlrun/mlrun",
+    )
+    run = project.run_function("test", local=True)
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    assert "v3" in output_uri, "Expected 'v3' tag in output_uri"
+    assert "v3" in outputs_uri, "Expected 'v3' tag in outputs_uri"

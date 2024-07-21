@@ -38,6 +38,13 @@ def env_file_test(context: mlrun.MLClientCtx):
     context.log_result("kfp_ttl", mlrun.mlconf.kfp_ttl)
 
 
+def log_artifact_many_tags(context: mlrun.MLClientCtx):
+    body = b"abc123"
+    context.log_artifact("file_result", body=body, tag="v1")
+    context.log_artifact("file_result", body=body, tag="v2")
+    context.log_artifact("file_result", body=body, tag="v3")
+
+
 class MyCls:
     def __init__(self, context=None, a1=1):
         self.context = context

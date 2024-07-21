@@ -380,21 +380,30 @@ class ModelEndpoints:
                     project=project
                 )
             )
-
         except mlrun.errors.MLRunInvalidMMStoreType:
             # TODO: delete in 1.9.0 - for BC trying get the mep from v3io store
+            store_connection_string = (
+                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or "v3io"
+                if mlrun.mlconf.is_ce_mode()
+                else None
+            )
             logger.debug(
                 "Failed to get model endpoint because store connection is not defined."
                 " Trying use v3io."
             )
-            model_endpoint_store = mlrun.model_monitoring.get_store_object(
-                project=project,
-                store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or "v3io",
+            if store_connection_string:
+                model_endpoint_store = mlrun.model_monitoring.get_store_object(
+                    project=project, store_connection_string=store_connection_string
+                )
+            else:
+                model_endpoint_store = None
+        if model_endpoint_store:
+            model_endpoint_record = model_endpoint_store.get_model_endpoint(
+                endpoint_id=endpoint_id,
             )
-        model_endpoint_record = model_endpoint_store.get_model_endpoint(
-            endpoint_id=endpoint_id,
-        )
+        else:
+            raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # Convert to `ModelEndpoint` object
         model_endpoint_object = self._convert_into_model_endpoint_object(
@@ -484,23 +493,33 @@ class ModelEndpoints:
             )
         except mlrun.errors.MLRunInvalidMMStoreType:
             # TODO: delete in 1.9.0 - for BC trying list the meps from v3io store
+            store_connection_string = (
+                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or "v3io"
+                if mlrun.mlconf.is_ce_mode()
+                else None
+            )
             logger.debug(
                 "Failed to list model endpoints because store connection is not defined."
                 " Trying use v3io."
             )
-            endpoint_store = mlrun.model_monitoring.get_store_object(
-                project=project,
-                store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or "v3io",
-            )
+            if store_connection_string:
+                endpoint_store = mlrun.model_monitoring.get_store_object(
+                    project=project, store_connection_string=store_connection_string
+                )
+            else:
+                endpoint_store = None
 
-        endpoint_dictionary_list = endpoint_store.list_model_endpoints(
-            function=function,
-            model=model,
-            labels=labels,
-            top_level=top_level,
-            uids=uids,
-        )
+        if endpoint_store:
+            endpoint_dictionary_list = endpoint_store.list_model_endpoints(
+                function=function,
+                model=model,
+                labels=labels,
+                top_level=top_level,
+                uids=uids,
+            )
+        else:
+            endpoint_dictionary_list = []
 
         for endpoint_dict in endpoint_dictionary_list:
             # Convert to `ModelEndpoint` object

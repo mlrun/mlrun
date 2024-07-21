@@ -64,14 +64,12 @@ async def ingest(
     collection: str,
     loader: str,
     path: str,
-    metadata: Tuple[str, str] = None,
+    metadata: dict = None,
     version: str = None,
     from_file: bool = False,
 ):
     """Ingest documents into the vector database"""
     data_loader = get_data_loader(config, client=client, collection_name=collection)
-    if metadata:
-        metadata = {metadata[0]: metadata[1]}
     if from_file:
         with open(path, "r") as fp:
             lines = fp.readlines()

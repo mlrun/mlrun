@@ -318,6 +318,10 @@ Modify the priority for an ML function by pressing **ML functions**, then **<img
 of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 
 ## Node selection
+
+```{admonition} Note
+Requires Nuclio v1.13.5 or higher.
+```
 Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced 
 parameter mainly used in production deployments to isolate platform services from workloads. Node selection can be specified in the MLRun 
 and in the Nuclio service level, at the function level, and at the project level. Configurations defined at the function level take 

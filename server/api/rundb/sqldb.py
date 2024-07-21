@@ -324,7 +324,9 @@ class SQLRunDB(RunDBInterface):
             name,
         )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None, since=None, until=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         return self._transform_db_error(
             server.api.crud.Functions().list_functions,
             db_session=self.session,

@@ -725,7 +725,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
             warnings.warn(
                 f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported in version 1.9.0."
+                "This behavior is deprecated and will not be supported from version 1.9.0."
             )
             logger.warn(error_message)
         elif allow_cross_project:

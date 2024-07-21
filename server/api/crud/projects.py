@@ -207,7 +207,7 @@ class Projects(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return server.api.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(

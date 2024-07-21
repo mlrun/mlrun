@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+import time
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -401,6 +404,51 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     assert (
         len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
     )
+
+
+def test_list_artifacts_with_time_filters(db: DBInterface, db_session: Session):
+    function_1 = _generate_function("function-name-1")
+    function_2 = _generate_function("function-name-2")
+    function_3 = _generate_function("function-name-3")
+
+    for function in [function_1, function_2, function_3]:
+        db.store_function(
+            db_session, function.to_dict(), function.metadata.name, versioned=True
+        )
+        time.sleep(1)
+
+    # Verifying that the time filters are working:
+    # No Filters
+    all_functions = db.list_functions(db_session)
+    assert len(all_functions) == 3
+
+    # extract the updated time of the functions
+    function_times = [
+        function["metadata"]["updated"]
+        for function in sorted(all_functions, key=lambda x: x["metadata"]["updated"])
+    ]
+
+    # Since only
+    functions = db.list_functions(db_session, since=function_times[1])
+    assert len(functions) == 2
+
+    # Until only
+    functions = db.list_functions(db_session, until=function_times[1])
+    assert len(functions) == 2
+
+    # Since and Until
+    functions = db.list_functions(
+        db_session, since=function_times[0], until=function_times[0]
+    )
+    assert len(functions) == 1
+
+    # Since and Until with no results
+    now = datetime.datetime.now()
+    yesterday = now - datetime.timedelta(days=1)
+    functions = db.list_functions(db_session, until=yesterday)
+    assert len(functions) == 0
+    functions = db.list_functions(db_session, since=now)
+    assert len(functions) == 0
 
 
 def test_list_untagged_functions(db: DBInterface, db_session: Session):

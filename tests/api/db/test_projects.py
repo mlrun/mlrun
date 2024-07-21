@@ -92,14 +92,6 @@ def test_get_project_with_pre_060_record(
     assert updated_record.full_object is not None
 
 
-def _generate_and_insert_pre_060_record(
-    db_session: sqlalchemy.orm.Session, project_name: str
-):
-    pre_060_record = Project(name=project_name)
-    db_session.add(pre_060_record)
-    db_session.commit()
-
-
 def test_list_project(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,
@@ -219,11 +211,13 @@ def test_create_project(
     db_session: sqlalchemy.orm.Session,
 ):
     project = _generate_project()
+    project_summary = _generate_project_summary()
     db.create_project(
         db_session,
         project.copy(deep=True),
     )
     _assert_project(db, db_session, project)
+    _assert_project_summary(db, db_session, project_summary)
 
 
 def test_store_project_creation(
@@ -322,6 +316,17 @@ def test_delete_project(
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_project(db_session, project_name)
 
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_project_summary(db_session, project_name)
+
+
+def _generate_and_insert_pre_060_record(
+    db_session: sqlalchemy.orm.Session, project_name: str
+):
+    pre_060_record = Project(name=project_name)
+    db_session.add(pre_060_record)
+    db_session.commit()
+
 
 def _generate_project():
     return mlrun.common.schemas.Project(
@@ -335,6 +340,13 @@ def _generate_project():
         spec=mlrun.common.schemas.ProjectSpec(
             description="some description", owner="owner-name"
         ),
+    )
+
+
+def _generate_project_summary():
+    return mlrun.common.schemas.ProjectSummary(
+        name="project-name",
+        updated=datetime.datetime.utcnow(),
     )
 
 
@@ -354,6 +366,25 @@ def _assert_project(
             expected_project.metadata.labels,
             project_output.metadata.labels,
             ignore_order=True,
+        )
+        == {}
+    )
+
+
+def _assert_project_summary(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+    expected_project_summary: mlrun.common.schemas.ProjectSummary,
+):
+    project_summary_output = db.get_project_summary(
+        db_session, expected_project_summary.name
+    )
+    assert (
+        deepdiff.DeepDiff(
+            expected_project_summary,
+            project_summary_output,
+            ignore_order=True,
+            exclude_paths="root.updated",
         )
         == {}
     )

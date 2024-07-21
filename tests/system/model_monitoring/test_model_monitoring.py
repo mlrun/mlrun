@@ -247,9 +247,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     @pytest.mark.parametrize(
         "with_sql_target",
         [
-            pytest.param(
-                True, marks=pytest.mark.skip(reason="Chronically fails, see ML-5820")
-            ),
+            True,
             False,
         ],
     )
@@ -298,7 +296,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         labels = {"framework": "sklearn", "mylabel": "l1"}
 
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model_obj = project.log_model(
             model_name,
             model_dir=str(self.assets_path),
             model_file="model.pkl",
@@ -338,8 +336,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
-        # ML-6594
-        assert not endpoint.status.feature_stats
+        if not with_sql_target:
+            # ML-6594
+            assert not endpoint.status.feature_stats
 
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint, model_name=model_name, tag=tag, labels=labels
@@ -347,6 +346,18 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Test metrics
         self._assert_model_endpoint_metrics(endpoint=endpoint)
+
+        self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+
+    def _assert_model_uri(
+        self,
+        model_obj: mlrun.artifacts.ModelArtifact,
+        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+    ) -> None:
+        assert (
+            endpoint.spec.model_uri
+            == f"store://models/{model_obj.metadata.project}/{model_obj.key}#{model_obj.iter}@{model_obj.tree}"
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,

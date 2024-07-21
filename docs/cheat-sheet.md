@@ -67,7 +67,7 @@ Docs: [Projects and automation](./projects/project.html)
 
 ### General workflow
 Docs: [Create, save, and use projects](./projects/create-project.html)
-```
+```python
 # Create or load a project
 project = mlrun.get_or_create_project(name="my-project", context="./")
 
@@ -93,7 +93,7 @@ An MLRun project can be backed by a Git repo. Functions consume the repo and pul
 
 #### Pull the repo code once (bake into Docker image)
 
-```
+```python
 project.set_source(source="git://github.com/mlrun/project-archive.git")
 
 fn = project.set_function(
@@ -109,7 +109,7 @@ project.build_function(fn)
 
 #### Pull the repo code at runtime
 
-```
+```python
 project.set_source(
     source="git://github.com/mlrun/project-archive.git", pull_at_runtime=True
 )
@@ -175,7 +175,7 @@ jobs:
 ### Secrets
 Docs: [Working with secrets](./secrets.html)
 
-```
+```python
 # Add secrets to the project
 project.set_secrets(secrets={"AWS_KEY": "111222333"}, provider="kubernetes")
 
@@ -193,7 +193,7 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 
 #### Job
 
-```
+```python
 # Job - run once to completion
 job = project.set_function(
     name="my-job", func="my_job.py", kind="job", image="mlrun/mlrun", handler="handler"
@@ -203,7 +203,7 @@ project.run_function(job)
 
 #### Nuclio
 
-```
+```python
 # Nuclio - generic real-time function to do something when triggered
 nuclio = project.set_function(
     name="my-nuclio",
@@ -217,7 +217,7 @@ project.deploy_function(nuclio)
 
 #### Serving
 
-```
+```python
 # Serving - specialized Nuclio function specifically for model serving
 serving = project.set_function(
     name="my-serving",
@@ -239,7 +239,7 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 
 #### MPIJob (Horovod)
 
-```
+```python
 mpijob = mlrun.code_to_function(
     name="my-mpijob",
     filename="my_mpijob.py",
@@ -253,7 +253,7 @@ mpijob.run()
 
 #### Dask
 
-```
+```python
 dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
@@ -267,7 +267,7 @@ dask.client
 
 #### Spark Operator
 
-```
+```python
 import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
@@ -289,7 +289,7 @@ Docs: [Managing job resources](./runtimes/configuring-job-resources.html)
 
 #### Requests/limits (MEM/CPU/GPU)
 
-```
+```python
 # Requests - lower bound
 fn.with_requests(mem="1G", cpu=1)
 
@@ -299,7 +299,7 @@ fn.with_limits(mem="2G", cpu=2, gpus=1)
 
 #### Scaling and auto-scaling
 
-```
+```python
 # Nuclio/serving scaling
 fn.spec.replicas = 2
 fn.spec.min_replicas = 1
@@ -308,7 +308,7 @@ fn.spec.max_replicas = 4
 
 #### Scale to zero
 
-```
+```python
 # Nuclio/serving scaling
 fn.spec.min_replicas = 0  # zero value is mandatory for scale to zero
 fn.spec.max_replicas = 2
@@ -328,7 +328,7 @@ fn.set_config(
 
 #### Mount persistent storage
 
-```
+```python
 # Mount Iguazio V3IO
 fn.apply(mlrun.mount_v3io())
 
@@ -342,7 +342,7 @@ fn.apply(
 
 #### Pod priority
 
-```
+```python
 fn.with_priority_class(name="igz-workload-medium")
 ```
 
@@ -350,7 +350,7 @@ fn.with_priority_class(name="igz-workload-medium")
 
 Can be configured on the function and the service. See [Node selection](./runtimes/configuring-job-resources.html#node-selection).
 
-```
+```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
 ```
 
@@ -368,7 +368,7 @@ Also, you can explicitly enable the default HTTP trigger creation with:
 If you didn't set this parameter explicitly, the value is taken from [Nuclio platform configuration](https://github.com/nuclio/nuclio/blob/development/docs/tasks/configuring-a-platform.md). 
  Therefore, if you haven't disabled the default HTTP trigger, don't have a custom one, and are unable to invoke the function, we recommend checking the Nuclio platform configuration.
 
-```
+```python
 import nuclio
 
 serve = mlrun.import_function("hub://v2_model_server")
@@ -412,7 +412,7 @@ Docs: [Build function image](./runtimes/image-build.html), [Images and their usa
 
 #### Manually build image
 
-```
+```python
 project.set_function(
     "train_code.py",
     name="trainer",
@@ -436,7 +436,7 @@ project.build_function(
 
 #### Automatically build image
 
-```
+```python
 project.set_function(
     "train_code.py",
     name="trainer",
@@ -457,7 +457,7 @@ Docs: [Running a multi-stage workflow](./concepts/workflow-overview.html)
 
 ### Write a workflow
 
-```
+```python
 # pipeline.py
 from kfp import dsl
 import mlrun
@@ -495,7 +495,7 @@ def pipeline(source_url, label_column):
 
 ### Add workflow to project
 
-```
+```python
 # Functions within the workflow
 project.set_function(
     name="get-data", func="get_data.py", kind="job", image="mlrun/mlrun"
@@ -511,7 +511,7 @@ project.save()
 ### Run workflow
 
 Python SDK
-```
+```python
 run_id = project.run(
     name="main",
     arguments={
@@ -530,7 +530,7 @@ mlrun project --run main \
 
 ### Schedule workflow
 
-```
+```python
 run_id = project.run(
     name="main",
     arguments={
@@ -545,7 +545,7 @@ run_id = project.run(
 ## Logging
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html)
 
-```
+```python
 context.logger.debug(
     message="Debugging info"
 )  # logging all (debug, info, warning, error)
@@ -564,7 +564,7 @@ Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Autom
 
 ### Manual logging
 
-```
+```python
 context.log_result(key="accuracy", value=0.934)
 context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
@@ -593,7 +593,7 @@ log_with_returns_run = my_func.run(
 
 ### Automatic logging
 
-```
+```python
 # Auto logging for ML frameworks
 from mlrun.frameworks.sklearn import apply_mlrun
 
@@ -625,7 +625,7 @@ Docs: [Deploy models and applications](./deployment/index.html)
 
 Docs: [Using built-in model serving classes](./serving/built-in-model-serving.html), [Build your own model serving class](./serving/custom-model-serving-class.html), [Model serving API](./serving/model-api.html)
 
-```
+```python
 serve = mlrun.import_function("hub://v2_model_server")
 serve.add_model(
     key="iris", model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl"
@@ -642,7 +642,7 @@ addr = serve.deploy()
 
 Docs: [Batch inference](./deployment/batch_inference.html)
 
-```
+```python
 batch_inference = mlrun.import_function("hub://batch_inference")
 batch_run = project.run_function(
     batch_inference,
@@ -656,7 +656,7 @@ Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html)
 
 ### Real-time drift detection
 
-```
+```python
 # Log the model with training set
 context.log_model("model", model_file="model.pkl", training_set=X_train)
 
@@ -675,7 +675,7 @@ serving_fn.deploy()
 
 ### Batch drift detection
 
-```
+```python
 batch_inference = mlrun.import_function("hub://batch_inference")
 batch_run = project.run_function(
     batch_inference,
@@ -698,7 +698,7 @@ Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 
 Docs: [Sources](./feature-store/sources-targets.html#sources)
 
-```
+```python
 from mlrun.datastore.sources import (
     CSVSource,
     ParquetSource,
@@ -753,7 +753,7 @@ snowflake_df = snowflake_source.to_dataframe()
 
 Docs: [Targets](./feature-store/sources-targets.html#targets), [Partitioning on Parquet target](./feature-store/sources-targets.html#partitioning-on-parquet-target)
 
-```
+```python
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 
 # CSV
@@ -810,7 +810,7 @@ Docs: [Feature sets](./feature-store/feature-sets.html)
 
 Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 
-```
+```python
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import ParquetSource
 
@@ -827,7 +827,7 @@ categorical_fset.ingest(
 
 #### Feature set per engine
 
-```
+```python
 from mlrun.datastore.sources import DataFrameSource
 
 # Storey engine
@@ -866,7 +866,7 @@ spark_set.ingest(source=CSVSource(path=v3io_data_path), spark_context=spark)
 
 Docs: [Ingest data locally](./data-prep/ingest-data-fs.html#ingest-data-locally), [Ingest data using an MLRun job](./data-prep/ingest-data-fs.html#ingest-data-using-an-mlrun-job), [Real-time ingestion](./data-prep/ingest-data-fs.html#real-time-ingestion), [Incremental ingestion](./data-prep/ingest-data-fs.html#incremental-ingestion), [Feature store end-to-end demo](./feature-store/end-to-end-demo/index.html)
 
-```
+```python
 # Local
 from mlrun.datastore.sources import CSVSource
 
@@ -906,7 +906,7 @@ fset.ingest(
 
 Docs: [add_aggregation()](./api/mlrun.feature_store.html#mlrun.feature_store.FeatureSet.add_aggregation), [Aggregations](./feature-store/transformations.html#aggregations)
 
-```
+```python
 quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
 quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 ```
@@ -915,7 +915,7 @@ quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m")
 
 Docs: [storey.transformations](./api/storey.transformations.html#module-storey.transformations), [Built-in transformations](./feature-store/transformations.html#built-in-transformations)
 
-```
+```python
 quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")
 ```
 
@@ -924,7 +924,7 @@ quotes_set.graph.to("storey.Filter", "filter", _fn="(event['bid'] > 50)")
 Docs: [Custom transformations](./feature-store/transformations.html#custom-transformations)
 
 Define transformation
-```
+```python
 # Storey
 class MyMapStorey(MapClass):
     def __init__(self, multiplier=1, **kwargs):
@@ -957,7 +957,7 @@ class MyMapSpark:
 ```
 
 Use in graph
-```
+```python
 quotes_set.graph.add_step("MyMapStorey", "multi", after="filter", multiplier=3)
 ```
 
@@ -967,7 +967,7 @@ Docs: [Feature vectors](./feature-store/feature-vectors.html)
 
 #### Basic retrieval
 
-```
+```python
 import mlrun.feature_store as fstore
 from mlrun.datastore.targets import ParquetTarget
 
@@ -1015,7 +1015,7 @@ Graphs have two modes (topologies):
 Docs: [Real-time serving pipelines getting started](./serving/getting-started.html#getting-started)
 
 Define Python file(s) to orchestrate
-```
+```python
 # graph.py
 def inc(x):
     return x + 1
@@ -1038,7 +1038,7 @@ class WithState:
 ```
 
 Define MLRun function and graph
-```
+```python
 import mlrun
 
 fn = project.set_function(
@@ -1064,7 +1064,7 @@ project.deploy_function(fn)
 
 Docs: [Example of a simple model serving router](./serving/use-cases.html#example-of-a-simple-model-serving-router)
 
-```
+```python
 # load the sklearn model serving function and add models to it
 fn = mlrun.import_function("hub://v2_model_server")
 fn.add_model("model1", model_path="s3://...")
@@ -1082,7 +1082,7 @@ fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 
 Docs: [Model serving graph](./serving/model-serving-get-started.html)
 
-```
+```python
 from cloudpickle import load
 from typing import List
 import numpy as np
@@ -1107,7 +1107,7 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 
 Docs: {ref}`graph-example`
 
-```
+```python
 fn = project.set_function(
     name="advanced", func="demo.py", kind="serving", image="mlrun/mlrun"
 )
@@ -1135,7 +1135,7 @@ graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 Docs: [Hyperparameter tuning optimization](./hyper-params.html)
 
 The following hyperparameter examples use this function:
-```
+```python
 # hp.py
 def hyper_func(context, p1, p2):
     print(f"p1={p1}, p2={p2}, result={p1 * p2}")
@@ -1157,7 +1157,7 @@ The selector can be named any value that is logged - in this case `multiplier`
 Docs: [Grid Search](./hyper-params.html#grid-search-default)
 
 Runs all parameter combinations
-```
+```python
 hp_tuning_run = project.run_function(
     "hp", hyperparams={"p1": [2, 4, 1], "p2": [10, 20]}, selector="max.multiplier"
 )
@@ -1168,7 +1168,7 @@ hp_tuning_run = project.run_function(
 Docs: [Random Search](./hyper-params.html#random-search)
 
 Runs a random sample of parameter combinations
-```
+```python
 hp_tuning_run = project.run_function(
     "hp",
     hyperparams={"p1": [2, 4, 1], "p2": [10, 20]},
@@ -1184,7 +1184,7 @@ hp_tuning_run = project.run_function(
 Docs: [List Search](./hyper-params.html#list-search)
 
 Runs the first parameter from each list followed by the second from each list, etc. **All lists must be of equal size**.
-```
+```python
 hp_tuning_run = project.run_function(
     "hp",
     hyperparams={"p1": [2, 4, 1], "p2": [10, 20, 30]},
@@ -1201,7 +1201,7 @@ Docs: [Parallel execution over containers](./hyper-params.html#parallel-executio
 
 Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-using-dask)
 
-```
+```python
 # Create Dask cluster
 dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
@@ -1227,7 +1227,7 @@ hp_tuning_run_dask = project.run_function(
 
 Docs: [Running the workers using Nuclio](./hyper-params.html#running-the-workers-using-nuclio)
 
-```
+```python
 # Create nuclio:mlrun function
 fn = project.set_function(
     name="hyper-tst2", func="hp.py", kind="nuclio:mlrun", image="mlrun/mlrun"

@@ -460,7 +460,7 @@ def test_list_untagged_functions(db: DBInterface, db_session: Session):
     tag = "some-tag"
 
     # function 1 should get the tag
-    db.store_function(
+    tagged_function_hash = db.store_function(
         db_session,
         function_1.to_dict(),
         function_1_name,
@@ -505,6 +505,11 @@ def test_list_untagged_functions(db: DBInterface, db_session: Session):
 
     assert function_2_hash_key in all_hashes
     assert function_2_hash_key not in untagged_hashes
+
+    # list function with specific tag
+    tagged_function = db.list_functions(db_session, tag=tag)
+    assert len(tagged_function) == 1
+    assert tagged_function[0]["metadata"]["hash"] == tagged_function_hash
 
 
 def test_delete_functions(db: DBInterface, db_session: Session):

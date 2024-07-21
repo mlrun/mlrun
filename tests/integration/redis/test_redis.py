@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os
 import tempfile
 import uuid
 
@@ -24,13 +24,25 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileRedis,
     register_temporary_client_datastore_profile,
 )
+import yaml
 
-redis_endpoint = ("redis://", "redis://localhost:6379")
+here = os.path.dirname(__file__)
+config_file_path = os.path.join(here, "test-redis.yml")
+
+config = {}
+if os.path.exists(config_file_path):
+    with open(config_file_path) as yaml_file:
+        config = yaml.safe_load(yaml_file)
+
+#redis_endpoint = ("redis://", "redis://localhost:6379")
 
 
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestRedisDataStore:
     profile_name = "redis_profile"
+    @classmethod
+    def setup_class(cls):
+        cls.redis_endpoint = os.environ["REDIS_ENDPOINT"]
 
     def setup_before_test(self, use_datastore_profile, redis_endpoint):
         file = f"file_{uuid.uuid4()}.txt"

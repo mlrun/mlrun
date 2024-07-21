@@ -1253,13 +1253,17 @@ class HTTPRunDB(RunDBInterface):
                     function_name=name,
                 )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags.
         :param labels: Return functions that have specific labels assigned to them.
+        :param since: Return functions updated after this date (as datetime object).
+        :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
@@ -1267,6 +1271,8 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "tag": tag,
             "label": labels or [],
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list functions"
         path = f"projects/{project}/functions"
@@ -3546,17 +3552,19 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         """
         Set the credentials for the model monitoring application.
 
         :param project:     Project name.
         :param credentials: Credentials to set.
+        :param replace_creds:       If True, will override the existing credentials.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
-            params={**credentials},
+            params={**credentials, "replace_creds": replace_creds},
         )
 
     def create_hub_source(

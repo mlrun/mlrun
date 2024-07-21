@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.common.secrets as mlsecrets
@@ -131,12 +132,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
         if limit <= 0:
             limit = None
-        logger.debug(
-            "Listing namespaced pods with pagination",
-            selector=selector,
-            namespace=namespace,
-            states=states,
-        )
         while True:
             pods_list = self.v1api.list_namespaced_pod(
                 self.resolve_namespace(namespace),
@@ -155,12 +150,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not _continue:
                 break
 
-            logger.debug(
-                "Getting next pods",
-                remaining_item_count=pods_list.metadata.remaining_item_count,
-            )
-        logger.debug("Finished listing pods")
-
     @raise_for_status_code
     def list_crds_paginated(
         self,
@@ -169,18 +158,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         crd_plural,
         namespace=None,
         selector="",
-        states=None,
     ):
         _continue = None
         limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
         if limit <= 0:
             limit = None
-        logger.debug(
-            "Listing namespaced crds with pagination",
-            selector=selector,
-            namespace=namespace,
-            states=states,
-        )
         while True:
             crd_objects = {}
             crd_items = []

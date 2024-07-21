@@ -339,6 +339,8 @@ class DBInterface(ABC):
         format_: str = None,
         page: int = None,
         page_size: int = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ):
         pass
 
@@ -520,7 +522,7 @@ class DBInterface(ABC):
         pass
 
     def get_project_summary(
-        self, session, project: str
+        self, session, project: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 
@@ -985,4 +987,18 @@ class DBInterface(ABC):
         pass
 
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def store_time_window_tracker_record(
+        self,
+        session,
+        key: str,
+        timestamp: typing.Optional[datetime.datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ):
+        pass
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
         pass

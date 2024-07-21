@@ -317,22 +317,13 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        try:
-            model_endpoint_store = (
-                server.api.crud.model_monitoring.helpers.get_store_object(
-                    project=project
-                )
-            )
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
-            logger.debug(
-                "Failed to delete model endpoint because store connection is not defined."
-                " Returning without deleting the model endpoint.",
-                error=mlrun.errors.err_to_str(e),
-            )
-            return
-        model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
+        model_endpoint_store = server.api.crud.ModelEndpoints()._get_store_object(
+            project=project
+        )
+        if model_endpoint_store:
+            model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
-        logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+            logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     def get_model_endpoint(
         self,
@@ -374,30 +365,7 @@ class ModelEndpoints:
         )
 
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
-        try:
-            model_endpoint_store = (
-                server.api.crud.model_monitoring.helpers.get_store_object(
-                    project=project
-                )
-            )
-        except mlrun.errors.MLRunInvalidMMStoreType:
-            # TODO: delete in 1.9.0 - for BC trying get the mep from v3io store
-            store_connection_string = (
-                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or "v3io"
-                if mlrun.mlconf.is_ce_mode()
-                else None
-            )
-            logger.debug(
-                "Failed to get model endpoint because store connection is not defined."
-                " Trying use v3io."
-            )
-            if store_connection_string:
-                model_endpoint_store = mlrun.model_monitoring.get_store_object(
-                    project=project, store_connection_string=store_connection_string
-                )
-            else:
-                model_endpoint_store = None
+        model_endpoint_store = self._get_store_object(project=project)
         if model_endpoint_store:
             model_endpoint_record = model_endpoint_store.get_model_endpoint(
                 endpoint_id=endpoint_id,
@@ -485,31 +453,7 @@ class ModelEndpoints:
 
         # Initialize an empty model endpoints list
         endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
-
-        try:
-            # Generate a model endpoint store object and get a list of model endpoint dictionaries
-            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-                project=project
-            )
-        except mlrun.errors.MLRunInvalidMMStoreType:
-            # TODO: delete in 1.9.0 - for BC trying list the meps from v3io store
-            store_connection_string = (
-                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or "v3io"
-                if mlrun.mlconf.is_ce_mode()
-                else None
-            )
-            logger.debug(
-                "Failed to list model endpoints because store connection is not defined."
-                " Trying use v3io."
-            )
-            if store_connection_string:
-                endpoint_store = mlrun.model_monitoring.get_store_object(
-                    project=project, store_connection_string=store_connection_string
-                )
-            else:
-                endpoint_store = None
-
+        endpoint_store = self._get_store_object(project=project)
         if endpoint_store:
             endpoint_dictionary_list = endpoint_store.list_model_endpoints(
                 function=function,
@@ -586,27 +530,7 @@ class ModelEndpoints:
             self.verify_project_has_no_model_endpoints(project_name=project_name)
         except mlrun.errors.MLRunPreconditionFailedError:
             # Delete model monitoring store resources
-            try:
-                endpoint_store = (
-                    server.api.crud.model_monitoring.helpers.get_store_object(
-                        project=project_name
-                    )
-                )
-            except mlrun.errors.MLRunInvalidMMStoreType:
-                # TODO: delete in 1.9.0 - for BC trying to delete from config/v3io store
-                store_connection_string = (
-                    mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                    or "v3io"
-                    if not mlrun.mlconf.is_ce_mode()
-                    else None
-                )
-                if store_connection_string:
-                    endpoint_store = mlrun.model_monitoring.get_store_object(
-                        project=project_name,
-                        store_connection_string=store_connection_string,
-                    )
-                else:
-                    endpoint_store = None
+            endpoint_store = self._get_store_object(project=project_name)
             if endpoint_store:
                 endpoint_store.delete_model_endpoints_resources()
             try:
@@ -829,3 +753,38 @@ class ModelEndpoints:
                 endpoint_obj.status.drift_measures = drift_measures
 
         return endpoint_obj
+
+    @staticmethod
+    def _get_store_object(
+        project: str,
+    ) -> typing.Union[mlrun.model_monitoring.db.stores.base.store.StoreBase, None]:
+        """
+        Get the model endpoint store object.
+        Firstly trying to use project secret and then trying to use the default/v3io store connection string.
+        Use this method only for deleting/listing model endpoints.
+        """
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType:
+            # TODO: delete in 1.9.0 - for BC trying to create default/v3io store
+            store_connection_string = (
+                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or "v3io"
+                if mlrun.mlconf.is_ce_mode()
+                else None
+            )
+            logger.debug(
+                "Failed to get model endpoint because store connection is not defined."
+                " Trying use v3io."
+            )
+            if store_connection_string:
+                model_endpoint_store = mlrun.model_monitoring.get_store_object(
+                    project=project, store_connection_string=store_connection_string
+                )
+            else:
+                model_endpoint_store = None
+        return model_endpoint_store

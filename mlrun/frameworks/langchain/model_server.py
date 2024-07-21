@@ -25,15 +25,25 @@ from mlrun.serving.v2_serving import V2ModelServer
 
 class LangChainModelServer(V2ModelServer):
     """
-    LangChain Model serving class, inheriting the V2ModelServer class for being initialized automatically by the model
-    server and be able to run locally as part of a nuclio serverless function, or as part of a real-time pipeline.
-    For compatibility with langchain models, this class supports the following operations:
-    - invoke
-    - batch
-    - ainvoke
-    - abatch
-    in the future we will add streaming support.
-    Notice: In order to use this serving class, please ensure that the langchain_community package is installed.
+     LangChain Model serving class, inheriting the V2ModelServer class to be able to run locally or as part of a Nuclio
+      serverless function.
+
+    For compatibility with langchain models, this class supports the following methods:
+
+    * invoke
+    * batch
+    * ainvoke
+    * abatch
+    * stream (TBD)
+    * astream (TBD)
+    This class can serve a LangChain chain or llm:
+
+    * `LLM` - Expose a `langchain.LLM` object as a serverless function. Can work in offline and online modes:
+      * Offline: Get an initialized `LLM` object - only in local testing (mock server)
+      * Online: Get a class name and initialization keyword arguments to initialize the `LLM` object and serve it.
+    * `Chain` (TBD) - Expose an entire `langchain` object as a pickled model logged to MLRun.
+    > Notice: In order to use this serving class, please ensure that the `langchain` and `langchain_community` packages
+     are installed.
     """
 
     def __init__(

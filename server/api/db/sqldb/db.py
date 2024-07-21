@@ -4546,13 +4546,12 @@ class SQLDB(DBInterface):
         if not tag:
             # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
             query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
-        elif tag == "*":
-            # Only get functions that have tags
-            query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
         else:
-            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            # Only get functions that have tags with join (faster than outer join)
             query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
-            query = query.filter(Function.Tag.name == tag)
+            if tag == "*":
+                # Filter on the specific tag
+                query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)

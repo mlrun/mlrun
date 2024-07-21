@@ -4549,7 +4549,7 @@ class SQLDB(DBInterface):
         else:
             # Only get functions that have tags with join (faster than outer join)
             query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
-            if tag == "*":
+            if tag != "*":
                 # Filter on the specific tag
                 query = query.filter(Function.Tag.name == tag)
 

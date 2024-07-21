@@ -154,6 +154,7 @@ class RunDBInterface(ABC):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         pass
 
@@ -174,7 +175,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -891,6 +894,7 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
 
@@ -915,5 +919,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass

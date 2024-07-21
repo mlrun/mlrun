@@ -205,3 +205,6 @@ class StoreBase(ABC):
                     return False
 
         return True
+
+    def create_tables(self):
+        pass

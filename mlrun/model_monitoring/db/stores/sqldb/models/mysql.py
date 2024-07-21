@@ -34,10 +34,12 @@ Base = declarative_base()
 class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
+        # TODO: migrate to DATETIME, see ML-6921
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
     )
     last_request = Column(
         EventFieldType.LAST_REQUEST,
+        # TODO: migrate to DATETIME, see ML-6921
         sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
     )
 
@@ -52,11 +54,11 @@ class _ApplicationResultOrMetric:
 
     start_infer_time = Column(
         WriterEvent.START_INFER_TIME,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
+        sqlalchemy.dialects.mysql.DATETIME(fsp=3, timezone=True),
     )
     end_infer_time = Column(
         WriterEvent.END_INFER_TIME,
-        sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3, timezone=True),
+        sqlalchemy.dialects.mysql.DATETIME(fsp=3, timezone=True),
     )
 
     @declared_attr

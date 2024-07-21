@@ -233,7 +233,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None
+        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
     ):
         pass
 
@@ -339,6 +339,8 @@ class DBInterface(ABC):
         format_: str = None,
         page: int = None,
         page_size: int = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ):
         pass
 
@@ -444,12 +446,6 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_projects_summaries(
-        self, session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        pass
-
-    @abstractmethod
     def delete_project_related_resources(self, session, name: str):
         pass
 
@@ -522,6 +518,26 @@ class DBInterface(ABC):
         session,
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+    ):
+        pass
+
+    def get_project_summary(
+        self, session, project: str, raise_on_not_found: bool = True
+    ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        pass
+
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
     ):
         pass
 
@@ -971,4 +987,18 @@ class DBInterface(ABC):
         pass
 
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def store_time_window_tracker_record(
+        self,
+        session,
+        key: str,
+        timestamp: typing.Optional[datetime.datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ):
+        pass
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
         pass

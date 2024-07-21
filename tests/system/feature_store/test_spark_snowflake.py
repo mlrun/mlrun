@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 import snowflake.connector
 
+import mlrun.errors
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
@@ -28,23 +29,10 @@ from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
     SparkHadoopTestBase,
 )
-
-SNOWFLAKE_ENV_PARAMETERS = [
-    "SNOWFLAKE_URL",
-    "SNOWFLAKE_USER",
-    "SNOWFLAKE_PASSWORD",
-    "SNOWFLAKE_DATABASE",
-    "SNOWFLAKE_SCHEMA",
-    "SNOWFLAKE_WAREHOUSE",
-    "SNOWFLAKE_TABLE_NAME",
-]
-
-
-def get_missing_snowflake_spark_parameters():
-    snowflake_missing_keys = [
-        key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
-    ]
-    return snowflake_missing_keys
+from tests.system.feature_store.utils import (
+    get_missing_snowflake_spark_parameters,
+    get_snowflake_spark_parameters,
+)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -65,20 +53,16 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             pytest.skip(
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
-        url = cls.env.get("SNOWFLAKE_URL")
-        user = cls.env.get("SNOWFLAKE_USER")
-        cls.database = cls.env.get("SNOWFLAKE_DATABASE")
-        warehouse = cls.env.get("SNOWFLAKE_WAREHOUSE")
-        account = url.replace(".snowflakecomputing.com", "")
-        password = cls.env["SNOWFLAKE_PASSWORD"]
-        cls.snowflake_spark_parameters = dict(
-            url=url, user=user, database=cls.database, warehouse=warehouse
+        cls.snowflake_spark_parameters = get_snowflake_spark_parameters()
+        cls.database = cls.snowflake_spark_parameters["database"]
+        account = cls.snowflake_spark_parameters["url"].replace(
+            ".snowflakecomputing.com", ""
         )
         cls.snowflake_connector = snowflake.connector.connect(
             account=account,
-            user=user,
-            password=password,
-            warehouse=warehouse,
+            user=cls.snowflake_spark_parameters["user"],
+            password=cls.env["SNOWFLAKE_PASSWORD"],
+            warehouse=cls.snowflake_spark_parameters["warehouse"],
         )
         cls.schema = cls.env.get("SNOWFLAKE_SCHEMA")
         if cls.deployment_type == Deployment.Remote:
@@ -196,3 +180,31 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         pd.testing.assert_frame_equal(
             expected_df, result.sort_values(by="ID"), check_dtype=False
         )
+
+    def test_purge_snowflake_target(self):
+        self.generate_snowflake_source_table()
+        target = SnowflakeTarget(
+            "snowflake_target",
+            table_name=self.source_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        table_path = f"{self.database}.{self.schema}.{self.source_table}"
+        self.cursor.execute(f"select * from {table_path}").fetchall()
+        target.purge()
+        with pytest.raises(
+            snowflake.connector.errors.ProgrammingError,
+            match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
+        ):
+            self.cursor.execute(f"select * from {table_path}").fetchall()
+
+    def test_purge_with_missing_attribute(self):
+        fake_target = SnowflakeTarget(
+            "fake_snowflake_target",
+            **self.snowflake_spark_parameters,
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match=".*some attributes are missing.*",
+        ):
+            fake_target.purge()

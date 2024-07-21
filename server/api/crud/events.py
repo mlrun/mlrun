@@ -39,12 +39,12 @@ class Events(
 
         return bool(event_data.is_valid())
 
-    def add_event_configuration(self, project, name, alert_name):
-        self._cache.setdefault((project, name), []).append(alert_name)
+    def add_event_configuration(self, project, name, alert_id):
+        self._cache.setdefault((project, name), []).append(alert_id)
 
-    def remove_event_configuration(self, project, name, alert_name):
+    def remove_event_configuration(self, project, name, alert_id):
         alerts = self._cache[(project, name)]
-        alerts.remove(alert_name)
+        alerts.remove(alert_id)
         if len(alerts) == 0:
             self._cache.pop((project, name))
 
@@ -77,10 +77,8 @@ class Events(
             return
 
         try:
-            for name in self._cache[(project, event_name)]:
-                server.api.crud.Alerts().process_event(
-                    session, project, name, event_data
-                )
+            for alert_id in self._cache[(project, event_name)]:
+                server.api.crud.Alerts().process_event(session, alert_id, event_data)
         except KeyError:
             logger.debug(
                 "Received event has no associated alert",

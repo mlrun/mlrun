@@ -33,7 +33,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 23.2.1
+MLRUN_PIP_VERSION ?= 24.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -453,13 +453,16 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	python -m pytest -v \
+	python \
+		-X faulthandler \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--forked \
 		-rf \
 		tests
 
@@ -618,9 +621,8 @@ fmt: ## Format the code using Ruff and blacken-docs
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
-# TODO: use the `--check` flag when blacken-docs 1.17 is released
 	@echo "Checking the code blocks with blacken-docs"
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies

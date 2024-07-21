@@ -223,7 +223,6 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def test_open_source_features(self):
         pass
 
@@ -240,7 +239,6 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def custom_setup(self):
         pass
 

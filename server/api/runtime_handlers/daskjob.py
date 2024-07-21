@@ -397,11 +397,25 @@ def enrich_dask_cluster(
         resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
 
+    # We query the project to enrich the worker and scheduler pod spec with the project's default node selector.
+    # Since the dask runtime is a local run, and does not run in a dedicated k8s pod, node selectors for that run
+    # are irrelevant, so we do not enrich the run object with the project node selector.
+    # However, the node selector is still relevant for the Dask cluster's workers and scheduler, which do run
+    # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
+    project = function._get_db().get_project(function.metadata.project)
+    logger.debug(
+        "Enriching Dask Cluster node selector from project",
+        project_name=function.metadata.project,
+        project_node_selector=project.spec.default_function_node_selector,
+    )
+    node_selector = mlrun.utils.helpers.merge_with_precedence(
+        project.spec.default_function_node_selector, function.spec.node_selector
+    )
     scheduler_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, scheduler_container
+        spec, scheduler_container, node_selector=node_selector
     )
     worker_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, worker_container
+        spec, worker_container, node_selector=node_selector
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
         if spec.image_pull_secret:

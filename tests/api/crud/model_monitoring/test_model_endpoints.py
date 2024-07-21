@@ -69,8 +69,7 @@ def mock_kv() -> Iterator[None]:
 @pytest.fixture()
 def mock_get_connection_string() -> Iterator[None]:
     with patch(
-        "mlrun.model_monitoring.helpers.get_connection_string",
-        return_value=None,
+        "mlrun.model_monitoring.helpers.get_connection_string", return_value="v3io"
     ):
         yield
 

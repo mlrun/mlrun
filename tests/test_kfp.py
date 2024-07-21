@@ -196,3 +196,24 @@ def _generate_task(p1, out_path):
         out_path=out_path,
         outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")
+
+
+def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
+    ensure_default_project,
+):
+    function = new_function(
+        kfp=True, kind="job", project=ensure_default_project.metadata.name
+    )
+    function_node_selector, function_val = "ns1", "val1"
+    function.spec.node_selector = {function_node_selector: function_val}
+
+    project_node_selector, project_val = "ns2", "val2"
+    ensure_default_project.spec.default_function_node_selector = {
+        project_node_selector: project_val
+    }
+
+    cop = function.as_step()
+    assert cop.node_selector == {
+        function_node_selector: function_val,
+        project_node_selector: project_val,
+    }

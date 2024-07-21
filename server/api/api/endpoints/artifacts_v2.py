@@ -231,6 +231,7 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
+    iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: dict = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -243,6 +244,7 @@ async def delete_artifact(
         tag=tag,
         producer_id=tree,
         deletion_strategy=deletion_strategy,
+        iteration=iteration,
     )
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -254,15 +256,16 @@ async def delete_artifact(
     )
     await run_in_threadpool(
         server.api.crud.Artifacts().delete_artifact,
-        db_session,
-        key,
-        tag,
-        project,
-        object_uid,
+        db_session=db_session,
+        key=key,
+        tag=tag,
+        project=project,
+        object_uid=object_uid,
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         secrets=secrets,
         auth_info=auth_info,
+        iteration=iteration,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 

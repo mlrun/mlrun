@@ -313,6 +313,41 @@ def test_fails_deleting_artifact_data_by_artifact_kind(
     assert resp.status_code == HTTPStatus.NOT_IMPLEMENTED.value
 
 
+@pytest.mark.parametrize(
+    "target_path",
+    [
+        "dummy-path.parquet",
+        "dummy-path.pq",
+    ],
+)
+def test_deleting_dataset_artifact_data_includes_one_file(
+    target_path, db: Session, unversioned_client: TestClient
+):
+    _create_project(unversioned_client)
+    artifact = mlrun.artifacts.DatasetArtifact(
+        key=KEY, body="123", target_path=target_path
+    )
+
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
+
+    with unittest.mock.patch(
+        "server.api.crud.files.Files.delete_artifact_data",
+    ):
+        resp = unversioned_client.delete(
+            url_with_deletion_strategy.format(
+                deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+            )
+        )
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
 def test_list_artifacts(db: Session, client: TestClient) -> None:
     _create_project(client)
 

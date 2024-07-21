@@ -38,6 +38,7 @@ import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
 import mlrun.runtimes.nuclio.api_gateway
+import mlrun.runtimes.nuclio.function
 import mlrun.utils
 from mlrun.alerts.alert import AlertConfig
 from mlrun.db.auth_utils import OAuthClientIDTokenProvider, StaticTokenProvider
@@ -536,6 +537,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_monitoring_tsdb_connection")
                 or config.model_endpoint_monitoring.tsdb_connection
             )
+            config.model_endpoint_monitoring.stream_connection = (
+                server_cfg.get("stream_connection")
+                or config.model_endpoint_monitoring.stream_connection
+            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:
@@ -1028,6 +1033,7 @@ class HTTPRunDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         """Delete an artifact.
 
@@ -1046,6 +1052,7 @@ class HTTPRunDB(RunDBInterface):
             "tag": tag,
             "tree": tree,
             "uid": uid,
+            "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
         error = f"del artifact {project}/{key}"
@@ -1246,13 +1253,17 @@ class HTTPRunDB(RunDBInterface):
                     function_name=name,
                 )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
-        :param tag: Return function versions with specific tags.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Return functions that have specific labels assigned to them.
+        :param since: Return functions updated after this date (as datetime object).
+        :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
@@ -1260,6 +1271,8 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "tag": tag,
             "label": labels or [],
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list functions"
         path = f"projects/{project}/functions"
@@ -1610,20 +1623,11 @@ class HTTPRunDB(RunDBInterface):
             raise RunDBError("bad function build response")
 
         if resp.headers:
-            func.status.state = resp.headers.get("x-mlrun-function-status", "")
             last_log_timestamp = float(
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
-            func.status.address = resp.headers.get("x-mlrun-address", "")
-            func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
-            func.status.internal_invocation_urls = resp.headers.get(
-                "x-mlrun-internal-invocation-urls", ""
-            ).split(",")
-            func.status.external_invocation_urls = resp.headers.get(
-                "x-mlrun-external-invocation-urls", ""
-            ).split(",")
-            func.status.container_image = resp.headers.get(
-                "x-mlrun-container-image", ""
+            mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+                func, resp.headers
             )
 
         text = ""
@@ -1681,16 +1685,8 @@ class HTTPRunDB(RunDBInterface):
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
             if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                func.status.address = resp.headers.get("x-mlrun-address", "")
-                func.status.nuclio_name = resp.headers.get("x-mlrun-name", "")
-                func.status.internal_invocation_urls = resp.headers.get(
-                    "x-mlrun-internal-invocation-urls", ""
-                ).split(",")
-                func.status.external_invocation_urls = resp.headers.get(
-                    "x-mlrun-external-invocation-urls", ""
-                ).split(",")
-                func.status.container_image = resp.headers.get(
-                    "x-mlrun-container-image", ""
+                mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
+                    func, resp.headers
                 )
 
             builder_pod = resp.headers.get("builder_pod", "")
@@ -3397,6 +3393,7 @@ class HTTPRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -3406,14 +3403,16 @@ class HTTPRunDB(RunDBInterface):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param project:                         Project name.
-        :param base_period:                     The time period in minutes in which the model monitoring controller
-                                                function triggers. By default, the base period is 10 minutes.
-        :param image:                           The image of the model monitoring controller, writer & monitoring
-                                                stream functions, which are real time nuclio functions.
-                                                By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
+        :param project:                          Project name.
+        :param base_period:                      The time period in minutes in which the model monitoring controller
+                                                  function triggers. By default, the base period is 10 minutes.
+        :param image:                             The image of the model monitoring controller, writer & monitoring
+                                                  stream functions, which are real time nuclio functions.
+                                                  By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
+        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
@@ -3423,6 +3422,7 @@ class HTTPRunDB(RunDBInterface):
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "rebuild_images": rebuild_images,
+                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
         )
 
@@ -3546,6 +3546,25 @@ class HTTPRunDB(RunDBInterface):
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/deploy-histogram-data-drift-app",
             params={"image": image},
+        )
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
+    ) -> None:
+        """
+        Set the credentials for the model monitoring application.
+
+        :param project:     Project name.
+        :param credentials: Credentials to set.
+        :param replace_creds:       If True, will override the existing credentials.
+        """
+        self.api_call(
+            method=mlrun.common.types.HTTPMethod.POST,
+            path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
+            params={**credentials, "replace_creds": replace_creds},
         )
 
     def create_hub_source(

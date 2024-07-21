@@ -330,6 +330,7 @@ def build_function(
                 commands=commands,
                 secret=secret_name,
                 requirements=requirements,
+                requirements_file=requirements_file,
                 overwrite=overwrite_build_params,
                 extra_args=extra_args,
             )

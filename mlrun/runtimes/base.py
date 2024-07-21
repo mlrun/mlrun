@@ -674,7 +674,7 @@ class BaseRuntime(ModelObj):
         selector="",
         hyper_param_options: HyperParamOptions = None,
         inputs: dict = None,
-        outputs: dict = None,
+        outputs: list = None,
         workdir: str = "",
         artifact_path: str = "",
         image: str = "",

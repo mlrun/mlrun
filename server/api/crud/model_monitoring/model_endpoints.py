@@ -77,12 +77,6 @@ class ModelEndpoints:
                 model_obj=model_obj,
             )
 
-            mlrun.utils.helpers.verify_field_of_type(
-                field_name="model_endpoint.spec.model_uri",
-                field_value=model_obj,
-                expected_type=mlrun.artifacts.ModelArtifact,
-            )
-
             # Get stats from model object if not found in model endpoint object
             if not model_endpoint.status.feature_stats and hasattr(
                 model_obj, "feature_stats"

@@ -65,13 +65,12 @@ class LangChainModelServer(V2ModelServer):
         loads the model.
         """
         # If the llm is already an LLM object, use it directly
+        # TODO: Add support for chains
         if isinstance(self.llm, LLM):
             self.model = self.llm
             return
         # If the llm is a string (or not given, then we take default model), load the llm from langchain.
-        self.model = getattr(langchain_community.llms, self.llm)(
-            **self.init_kwargs
-        )
+        self.model = getattr(langchain_community.llms, self.llm)(**self.init_kwargs)
 
     def predict(
         self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None

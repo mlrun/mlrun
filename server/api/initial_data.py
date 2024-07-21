@@ -23,7 +23,6 @@ import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
 
-import mlrun
 import mlrun.artifacts
 import mlrun.artifacts.base
 import mlrun.common.formatters

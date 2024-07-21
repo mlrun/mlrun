@@ -1360,9 +1360,6 @@ class MonitoringDeployment:
         else:
             access_keys = [None] * 2
         for i in range(len(stream_path_list)):
-            logger.info(
-                "[DAVID] Creating stream output", stream_path=stream_path_list[i]
-            )
             output_stream = mlrun.datastore.get_stream_pusher(
                 stream_path=stream_path_list[i],
                 endpoint=mlrun.mlconf.v3io_api,

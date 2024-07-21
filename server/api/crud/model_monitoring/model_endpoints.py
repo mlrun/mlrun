@@ -317,8 +317,8 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = server.api.crud.ModelEndpoints()._get_store_object(
-            project=project
+        model_endpoint_store = (
+            server.api.crud.ModelEndpoints()._get_store_object(project=project)
         )
         if model_endpoint_store:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
@@ -760,8 +760,9 @@ class ModelEndpoints:
     ) -> typing.Union[mlrun.model_monitoring.db.stores.base.store.StoreBase, None]:
         """
         Get the model endpoint store object.
-        Firstly trying to use project secret and then trying to use the default/v3io store connection string.
-        Use this method only for deleting/listing model endpoints.
+        Firstly trying to use project secret and if there is no such secret
+        it's trys to use the default/v3io store connection string.
+        Note : Use this method only for deleting/reading model endpoints.
         """
         try:
             model_endpoint_store = (
@@ -778,8 +779,8 @@ class ModelEndpoints:
                 else None
             )
             logger.debug(
-                "Failed to get model endpoint because store connection is not defined."
-                " Trying use v3io."
+                "Failed to create model endpoint store connector because store connection is not defined."
+                " Trying use default/v3io."
             )
             if store_connection_string:
                 model_endpoint_store = mlrun.model_monitoring.get_store_object(

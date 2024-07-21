@@ -1038,15 +1038,22 @@ class MonitoringDeployment:
         """
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
         mm_enabled = False
-        store_connector: mlrun.model_monitoring.db.StoreBase = mlrun.model_monitoring.get_store_object(
-            project=self.project,
-            store_connection_string=credentials_dict.get(
+        store_connection_string = (
+            credentials_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             )
-            or "v3io",  # in case the user use the default v3io
-        )
+            or "v3io"
+            if not mlrun.mlconf.is_ce_mode()
+            else None
+        )  # in case the user use the default v3io
+        if store_connection_string:
+            store_connector = mlrun.model_monitoring.get_store_object(
+                project=self.project, store_connection_string=store_connection_string
+            )
+        else:
+            store_connector = None
 
-        if store_connector.list_model_endpoints():
+        if store_connector and store_connector.list_model_endpoints():
             # if there are model endpoints, the project has monitoring
             mm_enabled = True
         else:
@@ -1073,7 +1080,7 @@ class MonitoringDeployment:
 
         if mm_enabled and None in credentials_dict.values():
             self.set_credentials(
-                _default_secrets_v3io="v3io",
+                _default_secrets_v3io="v3io" if not mlrun.mlconf.is_ce_mode() else None,
                 replace_creds=True,
             )
         return mm_enabled
@@ -1286,7 +1293,9 @@ class MonitoringDeployment:
             stream_path=secrets_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             )
-            or "v3io"  # TODO: del in 1.9.0
+            or "v3io"
+            if not mlrun.mlconf.is_ce_mode()
+            else None  # TODO: del in 1.9.0
         )
 
         server.api.crud.Secrets().store_project_secrets(
@@ -1321,7 +1330,9 @@ class MonitoringDeployment:
         old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
-        old_stream = old_stream or "v3io"  # TODO: del in 1.9.0
+        old_stream = (
+            old_stream or "v3io" if not mlrun.mlconf.is_ce_mode() else None
+        )  # TODO: del in 1.9.0
         if stream_path and old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
@@ -1341,10 +1352,13 @@ class MonitoringDeployment:
         stream_path_list = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, stream_uri=stream_path
         )
-        access_keys = [
-            os.getenv("V3IO_ACCESS_KEY"),
-            access_key or self.model_monitoring_access_key,
-        ]
+        if not mlrun.mlconf.is_ce_mode():
+            access_keys = [
+                os.getenv("V3IO_ACCESS_KEY"),
+                access_key or self.model_monitoring_access_key,
+            ]
+        else:
+            access_keys = [None] * 2
         for i in range(len(stream_path_list)):
             logger.info(
                 "[DAVID] Creating stream output", stream_path=stream_path_list[i]

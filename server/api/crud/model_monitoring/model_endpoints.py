@@ -575,12 +575,21 @@ class ModelEndpoints:
                 )
             except mlrun.errors.MLRunInvalidMMStoreType:
                 # TODO: delete in 1.9.0 - for BC trying to delete from config/v3io store
-                endpoint_store = mlrun.model_monitoring.get_store_object(
-                    project=project_name,
-                    store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                    or "v3io",
+                store_connection_string = (
+                    mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                    or "v3io"
+                    if not mlrun.mlconf.is_ce_mode()
+                    else None
                 )
-            endpoint_store.delete_model_endpoints_resources()
+                if store_connection_string:
+                    endpoint_store = mlrun.model_monitoring.get_store_object(
+                        project=project_name,
+                        store_connection_string=store_connection_string,
+                    )
+                else:
+                    endpoint_store = None
+            if endpoint_store:
+                endpoint_store.delete_model_endpoints_resources()
             try:
                 # Delete model monitoring TSDB resources
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
@@ -592,12 +601,15 @@ class ModelEndpoints:
 
             except mlrun.errors.MLRunInvalidMMStoreType:
                 # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
-                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                    project=project_name,
-                    tsdb_connection_string="v3io",
-                )
-            tsdb_connector.delete_tsdb_resources()
-
+                if not mlrun.mlconf.is_ce_mode():
+                    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                        project=project_name,
+                        tsdb_connection_string="v3io",
+                    )
+                else:
+                    tsdb_connector = None
+            if tsdb_connector:
+                tsdb_connector.delete_tsdb_resources()
         # Delete model monitoring stream resources
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,

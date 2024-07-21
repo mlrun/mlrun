@@ -16,6 +16,7 @@ import tempfile
 import uuid
 
 import pytest
+import yaml
 from pydantic.error_wrappers import ValidationError
 from redis.exceptions import AuthenticationError
 
@@ -24,7 +25,6 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileRedis,
     register_temporary_client_datastore_profile,
 )
-import yaml
 
 here = os.path.dirname(__file__)
 config_file_path = os.path.join(here, "test-redis.yml")
@@ -32,35 +32,35 @@ config_file_path = os.path.join(here, "test-redis.yml")
 config = {}
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
-        config = yaml.safe_load(yaml_file)
-
-#redis_endpoint = ("redis://", "redis://localhost:6379")
+        config = yaml.safe_load(yaml_file)["env"]
 
 
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
+@pytest.mark.skipif(
+    not config.get("redis_endpoint"), reason="redis parameters not configured"
+)
 class TestRedisDataStore:
     profile_name = "redis_profile"
+
     @classmethod
     def setup_class(cls):
-        cls.redis_endpoint = os.environ["REDIS_ENDPOINT"]
+        cls.redis_endpoint = config["redis_endpoint"]
 
-    def setup_before_test(self, use_datastore_profile, redis_endpoint):
+    def setup_before_test(self, use_datastore_profile):
         file = f"file_{uuid.uuid4()}.txt"
         if use_datastore_profile:
             profile = DatastoreProfileRedis(
-                name=self.profile_name, endpoint_url=redis_endpoint
+                name=self.profile_name, endpoint_url=self.redis_endpoint
             )
             register_temporary_client_datastore_profile(profile)
-            self.endpoint = f"ds://{self.profile_name}"
+            self.test_endpoint = f"ds://{self.profile_name}"
         else:
-            self.endpoint = redis_endpoint
-        self.redis_path = f"{self.endpoint}/{file}"
+            self.test_endpoint = self.redis_endpoint
+        self.redis_path = f"{self.test_endpoint}/{file}"
 
-    @pytest.mark.parametrize("redis_endpoint", redis_endpoint)
-    def test_redis_put_get_object(self, use_datastore_profile, redis_endpoint):
-        self.setup_before_test(use_datastore_profile, redis_endpoint)
-        redis_path = redis_endpoint + "/redis_object"
-        data_item = mlrun.datastore.store_manager.object(redis_path)
+    def test_redis_put_get_object(self, use_datastore_profile):
+        self.setup_before_test(use_datastore_profile)
+        data_item = mlrun.datastore.store_manager.object(self.redis_path)
 
         data_item.delete()
 
@@ -86,9 +86,8 @@ class TestRedisDataStore:
 
         data_item.delete()
 
-    @pytest.mark.parametrize("redis_endpoint", redis_endpoint)
-    def test_redis_upload_download_object(self, redis_endpoint, use_datastore_profile):
-        self.setup_before_test(use_datastore_profile, redis_endpoint)
+    def test_redis_upload_download_object(self, use_datastore_profile):
+        self.setup_before_test(use_datastore_profile)
         # prepare file for upload
         expected = "abcde" * 100
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=True) as temp_file:
@@ -103,12 +102,11 @@ class TestRedisDataStore:
 
         assert expected == expected
 
-    @pytest.mark.parametrize("redis_endpoint", redis_endpoint)
-    def test_redis_listdir(self, redis_endpoint, use_datastore_profile):
-        self.setup_before_test(use_datastore_profile, redis_endpoint)
-        list_dir = self.endpoint + "/dir-0/dir-1"
+    def test_redis_listdir(self, use_datastore_profile):
+        self.setup_before_test(use_datastore_profile)
+        list_dir = self.test_endpoint + "/dir-0/dir-1"
 
-        redis_path = self.endpoint
+        redis_path = self.test_endpoint
         dir_path = redis_path
         expected = []
 
@@ -137,23 +135,25 @@ class TestRedisDataStore:
         ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
         dir_item.store.rm("/not-exist-dir/", recursive=True)
 
-    @pytest.mark.parametrize("redis_endpoint", redis_endpoint)
-    def test_wrong_credential_rm(self, use_datastore_profile, redis_endpoint):
+    def test_wrong_credential_rm(self, use_datastore_profile):
+        test_endpoint = self.redis_endpoint
         if use_datastore_profile:
             profile = DatastoreProfileRedis(
                 name=self.profile_name,
-                endpoint_url=redis_endpoint,
+                endpoint_url=self.redis_endpoint,
                 username="not_exist",
                 password="not_exist",
             )
             register_temporary_client_datastore_profile(profile)
+            test_endpoint = f"ds://{self.profile_name}"
         secrets = (
             {"REDIS_USER": "not_exist", "REDIS_PASSWORD": "not_exist"}
             if not use_datastore_profile
             else {}
         )
+
         data_item = mlrun.run.get_dataitem(
-            redis_endpoint + "/fake_file.txt", secrets=secrets
+            test_endpoint + "/fake_file.txt", secrets=secrets
         )
         with pytest.raises(AuthenticationError):
             data_item.delete()

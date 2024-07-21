@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 
 import sqlalchemy.orm
@@ -146,8 +147,8 @@ class Artifacts(
         name: str = "",
         tag: str = "",
         labels: list[str] = None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind: typing.Optional[str] = None,
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,

@@ -266,6 +266,7 @@ class ApplicationRuntime(RemoteRuntime):
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -285,6 +286,9 @@ class ApplicationRuntime(RemoteRuntime):
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
+        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
+                                        mlrun.mlconf.force_api_gateway_ssl_redirect()
+
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -326,6 +330,7 @@ class ApplicationRuntime(RemoteRuntime):
             ports=ports,
             authentication_mode=authentication_mode,
             authentication_creds=authentication_creds,
+            ssl_redirect=ssl_redirect,
         )
 
     def with_source_archive(
@@ -361,6 +366,7 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = None,
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
@@ -377,6 +383,13 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        if ssl_redirect is None:
+            ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
+        if ssl_redirect:
+            # force ssl redirect so that the application is only accessible via https
+            api_gateway.with_force_ssl_redirect()
+
+        # add authentication if required
         authentication_mode = (
             authentication_mode
             or mlrun.mlconf.function.application.default_authentication_mode

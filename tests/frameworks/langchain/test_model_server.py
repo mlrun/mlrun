@@ -87,9 +87,8 @@ def test_ollama(ollama_fixture):
     )
     serving_func.add_model(
         "ollama-langchain-model",
-        model_class="Ollama",
+        llm="Ollama",
         class_name="LangChainModelServer",
-        llm=_OLLAMA_MODEL,
         init_kwargs={"model": _OLLAMA_MODEL},
         model_path=".",
     )
@@ -129,9 +128,8 @@ async def test_ollama_async(ollama_fixture):
     )
     serving_func.add_model(
         "ollama-langchain-model",
-        model_class="Ollama",
+        llm="Ollama",
         class_name="LangChainModelServer",
-        llm=_OLLAMA_MODEL,
         init_kwargs={"model": _OLLAMA_MODEL},
         model_path=".",
     )
@@ -179,9 +177,8 @@ def test_openai():
     )
     serving_func.add_model(
         "openai-langchain-model",
-        model_class="OpenAI",
-        class_name="LangChainModelServer",
         llm="OpenAI",
+        class_name="LangChainModelServer",
         init_kwargs={"model": _OPENAI_MODEL},
         model_path=".",
     )
@@ -221,7 +218,6 @@ async def test_openai_async():
     )
     serving_func.add_model(
         "openai-langchain-model",
-        model_class="OpenAI",
         class_name="LangChainModelServer",
         llm="OpenAI",
         init_kwargs={"model": _OPENAI_MODEL},
@@ -272,7 +268,6 @@ def test_huggingface():
     )
     serving_func.add_model(
         "huggingface-langchain-model",
-        model_class="HuggingFacePipeline",
         class_name="LangChainModelServer",
         llm=_HUGGINGFACE_MODEL,
         init_kwargs={"pipeline": pipe},
@@ -324,7 +319,6 @@ async def test_huggingface_async():
     )
     serving_func.add_model(
         "huggingface-langchain-model",
-        model_class="HuggingFacePipeline",
         class_name="LangChainModelServer",
         llm=_HUGGINGFACE_MODEL,
         init_kwargs={"pipeline": pipe},

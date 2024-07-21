@@ -39,7 +39,6 @@ class LangChainModelServer(V2ModelServer):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        model_class: str = None,
         llm: Union[str, LLM] = None,
         init_kwargs: Dict[str, Any] = None,
         generation_kwargs: Dict[str, Any] = None,
@@ -50,15 +49,13 @@ class LangChainModelServer(V2ModelServer):
         """
         Initialize a serving class for general llm usage.
         :param context:           The mlrun context to use.
-        :param model_class:       The class of the model to use.
-        :param llm:               The llm object itself in case of local usage.
+        :param llm:               The llm object itself in case of local usage or the name of the llm.
         :param init_kwargs:       The initialization arguments to use while initializing the llm.
         :param generation_kwargs: The generation arguments to use while generating text.
         :param name:              The name of this server to be initialized.
         :param model_path:        Not in use. When adding a model pass any string value
         """
         super().__init__(name=name, context=context, model_path=model_path)
-        self.model_class = model_class
         self.llm = llm
         self.init_kwargs = init_kwargs or {}
         self.generation_kwargs = generation_kwargs
@@ -72,7 +69,7 @@ class LangChainModelServer(V2ModelServer):
             self.model = self.llm
             return
         # If the llm is a string (or not given, then we take default model), load the llm from langchain.
-        self.model = getattr(langchain_community.llms, self.model_class)(
+        self.model = getattr(langchain_community.llms, self.llm)(
             **self.init_kwargs
         )
 

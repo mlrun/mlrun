@@ -283,6 +283,9 @@ class KVStoreBase(StoreBase):
             endpoint_dict = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
+            # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+            endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+            endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
             if labels and not self._validate_labels(
                 endpoint_dict=endpoint_dict, labels=labels

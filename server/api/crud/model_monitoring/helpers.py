@@ -106,27 +106,33 @@ def get_monitoring_parquet_path(
 def get_stream_path(
     project: str = None,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    stream_uri: typing.Optional[str] = None,
 ) -> typing.Union[list[str]]:
     """
-    Get stream path from the project secret. If wasn't set, take it from the system configurations
+     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
-    :param project:             Project name.
-    :param function_name:       Application name. Default is model_monitoring_stream.
+     :param project:             Project name.
+     :param function_name:       Application name. Default is model_monitoring_stream.
+    :param stream_uri:           Stream URI. If not provided, it will be taken from the project secret.
 
-    :return:                    Monitoring stream path to the relevant application.
+     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = server.api.crud.secrets.Secrets().get_project_secret(
+    stream_uri = stream_uri or server.api.crud.secrets.Secrets().get_project_secret(
         project=project,
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
         secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
-    ) or mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
-        target="online",
-        function_name=function_name,
     )
+
+    if not stream_uri or stream_uri == "v3io":
+        # TODO : remove the first part of this condition in 1.9.0
+        stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+            target="online",
+            function_name=function_name,
+        )
 
     if isinstance(
         stream_uri, list

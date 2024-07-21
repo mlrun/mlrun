@@ -32,10 +32,13 @@ import server.api.api.utils
 import server.api.utils.builder
 import server.api.utils.singletons.k8s
 from mlrun.config import config
+from mlrun.runtimes import RuntimeKinds
 
 
 def test_build_runtime_use_base_image_when_no_build():
-    fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
+    fn = mlrun.new_function(
+        "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+    )
     base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
@@ -55,7 +58,9 @@ def test_build_runtime_enrich_base_image(monkeypatch):
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
-        fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
+        fn = mlrun.new_function(
+            "some-function", "some-project", "some-tag", kind=RuntimeKinds.job
+        )
         base_image = "some/image"
         fn.build_config(
             base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
@@ -81,7 +86,7 @@ def test_build_runtime_enrich_base_image(monkeypatch):
 def test_build_runtime_use_image_when_no_build():
     image = "mlrun/mlrun"
     fn = mlrun.new_function(
-        "some-function", "some-project", "some-tag", image=image, kind="job"
+        "some-function", "some-project", "some-tag", image=image, kind=RuntimeKinds.job
     )
     assert fn.spec.image == image
     ready = server.api.utils.builder.build_runtime(
@@ -114,7 +119,7 @@ def test_build_runtime_insecure_registries(
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
 
@@ -153,7 +158,7 @@ def test_build_runtime_target_image(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     image_name_prefix = (
@@ -245,7 +250,7 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     server.api.utils.builder.build_runtime(
@@ -268,7 +273,7 @@ def test_function_build_with_attributes_from_spec(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     node_selector = {
@@ -315,7 +320,7 @@ def test_function_build_with_default_requests(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     server.api.utils.builder.build_runtime(
@@ -474,7 +479,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     function = mlrun.new_function(
         "some-function",
         "some-project",
-        kind="job",
+        kind=RuntimeKinds.job,
     )
     function = project.set_function(function)
     server.api.utils.builder.build_runtime(
@@ -487,17 +492,14 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
         env.to_dict() for env in pod_spec.containers[0].env
     ]
 
-    # ensure both envvars are set without values, so they won't interfere with the iam policy
+    # ensure both envvars are not set, so they won't interfere with the iam policy/docker registry secret
     for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
-        assert {"name": env_name, "value": "", "value_from": None} in [
-            env.to_dict() for env in pod_spec.containers[0].env
-        ]
+        assert env_name not in (env.name for env in pod_spec.containers[0].env)
 
     # 1 for the AWS_SDK_LOAD_CONFIG=true
-    # 2 for the AWS_ACCESS_KEY_ID="" and AWS_SECRET_ACCESS_KEY=""
     # 1 for the project secret
-    # == 4
-    assert len(pod_spec.containers[0].env) == 4, "expected 4 env items"
+    # == 2
+    assert len(pod_spec.containers[0].env) == 2, "expected 2 env items"
 
     assert len(pod_spec.init_containers) == 2
     for init_container in pod_spec.init_containers:
@@ -535,7 +537,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         function = mlrun.new_function(
             "some-function",
             "some-project",
-            kind="job",
+            kind=RuntimeKinds.job,
         )
         image = f"{registry}/{case.get('repo')}"
         if case.get("tag"):
@@ -571,7 +573,7 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     server.api.utils.builder.build_runtime(
@@ -629,7 +631,7 @@ def test_build_runtime_ecr_with_repository(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
     server.api.utils.builder.build_runtime(
@@ -712,7 +714,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
     )
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
@@ -735,7 +737,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
         "some-project",
         "some-tag",
         image="mlrun/mlrun",
-        kind="job",
+        kind=RuntimeKinds.job,
     )
     service_account = "my-actual-sa"
     function.spec.service_account = service_account
@@ -771,7 +773,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
             "some-project",
             "some-tag",
             image="mlrun/mlrun",
-            kind="job",
+            kind=RuntimeKinds.job,
         )
         if clone_target_dir is not None:
             function.spec.clone_target_dir = clone_target_dir
@@ -824,7 +826,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
             "some-project",
             "some-tag",
             image="mlrun/mlrun",
-            kind="job",
+            kind=RuntimeKinds.job,
         )
 
         with expectation:
@@ -1089,7 +1091,7 @@ def test_mlrun_base_image_with_requirements(
             "some-function",
             "some-project",
             "some-tag",
-            kind="job",
+            kind=RuntimeKinds.job,
             requirements=["some-package"],
         )
         function.spec.build.base_image = base_image
@@ -1128,7 +1130,7 @@ def test_mlrun_base_image_no_requirements():
             "some-function",
             "some-project",
             "some-tag",
-            kind="job",
+            kind=RuntimeKinds.job,
             source="some-source.zip",
         )
         function.spec.build.base_image = "mlrun/mlrun:1.6.0"

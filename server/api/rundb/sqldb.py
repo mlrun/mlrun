@@ -272,6 +272,7 @@ class SQLRunDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
@@ -281,6 +282,7 @@ class SQLRunDB(RunDBInterface):
             project,
             deletion_strategy=deletion_strategy,
             secrets=secrets,
+            iteration=iter,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -1119,7 +1121,7 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def enable_model_monitoring(
         self,
@@ -1128,6 +1130,7 @@ class SQLRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -1149,6 +1152,14 @@ class SQLRunDB(RunDBInterface):
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool = False,
     ) -> None:
         raise NotImplementedError
 

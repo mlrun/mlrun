@@ -714,7 +714,8 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
         error_message = (
-            f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+            f"Project name mismatch, {name_from_struct} != {name}, project is loaded from {name_from_struct} "
+            f"project yaml. To prevent/allow this, you can take one of the following actions:\n"
             "1. Set the `allow_cross_project=True` when loading the project.\n"
             f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
             "3. Use different project context dir."
@@ -722,14 +723,14 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
 
         if allow_cross_project is None:
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
-            logger.warn(
-                "Project name is different than specified on its project yaml."
-                "You should fix it until version 1.9.0",
-                description=error_message,
+            warnings.warn(
+                f"Project {name=} is different than specified on the context's project yaml. "
+                "This behavior is deprecated and will not be supported in version 1.9.0."
             )
+            logger.warn(error_message)
         elif allow_cross_project:
-            logger.warn(
-                "Project name is different than specified on its project yaml. Overriding.",
+            logger.debug(
+                "Project name is different than specified on the context's project yaml. Overriding.",
                 existing_name=name_from_struct,
                 overriding_name=name,
             )
@@ -1007,8 +1008,13 @@ class ProjectSpec(ModelObj):
                 key = artifact.key
                 artifact = artifact.to_dict()
             else:  # artifact is a dict
-                # imported artifacts don't have metadata,spec,status fields
-                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
+                # imported/legacy artifacts don't have metadata,spec,status fields
+                key_field = (
+                    "key"
+                    if _is_imported_artifact(artifact)
+                    or mlrun.utils.is_legacy_artifact(artifact)
+                    else "metadata.key"
+                )
                 key = mlrun.utils.get_in(artifact, key_field, "")
                 if not key:
                     raise ValueError(f'artifacts "{key_field}" must be specified')
@@ -2127,6 +2133,7 @@ class MlrunProject(ModelObj):
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2136,17 +2143,18 @@ class MlrunProject(ModelObj):
         The stream function goal is to monitor the log of the data stream. It is triggered when a new log entry
         is detected. It processes the new events into statistics that are then written to statistics databases.
 
-        :param default_controller_image:        Deprecated.
-        :param base_period:                     The time period in minutes in which the model monitoring controller
-                                                function is triggered. By default, the base period is 10 minutes.
-        :param image:                           The image of the model monitoring controller, writer, monitoring
-                                                stream & histogram data drift functions, which are real time nuclio
-                                                functions. By default, the image is mlrun/mlrun.
-        :param deploy_histogram_data_drift_app: If true, deploy the default histogram-based data drift application.
-        :param wait_for_deployment:             If true, return only after the deployment is done on the backend.
-                                                Otherwise, deploy the model monitoring infrastructure on the
-                                                background, including the histogram data drift app if selected.
-        :param rebuild_images:                  If true, force rebuild of model monitoring infrastructure images.
+        :param default_controller_image:          Deprecated.
+        :param base_period:                       The time period in minutes in which the model monitoring controller
+                                                  function is triggered. By default, the base period is 10 minutes.
+        :param image:                             The image of the model monitoring controller, writer, monitoring
+                                                  stream & histogram data drift functions, which are real time nuclio
+                                                  functions. By default, the image is mlrun/mlrun.
+        :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
+        :param wait_for_deployment:               If true, return only after the deployment is done on the backend.
+                                                  Otherwise, deploy the model monitoring infrastructure on the
+                                                  background, including the histogram data drift app if selected.
+        :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images.
+        :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         """
         if default_controller_image != "mlrun/mlrun":
             # TODO: Remove this in 1.9.0
@@ -2163,6 +2171,7 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
             rebuild_images=rebuild_images,
+            fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         )
 
         if wait_for_deployment:
@@ -2485,25 +2494,17 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
-        """remove the specified model-monitoring-app function/s from the project spec
+        """delete the specified model-monitoring-app function/s
 
         :param name: name of the model-monitoring-function/s (under the project)
         """
-        names = name if isinstance(name, list) else [name]
-        for func_name in names:
-            function = self.get_function(key=func_name)
-            if (
-                function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-                == mm_constants.ModelMonitoringAppLabel.VAL
-            ):
-                self.remove_function(name=func_name)
-                logger.info(
-                    f"{func_name} function has been removed from {self.name} project"
-                )
-            else:
-                raise logger.warn(
-                    f"There is no model monitoring function with {func_name} name"
-                )
+        # TODO: Remove this in 1.9.0
+        warnings.warn(
+            "'remove_model_monitoring_function' is deprecated and will be removed in 1.9.0. "
+            "Please use `delete_model_monitoring_function` instead.",
+            FutureWarning,
+        )
+        self.delete_model_monitoring_function(name)
 
     def delete_model_monitoring_function(self, name: Union[str, list[str]]):
         """delete the specified model-monitoring-app function/s
@@ -3204,51 +3205,62 @@ class MlrunProject(ModelObj):
         endpoint_store_connection: Optional[str] = None,
         stream_path: Optional[str] = None,
         tsdb_connection: Optional[str] = None,
+        replace_creds: bool = False,
     ):
-        """Set the credentials that will be used by the project's model monitoring
+        """
+        Set the credentials that will be used by the project's model monitoring
         infrastructure functions. Important to note that you have to set the credentials before deploying any
         model monitoring or serving function.
 
-        :param access_key:                Model Monitoring access key for managing user permissions
-        :param endpoint_store_connection: Endpoint store connection string
-        :param stream_path:               Path to the model monitoring stream
-        :param tsdb_connection:           Connection string to the time series database
+        :param access_key:                Model Monitoring access key for managing user permissions.
+        :param endpoint_store_connection: Endpoint store connection string. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io endpoint store,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. MySQL/SQLite - for SQL endpoint store, please provide full
+                                             connection string, for example
+                                             mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+        :param stream_path:               Path to the model monitoring stream. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. Kafka - for Kafka stream, please provide full connection string without
+                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
+        :param tsdb_connection:           Connection string to the time series database. By default, None.
+                                          Options:
+                                          1. None, will be set from the system configuration.
+                                          2. v3io - for v3io stream,
+                                             pass `v3io` and the system will generate the exact path.
+                                          3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
+                                             for example taosws://<username>:<password>@<host>:<port>.
+        :param replace_creds:                     If True, will override the existing credentials.
+                                          Please keep in mind that if you already enabled model monitoring on
+                                          your project this action can cause data loose and will require redeploying
+                                          all model monitoring functions & model monitoring infra
+                                          & tracked model server.
         """
-
-        secrets_dict = {}
-        if access_key:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
-            ] = access_key
-
-        if endpoint_store_connection:
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            ] = endpoint_store_connection
-
-        if stream_path:
-            if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Custom kafka topic is not allowed"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            ] = stream_path
-
-        if tsdb_connection:
-            if not tsdb_connection.startswith("taosws://"):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
-                    "please provide a full URL (e.g. taosws://user:password@host:port)"
-                )
-            secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
-            ] = tsdb_connection
-
-        self.set_secrets(
-            secrets=secrets_dict,
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.set_model_monitoring_credentials(
+            project=self.name,
+            credentials={
+                "access_key": access_key,
+                "endpoint_store_connection": endpoint_store_connection,
+                "stream_path": stream_path,
+                "tsdb_connection": tsdb_connection,
+            },
+            replace_creds=replace_creds,
         )
+        if replace_creds:
+            logger.info(
+                "Model monitoring credentials were set successfully. "
+                "Please keep in mind that if you already had model monitoring functions "
+                "/ model monitoring infra / tracked model server "
+                "deployed on your project, you will need to redeploy them."
+                "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
+                "and set `rebuild_images=True`"
+            )
 
     def run_function(
         self,

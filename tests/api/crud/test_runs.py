@@ -21,6 +21,7 @@ import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud
@@ -75,15 +76,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                 ),
                                 status=k8s_client.V1PodStatus(phase="Running"),
                             )
-                        ]
+                        ],
+                        metadata=k8s_client.V1ListMeta(),
                     ),
                     # 2nd time for waiting for pod to be deleted
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
-            ),
-            unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -130,11 +128,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             unittest.mock.patch.object(
                 k8s_helper.v1api,
                 "list_namespaced_pod",
-                return_value=k8s_client.V1PodList(items=[]),
-            ),
-            unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
+                return_value=k8s_client.V1PodList(
+                    items=[], metadata=k8s_client.V1ListMeta()
+                ),
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -152,6 +148,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         This test creates 3 runs, and then tries to delete them.
         The first run is deleted successfully, the second one fails with an exception, and the third one is deleted
         """
+        mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
         project = "project-name"
         run_name = "run-name"
         for uid in range(3):
@@ -181,21 +178,21 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 k8s_helper.v1api,
                 "list_namespaced_pod",
                 side_effect=[
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                     Exception("Boom!"),
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
             ),
             unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
-            ),
+                server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            ) as delete_logs_mock,
         ):
             with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
                 await server.api.crud.Runs().delete_runs(
                     db, name=run_name, project=project
                 )
             assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
+            assert delete_logs_mock.call_count == 2
 
             runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 1

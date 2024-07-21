@@ -14,6 +14,7 @@
 import os
 from unittest import mock
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.config
 import mlrun.model_monitoring
 
@@ -53,6 +54,17 @@ def test_get_file_target_path():
     assert (
         offline_parquet_abs + f"/{TEST_PROJECT}/parquet"
         == f"schema://projects/test-path/{TEST_PROJECT}/parquet"
+    )
+
+    tsdb_monitoring_application_full_path = (
+        mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=TEST_PROJECT,
+            kind=mm_constants.FileTargetKind.MONITORING_APPLICATION,
+        )
+    )
+    assert (
+        tsdb_monitoring_application_full_path
+        == f"v3io:///users/pipelines/{TEST_PROJECT}/monitoring-apps/"
     )
 
 

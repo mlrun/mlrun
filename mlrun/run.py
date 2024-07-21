@@ -201,8 +201,8 @@ def get_or_create_ctx(
     rundb: str = "",
     project: str = "",
     upload_artifacts=False,
-    labels: dict = None,
-):
+    labels: Optional[dict] = None,
+) -> MLClientCtx:
     """called from within the user program to obtain a run context
 
     the run context is an interface for receiving parameters, data and logging
@@ -217,10 +217,10 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels:      dict of the context labels
+    :param labels:   dict of the context labels
     :return: execution context
 
     Examples::
@@ -639,7 +639,7 @@ def code_to_function(
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
-    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
 

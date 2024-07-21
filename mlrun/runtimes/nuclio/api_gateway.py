@@ -546,6 +546,14 @@ class APIGateway(ModelObj):
             project=self.spec.project, functions=self.spec.functions, ports=ports
         )
 
+    def with_force_ssl_redirect(self):
+        """
+        Set SSL redirect annotation for the API gateway.
+        """
+        self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
+            "true"
+        )
+
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(
@@ -560,6 +568,8 @@ class APIGateway(ModelObj):
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
                 name=api_gateway.spec.name,
+                annotations=api_gateway.metadata.annotations,
+                labels=api_gateway.metadata.labels,
             ),
             spec=APIGatewaySpec(
                 project=project,
@@ -600,7 +610,11 @@ class APIGateway(ModelObj):
                 upstreams[i].port = port
 
         api_gateway = schemas.APIGateway(
-            metadata=schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
+            metadata=schemas.APIGatewayMetadata(
+                name=self.metadata.name,
+                labels=self.metadata.labels,
+                annotations=self.metadata.annotations,
+            ),
             spec=schemas.APIGatewaySpec(
                 name=self.metadata.name,
                 description=self.spec.description,

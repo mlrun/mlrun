@@ -114,18 +114,19 @@ class ProjectOwner(pydantic.BaseModel):
 
 class ProjectSummary(pydantic.BaseModel):
     name: str
-    files_count: int
-    feature_sets_count: int
-    models_count: int
-    runs_completed_recent_count: int
-    runs_failed_recent_count: int
-    runs_running_count: int
-    distinct_schedules_count: int
-    distinct_scheduled_jobs_pending_count: int
-    distinct_scheduled_pipelines_pending_count: int
+    files_count: int = 0
+    feature_sets_count: int = 0
+    models_count: int = 0
+    runs_completed_recent_count: int = 0
+    runs_failed_recent_count: int = 0
+    runs_running_count: int = 0
+    distinct_schedules_count: int = 0
+    distinct_scheduled_jobs_pending_count: int = 0
+    distinct_scheduled_pipelines_pending_count: int = 0
     pipelines_completed_recent_count: typing.Optional[int] = None
     pipelines_failed_recent_count: typing.Optional[int] = None
     pipelines_running_count: typing.Optional[int] = None
+    updated: typing.Optional[datetime.datetime] = None
 
 
 class IguazioProject(pydantic.BaseModel):

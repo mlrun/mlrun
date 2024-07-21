@@ -737,16 +737,21 @@ class Notification(ModelObj):
             self.kind
         ).get_notification()
 
-        secret_params = self.secret_params
-        params = self.params
+        secret_params = self.secret_params or {}
+        params = self.params or {}
+
+        # if the secret_params are already masked - no need to validate
+        params_secret = secret_params.get("secret", "")
+        if params_secret:
+            if len(secret_params) > 1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "When the 'secret' key is present, 'secret_params' should not contain any other keys."
+                )
+            return
 
         if not secret_params and not params:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
-            )
-        if secret_params and params and secret_params != params:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both 'secret_params' and 'params' are defined but they contain different values"
             )
 
         notification_class.validate_params(secret_params or params)
@@ -892,6 +897,7 @@ class RunSpec(ModelObj):
         notifications=None,
         state_thresholds=None,
         reset_on_run=None,
+        node_selector=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -929,6 +935,7 @@ class RunSpec(ModelObj):
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
         self.reset_on_run = reset_on_run
+        self.node_selector = node_selector or {}
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
@@ -1304,7 +1311,7 @@ class RunTemplate(ModelObj):
 
             task.with_input("data", "/file-dir/path/to/file")
             task.with_input("data", "s3://<bucket>/path/to/file")
-            task.with_input("data", "v3io://[<remote-host>]/<data-container>/path/to/file")
+            task.with_input("data", "v3io://<data-container>/path/to/file")
         """
         if not self.spec.inputs:
             self.spec.inputs = {}

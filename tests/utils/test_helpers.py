@@ -385,13 +385,17 @@ def test_validate_v3io_consumer_group(value, expected):
         {"image": "fake_mlrun/ml-models", "expected_output": "fake_mlrun/ml-models"},
         {"image": "some_repo/some_image", "expected_output": "some_repo/some_image"},
         {
+            "image": "python:3.9",
+            "expected_output": "dummy-repo/python:3.9",
+        },
+        {
             "image": "some-repo/some-image",
-            "expected_output": "ghcr.io/some-repo/some-image",
+            "expected_output": "dummy-repo/some-repo/some-image",
             "images_to_enrich_registry": "some-repo/some-image",
         },
         {
             "image": "some-repo/some-image:some-tag",
-            "expected_output": "ghcr.io/some-repo/some-image:some-tag",
+            "expected_output": "dummy-repo/some-repo/some-image:some-tag",
             "images_to_enrich_registry": "some-repo/some-image",
         },
         {
@@ -579,6 +583,7 @@ def test_enrich_image(case):
     default_images_to_enrich_registry = config.images_to_enrich_registry
     config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
     config.images_registry = case.get("images_registry", "ghcr.io/")
+    config.vendor_images_registry = case.get("vendor_images_registry", "dummy-repo/")
     config.images_to_enrich_registry = case.get(
         "images_to_enrich_registry", default_images_to_enrich_registry
     )
@@ -998,3 +1003,15 @@ def test_normalize_username(username, expected_normalized_username):
 def test_is_safe_path(basedir, path, is_symlink, is_valid):
     safe = mlrun.utils.is_safe_path(basedir, path, is_symlink)
     assert safe == is_valid
+
+
+def test_get_artifact_target():
+    item = {
+        "kind": "artifact",
+        "spec": {
+            "db_key": "dummy-db-key",
+        },
+        "metadata": {"tree": "dummy-tree", "tag": "dummy-tag"},
+    }
+    target = mlrun.utils.get_artifact_target(item, project="dummy-project")
+    assert target == "store://artifacts/dummy-project/dummy-db-key:dummy-tag@dummy-tree"

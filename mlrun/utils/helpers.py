@@ -109,10 +109,13 @@ def get_artifact_target(item: dict, project=None):
     db_key = item["spec"].get("db_key")
     project_str = project or item["metadata"].get("project")
     tree = item["metadata"].get("tree")
+    tag = item["metadata"].get("tag")
 
     kind = item.get("kind")
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+        if tag:
+            target = f"{target}:{tag}"
         if tree:
             target = f"{target}@{tree}"
         return target
@@ -816,13 +819,16 @@ def enrich_image_url(
     tag += resolve_image_tag_suffix(
         mlrun_version=mlrun_version, python_version=client_python_version
     )
-    registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
+
+    registry = (
+        config.images_registry if is_mlrun_image else config.vendor_images_registry
+    )
 
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
@@ -1263,6 +1269,10 @@ def _fill_project_path_template(artifact_path, project):
     return artifact_path
 
 
+def to_non_empty_values_dict(input_dict: dict) -> dict:
+    return {key: value for key, value in input_dict.items() if value}
+
+
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
     """convert fixed/relative time string to Pandas Timestamp
 
@@ -1610,6 +1620,30 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
+def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
+    """
+    Merge two dictionaries with precedence given to keys from the second dictionary.
+
+    This function merges two dictionaries, `first_dict` and `second_dict`, where keys from `second_dict`
+    take precedence in case of conflicts. If both dictionaries contain the same key,
+    the value from `second_dict` will overwrite the value from `first_dict`.
+
+    Example:
+        >>> first_dict = {"key1": "value1", "key2": "value2"}
+        >>> second_dict = {"key2": "new_value2", "key3": "value3"}
+        >>> merge_with_precedence(first_dict, second_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'value3'}
+
+    Note:
+    - The merge operation uses the ** operator in Python, which combines key-value pairs
+      from each dictionary. Later dictionaries take precedence when there are conflicting keys.
+    """
+    return {
+        **(first_dict or {}),
+        **(second_dict or {}),
+    }
+
+
 def validate_component_version_compatibility(
     component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
 ):
@@ -1665,6 +1699,12 @@ def format_alert_summary(
     result = result.replace("{{name}}", alert.name)
     result = result.replace("{{entity}}", event_data.entity.ids[0])
     return result
+
+
+def is_parquet_file(file_path, format_=None):
+    return (file_path and file_path.endswith((".parquet", ".pq"))) or (
+        format_ == "parquet"
+    )
 
 
 def _reload(module, max_recursion_depth):

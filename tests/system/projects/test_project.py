@@ -33,6 +33,7 @@ import mlrun.common.schemas
 import mlrun.utils.logger
 import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
@@ -175,7 +176,7 @@ class TestProject(TestMLRunSystem):
         )
         out = _stdout.getvalue()
         assert (
-            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "[mlrun:warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
             "If you wish to use the default configured registry, no protocol prefix is required "
             "(note that you can also use '.<image-name>' instead of the full URL "
             "where <image-name> is a placeholder). "
@@ -1152,6 +1153,7 @@ class TestProject(TestMLRunSystem):
     ):
         function_name = "test-func"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
 
         code_path = str(self.assets_path / "sleep.py")
         func = project.set_function(
@@ -1161,16 +1163,61 @@ class TestProject(TestMLRunSystem):
             image="mlrun/mlrun",
             handler="handler",
         )
-        func.spec.node_selector = {function_label_name: function_label_val}
+        func.spec.node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
 
         # We run the function to ensure node selector enrichment, which doesn't occur during function build,
         # but at runtime.
-        project.run_function(function_name)
+        job = project.run_function(function_name)
 
-        # Verify that the node selector is correctly enriched
+        # Verify that the node selector is correctly enriched on job object
+        assert job.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_override_label: function_override_val,
+            function_label_name: function_label_val,
+        }
+
+        # Verify that the node selector is not enriched on function object
         result_func = project.get_function(function_name)
         assert result_func.spec.node_selector == {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+
+    def _create_and_validate_mpi_function_with_node_selector(
+        self, project: mlrun.projects.MlrunProject
+    ):
+        function_name = "test-func"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
+
+        code_path = str(self.assets_path / "mpijob_function.py")
+        replicas = 2
+
+        mpi_func = mlrun.code_to_function(
+            name=function_name,
+            kind="mpijob",
+            handler="handler",
+            project=project.name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        mpi_func.spec.replicas = replicas
+        mpi_func.spec.node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+        # but at runtime.
+        mpijob_run = mpi_func.run(returns=["reduced_result", "rank_0_result"])
+        assert mpijob_run.status.state == RunStates.completed
+
+        # Verify that the node selector is correctly enriched on job object
+        assert mpijob_run.spec.node_selector == {
             **project.spec.default_function_node_selector,
+            function_override_label: function_override_val,
             function_label_name: function_label_val,
         }
 
@@ -1199,6 +1246,10 @@ class TestProject(TestMLRunSystem):
 
     def test_project_default_function_node_selector(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+        project_label_to_remove, project_label_to_remove_val = (
+            "kubernetes.io/hostname",
+            "k8s-node1",
+        )
 
         # Test using mlrun sdk to create the project
         project_name = "test-project"
@@ -1206,13 +1257,18 @@ class TestProject(TestMLRunSystem):
 
         project = mlrun.new_project(
             project_name,
-            default_function_node_selector={project_label_name: project_label_val},
+            default_function_node_selector={
+                project_label_name: project_label_val,
+                project_label_to_remove: project_label_to_remove_val,
+            },
         )
         assert project.spec.default_function_node_selector == {
-            project_label_name: project_label_val
+            project_label_name: project_label_val,
+            project_label_to_remove: project_label_to_remove_val,
         }
 
         self._create_and_validate_project_function_with_node_selector(project)
+        self._create_and_validate_mpi_function_with_node_selector(project)
 
     def test_project_build_image(self):
         name = "test-build-image"

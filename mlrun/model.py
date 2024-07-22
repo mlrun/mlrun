@@ -1620,8 +1620,9 @@ class RunObject(RunTemplate):
 
         # Sort matching artifacts by creation date in ascending order.
         # The last element in the list will be the one created most recently.
+        # In case the `created` field does not exist in the artifact, that artifact will appear first in the sorted list
         matching_artifacts.sort(
-            key=lambda artifact: artifact["metadata"].get("created")
+            key=lambda artifact: artifact["metadata"].get("created", datetime.min)
         )
 
         # Filter out artifacts with 'latest' tag
@@ -1651,7 +1652,11 @@ class RunObject(RunTemplate):
         for key, artifacts in artifacts_by_key.items():
             # Sort matching artifacts by creation date in ascending order.
             # The last element in the list will be the one created most recently.
-            artifacts.sort(key=lambda artifact: artifact["metadata"].get("created"))
+            # In case the `created` field does not exist in the artifactthat artifact will appear
+            # first in the sorted list
+            artifacts.sort(
+                key=lambda artifact: artifact["metadata"].get("created", datetime.min)
+            )
 
             # Filter out artifacts with 'latest' tag
             non_latest_artifacts = [

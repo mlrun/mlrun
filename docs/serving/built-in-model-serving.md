@@ -8,7 +8,7 @@ The following table specifies, for each framework, the corresponding MLRun `Mode
 
 | Framework        | Serving class                                         | Dependencies |
 |------------------|-------------------------------------------------------|--------------|
-| Scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`         | scikit-learn |
+| scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`         | scikit-learn |
 | TensorFlow.Keras | `mlrun.frameworks.tf_keras.TFKerasModelServer`        | tensorflow   |
 | ONNX             | `mlrun.frameworks.onnx.ONNXModelServer`               | onnxruntime  |
 | XGBoost          | `mlrun.frameworks.xgboost.XGBoostModelServer`         | xgboost      |

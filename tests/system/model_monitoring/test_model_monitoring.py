@@ -336,9 +336,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
-        if not with_sql_target:
-            # ML-6594
-            assert not endpoint.status.feature_stats
+        assert not endpoint.status.feature_stats
 
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint, model_name=model_name, tag=tag, labels=labels

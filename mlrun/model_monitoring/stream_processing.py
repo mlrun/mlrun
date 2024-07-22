@@ -773,6 +773,12 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         feature_values = event[EventFieldType.FEATURES]
         label_values = event[EventFieldType.PREDICTION]
+
+        for index in range(len(feature_values)):
+            feature_value = feature_values[index]
+            if isinstance(feature_value, int):
+                feature_values[index] = float(feature_value)
+
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
             endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(

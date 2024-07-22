@@ -52,6 +52,8 @@ class Member(
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
         self._sync_projects()
+
+    def start(self):
         self._start_periodic_sync()
 
     def shutdown(self):

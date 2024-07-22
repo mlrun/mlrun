@@ -75,3 +75,18 @@ def test_delete_artifact_data_internal_secret(
         str(exc.value)
         == "Not allowed to create/update internal secrets (key starts with mlrun.)"
     )
+
+
+def test_delete_artifact_data_local_path(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+) -> None:
+    path = "/some-local-path"
+    project = "proj1"
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError) as exc:
+        server.api.crud.Files().delete_artifact_data(
+            mlrun.common.schemas.AuthInfo(), project, path
+        )
+    assert str(exc.value) == "Unauthorized path"

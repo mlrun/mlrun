@@ -103,8 +103,6 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         error=mlrun.errors.err_to_str(result),
                     )
 
-        logger.debug("Pushing notification")
-
         self._push(sync_push, async_push)
 
     async def _push_notification_async(

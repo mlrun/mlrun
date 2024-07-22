@@ -1595,6 +1595,7 @@ class TestProject(TestMLRunSystem):
             source="./",  # Relative to project.spec.build.source_code_target_dir
             artifact_path=artifact_path,
             dirty=True,
+            watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded
 

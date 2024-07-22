@@ -19,6 +19,7 @@ import uuid
 
 import pytest
 
+import mlrun
 from tests.system.base import TestMLRunSystem
 
 function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
@@ -45,7 +46,6 @@ class TestAPIArtifacts(TestMLRunSystem):
             )
         assert artifact.to_dataitem().get().decode() == body
 
-    @pytest.mark.enterprise
     def test_verify_artifact_tag_in_output(self):
         # log the same artifact but with different tags and check the function output
         self.project.set_function(
@@ -72,17 +72,22 @@ class TestAPIArtifacts(TestMLRunSystem):
             "v3" in outputs_uri_from_list_runs
         ), "Expected 'v3' tag in outputs_uri_from_list_runs"
 
-        # run the same function with different tags
-        self.project.set_function(
-            func=function_path,
-            handler="log_artifact_with_tag",
-            name="test",
-            image="mlrun/mlrun",
+        func_v1_run = self.project.run_function(
+            "test", handler="log_artifact_with_tag", params={"tag": "v1"}
         )
-
-        func_v1_run = self.project.run_function("test", params={"tag": "v1"})
         output_uri = func_v1_run.output("file_result")
         outputs_uri = func_v1_run.outputs["file_result"]
 
         assert "v1" in output_uri, "Expected 'v1' tag in output_uri"
         assert "v1" in outputs_uri, "Expected 'v1' tag in outputs_uri"
+
+        func_v2_run = self.project.run_function(
+            "test", handler="log_artifact_with_tag", params={"tag": "v2"}
+        )
+        output_uri = func_v2_run.output("file_result")
+        outputs_uri = func_v2_run.outputs["file_result"]
+
+        assert "v2" in output_uri, "Expected 'v2' tag in output_uri"
+        assert "v2" in outputs_uri, "Expected 'v2' tag in outputs_uri"
+
+        mlrun.get_dataitem(output_uri)

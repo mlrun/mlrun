@@ -345,9 +345,7 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
 @pytest.fixture
 def setup_project():
     project = mlrun.get_or_create_project("dummy-project")
-    project.set_function(
-        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
-    )
+    project.set_function(func=function_path, name="test", image="mlrun/mlrun")
     return project
 
 
@@ -360,7 +358,9 @@ def setup_project():
     ],
 )
 def test_verify_run_output_uri(setup_project, params, expected):
-    run = setup_project.run_function("test", params=params, local=True)
+    run = setup_project.run_function(
+        "test", handler="myhandler", params=params, local=True
+    )
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 
@@ -369,15 +369,10 @@ def test_verify_run_output_uri(setup_project, params, expected):
     assert expected in outputs_uri
 
 
-def test_verify_tag_in_output_for_relogged_artifact():
-    project = mlrun.get_or_create_project("dummy-project")
-    project.set_function(
-        func=function_path,
-        handler="log_artifact_many_tags",
-        name="test",
-        image="mlrun/mlrun",
+def test_verify_tag_in_output_for_relogged_artifact(setup_project):
+    run = setup_project.run_function(
+        "test", handler="log_artifact_many_tags", local=True
     )
-    run = project.run_function("test", local=True)
     output_uri = run.output("file_result")
     outputs_uri = run.outputs["file_result"]
 

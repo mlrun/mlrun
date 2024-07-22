@@ -1496,7 +1496,7 @@ class RunObject(RunTemplate):
 
         This method waits for the outputs to complete and retrieves the value corresponding to the provided key.
         If the key exists in the results, it returns the corresponding result value.
-        If not found in results, it attempts to fetch the artifact by key.
+        If not found in results, it attempts to fetch the artifact by key (cached in the run status).
         If the artifact is not found, it tries to fetch the artifact URI by key.
         If no artifact or result is found for the key, returns None.
 
@@ -1509,13 +1509,15 @@ class RunObject(RunTemplate):
         if self.status.results and key in self.status.results:
             return self.status.results[key]
 
-        # Fetch the artifact for the key if available
-        # There are cases when `status.artifact_uri` does not exist in the run (e.g., when running locally).
+        # Artifacts are usually cached in the run object under `status.artifacts`. However, the artifacts are not
+        # stored in the DB as part of the run. The server may enrich the run with the artifacts or provide
+        # `status.artifact_uris` instead. See mlrun.common.formatters.run.RunFormat.
+        # When running locally - `status.artifact_uri` does not exist in the run.
+        # When listing runs - `status.artifacts` does not exist in the run.
         artifact = self._artifact(key)
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
 
-        # There are cases when `status.artifacts` does not exist in the run (e.g., when listing runs).
         if self.status.artifact_uris and key in self.status.artifact_uris:
             return self.status.artifact_uris[key]
 
@@ -1548,8 +1550,11 @@ class RunObject(RunTemplate):
         if self.status.results:
             outputs.update(self.status.results)
 
-        # Add artifacts with targets if available
-        # There are cases when `status.artifact_uri` does not exist in the run (e.g., when running locally).
+        # Artifacts are usually cached in the run object under `status.artifacts`. However, the artifacts are not
+        # stored in the DB as part of the run. The server may enrich the run with the artifacts or provide
+        # `status.artifact_uris` instead. See mlrun.common.formatters.run.RunFormat.
+        # When running locally - `status.artifact_uri` does not exist in the run.
+        # When listing runs - `status.artifacts` does not exist in the run.
         if self.status.artifacts:
             for artifact in self.status.artifacts:
                 key = artifact["metadata"]["key"]
@@ -1557,8 +1562,6 @@ class RunObject(RunTemplate):
                 if (tag != "latest") or (key not in outputs):
                     outputs[key] = get_artifact_target(artifact, self.metadata.project)
 
-        # Add artifact URIs if artifacts are not present
-        # There are cases when `status.artifacts` does not exist in the run (e.g., when listing runs).
         elif self.status.artifact_uris:
             outputs.update(self.status.artifact_uris)
 
@@ -1628,6 +1631,9 @@ class RunObject(RunTemplate):
         ]
 
         # Return the last non-'latest' artifact if available, otherwise return the last artifact
+        # In the case of only one tag, `status.artifacts` includes [v1, latest]. In that case, we want to return v1.
+        # In the case of multiple tags, `status.artifacts` includes [v1, latest, v2, v3].
+        # In that case, we need to return the last one (v3).
         return (non_latest_artifacts or matching_artifacts)[-1]
 
     def uid(self):

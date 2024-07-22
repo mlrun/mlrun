@@ -291,14 +291,8 @@ class SQLStoreBase(StoreBase):
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
-            query = (
-                session.query(self.model_endpoints_table)
-                .options(
-                    # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
-                    sqlalchemy.orm.defer(mm_schemas.EventFieldType.FEATURE_STATS),
-                    sqlalchemy.orm.defer(mm_schemas.EventFieldType.CURRENT_STATS),
-                )
-                .filter_by(project=self.project)
+            query = session.query(self.model_endpoints_table).filter_by(
+                project=self.project
             )
 
             # Apply filters
@@ -346,6 +340,10 @@ class SQLStoreBase(StoreBase):
                     endpoint_dict=endpoint_dict, labels=labels
                 ):
                     continue
+
+                # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
                 endpoint_list.append(endpoint_dict)
 

@@ -1545,7 +1545,6 @@ class RunObject(RunTemplate):
         """
         self._outputs_wait_for_completion()
         outputs = {}
-        artifacts_by_key = {}
 
         # Add results if available
         if self.status.results:
@@ -1557,34 +1556,7 @@ class RunObject(RunTemplate):
         # When running locally - `status.artifact_uri` does not exist in the run.
         # When listing runs - `status.artifacts` does not exist in the run.
         if self.status.artifacts:
-            for artifact in self.status.artifacts:
-                key = artifact["metadata"]["key"]
-                if key not in artifacts_by_key:
-                    artifacts_by_key[key] = []
-                artifacts_by_key[key].append(artifact)
-
-            for key, artifacts in artifacts_by_key.items():
-                # Sort matching artifacts by creation date in ascending order.
-                # The last element in the list will be the one created most recently.
-                artifacts.sort(key=lambda artifact: artifact["metadata"].get("created"))
-
-                # Filter out artifacts with 'latest' tag
-                non_latest_artifacts = [
-                    artifact
-                    for artifact in artifacts
-                    if artifact["metadata"].get("tag") != "latest"
-                ]
-
-                # Save the last non-'latest' artifact if available, otherwise save the last artifact
-                # In the case of only one tag, `status.artifacts` includes [v1, latest].
-                # In that case, we want to save v1.
-                # In the case of multiple tags, `status.artifacts` includes [v1, latest, v2, v3].
-                # In that case, we need to save the last one (v3).
-                artifact_to_save = (non_latest_artifacts or artifacts)[-1]
-                outputs[key] = get_artifact_target(
-                    artifact_to_save, self.metadata.project
-                )
-
+            outputs.update(self._process_artifacts(self.status.artifacts))
         elif self.status.artifact_uris:
             outputs.update(self.status.artifact_uris)
 
@@ -1664,6 +1636,38 @@ class RunObject(RunTemplate):
         # In the case of multiple tags, `status.artifacts` includes [v1, latest, v2, v3].
         # In that case, we need to return the last one (v3).
         return (non_latest_artifacts or matching_artifacts)[-1]
+
+    def _process_artifacts(self, artifacts):
+        artifacts_by_key = {}
+
+        # Organize artifacts by key
+        for artifact in artifacts:
+            key = artifact["metadata"]["key"]
+            if key not in artifacts_by_key:
+                artifacts_by_key[key] = []
+            artifacts_by_key[key].append(artifact)
+
+        outputs = {}
+        for key, artifacts in artifacts_by_key.items():
+            # Sort matching artifacts by creation date in ascending order.
+            # The last element in the list will be the one created most recently.
+            artifacts.sort(key=lambda artifact: artifact["metadata"].get("created"))
+
+            # Filter out artifacts with 'latest' tag
+            non_latest_artifacts = [
+                artifact
+                for artifact in artifacts
+                if artifact["metadata"].get("tag") != "latest"
+            ]
+
+            # Save the last non-'latest' artifact if available, otherwise save the last artifact
+            # In the case of only one tag, `artifacts` includes [v1, latest], in that case, we want to save v1.
+            # In the case of multiple tags, `artifacts` includes [v1, latest, v2, v3].
+            # In that case, we need to save the last one (v3).
+            artifact_to_save = (non_latest_artifacts or artifacts)[-1]
+            outputs[key] = get_artifact_target(artifact_to_save, self.metadata.project)
+
+        return outputs
 
     def uid(self):
         """run unique id"""

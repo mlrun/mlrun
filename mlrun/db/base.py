@@ -175,7 +175,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod

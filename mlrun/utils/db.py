@@ -28,6 +28,9 @@ class BaseModel:
         columns = [column.key for column in mapper.columns if column.key not in exclude]
 
         def get_key_value(c):
+            # all (never say never) DB classes have "object" defined as "full_object"
+            if c == "object":
+                c = "full_object"
             if isinstance(getattr(self, c), datetime):
                 return c, getattr(self, c).isoformat()
             return c, getattr(self, c)

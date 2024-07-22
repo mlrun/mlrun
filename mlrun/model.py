@@ -1545,6 +1545,7 @@ class RunObject(RunTemplate):
         """
         self._outputs_wait_for_completion()
         outputs = {}
+        artifacts_by_key = {}
 
         # Add results if available
         if self.status.results:
@@ -1558,9 +1559,31 @@ class RunObject(RunTemplate):
         if self.status.artifacts:
             for artifact in self.status.artifacts:
                 key = artifact["metadata"]["key"]
-                tag = artifact["metadata"].get("tag")
-                if (tag != "latest") or (key not in outputs):
-                    outputs[key] = get_artifact_target(artifact, self.metadata.project)
+                if key not in artifacts_by_key:
+                    artifacts_by_key[key] = []
+                artifacts_by_key[key].append(artifact)
+
+            for key, artifacts in artifacts_by_key.items():
+                # Sort matching artifacts by creation date in ascending order.
+                # The last element in the list will be the one created most recently.
+                artifacts.sort(key=lambda artifact: artifact["metadata"].get("created"))
+
+                # Filter out artifacts with 'latest' tag
+                non_latest_artifacts = [
+                    artifact
+                    for artifact in artifacts
+                    if artifact["metadata"].get("tag") != "latest"
+                ]
+
+                # Save the last non-'latest' artifact if available, otherwise save the last artifact
+                # In the case of only one tag, `status.artifacts` includes [v1, latest].
+                # In that case, we want to save v1.
+                # In the case of multiple tags, `status.artifacts` includes [v1, latest, v2, v3].
+                # In that case, we need to save the last one (v3).
+                artifact_to_save = (non_latest_artifacts or artifacts)[-1]
+                outputs[key] = get_artifact_target(
+                    artifact_to_save, self.metadata.project
+                )
 
         elif self.status.artifact_uris:
             outputs.update(self.status.artifact_uris)
@@ -1622,6 +1645,12 @@ class RunObject(RunTemplate):
 
         if not matching_artifacts:
             return None
+
+        # Sort matching artifacts by creation date in ascending order.
+        # The last element in the list will be the one created most recently.
+        matching_artifacts.sort(
+            key=lambda artifact: artifact["metadata"].get("created")
+        )
 
         # Filter out artifacts with 'latest' tag
         non_latest_artifacts = [

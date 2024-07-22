@@ -108,7 +108,7 @@ class StoreBase(ABC):
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param uids:             List of model endpoint unique ids to include in the result.
-        :param include_stats:   If True, will include model endpoints statistics.
+        :param include_stats:   If True, will include model endpoint statistics in the result.
 
         :return: A list of model endpoint dictionaries.
         """

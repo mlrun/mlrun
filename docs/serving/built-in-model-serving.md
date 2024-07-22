@@ -72,8 +72,6 @@ mock_server.test(f"/v2/models/{model_key}/infer", body=my_data)
 Similarly, you can deploy the serving function and test it with some data:
 
 ``` python
-serving_fn.with_code(body=" ")  # Workaround, required only for mlrun <= 1.0.2
-
 # Deploy the serving function
 serving_fn.apply(mlrun.auto_mount()).deploy()
 

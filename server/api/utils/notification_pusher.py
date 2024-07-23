@@ -180,6 +180,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(
+            None,
             [notification],
             alert_id,
             project,

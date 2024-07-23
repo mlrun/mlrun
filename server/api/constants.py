@@ -42,7 +42,7 @@ pre_defined_templates = [
         summary="A job has failed",
         severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
         trigger={"events": [mlrun.common.schemas.alert.EventKind.FAILED]},
-        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ),
     mlrun.common.schemas.AlertTemplate(
         template_name="DataDriftDetected",
@@ -51,7 +51,7 @@ pre_defined_templates = [
         summary="Model data drift has been detected",
         severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
-        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ),
     mlrun.common.schemas.AlertTemplate(
         template_name="DataDriftSuspected",
@@ -60,6 +60,6 @@ pre_defined_templates = [
         summary="Model data drift is suspected",
         severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED]},
-        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ),
 ]

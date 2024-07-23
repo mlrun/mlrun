@@ -236,7 +236,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     config_node_selector=config_node_selector,
                 )
                 run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
-                    mlrun.mlconf.get_default_function_node_selector(),
+                    config_node_selector,
                     project.spec.default_function_node_selector,
                     runtime.spec.node_selector,
                 )

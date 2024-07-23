@@ -183,8 +183,8 @@ Optional arguments:
 * **sample** &mdash; optional, sample every N requests
 * **batch** &mdash; optional, send micro-batches every N requests
 
-Before deploying a model with model monitoring enabled via `fn.set_tracking()`,
-one must set the credentials for the project:
+Before you deploy a model with model monitoring enabled via `fn.set_tracking()`,
+set the credentials for the project:
 
 ```py
 project.set_model_monitoring_credentials(...)

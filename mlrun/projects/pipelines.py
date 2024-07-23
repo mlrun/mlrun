@@ -65,15 +65,6 @@ def get_workflow_engine(engine_kind, local=False):
     )
 
 
-def generate_text_for_workflow(run_id, errors_counter, state):
-    text = f"Workflow {run_id} finished"
-    if errors_counter:
-        text += f" with {errors_counter} errors"
-    if state:
-        text += f", state={state}"
-    return text
-
-
 class WorkflowSpec(mlrun.model.ModelObj):
     """workflow spec and helpers"""
 
@@ -472,21 +463,6 @@ class _PipelineRunner(abc.ABC):
         pass
 
     @staticmethod
-    def _get_handler(workflow_handler, workflow_spec, project, secrets):
-        if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
-            workflow_handler = create_pipeline(
-                project,
-                workflow_file,
-                pipeline_context.functions,
-                secrets,
-                handler=workflow_handler or workflow_spec.handler,
-            )
-        else:
-            builtins.funcs = pipeline_context.functions
-        return workflow_handler
-
-    @staticmethod
     def get_run_status(
         project,
         run: _PipelineRunStatus,
@@ -517,14 +493,41 @@ class _PipelineRunner(abc.ABC):
             if r["status"].get("state", "") == "error":
                 errors_counter += 1
 
-        text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
+        text = _PipelineRunner._generate_workflow_finished_message(
+            run.run_id, errors_counter, run._state
+        )
 
         notifiers = notifiers or project.notifiers
-        notifiers.push(text, "info", runs)
+        if notifiers:
+            notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
         return state or run._state, errors_counter, text
+
+    @staticmethod
+    def _get_handler(workflow_handler, workflow_spec, project, secrets):
+        if not (workflow_handler and callable(workflow_handler)):
+            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
+            workflow_handler = create_pipeline(
+                project,
+                workflow_file,
+                pipeline_context.functions,
+                secrets,
+                handler=workflow_handler or workflow_spec.handler,
+            )
+        else:
+            builtins.funcs = pipeline_context.functions
+        return workflow_handler
+
+    @staticmethod
+    def _generate_workflow_finished_message(run_id, errors_counter, state):
+        text = f"Workflow {run_id} finished"
+        if errors_counter:
+            text += f" with {errors_counter} errors"
+        if state:
+            text += f", state={state}"
+        return text
 
 
 class _KFPRunner(_PipelineRunner):

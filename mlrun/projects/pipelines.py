@@ -733,6 +733,7 @@ class _LocalRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+        # local runner does not have a wait_for_completion method because we already wait in the `run` function
         pass
 
 
@@ -915,6 +916,9 @@ class _RemoteRunner(_PipelineRunner):
             pipeline_runner_run = mldb.read_run(run.run_id, project=project.name)
 
             pipeline_runner_run = mlrun.run.RunObject.from_dict(pipeline_runner_run)
+
+            # here we are waiting for the pipeline run to complete and refreshing after that the pipeline run from the
+            # db
             # TODO: do it with timeout
             pipeline_runner_run.logs(db=mldb)
             pipeline_runner_run.refresh()

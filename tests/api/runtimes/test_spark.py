@@ -39,7 +39,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
-        # self.project_default_function_node_selector = {"test-project": "node-selector"}
 
     def _generate_runtime(
         self, set_resources: bool = True

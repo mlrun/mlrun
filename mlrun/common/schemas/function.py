@@ -122,3 +122,4 @@ class FunctionSpec(pydantic.BaseModel):
 
 class Function(pydantic.BaseModel):
     spec: typing.Optional[FunctionSpec]
+    application: typing.Optional[dict[str, typing.Any]]

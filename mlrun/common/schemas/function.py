@@ -119,7 +119,13 @@ class FunctionSpec(pydantic.BaseModel):
     service_account: typing.Optional[ServiceAccount]
     state_thresholds: typing.Optional[StateThresholds]
 
+    class Config:
+        extra = pydantic.Extra.allow
+
 
 class Function(pydantic.BaseModel):
     spec: typing.Optional[FunctionSpec]
     application: typing.Optional[dict[str, typing.Any]]
+
+    class Config:
+        extra = pydantic.Extra.allow

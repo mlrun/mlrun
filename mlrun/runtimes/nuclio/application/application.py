@@ -392,9 +392,7 @@ class ApplicationRuntime(RemoteRuntime):
         # add authentication if required
         authentication_mode = (
             authentication_mode
-            or schemas.APIGatewayAuthenticationMode.access_key.from_str(
-                mlrun.mlconf.function.application.default_authentication_mode
-            )
+            or mlrun.mlconf.function.application.default_authentication_mode
         )
         if authentication_mode == schemas.APIGatewayAuthenticationMode.access_key:
             api_gateway.with_access_key_auth()

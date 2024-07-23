@@ -471,8 +471,7 @@ class _PipelineRunner(abc.ABC):
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
         **kwargs,
     ):
-        if timeout is None:
-            timeout = 60 * 60
+        timeout = timeout or 60*60
         raise_error = None
         state = ""
         try:
@@ -631,8 +630,7 @@ class _KFPRunner(_PipelineRunner):
     @staticmethod
     def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
         logger.info("Waiting for pipeline run completion")
-        if timeout is None:
-            timeout = 60 * 60
+        timeout = timeout or 60*60
         project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run.run_id,

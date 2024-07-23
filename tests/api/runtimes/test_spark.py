@@ -455,8 +455,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             set_resources=False
         )
 
-        project_name = "test"
+        project_name = "test-spark"
+        default_project_name = self.project
         self.project = project_name
+
         project = mlrun.get_or_create_project(project_name)
         project.spec.default_function_node_selector = project_node_selector
         project.save()
@@ -486,6 +488,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 project_node_selector, executor_node_selector
             ),
         )
+
+        self.project = default_project_name
 
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock

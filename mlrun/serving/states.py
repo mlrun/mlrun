@@ -27,6 +27,8 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Union
 
+import storey.utils
+
 import mlrun
 
 from ..config import config
@@ -867,7 +869,9 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            self._stream.push({"id": event.id, "body": data, "path": event.path})
+            if self.options.get("full_event", True):
+                data = storey.utils.wrap_event_for_serialization(event, data)
+            self._stream.push(data)
             event.terminated = True
             event.body = None
         return event
@@ -1272,6 +1276,8 @@ class FlowStep(BaseStep):
             event = copy(event)
             event.body = {"id": event.id}
             return event
+
+        event = storey.utils.unpack_event_if_wrapped(event)
 
         if len(self._start_steps) == 0:
             return event

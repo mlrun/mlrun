@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections.abc
 import copy
 import datetime
 import http
@@ -173,6 +174,16 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.fixture()
+def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
+    with unittest.mock.patch(
+        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
+        return_value="some_access_key",
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.parametrize(
     "api_version,successful_delete_response_code",
     [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
@@ -1107,6 +1118,7 @@ def test_delete_project_not_found_in_leader(
 
 # Test should not run more than a few seconds because we test that if the background task fails,
 # the wrapper task fails fast
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize(
     "delete_api_version",

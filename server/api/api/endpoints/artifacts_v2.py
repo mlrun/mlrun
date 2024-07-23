@@ -232,7 +232,13 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
-    uid: str = Query(None),
+    # TODO: remove deprecated uid parameter in 1.9.0
+    # we support both uid and object-uid for backward compatibility
+    uid: str = Query(
+        None,
+        deprecated=True,
+        description="Use object-uid instead, will be removed in the 1.9.0",
+    ),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: dict = None,

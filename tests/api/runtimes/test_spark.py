@@ -467,12 +467,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             mlrun.utils.helpers.merge_with_precedence(
                 self.project_default_function_node_selector, node_selector
             ),
-            mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, driver_node_selector
-            ),
-            mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, executor_node_selector
-            ),
+            driver_node_selector,
+            executor_node_selector,
         )
 
     def test_run_with_host_path_volume(

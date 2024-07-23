@@ -233,7 +233,9 @@ class Alerts(
     def _get_alert_by_id_cached(cls):
         if not cls._alert_cache:
             cls._alert_cache = server.api.utils.lru_cache.LRUCache(
-                server.api.utils.singletons.db.get_db().get_alert_by_id, maxsize=1000
+                server.api.utils.singletons.db.get_db().get_alert_by_id,
+                maxsize=1000,
+                ignore_args_for_hash=[0],
             )
 
         return cls._alert_cache
@@ -244,6 +246,7 @@ class Alerts(
             cls._alert_state_cache = server.api.utils.lru_cache.LRUCache(
                 server.api.utils.singletons.db.get_db().get_alert_state_dict,
                 maxsize=1000,
+                ignore_args_for_hash=[0],
             )
         return cls._alert_state_cache
 

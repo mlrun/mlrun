@@ -869,8 +869,9 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            record = storey.utils.wrap_event_for_serialization(event, data)
-            self._stream.push(record)
+            if self.options.get("full_event", True):
+                data = storey.utils.wrap_event_for_serialization(event, data)
+            self._stream.push(data)
             event.terminated = True
             event.body = None
         return event

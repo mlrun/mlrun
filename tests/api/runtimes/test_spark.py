@@ -476,6 +476,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         body = self._get_custom_object_creation_body()
+
         self._assert_merged_node_selectors(
             body,
             mlrun.utils.helpers.merge_with_precedence(

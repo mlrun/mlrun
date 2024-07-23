@@ -217,9 +217,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
             state_thresholds=state_thresholds,
         )
 
-        return self._pre_run_enrichement(runtime, run)
+        return self._pre_run_node_selector_enrichement(runtime, run)
 
-    def _pre_run_enrichement(self, runtime, run):
+    def _pre_run_node_selector_enrichement(self, runtime, run):
         """
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run

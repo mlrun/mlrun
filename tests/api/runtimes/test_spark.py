@@ -449,18 +449,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock,
-        ensure_default_project,
         project_node_selector,
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
         )
 
-        self.project = ensure_default_project.metadata.name
-        ensure_default_project.spec.default_function_node_selector = (
-            project_node_selector
-        )
-        ensure_default_project.save()
+        project_name = "test"
+        self.project = project_name
+        project = mlrun.get_or_create_project(project_name)
+        project.spec.default_function_node_selector = project_node_selector
+        project.save()
 
         node_selector = {
             "label-1": "val1",

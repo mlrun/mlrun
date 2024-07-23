@@ -519,11 +519,7 @@ class HTTPRunDB(RunDBInterface):
             config.force_run_local = (
                 server_cfg.get("force_run_local") or config.force_run_local
             )
-            config.function = (
-                server_cfg.get("function")
-                if server_cfg.get("function") is not None
-                else config.function
-            )
+            config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
             config.external_platform_tracking = (
                 server_cfg.get("external_platform_tracking")

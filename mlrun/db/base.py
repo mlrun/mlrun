@@ -812,6 +812,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_alert_notifications(
         self,
+        session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
         project: str,

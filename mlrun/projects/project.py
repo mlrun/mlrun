@@ -4063,6 +4063,12 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
+        if alert_data.project is not None and alert_data.project != self.metadata.name:
+            logger.warn(
+                "Project in alert does not match project in operation",
+                project=alert_data.project,
+            )
+        alert_data.project = self.metadata.name
         return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:

@@ -413,12 +413,16 @@ class _PipelineRunStatus:
         return self._exc
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
-        self._state = self._engine.wait_for_completion(
-            self.run_id,
+        returned_state = self._engine.wait_for_completion(
+            self,
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
         )
+        # wait_for_completion may return None for some runners(like local) so we want to override
+        # the state only if it returns value
+        if returned_state:
+            self._state = returned_state
         return self._state
 
     def __str__(self):
@@ -483,16 +487,44 @@ class _PipelineRunner(abc.ABC):
         return workflow_handler
 
     @staticmethod
-    @abc.abstractmethod
     def get_run_status(
         project,
-        run,
+        run: _PipelineRunStatus,
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
         **kwargs,
     ):
-        pass
+        if timeout is None:
+            timeout = 60 * 60
+        raise_error = None
+        state = ""
+        try:
+            if timeout:
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
+        errors_counter = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                errors_counter += 1
+
+        text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
+
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, "info", runs)
+
+        if raise_error:
+            raise raise_error
+        return state or run._state, errors_counter, text
 
 
 class _KFPRunner(_PipelineRunner):
@@ -594,12 +626,13 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+        logger.info("Waiting for pipeline run completion")
         if timeout is None:
             timeout = 60 * 60
         project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
-            run_id,
+            run.run_id,
             timeout=timeout,
             expected_statuses=expected_statuses,
             project=project_name,
@@ -616,47 +649,6 @@ class _KFPRunner(_PipelineRunner):
         if resp:
             return resp["run"].get("status", "")
         return ""
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-        **kwargs,
-    ):
-        if timeout is None:
-            timeout = 60 * 60
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("Waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=project._secrets)
-        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
-
-        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
-        errors_counter = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                errors_counter += 1
-
-        text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
-
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, "info", runs)
-
-        if raise_error:
-            raise raise_error
-        return state, errors_counter, text
 
 
 class _LocalRunner(_PipelineRunner):
@@ -737,18 +729,7 @@ class _LocalRunner(_PipelineRunner):
         return ""
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        pass
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-        **kwargs,
-    ):
+    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
         pass
 
 
@@ -929,20 +910,22 @@ class _RemoteRunner(_PipelineRunner):
         elif inner_engine.engine == _LocalRunner.engine:
             mldb = mlrun.db.get_run_db(secrets=project._secrets)
             pipeline_runner_run = mldb.read_run(run.run_id, project=project.name)
+
             pipeline_runner_run = mlrun.run.RunObject.from_dict(pipeline_runner_run)
+            # TODO: do it with timeout
             pipeline_runner_run.logs(db=mldb)
             pipeline_runner_run.refresh()
             run._state = mlrun.common.runtimes.constants.RunStates.run_state_to_pipeline_run_status(
                 pipeline_runner_run.status.state
             )
             run._exc = pipeline_runner_run.status.error
-
-            errors_counter = 0
-            if run._state == mlrun_pipelines.common.models.RunStatuses.succeeded:
-                errors_counter = 1
-
-            text = generate_text_for_workflow(run.run_id, errors_counter, run._state)
-            return run._state, errors_counter, text
+            return _LocalRunner.get_run_status(
+                project,
+                run,
+                timeout,
+                expected_statuses,
+                notifiers=notifiers,
+            )
 
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

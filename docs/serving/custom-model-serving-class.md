@@ -12,19 +12,19 @@ The class is initialized automatically by the model server and can run locally
 as part of a nuclio serverless function, or as part of a real-time pipeline.
 
 You need to implement two mandatory methods:
-  * **load()** &mdash; download the model file(s) and load the model into memory, 
+  * **`load()`** &mdash; download the model file(s) and load the model into memory, 
   note this can be done synchronously or asynchronously.
-  * **predict()** &mdash; accept request payload and return prediction/inference results.
+  * **`predict()`** &mdash; accept request payload and return prediction/inference results.
 
-You can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`.<br>
-You can add a custom api endpoint by adding the method `op_xx(event)`. Invoke it by
-calling the <model-url>/xx (operation = xx).
+You can override additional methods: `preprocess`, `validate`, `postprocess`, `explain`.  
+Add a custom API endpoint by implementing the method `op_xx(event)`. Invoke it by
+calling the `<model-url>/xx` (operation = `xx`).
     
 **In this section**
 * [Minimal sklearn serving function example](#minimal-sklearn-serving-function-example)
-* [load() method](#load-method)
-* [predict() method](#predict-method)
-* [explain() method](#explain-method)
+* [`load()` method](#load-method)
+* [`predict()` method](#predict-method)
+* [`explain()` method](#explain-method)
 * [pre/post and validate hooks](#pre-post-and-validate-hooks)
 * [Models, routers and graphs](#models-routers-and-graphs)
 * [Creating a model serving function (service)](#creating-a-model-serving-function-service)
@@ -70,14 +70,14 @@ x = load_iris()["data"].tolist()
 result = server.test("/v2/models/model1/infer", {"inputs": x})
 ```
 
-## load() method
+## `load()` method
 
 In the load method, download the model from external store, run the algorithm/framework
 `load()` call, and do any other initialization logic. 
 
 The load runs synchronously (the deploy is stalled until load completes). 
 This can be an issue for large models and cause a readiness timeout. You can increase the 
-function `spec.readiness_timeout`, or alternatively choose async loading (load () 
+function `spec.readiness_timeout`, or alternatively choose async loading (where `load()` 
 runs in the background) by setting the function `spec.load_mode = "async"`.  
 
 The function `self.get_model()` downloads the model metadata object and main file (into `model_file` path).
@@ -87,13 +87,13 @@ The model metadata object is stored in `self.model_spec` and provides model para
 Parameters can be accessed using `self.get_param(key)`. The parameters can be specified in the model or during 
 the function/model deployment.  
 
-## predict() method
+## `predict()` method
 
-The predict method is called when you access the `/infer` or `/predict` url suffix (operation).
+The predict method is called when you access the `/infer` or `/predict` URL suffix (operation).
 The method accepts the request object (as dict), see [Model server API](model-api.html#infer-predict).
 And it should return the specified response object.
 
-## explain() method
+## `explain()` method
 
 The explain method provides a hook for model explainability, and is accessed using the `/explain` operation.
 
@@ -110,7 +110,7 @@ Every serving function can host multiple models and logical steps. Multiple func
 can connect in a graph to form complex real-time pipelines.
 
 The basic serving function has a logical `router` with routes to multiple child `models`. 
-The url or the message determines which model is selected, e.g. using the url schema:
+The URL or the message determines which model is selected, e.g. using the URL schema:
 
     /v2/models/<model>[/versions/<ver>]/operation
 
@@ -123,7 +123,7 @@ More complex routers can be used to support ensembles (send the request to all c
 and aggregate the result), multi-armed-bandit, etc. 
 
 You can use a pre-defined Router class, or write your own custom router. 
-Routera can route to models on the same function or access models on a separate function.
+Routers can route to models on the same function or access models on a separate function.
 
 To specify the topology, router class and class args use `.set_topology()` with your function.
 
@@ -149,7 +149,7 @@ See the full [Model Server example](https://github.com/mlrun/functions/blob/mast
 If you want to use multiple versions for the same model, use `:` to separate the name from the version. 
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
-You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
+You should specify the `model_path` (URL of the model artifact/dir) and the `class_name`
 (or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 
@@ -173,10 +173,21 @@ is used to create real-time dashboards, detect drift, and analyze performance.
 
 To monitor a deployed model, apply `set_tracking()` on your serving function and specify the function spec attributes:
 
-        fn.set_tracking(stream_path, batch, sample)
+```py
+fn.set_tracking(stream_path, batch, sample)
+```
 
+Optional arguments:
 * **stream_path** &mdash; Enterprise: the v3io stream path (e.g. `v3io:///users/..`); CE: a valid Kafka stream 
 (e.g. kafka://kafka.default.svc.cluster.local:9092)
 * **sample** &mdash; optional, sample every N requests
 * **batch** &mdash; optional, send micro-batches every N requests
-* **tracking_policy** &mdash; optional, model tracking configurations, such as setting the scheduling policy of the model monitoring batch job
+
+Before you deploy a model with model monitoring enabled via `fn.set_tracking()`,
+set the credentials for the project:
+
+```py
+project.set_model_monitoring_credentials(...)
+```
+
+See [model monitoring](../monitoring/model-monitoring.html) for the full details.

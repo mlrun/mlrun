@@ -344,6 +344,13 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
+    _set_callbacks(server, context)
+
+
+def _set_callbacks(server, context):
+    if server.graph.kind != RootFlowStep.kind or not hasattr(context, "platform"):
+        return
+
     if hasattr(context, "platform") and hasattr(
         context.platform, "set_termination_callback"
     ):
@@ -358,7 +365,7 @@ def v2_serving_init(context, namespace=None):
 
         context.platform.set_termination_callback(termination_callback)
 
-    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+    if hasattr(context.platform, "set_drain_callback"):
         context.logger.info(
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )

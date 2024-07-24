@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""add default function node selector to project
+"""Add default function node selector to project
 
 Revision ID: 68dadc9d9bc8
-Revises: c0e342d73bd0
+Revises: 0cae47e3a844
 Create Date: 2024-03-18 17:57:10.264336
 
 """
@@ -25,7 +25,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "68dadc9d9bc8"
-down_revision = "c0e342d73bd0"
+down_revision = "0cae47e3a844"
 branch_labels = None
 depends_on = None
 

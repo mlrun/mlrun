@@ -26,7 +26,6 @@ class AlertConfig(ModelObj):
         "description",
         "summary",
         "severity",
-        "criteria",
         "reset_policy",
         "state",
     ]
@@ -34,6 +33,7 @@ class AlertConfig(ModelObj):
         "entities",
         "notifications",
         "trigger",
+        "criteria",
     ]
 
     def __init__(
@@ -104,6 +104,14 @@ class AlertConfig(ModelObj):
                     else self.trigger
                 )
             return None
+        if field_name == "criteria":
+            if self.criteria:
+                return (
+                    self.criteria.dict()
+                    if not isinstance(self.criteria, dict)
+                    else self.criteria
+                )
+            return None
         return super()._serialize_field(struct, field_name, strip)
 
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
@@ -137,6 +145,10 @@ class AlertConfig(ModelObj):
             trigger_obj = alert_objects.AlertTrigger.parse_obj(trigger_data)
             new_obj.trigger = trigger_obj
 
+        criteria_data = struct.get("criteria")
+        if criteria_data:
+            criteria_obj = alert_objects.AlertCriteria.parse_obj(criteria_data)
+            new_obj.criteria = criteria_obj
         return new_obj
 
     def with_notifications(self, notifications: list[alert_objects.AlertNotification]):

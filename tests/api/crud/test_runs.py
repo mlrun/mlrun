@@ -21,6 +21,7 @@ import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud
@@ -75,15 +76,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                                 ),
                                 status=k8s_client.V1PodStatus(phase="Running"),
                             )
-                        ]
+                        ],
+                        metadata=k8s_client.V1ListMeta(),
                     ),
                     # 2nd time for waiting for pod to be deleted
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
-            ),
-            unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -130,11 +128,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             unittest.mock.patch.object(
                 k8s_helper.v1api,
                 "list_namespaced_pod",
-                return_value=k8s_client.V1PodList(items=[]),
-            ),
-            unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
+                return_value=k8s_client.V1PodList(
+                    items=[], metadata=k8s_client.V1ListMeta()
+                ),
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -152,6 +148,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         This test creates 3 runs, and then tries to delete them.
         The first run is deleted successfully, the second one fails with an exception, and the third one is deleted
         """
+        mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
         project = "project-name"
         run_name = "run-name"
         for uid in range(3):
@@ -181,21 +178,21 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 k8s_helper.v1api,
                 "list_namespaced_pod",
                 side_effect=[
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                     Exception("Boom!"),
-                    k8s_client.V1PodList(items=[]),
+                    k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
             ),
             unittest.mock.patch.object(
-                server.api.runtime_handlers.BaseRuntimeHandler,
-                "_ensure_run_logs_collected",
-            ),
+                server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+            ) as delete_logs_mock,
         ):
             with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
                 await server.api.crud.Runs().delete_runs(
                     db, name=run_name, project=project
                 )
             assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
+            assert delete_logs_mock.call_count == 2
 
             runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 1
@@ -437,7 +434,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 db,
                 artifact["spec"]["db_key"],
                 artifact,
+                iter=artifact["metadata"]["iter"],
                 project=project,
+                producer_id=workflow_uid,
             )
 
         server.api.crud.Runs().store_run(
@@ -461,12 +460,13 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
         self._validate_run_artifacts(artifacts, db, project, run_uid)
 
-    def test_get_workflow_run_iteration_restore_artifacts_metadata(
-        self, db: sqlalchemy.orm.Session
+    @pytest.mark.parametrize("workflow_id", [None, str(uuid.uuid4())])
+    def test_get_run_iteration_restore_artifacts_metadata(
+        self, db: sqlalchemy.orm.Session, workflow_id
     ):
         project = "project-name"
         run_uid = str(uuid.uuid4())
-        workflow_uid = str(uuid.uuid4())
+        workflow_uid = workflow_id
         iter = 3
         artifacts = self._generate_artifacts(project, run_uid, workflow_uid, iter=iter)
 
@@ -479,6 +479,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
+        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
+        if workflow_id:
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_id
+
         server.api.crud.Runs().store_run(
             db,
             {
@@ -486,10 +490,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "name": "run-name",
                     "uid": run_uid,
                     "iter": iter,
-                    "labels": {
-                        mlrun_constants.MLRunInternalLabels.kind: "job",
-                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
-                    },
+                    "labels": labels,
                 },
                 "status": {
                     "artifacts": artifacts,
@@ -508,6 +509,8 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         project = "project-name"
         run_uid = str(uuid.uuid4())
         workflow_uid = str(uuid.uuid4())
+
+        # Create 5 best iteration artifacts
         best_iteration = 3
         best_iteration_count = 5
         best_iteration_artifacts = self._generate_artifacts(
@@ -530,6 +533,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 best_iteration=True,
             )
 
+        # Create 3 bad iteration artifacts
         bad_iteration = 5
         bad_iteration_count = 3
         bad_iteration_artifacts = self._generate_artifacts(
@@ -549,6 +553,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 project=project,
             )
 
+        # Create 1 artifact for the parent run (iteration 0) this should be part of the final result
         parent_run_count = 1
         parent_run_arts = self._generate_artifacts(
             project,
@@ -576,6 +581,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                         mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
                     },
                 },
+                "status": {
+                    "artifacts": best_iteration_artifacts + parent_run_arts,
+                },
             },
             run_uid,
             project=project,
@@ -584,6 +592,182 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         self._validate_run_artifacts(
             best_iteration_artifacts + parent_run_arts, db, project, run_uid
         )
+
+    @pytest.mark.parametrize("workflow_uid", [None, str(uuid.uuid4())])
+    def test_get_run_restore_artifacts_metadata_with_missing_artifact(
+        self, db: sqlalchemy.orm.Session, workflow_uid
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(
+            project, run_uid, workflow_uid, artifacts_len=3
+        )
+
+        # Create only 2 artifacts
+        for artifact in artifacts[:2]:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=artifact["metadata"]["iter"],
+                project=project,
+                producer_id=workflow_uid or run_uid,
+            )
+
+        labels = {mlrun_constants.MLRunInternalLabels.kind: "job"}
+        if workflow_uid:
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow_uid
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": labels,
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        # Expect only the 2 artifacts to be restored
+        self._validate_run_artifacts(artifacts[:2], db, project, run_uid)
+
+    @pytest.mark.parametrize(
+        "run_format",
+        [
+            mlrun.common.formatters.RunFormat.full,
+            mlrun.common.formatters.RunFormat.standard,
+        ],
+    )
+    def test_run_formats(
+        self, db: sqlalchemy.orm.Session, run_format: mlrun.common.formatters.RunFormat
+    ):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        artifacts = self._generate_artifacts(project, run_uid)
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                project=project,
+            )
+
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid,
+                    "labels": {mlrun_constants.MLRunInternalLabels.kind: "job"},
+                },
+                "status": {
+                    "artifacts": artifacts,
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        expected_artifacts = artifacts
+        if run_format == mlrun.common.formatters.RunFormat.standard:
+            expected_artifacts = []
+        self._validate_run_artifacts(
+            expected_artifacts, db, project, run_uid, run_format=run_format
+        )
+
+    def test_get_workflow_run_no_artifacts(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid_1 = str(uuid.uuid4())
+        run_uid_2 = str(uuid.uuid4())
+        workflow_uid = str(uuid.uuid4())
+        iter = 0
+
+        # Create some artifacts with different producer id
+        artifacts = self._generate_artifacts(
+            project, str(uuid.uuid4()), str(uuid.uuid4()), artifacts_len=3
+        )
+
+        for artifact in artifacts:
+            server.api.crud.Artifacts().store_artifact(
+                db,
+                artifact["spec"]["db_key"],
+                artifact,
+                iter=artifact["metadata"]["iter"],
+                project=project,
+                producer_id=str(uuid.uuid4()),
+            )
+
+        # run_uid_1 should not list artifacts as it has none
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid_1,
+                    "iter": iter,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
+                },
+                "status": {},
+            },
+            run_uid_1,
+            project=project,
+        )
+
+        # run_uid_2 should not list artifacts as the artifacts has different producer id
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "uid": run_uid_1,
+                    "iter": iter,
+                    "labels": {
+                        mlrun_constants.MLRunInternalLabels.kind: "job",
+                        mlrun_constants.MLRunInternalLabels.workflow: workflow_uid,
+                    },
+                },
+                "status": {"artifacts": artifacts},
+            },
+            run_uid_2,
+            project=project,
+        )
+
+        with unittest.mock.patch(
+            "server.api.crud.Artifacts.list_artifacts_for_producer_id",
+            side_effect=Exception("Should not be called"),
+        ):
+            run_1 = server.api.crud.Runs().get_run(
+                db,
+                run_uid_1,
+                iter,
+                project,
+                format_=mlrun.common.formatters.RunFormat.full,
+            )
+
+            assert "artifacts" not in run_1["status"]
+            assert "artifact_uris" not in run_1["status"]
+
+            run_2 = server.api.crud.Runs().get_run(
+                db,
+                run_uid_2,
+                iter,
+                project,
+                format_=mlrun.common.formatters.RunFormat.full,
+            )
+
+            assert "artifacts" not in run_2["status"]
+            # run 2 should still have artifact uris even if the producer id is different
+            assert "artifact_uris" in run_2["status"]
 
     @staticmethod
     def _generate_artifacts(
@@ -604,10 +788,11 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     "tree": workflow_uid or run_uid,
                     "uid": f"uid{i}",
                     "project": project,
-                    "iter": iter,
+                    "iter": iter or 0,
+                    "tag": "latest",
                 },
                 "spec": {
-                    "db_key": f"db_key{i}",
+                    "db_key": f"db_key_{key_prefix}{i}",
                 },
                 "status": {},
             }
@@ -623,10 +808,26 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         return artifacts
 
     @staticmethod
-    def _validate_run_artifacts(artifacts, db, project, run_uid, iter=0):
-        run = server.api.crud.Runs().get_run(db, run_uid, iter, project)
-        assert "artifacts" in run["status"]
-        enriched_artifacts = list(run["status"]["artifacts"])
+    def _validate_run_artifacts(
+        artifacts,
+        db,
+        project,
+        run_uid,
+        iter=0,
+        run_format: mlrun.common.formatters.RunFormat = None,
+    ):
+        run = server.api.crud.Runs().get_run(
+            db,
+            run_uid,
+            iter,
+            project,
+            format_=run_format or mlrun.common.formatters.RunFormat.full,
+        )
+
+        enriched_artifacts = []
+        if artifacts:
+            assert "artifacts" in run["status"]
+            enriched_artifacts = list(run["status"]["artifacts"])
 
         def sort_by_key(e):
             return e["metadata"]["key"]

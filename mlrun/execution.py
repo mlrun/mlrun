@@ -34,13 +34,13 @@ from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_json,
     dict_to_yaml,
     get_in,
     is_relative_path,
     logger,
     now_date,
-    run_keys,
     to_date_str,
     update_in,
 )
@@ -85,6 +85,7 @@ class MLClientCtx:
 
         self._labels = {}
         self._annotations = {}
+        self._node_selector = {}
 
         self._function = ""
         self._parameters = {}
@@ -206,6 +207,11 @@ class MLClientCtx:
     def labels(self):
         """Dictionary with labels (read-only)"""
         return deepcopy(self._labels)
+
+    @property
+    def node_selector(self):
+        """Dictionary with node selectors (read-only)"""
+        return deepcopy(self._node_selector)
 
     @property
     def annotations(self):
@@ -365,7 +371,7 @@ class MLClientCtx:
             self._labels = meta.get("labels", self._labels)
         spec = attrs.get("spec")
         if spec:
-            self._secrets_manager = SecretsStore.from_list(spec.get(run_keys.secrets))
+            self._secrets_manager = SecretsStore.from_list(spec.get(RunKeys.secrets))
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
@@ -383,13 +389,14 @@ class MLClientCtx:
             self._allow_empty_resources = spec.get(
                 "allow_empty_resources", self._allow_empty_resources
             )
-            self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
-            self._in_path = spec.get(run_keys.input_path, self._in_path)
-            inputs = spec.get(run_keys.inputs)
+            self.artifact_path = spec.get(RunKeys.output_path, self.artifact_path)
+            self._in_path = spec.get(RunKeys.input_path, self._in_path)
+            inputs = spec.get(RunKeys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
             self._state_thresholds = spec.get(
                 "state_thresholds", self._state_thresholds
             )
+            self._node_selector = spec.get("node_selector", self._node_selector)
             self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
@@ -567,7 +574,7 @@ class MLClientCtx:
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+            for artifact in get_in(task, ["status", RunKeys.artifacts], []):
                 self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
                     artifact
                 )
@@ -939,10 +946,11 @@ class MLClientCtx:
                 "parameters": self._parameters,
                 "handler": self._handler,
                 "outputs": self._outputs,
-                run_keys.output_path: self.artifact_path,
-                run_keys.inputs: self._inputs,
+                RunKeys.output_path: self.artifact_path,
+                RunKeys.inputs: self._inputs,
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
+                "node_selector": self._node_selector,
             },
             "status": {
                 "results": self._results,
@@ -964,7 +972,7 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][run_keys.artifacts] = self._artifacts_manager.artifact_list()
+        struct["status"][RunKeys.artifacts] = self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -1058,7 +1066,7 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
+        struct[f"status.{RunKeys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
     def _init_dbs(self, rundb):

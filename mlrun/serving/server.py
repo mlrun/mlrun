@@ -344,9 +344,14 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    if hasattr(context, "platform") and hasattr(
-        context.platform, "set_termination_callback"
-    ):
+    _set_callbacks(server, context)
+
+
+def _set_callbacks(server, context):
+    if not server.graph.supports_termination() or not hasattr(context, "platform"):
+        return
+
+    if hasattr(context.platform, "set_termination_callback"):
         context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
@@ -358,7 +363,7 @@ def v2_serving_init(context, namespace=None):
 
         context.platform.set_termination_callback(termination_callback)
 
-    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+    if hasattr(context.platform, "set_drain_callback"):
         context.logger.info(
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
@@ -383,8 +388,15 @@ def v2_serving_handler(context, event, get_body=False):
         if event.body == b"":
             event.body = None
 
-    # ML-6065 – workaround for NUC-178
-    if hasattr(event, "trigger") and event.trigger.kind in ("kafka", "kafka-cluster"):
+    # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
+    # workaround for NUC-178
+    event.stream_path = event.path
+    if hasattr(event, "trigger") and event.trigger.kind in (
+        "kafka",
+        "kafka-cluster",
+        "v3ioStream",
+        "v3io-stream",
+    ):
         event.path = "/"
 
     return context._server.run(event, context, get_body)

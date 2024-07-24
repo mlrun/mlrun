@@ -15,6 +15,7 @@
 import typing
 
 import pydantic
+from deprecated import deprecated
 
 import mlrun.common.types
 
@@ -56,6 +57,16 @@ class ArtifactIdentifier(pydantic.BaseModel):
     producer_id: typing.Optional[str]
     # TODO support hash once saved as a column in the artifacts table
     # hash: typing.Optional[str]
+
+
+@deprecated(
+    version="1.7.0",
+    reason="mlrun.common.schemas.ArtifactsFormat is deprecated and will be removed in 1.9.0. "
+    "Use mlrun.common.formatters.ArtifactFormat instead.",
+    category=FutureWarning,
+)
+class ArtifactsFormat(mlrun.common.types.StrEnum):
+    full = "full"
 
 
 class ArtifactMetadata(pydantic.BaseModel):

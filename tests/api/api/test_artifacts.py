@@ -15,6 +15,7 @@
 import tempfile
 import unittest.mock
 import uuid
+from datetime import datetime, timedelta
 from http import HTTPStatus
 
 import deepdiff
@@ -24,6 +25,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+import mlrun.utils
+import server.api.db.sqldb.models
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -172,7 +175,7 @@ def test_create_artifact(db: Session, unversioned_client: TestClient):
         "spec": {
             "db_key": "some-key",
             "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "s3://aaa/aaa",
+            "target_path": "memory://aaa/aaa",
         },
         "status": {},
     }
@@ -313,6 +316,41 @@ def test_fails_deleting_artifact_data_by_artifact_kind(
     assert resp.status_code == HTTPStatus.NOT_IMPLEMENTED.value
 
 
+@pytest.mark.parametrize(
+    "target_path",
+    [
+        "dummy-path.parquet",
+        "dummy-path.pq",
+    ],
+)
+def test_deleting_dataset_artifact_data_includes_one_file(
+    target_path, db: Session, unversioned_client: TestClient
+):
+    _create_project(unversioned_client)
+    artifact = mlrun.artifacts.DatasetArtifact(
+        key=KEY, body="123", target_path=target_path
+    )
+
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_deletion_strategy = url + "?deletion_strategy={deletion_strategy}"
+
+    with unittest.mock.patch(
+        "server.api.crud.files.Files.delete_artifact_data",
+    ):
+        resp = unversioned_client.delete(
+            url_with_deletion_strategy.format(
+                deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force
+            )
+        )
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
 def test_list_artifacts(db: Session, client: TestClient) -> None:
     _create_project(client)
 
@@ -351,6 +389,68 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
     )
 
 
+@pytest.fixture
+def list_limit_unversioned_client(
+    unversioned_client: TestClient, request
+) -> TestClient:
+    def ensure_endpoint_limit(limit_: int = None):
+        for route in unversioned_client.app.routes:
+            if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
+                for qp in route.dependant.query_params:
+                    if qp.name == "limit":
+                        qp.default = limit_
+                        break
+
+    try:
+        ensure_endpoint_limit(request.param)
+        yield request.param, unversioned_client
+    finally:
+        ensure_endpoint_limit(None)
+
+
+@pytest.mark.parametrize("list_limit_unversioned_client", [2], indirect=True)
+def test_list_artifacts_with_limits(
+    db: Session, list_limit_unversioned_client: TestClient
+) -> None:
+    list_limit, unversioned_client = list_limit_unversioned_client
+    _create_project(unversioned_client, prefix="v1")
+
+    for i in range(list_limit + 1):
+        data = {
+            "kind": "artifact",
+            "metadata": {
+                "description": "",
+                "labels": {},
+                "key": KEY,
+                "project": PROJECT,
+                "tree": str(uuid.uuid4()),
+            },
+            "spec": {
+                "db_key": "some-key",
+                "producer": {"kind": "api"},
+                "target_path": "memory://aaa/aaa",
+            },
+            "status": {},
+        }
+        resp = unversioned_client.post(
+            STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+            json=data,
+        )
+        assert resp.status_code == HTTPStatus.CREATED.value
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(f"{artifact_path}?limit={list_limit-1}")
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == list_limit - 1
+
+    # Get all artifacts
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == list_limit
+
+
 def test_list_artifacts_with_producer_uri(
     db: Session, unversioned_client: TestClient
 ) -> None:
@@ -371,7 +471,7 @@ def test_list_artifacts_with_producer_uri(
             "spec": {
                 "db_key": "some-key",
                 "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "s3://aaa/aaa",
+                "target_path": "memory://aaa/aaa",
             },
             "status": {},
         }
@@ -666,6 +766,153 @@ def test_store_oversized_artifact(
     )
 
     assert resp.status_code == expected_status_code
+
+
+def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client, prefix="v1")
+    t1 = datetime(2020, 2, 16)
+    t2 = t1 + timedelta(days=7)
+    t3 = t2 + timedelta(days=7)
+    start = datetime.now()
+
+    key1 = "key1"
+    key2 = "key2"
+    key3 = "key3"
+    key4 = "key4"
+    old_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key1,
+        project=PROJECT,
+        created=t1,
+        updated=t1,
+        full_object={
+            "metadata": {
+                "key": key1,
+            }
+        },
+    )
+    recent_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key2,
+        project=PROJECT,
+        created=t2,
+        updated=t2,
+        full_object={
+            "metadata": {
+                "key": key2,
+            }
+        },
+    )
+    new_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key3,
+        project=PROJECT,
+        created=start,
+        updated=start,
+        full_object={
+            "metadata": {
+                "key": key3,
+            }
+        },
+    )
+    recently_updated_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key4,
+        project=PROJECT,
+        created=t2,
+        updated=t3,
+        full_object={
+            "metadata": {
+                "key": key4,
+            }
+        },
+    )
+    for artifact in [
+        old_artifact_record,
+        recent_artifact_record,
+        new_artifact_record,
+        recently_updated_artifact_record,
+    ]:
+        db.add(artifact)
+        db.commit()
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(t2)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 3, "since t2 filter did not return 3 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key2, key3, key4].sort()
+    ), "since t2 filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path,
+        params={
+            "since": mlrun.utils.datetime_to_iso(t2),
+            "until": mlrun.utils.datetime_to_iso(t3),
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2, "since t2 until t3 filter did not return 2 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key2, key4].sort()
+    ), "since t2 until t3 filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path,
+        params={
+            "since": mlrun.utils.datetime_to_iso(t3),
+            "until": mlrun.utils.datetime_to_iso(start),
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2, "since t3 until start filter did not return 2 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key3, key4].sort()
+    ), "since t3 until start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(start)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1, "since start filter did not return 1 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key4].sort()
+    ), "since start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"until": mlrun.utils.datetime_to_iso(start)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4, "until start filter did not return 4 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key1, key2, key3, key4].sort()
+    ), "until start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(datetime.now())}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 0, "since now filter returned artifacts unexpectedly"
 
 
 def _create_project(

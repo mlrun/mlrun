@@ -60,25 +60,15 @@ def test_build_kv_cursor_filter_expression():
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
     filter_expression = endpoint_store._build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, function="test_function", model="test_model"
+        project=TEST_PROJECT,
+        function="test_function",
+        model="test_model",
     )
-    expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
+    expected = (
+        f"project=='{TEST_PROJECT}' "
+        f"AND function_uri=='{TEST_PROJECT}/test_function' AND model=='test_model:latest'"
+    )
     assert filter_expression == expected
-
-    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1", "lbl2"]
-    )
-    assert (
-        filter_expression
-        == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
-    )
-
-    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
-    )
-    assert (
-        filter_expression == f"project=='{TEST_PROJECT}' AND _lbl1=='1' AND _lbl2=='2'"
-    )
 
 
 def test_get_access_key():

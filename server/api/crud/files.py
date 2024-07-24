@@ -48,6 +48,16 @@ class Files(
         secrets: dict = None,
     ):
         secrets = secrets or {}
+
+        # Verify that, similar project secrets, secrets passed by users are not internal.
+        # Internal secrets are internal for the use of MLRun only. If the user may pass in any arbitrary secret
+        # to override its value, we allow the user to interfere with how MLRun manages its secrets internally,
+        # which can lead to unexpected results.
+        for secret_key in secrets.keys():
+            server.api.crud.Secrets().validate_internal_project_secret_key_allowed(
+                secret_key
+            )
+
         project_secrets = self._verify_and_get_project_secrets(project)
         project_secrets.update(secrets)
 

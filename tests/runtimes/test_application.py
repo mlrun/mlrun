@@ -183,7 +183,7 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
 def test_application_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
-        "application-test",
+        function_name,
         kind="application",
         image="mlrun/mlrun",
     )
@@ -193,6 +193,22 @@ def test_application_api_gateway(rundb_mock, igz_version_mock):
     assert api_gateway.name == function_name
     assert len(api_gateway.spec.functions) == 1
     assert function_name in api_gateway.spec.functions[0]
+
+
+def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
+    function: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    # ssl redirect is enabled by default when running in iguazio
+    function.deploy()
+
+    ssl_redirect_annotation = "nginx.ingress.kubernetes.io/force-ssl-redirect"
+    api_gateway = function.status.api_gateway
+    assert api_gateway is not None
+    assert ssl_redirect_annotation in api_gateway.metadata.annotations
+    assert api_gateway.metadata.annotations[ssl_redirect_annotation] == "true"
 
 
 def test_application_runtime_resources(rundb_mock, igz_version_mock):

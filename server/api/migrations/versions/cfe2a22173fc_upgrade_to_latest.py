@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""upgrade to latest
+"""Upgrade to latest
 
 Revision ID: cfe2a22173fc
 Revises: d1e8cfd8e575

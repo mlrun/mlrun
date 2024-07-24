@@ -108,15 +108,16 @@ async def list_pipelines(
 async def create_pipeline(
     project: str,
     request: Request,
-    namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    if namespace is None:
-        namespace = config.namespace
     response = await _create_pipeline(
-        auth_info, request, namespace, experiment_name, run_name, project
+        auth_info=auth_info,
+        request=request,
+        experiment_name=experiment_name,
+        run_name=run_name,
+        project=project,
     )
     return response
 
@@ -190,7 +191,6 @@ async def _get_pipeline_without_project(
 async def _create_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo,
     request: Request,
-    namespace: str,
     experiment_name: str,
     run_name: str,
     project: typing.Optional[str] = None,
@@ -241,7 +241,6 @@ async def _create_pipeline(
         content_type,
         data,
         arguments,
-        namespace,
     )
 
     return {

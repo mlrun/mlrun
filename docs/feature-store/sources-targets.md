@@ -37,7 +37,9 @@ Confluent Kafka source is Tech Preview
 ## Kafka source
 
 ```python
-profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+profile = DatastoreProfileKafkaSource(
+    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+)
 target = KafkaSource(path="ds://profile-name")
 ```
 
@@ -146,7 +148,9 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ## Kafka target
 
 ```python
-profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
+profile = DatastoreProfileKafkaTarget(
+    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+)
 target = KafkaTarget(path="ds://profile-name")
 ```
 
@@ -233,7 +237,12 @@ explicitly each time with the path parameter, for example:</br>
 
 ### RedisNoSql data store profile
 ```python
-profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
+profile = DatastoreProfileRedis(
+    name="profile-name",
+    endpoint_url="redis://11.22.33.44:6379",
+    username="user",
+    password="password",
+)
 RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```
 

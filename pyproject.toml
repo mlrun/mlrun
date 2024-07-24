@@ -1,7 +1,7 @@
 [tool.ruff]
 extend-include = ["*.ipynb"]
 target-version = "py39"
-required-version = ">=0.4.2"
+required-version = ">=0.5.0"
 
 [tool.ruff.lint]
 extend-select = [
@@ -11,6 +11,7 @@ extend-select = [
     "I",   # isort
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
+    "N801", # CamelCase for class names
     "N805", # first argument of instance method should be 'self'
     "N806", # lowercase variable names
     "N816", # snake_case for global variable names
@@ -86,6 +87,17 @@ ignore_imports = [
     "mlrun.config -> mlrun.db",
     "mlrun.utils.clones -> mlrun",
     "mlrun.utils.helpers -> mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
+type = "forbidden"
+source_modules = [
+    "mlrun",
+    "server.api",
+]
+forbidden_modules = [
+    "kfp",
 ]
 
 [[tool.importlinter.contracts]]

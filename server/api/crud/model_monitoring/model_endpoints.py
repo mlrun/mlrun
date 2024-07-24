@@ -317,10 +317,19 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_store = (
-            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
-        )
-
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to delete model endpoint because store connection is not defined."
+                " Returning without deleting the model endpoint.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
@@ -356,6 +365,7 @@ class ModelEndpoints:
                                            be added to the output of the resulting object.
 
         :return: A `ModelEndpoint` object.
+        :raise: `MLRunNotFoundError` if the model endpoint is not found.
         """
 
         logger.info(
@@ -364,9 +374,19 @@ class ModelEndpoints:
         )
 
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
-        model_endpoint_store = (
-            server.api.crud.model_monitoring.helpers.get_store_object(project=project)
-        )
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to get model endpoint because store connection is not defined."
+                " Returning an empty model endpoint object.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
@@ -436,53 +456,60 @@ class ModelEndpoints:
         :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata.
                  To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
-
-        logger.info(
-            "Listing endpoints",
-            project=project,
-            model=model,
-            function=function,
-            labels=labels,
-            metrics=metrics,
-            start=start,
-            end=end,
-            top_level=top_level,
-            uids=uids,
-        )
-
-        # Initialize an empty model endpoints list
-        endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
-
-        # Generate a model endpoint store object and get a list of model endpoint dictionaries
-        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project
-        )
-
-        endpoint_dictionary_list = endpoint_store.list_model_endpoints(
-            function=function,
-            model=model,
-            labels=labels,
-            top_level=top_level,
-            uids=uids,
-        )
-
-        for endpoint_dict in endpoint_dictionary_list:
-            # Convert to `ModelEndpoint` object
-            endpoint_obj = self._convert_into_model_endpoint_object(
-                endpoint=endpoint_dict
+        try:
+            logger.info(
+                "Listing endpoints",
+                project=project,
+                model=model,
+                function=function,
+                labels=labels,
+                metrics=metrics,
+                start=start,
+                end=end,
+                top_level=top_level,
+                uids=uids,
             )
 
-            # If time metrics were provided, retrieve the results from the time series DB
-            if metrics:
-                self._add_real_time_metrics(
-                    model_endpoint_object=endpoint_obj,
-                    metrics=metrics,
-                    start=start,
-                    end=end,
+            # Initialize an empty model endpoints list
+            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
+
+            # Generate a model endpoint store object and get a list of model endpoint dictionaries
+            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
+                project=project
+            )
+
+            endpoint_dictionary_list = endpoint_store.list_model_endpoints(
+                function=function,
+                model=model,
+                labels=labels,
+                top_level=top_level,
+                uids=uids,
+            )
+
+            for endpoint_dict in endpoint_dictionary_list:
+                # Convert to `ModelEndpoint` object
+                endpoint_obj = self._convert_into_model_endpoint_object(
+                    endpoint=endpoint_dict
                 )
 
-            # Add the `ModelEndpoint` object into the model endpoints list
-            endpoint_list.endpoints.append(endpoint_obj)
+                # If time metrics were provided, retrieve the results from the time series DB
+                if metrics:
+                    self._add_real_time_metrics(
+                        model_endpoint_object=endpoint_obj,
+                        metrics=metrics,
+                        start=start,
+                        end=end,
+                    )
+
+                # Add the `ModelEndpoint` object into the model endpoints list
+                endpoint_list.endpoints.append(endpoint_obj)
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to list model endpoints because store connection is not defined."
+                " Returning an empty list of model endpoints.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
 
         return endpoint_list
 
@@ -495,45 +522,125 @@ class ModelEndpoints:
 
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
-
+        # TODO : check v3io store if cred is not defined and not in ce
+        #  (can be done inside list_model_endpoints/ get mep) for BC.
         endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"
             )
 
-    @staticmethod
-    def delete_model_endpoints_resources(project_name: str):
+    def delete_model_endpoints_resources(
+        self,
+        project_name: str,
+        db_session: sqlalchemy.orm.Session,
+        model_monitoring_applications: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
+    ) -> None:
         """
-        Delete all model endpoints resources.
+        Delete all model endpoints resources, including the store data, time series data, and stream resources.
 
-        :param project_name: The name of the project.
+        :param project_name:                  The name of the project.
+        :param db_session:                    A session that manages the current dialog with the database.
+        :param model_monitoring_applications: A list of model monitoring applications that their resources should
+                                              be deleted.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
         """
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
-            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
-            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        # TODO : adjust for ce scenario
+        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+            project=project_name,
+        )
+        if stream_paths[0].startswith("v3io") and (
+            not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
         ):
             return
 
-        # Delete model monitoring store resources
-        endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project_name
+        try:
+            self.verify_project_has_no_model_endpoints(project_name=project_name)
+        except mlrun.errors.MLRunPreconditionFailedError:
+            # Delete model monitoring store resources
+            try:
+                endpoint_store = (
+                    server.api.crud.model_monitoring.helpers.get_store_object(
+                        project=project_name
+                    )
+                )
+                endpoint_store.delete_model_endpoints_resources()
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
+                pass
+            try:
+                # Delete model monitoring TSDB resources
+                tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                    project=project_name,
+                    secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                        project=project_name
+                    ),
+                )
+                tsdb_connector.delete_tsdb_resources()
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO : delete from v3io store for BC (if not ce).
+                pass
+
+        # Delete model monitoring stream resources
+        self._delete_model_monitoring_stream_resources(
+            project_name=project_name,
+            db_session=db_session,
+            model_monitoring_applications=model_monitoring_applications,
+            stream_paths=stream_paths,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
-        endpoint_store.delete_model_endpoints_resources()
+    @staticmethod
+    def _delete_model_monitoring_stream_resources(
+        project_name: str,
+        db_session: sqlalchemy.orm.Session,
+        model_monitoring_applications: typing.Optional[list[str]],
+        stream_paths: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
+    ) -> None:
+        """
+        Delete model monitoring stream resources.
 
-        # Delete model monitoring TSDB resources
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+        :param project_name:                  The name of the project.
+        :param db_session:                    A session that manages the current dialog with the database.
+        :param model_monitoring_applications: A list of model monitoring applications that their resources should
+                                              be deleted.
+        :param stream_paths:                  A list of stream paths to delete. If using Kafka, the stream path
+                                              represents the related topic.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
+        """
+
+        if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
+            # Generate V3IO Access Key
+            model_monitoring_access_key = (
+                server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+                    db_session,
+                    project_name,
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                )
+            )
+
+        model_monitoring_applications = model_monitoring_applications or []
+
+        # Add the writer and monitoring stream to the application streams list
+        model_monitoring_applications.append(
+            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.WRITER
+        )
+        model_monitoring_applications.append(
+            mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM
+        )
+
+        server.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
             project=project_name,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=project_name
-            ),
+            function_names=model_monitoring_applications,
+            access_key=model_monitoring_access_key,
         )
-        tsdb_connector.delete_tsdb_resources()
 
     @staticmethod
     def _validate_length_features_and_labels(
@@ -615,12 +722,20 @@ class ModelEndpoints:
         if model_endpoint_object.status.metrics is None:
             model_endpoint_object.status.metrics = {}
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=model_endpoint_object.metadata.project,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=model_endpoint_object.metadata.project
-            ),
-        )
+        try:
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=model_endpoint_object.metadata.project,
+                secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                    project=model_endpoint_object.metadata.project
+                ),
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType as e:
+            logger.debug(
+                "Failed to add real time metrics because tsdb connection is not defined."
+                " Returning without adding real time metrics.",
+                error=mlrun.errors.err_to_str(e),
+            )
+            return model_endpoint_object
 
         endpoint_metrics = tsdb_connector.get_model_endpoint_real_time_metrics(
             endpoint_id=model_endpoint_object.metadata.uid,

@@ -28,42 +28,42 @@ class ObjectFormat:
     full = "full"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(format_: str) -> typing.Optional[typing.Callable]:
         """
         Get the formatting method for the provided format.
         A `None` value signifies a pass-through formatting method (no formatting).
-        :param _format: The format as a string representation.
+        :param format_: The format as a string representation.
         :return: The formatting method.
         """
         return {
             ObjectFormat.full: None,
-        }[_format]
+        }[format_]
 
     @classmethod
     def format_obj(
         cls,
         obj: typing.Any,
-        _format: str,
+        format_: str,
         exclude_formats: typing.Optional[list[str]] = None,
     ) -> typing.Any:
         """
         Format the provided object based on the provided format.
         :param obj: The object to format.
-        :param _format: The format as a string representation.
+        :param format_: The format as a string representation.
         :param exclude_formats: A list of formats to exclude from the formatting process. If the provided format is in
                                 this list, an invalid format exception will be raised.
         """
         exclude_formats = exclude_formats or []
-        _format = _format or cls.full
+        format_ = format_ or cls.full
         invalid_format_exc = mlrun.errors.MLRunBadRequestError(
-            f"Provided format is not supported. format={_format}"
+            f"Provided format is not supported. format={format_}"
         )
 
-        if _format in exclude_formats:
+        if format_ in exclude_formats:
             raise invalid_format_exc
 
         try:
-            format_method = cls.format_method(_format)
+            format_method = cls.format_method(format_)
         except KeyError:
             raise invalid_format_exc
 

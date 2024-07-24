@@ -50,12 +50,12 @@ from .run import (
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_yaml,
     get_in,
     is_relative_path,
     list2dict,
     logger,
-    run_keys,
     update_in,
 )
 from .utils.version import Version
@@ -380,15 +380,15 @@ def run(
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
-    set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
     set_item(
-        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+        runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
     )
-    set_item(runobj.spec, in_path, run_keys.input_path)
-    set_item(runobj.spec, out_path, run_keys.output_path)
-    set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
+    set_item(runobj.spec, in_path, RunKeys.input_path)
+    set_item(runobj.spec, out_path, RunKeys.output_path)
+    set_item(runobj.spec, outputs, RunKeys.outputs, list(outputs))
     set_item(
-        runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, "kind", "source")
+        runobj.spec, secrets, RunKeys.secrets, line2keylist(secrets, "kind", "source")
     )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")

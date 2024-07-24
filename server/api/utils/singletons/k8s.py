@@ -23,6 +23,7 @@ from kubernetes.client.rest import ApiException
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.common.secrets as mlsecrets
@@ -32,6 +33,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import server.api.runtime_handlers
 from mlrun.utils import logger
+from mlrun.utils.helpers import to_non_empty_values_dict
 
 _k8s = None
 
@@ -123,6 +125,80 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not states or i.status.phase in states:
                 items.append(i)
         return items
+
+    @raise_for_status_code
+    def list_pods_paginated(self, namespace=None, selector="", states=None):
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
+        if limit <= 0:
+            limit = None
+        while True:
+            pods_list = self.v1api.list_namespaced_pod(
+                self.resolve_namespace(namespace),
+                label_selector=selector,
+                watch=False,
+                limit=limit,
+                _continue=_continue,
+            )
+
+            for item in pods_list.items:
+                if not states or item.status.phase in states:
+                    yield item
+
+            _continue = pods_list.metadata._continue
+
+            if not _continue:
+                break
+
+    @raise_for_status_code
+    def list_crds_paginated(
+        self,
+        crd_group,
+        crd_version,
+        crd_plural,
+        namespace=None,
+        selector="",
+    ):
+        _continue = None
+        limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
+        if limit <= 0:
+            limit = None
+        while True:
+            crd_objects = {}
+            crd_items = []
+            try:
+                crd_objects = self.crdapi.list_namespaced_custom_object(
+                    crd_group,
+                    crd_version,
+                    self.resolve_namespace(namespace),
+                    crd_plural,
+                    label_selector=selector,
+                    limit=limit,
+                    _continue=_continue,
+                    watch=False,
+                )
+            except ApiException as exc:
+                # ignore error if crd is not defined
+                if exc.status != 404:
+                    raise
+
+            else:
+                crd_items = crd_objects["items"]
+
+            yield from crd_items
+
+            _continue = crd_objects["metadata"]["continue"] if crd_objects else None
+
+            if not _continue:
+                break
+
+            logger.debug(
+                "Getting next crds",
+                remaining_item_count=crd_objects["metadata"].get(
+                    "remaining_item_count"
+                ),
+            )
+        logger.debug("Finished listing crds")
 
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
@@ -545,47 +621,46 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def ensure_configmap(
         self,
         resource: str,
-        name: str,
+        resource_name: str,
         data: dict,
         namespace: str = "",
         labels: dict = None,
+        project: str = None,
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
-        full_name = f"{resource}-{name}"
+        labels = labels or {}
+        labels[label_name] = resource_name
+        labels[mlrun_constants.MLRunInternalLabels.project] = project
 
-        configmap_with_label = self.get_configmap(name, resource, namespace)
+        configmap_with_label = self.get_configmap(resource_name, namespace)
         if configmap_with_label:
-            name = configmap_with_label.metadata.name
+            configmap_name = configmap_with_label.metadata.name
             have_confmap = True
         else:
-            name = (
+            full_name = f"{resource}-{resource_name}"
+            configmap_name = (
                 full_name
                 if len(full_name) <= 63
                 else full_name[:59] + self._generate_rand_string(4)
             )
 
-        if labels is None:
-            labels = {label_name: full_name}
-        else:
-            labels[label_name] = full_name
-
         body = client.V1ConfigMap(
             kind="ConfigMap",
-            metadata=client.V1ObjectMeta(name=name, labels=labels),
+            metadata=client.V1ObjectMeta(name=configmap_name, labels=labels),
             data=data,
         )
 
         if have_confmap:
             try:
                 self.v1api.replace_namespaced_config_map(
-                    name, namespace=namespace, body=body
+                    configmap_name, namespace=namespace, body=body
                 )
             except ApiException as exc:
                 logger.error(
                     "Failed to replace k8s config map",
-                    name=name,
+                    name=configmap_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
@@ -595,23 +670,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             except ApiException as exc:
                 logger.error(
                     "Failed to create k8s config map",
-                    name=name,
+                    name=configmap_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
-        return name
+        return configmap_name
 
     @raise_for_status_code
-    def get_configmap(self, name: str, resource: str, namespace: str = ""):
+    def get_configmap(self, name: str, namespace: str = ""):
         namespace = self.resolve_namespace(namespace)
         label_name = mlrun_constants.MLRunInternalLabels.resource_name
-        full_name = f"{resource}-{name}"
         configmaps_with_label = self.v1api.list_namespaced_config_map(
-            namespace=namespace, label_selector=f"{label_name}={full_name}"
+            namespace=namespace, label_selector=f"{label_name}={name}"
         )
         if len(configmaps_with_label.items) > 1:
             raise mlrun.errors.MLRunInternalServerError(
-                f"Received more than one config map for label: {full_name}"
+                f"Received more than one config map for label: {name}"
             )
 
         return configmaps_with_label.items[0] if configmaps_with_label.items else None
@@ -693,6 +767,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             labels[mlrun_constants.MLRunInternalLabels.username] = username
             labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
+
+    @staticmethod
+    def _generate_rand_string(length):
+        return "".join(
+            random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+        )
 
 
 class BasePod:
@@ -818,10 +898,6 @@ class BasePod:
     def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
         self.node_selector = node_selector
 
-    @staticmethod
-    def _generate_rand_string(length):
-        return "".join(random.choice(string.ascii_letters) for _ in range(length))
-
     def _get_spec(self, template=False):
         pod_obj = client.V1PodTemplate if template else client.V1Pod
 
@@ -870,6 +946,7 @@ class BasePod:
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: mlrun.runtimes.pod.KubeResourceSpec,
     container: client.V1Container,
+    node_selector: dict = None,
 ):
     return client.V1PodSpec(
         containers=[container],
@@ -877,7 +954,9 @@ def kube_resource_spec_to_pod_spec(
         volumes=kube_resource_spec.volumes,
         service_account=kube_resource_spec.service_account,
         node_name=kube_resource_spec.node_name,
-        node_selector=kube_resource_spec.node_selector,
+        node_selector=resolve_node_selector(
+            node_selector, kube_resource_spec.node_selector
+        ),
         affinity=kube_resource_spec.affinity,
         priority_class_name=kube_resource_spec.priority_class_name
         if len(mlrun.mlconf.get_valid_function_priority_class_names())
@@ -886,3 +965,12 @@ def kube_resource_spec_to_pod_spec(
         security_context=kube_resource_spec.security_context,
         termination_grace_period_seconds=kube_resource_spec.termination_grace_period_seconds,
     )
+
+
+def resolve_node_selector(run_node_selector, runtime_node_selector):
+    # To maintain backwards compatibility, use the node_selector from the run object if it exists.
+    # otherwise, use the node_selector from the function object.
+    node_selector = run_node_selector or runtime_node_selector
+
+    # Ignore empty labels
+    return to_non_empty_values_dict(node_selector)

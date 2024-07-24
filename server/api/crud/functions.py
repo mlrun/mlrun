@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import datetime
+
 import sqlalchemy.orm
 
 import mlrun.common.schemas
@@ -33,7 +35,7 @@ class Functions(
         db_session: sqlalchemy.orm.Session,
         function: dict,
         name: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         tag: str = "",
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -65,14 +67,14 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         tag: str = "",
         hash_key: str = "",
-        _format: str = None,
+        format_: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().get_function(
-            db_session, name, project, tag, hash_key, _format
+            db_session, name, project, tag, hash_key, format_
         )
 
     def delete_function(
@@ -88,14 +90,16 @@ class Functions(
     def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = None,
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
-        _format: str = None,
+        format_: str = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -107,7 +111,9 @@ class Functions(
             tag=tag,
             labels=labels,
             hash_key=hash_key,
-            _format=_format,
+            format_=format_,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         )

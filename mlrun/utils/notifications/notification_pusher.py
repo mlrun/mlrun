@@ -20,9 +20,9 @@ import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-import kfp
 import mlrun_pipelines.common.ops
 import mlrun_pipelines.models
+import mlrun_pipelines.utils
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
@@ -397,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
-                    labels=f"mlrun_constants.MLRunInternalLabels.runner_pod={_step.node_name}",
+                    labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
                 )[0]
             except IndexError:
                 _run = {
@@ -484,13 +484,7 @@ class NotificationPusher(_NotificationPusherBase):
     def _get_workflow_manifest(
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
-        kfp_url = mlrun.mlconf.resolve_kfp_url(mlrun.mlconf.namespace)
-        if not kfp_url:
-            raise mlrun.errors.MLRunNotFoundError(
-                "KubeFlow Pipelines is not configured"
-            )
-
-        kfp_client = kfp.Client(host=kfp_url)
+        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

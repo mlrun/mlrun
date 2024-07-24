@@ -206,8 +206,8 @@ class DBInterface(ABC):
         project="",
         tag="",
         labels=None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -217,12 +217,23 @@ class DBInterface(ABC):
         producer_id: str = None,
         producer_uri: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
     ):
         pass
 
     @abstractmethod
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None
+        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
     ):
         pass
 
@@ -302,7 +313,7 @@ class DBInterface(ABC):
         project: str = None,
         tag: str = None,
         hash_key: str = None,
-        _format: str = None,
+        format_: str = None,
     ):
         pass
 
@@ -325,9 +336,11 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
-        _format: str = None,
+        format_: str = None,
         page: int = None,
         page_size: int = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ):
         pass
 
@@ -433,12 +446,6 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def generate_projects_summaries(
-        self, session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        pass
-
-    @abstractmethod
     def delete_project_related_resources(self, session, name: str):
         pass
 
@@ -514,6 +521,26 @@ class DBInterface(ABC):
     ):
         pass
 
+    def get_project_summary(
+        self, session, project: str, raise_on_not_found: bool = True
+    ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        pass
+
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
+    ):
+        pass
+
     @abstractmethod
     def create_feature_set(
         self,
@@ -544,6 +571,12 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
     @abstractmethod
     def list_features(
         self,
@@ -557,6 +590,24 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
     def list_entities(
         self,
         session,
@@ -565,6 +616,17 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     @abstractmethod
@@ -925,4 +987,18 @@ class DBInterface(ABC):
         pass
 
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def store_time_window_tracker_record(
+        self,
+        session,
+        key: str,
+        timestamp: typing.Optional[datetime.datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ):
+        pass
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
         pass

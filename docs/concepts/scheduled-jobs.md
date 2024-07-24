@@ -18,11 +18,11 @@ To create the job, use the `code_to_function` syntax and specify the `kind` like
 import mlrun
 
 job = mlrun.code_to_function(
-    name="my-scheduled-job",      # Name of the job (displayed in console and UI)
-    filename="schedule.py",       # Python file or Jupyter notebook to run
-    kind="job",                   # Run as a job
-    image="mlrun/mlrun",          # Use this Docker image
-    handler="hello"               # Execute the function hello() within code.py
+    name="my-scheduled-job",  # Name of the job (displayed in console and UI)
+    filename="schedule.py",  # Python file or Jupyter notebook to run
+    kind="job",  # Run as a job
+    image="mlrun/mlrun",  # Use this Docker image
+    handler="hello",  # Execute the function hello() within code.py
 )
 ```
 

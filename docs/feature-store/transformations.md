@@ -117,6 +117,7 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
    ```python
    import mlrun.feature_store as fstore
+
    # create a new feature set
    quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
    quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], "10m", name="price")
@@ -138,9 +139,10 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
    
    ```python
    import mlrun.feature_store as fstore
+
    # create a new feature set
    quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
-   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"] name="price")
+   quotes_set.add_aggregation("bid", ["min", "max"], ["1h"], name="price")
    ```
    This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.  
 
@@ -255,7 +257,7 @@ class MultiplyFeature(StepToDict, MLRunStep):
 
     def _do_storey(self, event):
         # event is a single row represented by a dictionary
-        event[self._new_feature] = event[self._feature] * self._value  
+        event[self._new_feature] = event[self._feature] * self._value
         return event
 
     def _do_pandas(self, event):
@@ -265,9 +267,9 @@ class MultiplyFeature(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         # event is a pyspark.sql.DataFrame
-        return event.withColumn(self._new_feature, 
-                                col(self._feature) * lit(self._value)
-                                )
+        return event.withColumn(
+            self._new_feature, col(self._feature) * lit(self._value)
+        )
 ```
 
 The following example uses this step in a feature-set graph with the `pandas` engine. This example adds a feature called 
@@ -277,10 +279,11 @@ when creating the graph step:
 ```python
 import mlrun.feature_store as fstore
 
-feature_set = fstore.FeatureSet("fs-new", 
-                                entities=[fstore.Entity("id")], 
-                                engine="pandas",
-                                )
+feature_set = fstore.FeatureSet(
+    "fs-new",
+    entities=[fstore.Entity("id")],
+    engine="pandas",
+)
 # Adding multiply step, with specific class parameters passed as kwargs
 feature_set.graph.to(class_name="MultiplyFeature", feature="number1", value=4)
 df_pandas = feature_set.ingest(data)

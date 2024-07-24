@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import importlib.util as imputil
 import json
 import os
@@ -28,9 +29,9 @@ from typing import Optional, Union
 
 import nuclio
 import yaml
-from kfp import Client
 from mlrun_pipelines.common.models import RunStatuses
 from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.utils import get_client
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
@@ -62,11 +63,11 @@ from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
+    RunKeys,
     extend_hub_uri_if_needed,
     get_in,
     logger,
     retry_until_successful,
-    run_keys,
     update_in,
 )
 
@@ -200,8 +201,8 @@ def get_or_create_ctx(
     rundb: str = "",
     project: str = "",
     upload_artifacts=False,
-    labels: dict = None,
-):
+    labels: Optional[dict] = None,
+) -> MLClientCtx:
     """called from within the user program to obtain a run context
 
     the run context is an interface for receiving parameters, data and logging
@@ -216,10 +217,10 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels:      dict of the context labels
+    :param labels:   dict of the context labels
     :return: execution context
 
     Examples::
@@ -279,7 +280,7 @@ def get_or_create_ctx(
             artifact_path = mlrun.utils.helpers.template_artifact_path(
                 mlconf.artifact_path, project or mlconf.default_project
             )
-            update_in(newspec, ["spec", run_keys.output_path], artifact_path)
+            update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
     newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
@@ -293,10 +294,14 @@ def get_or_create_ctx(
     newspec["metadata"]["project"] = (
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
+
     newspec["metadata"].setdefault("labels", {})
-    newspec["metadata"]["labels"] = {
-        mlrun_constants.MLRunInternalLabels.kind: RuntimeKinds.local
-    }
+
+    # This function can also be called as a local run if it is not called within a function.
+    # It will create a local run, and the run kind must be local by default.
+    newspec["metadata"]["labels"].setdefault(
+        mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
+    )
 
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
@@ -634,7 +639,7 @@ def code_to_function(
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
-    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
 
@@ -948,7 +953,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -1009,7 +1014,7 @@ def get_pipeline(
         )
 
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()

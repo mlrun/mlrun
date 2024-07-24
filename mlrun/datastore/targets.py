@@ -29,7 +29,10 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.snowflake_utils import (
+    get_snowflake_password,
+    get_snowflake_spark_options,
+)
 from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
@@ -546,9 +549,7 @@ class BaseStoreTarget(DataTargetBase):
                     os.makedirs(dir, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
-            if not target_path.endswith(".parquet") and not target_path.endswith(
-                ".pq"
-            ):  # directory
+            if not mlrun.utils.helpers.is_parquet_file(target_path):  # directory
                 partition_cols = []
                 if timestamp_key and (
                     self.partitioned or self.time_partitioning_granularity
@@ -696,6 +697,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
+        target.attributes = self.attributes
         target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
@@ -724,11 +726,25 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         featureset_status=None,
     ):
+        if not self.support_storey:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
         raise NotImplementedError()
 
     def purge(self):
+        """
+        Delete the files of the target.
+
+        Do not use this function directly from the sdk. Use FeatureSet.purge_targets.
+        """
         store, path_in_store, target_path = self._get_store_and_path()
-        store.rm(target_path, recursive=True)
+        if path_in_store not in ["", "/"]:
+            store.rm(path_in_store, recursive=True)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to delete target. Please Use purge_targets from FeatureSet object."
+            )
 
     def as_df(
         self,
@@ -756,6 +772,10 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
+        if not self.support_spark:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support spark engine"
+            )
         raise NotImplementedError()
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
@@ -763,6 +783,10 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_dask_options(self):
         raise NotImplementedError()
+
+    @property
+    def source_spark_attributes(self) -> dict:
+        return {}
 
 
 class ParquetTarget(BaseStoreTarget):
@@ -900,10 +924,8 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if (
-            not self.partitioned
-            and not self.get_target_path().endswith(".parquet")
-            and not self.get_target_path().endswith(".pq")
+        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
+            self.get_target_path()
         ):
             partition_cols = []
 
@@ -1022,9 +1044,7 @@ class ParquetTarget(BaseStoreTarget):
         return result
 
     def is_single_file(self):
-        if self.path:
-            return self.path.endswith(".parquet") or self.path.endswith(".pq")
-        return False
+        return mlrun.utils.helpers.is_parquet_file(self.path)
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns
@@ -1197,19 +1217,20 @@ class SnowflakeTarget(BaseStoreTarget):
         warehouse: str = None,
         table_name: str = None,
     ):
-        attrs = {
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": db_schema,
-            "warehouse": warehouse,
-            "table": table_name,
-        }
-        extended_attrs = {
-            key: value for key, value in attrs.items() if value is not None
-        }
-        attributes = {} if not attributes else attributes
-        attributes.update(extended_attrs)
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if table_name:
+            attributes["table"] = table_name
+
         super().__init__(
             name,
             path,
@@ -1233,7 +1254,31 @@ class SnowflakeTarget(BaseStoreTarget):
         return spark_options
 
     def purge(self):
-        pass
+        import snowflake.connector
+
+        missing = [
+            key
+            for key in ["database", "db_schema", "table", "url", "user", "warehouse"]
+            if self.attributes.get(key) is None
+        ]
+        if missing:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {', '.join(missing)}"
+            )
+        account = self.attributes["url"].replace(".snowflakecomputing.com", "")
+
+        with snowflake.connector.connect(
+            account=account,
+            user=self.attributes["user"],
+            password=get_snowflake_password(),
+            warehouse=self.attributes["warehouse"],
+        ) as snowflake_connector:
+            drop_statement = (
+                f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"
+                f".{self.attributes['table']}"
+            )
+            snowflake_connector.execute_string(drop_statement)
 
     def as_df(
         self,
@@ -1246,7 +1291,18 @@ class SnowflakeTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        raise NotImplementedError()
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} does not support storey engine"
+        )
+
+    @property
+    def source_spark_attributes(self) -> dict:
+        keys = ["url", "user", "database", "db_schema", "warehouse"]
+        attributes = self.attributes or {}
+        snowflake_dict = {key: attributes.get(key) for key in keys}
+        table = attributes.get("table")
+        snowflake_dict["query"] = f"SELECT * from {table}" if table else None
+        return snowflake_dict
 
 
 class NoSqlBaseTarget(BaseStoreTarget):

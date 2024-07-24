@@ -25,9 +25,8 @@ import server.api.utils.singletons.project_member
 from mlrun.common.schemas.feature_store import (
     FeatureSetDigestOutputV2,
     FeatureSetDigestSpecV2,
-    QualifiedEntity,
-    QualifiedFeature,
 )
+from mlrun.utils import run_in_threadpool
 from server.api.api import deps
 
 router = APIRouter(prefix="/v2/projects/{project}")
@@ -67,39 +66,22 @@ async def list_entities(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    entities = await server.api.api.endpoints.feature_store.list_entities(
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+        project_name=project,
+        resource_name="",
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    entities = await run_in_threadpool(
+        server.api.crud.FeatureStore().list_entities_v2,
+        db_session,
         project,
         name,
         tag,
         labels,
-        auth_info,
-        db_session,
     )
-
-    entities_v2: list[QualifiedEntity] = []
-    feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
-    feature_set_digest_id_to_index: dict[int, int] = {}
-
-    for entity_v1 in entities.entities:
-        feature_set_digest = entity_v1.feature_set_digest
-
-        feature_set_index = _dedup_feature_set(
-            feature_set_digest, feature_set_digest_id_to_index, feature_set_digests_v2
-        )
-
-        entity = entity_v1.entity
-        entities_v2.append(
-            QualifiedEntity(
-                name=entity.name,
-                value_type=entity.value_type,
-                feature_set_index=feature_set_index,
-                labels=entity.labels,
-            )
-        )
-
-    return mlrun.common.schemas.EntitiesOutputV2(
-        entities=entities_v2, feature_set_digests=feature_set_digests_v2
-    )
+    return entities
 
 
 @router.get("/features", response_model=mlrun.common.schemas.FeaturesOutputV2)
@@ -112,37 +94,20 @@ async def list_features(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    features = await server.api.api.endpoints.feature_store.list_features(
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
+        project_name=project,
+        resource_name="",
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    features = await run_in_threadpool(
+        server.api.crud.FeatureStore().list_features_v2,
+        db_session,
         project,
         name,
         tag,
-        labels,
         entities,
-        auth_info,
-        db_session,
+        labels,
     )
-
-    features_v2: list[QualifiedFeature] = []
-    feature_set_digests_v2: list[FeatureSetDigestOutputV2] = []
-    feature_set_digest_id_to_index: dict[int, int] = {}
-
-    for feature_v1 in features.features:
-        feature_set_digest = feature_v1.feature_set_digest
-
-        feature_set_index = _dedup_feature_set(
-            feature_set_digest, feature_set_digest_id_to_index, feature_set_digests_v2
-        )
-
-        feature = feature_v1.feature
-        features_v2.append(
-            QualifiedFeature(
-                name=feature.name,
-                value_type=feature.value_type,
-                feature_set_index=feature_set_index,
-                labels=feature.labels,
-            )
-        )
-
-    return mlrun.common.schemas.FeaturesOutputV2(
-        features=features_v2, feature_set_digests=feature_set_digests_v2
-    )
+    return features

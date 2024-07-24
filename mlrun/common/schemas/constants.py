@@ -120,10 +120,13 @@ class FeatureStorePartitionByField(mlrun.common.types.StrEnum):
 
 class RunPartitionByField(mlrun.common.types.StrEnum):
     name = "name"  # Supported for runs objects
+    project_and_name = "project_and_name"  # Supported for runs objects
 
     def to_partition_by_db_field(self, db_cls):
         if self.value == RunPartitionByField.name:
             return db_cls.name
+        elif self.value == RunPartitionByField.project_and_name:
+            return db_cls.project, db_cls.name
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown group by field: {self.value}"

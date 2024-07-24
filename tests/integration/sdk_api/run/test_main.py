@@ -391,7 +391,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         out = self._exec_run(
             function_path,
-            self._compose_param_list(dict(x=8)) + ["--handler", "mycls::mtd"],
+            self._compose_param_list(dict(x=8)) + ["--handler", "MyCls::mtd"],
             "test_main_run_class",
         )
         assert out.find("state: completed") != -1, out

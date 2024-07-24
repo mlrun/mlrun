@@ -59,12 +59,16 @@ def get_stream_path(
 
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-    ) or mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
-        target="online",
-        function_name=function_name,
     )
+
+    if not stream_uri or stream_uri == "v3io":
+        # TODO : remove the first part of this condition in 1.9.0
+        stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+            target="online",
+            function_name=function_name,
+        )
 
     if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
         stream_uri = stream_uri[1]  # get new stream path, under projects
@@ -107,12 +111,9 @@ def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -
 
     """
 
-    return (
-        mlrun.get_secret_or_env(
-            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
-            secret_provider=secret_provider,
-        )
-        or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    return mlrun.get_secret_or_env(
+        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+        secret_provider=secret_provider,
     )
 
 
@@ -125,12 +126,9 @@ def get_tsdb_connection_string(
     :return:                Valid TSDB connection string.
     """
 
-    return (
-        mlrun.get_secret_or_env(
-            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
-            secret_provider=secret_provider,
-        )
-        or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
+    return mlrun.get_secret_or_env(
+        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
+        secret_provider=secret_provider,
     )
 
 

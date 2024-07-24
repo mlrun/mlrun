@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections.abc
 import copy
 import datetime
 import http
@@ -23,6 +24,7 @@ from uuid import uuid4
 
 import deepdiff
 import fastapi.testclient
+import kubernetes.client
 import mergedeep
 import mlrun_pipelines.common.models
 import pytest
@@ -44,6 +46,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
+import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 import server.api.utils.singletons.scheduler
 import tests.api.conftest
@@ -171,6 +174,16 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.fixture()
+def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
+    with unittest.mock.patch(
+        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
+        return_value="some_access_key",
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.parametrize(
     "api_version,successful_delete_response_code",
     [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
@@ -178,6 +191,7 @@ def test_get_non_existing_project(
 def test_delete_project_with_resources(
     db: Session,
     unversioned_client: TestClient,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     api_version: str,
@@ -227,10 +241,31 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - cascading - should succeed and remove all related resources
+    # mock project configmaps
+    k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+
+    def _list_configmaps(*args, **kwargs):
+        label_selector = kwargs.get("label_selector")
+        assert project_to_remove in label_selector
+        return kubernetes.client.V1ConfigMapList(
+            items=[
+                kubernetes.client.V1ConfigMap(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=f"{project_to_remove}-configmap",
+                    )
+                )
+            ]
+        )
+
+    k8s_helper.v1api.list_namespaced_config_map = unittest.mock.Mock(
+        side_effect=_list_configmaps
+    )
+    k8s_helper.delete_configmap = unittest.mock.Mock()
     _send_delete_request_and_assert_response_code(
         mlrun.common.schemas.DeletionStrategy.cascading,
         successful_delete_response_code,
     )
+    k8s_helper.delete_configmap.assert_called_once()
 
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
@@ -275,7 +310,8 @@ def test_delete_project_with_resources(
     )
 
 
-def test_list_and_get_project_summaries(
+@pytest.mark.asyncio
+async def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     # create empty project
@@ -393,6 +429,8 @@ def test_list_and_get_project_summaries(
         project_name,
     )
 
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
+
     # list project summaries
     response = client.get("project-summaries")
     project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
@@ -436,7 +474,8 @@ def test_list_and_get_project_summaries(
     )
 
 
-def test_list_project_summaries_different_installation_modes(
+@pytest.mark.asyncio
+async def test_list_project_summaries_different_installation_modes(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     """
@@ -457,6 +496,8 @@ def test_list_project_summaries_different_installation_modes(
     mlrun.mlconf.igz_version = "3.6.0-b26.20210904121245"
     mlrun.mlconf.kfp_url = "https://somekfp-url.com"
     mlrun.mlconf.namespace = "default-tenant"
+
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
 
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
@@ -1077,6 +1118,7 @@ def test_delete_project_not_found_in_leader(
 
 # Test should not run more than a few seconds because we test that if the background task fails,
 # the wrapper task fails fast
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize(
     "delete_api_version",
@@ -1460,11 +1502,24 @@ def _assert_db_resources_in_project(
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
             if (
-                # Artifact table is deprecated, we are using ArtifactV2 instead
-                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
-            ) or (
-                # PaginationCache is not a project-level table
-                cls.__name__ == "PaginationCache"
+                (
+                    # Artifact table is deprecated, we are using ArtifactV2 instead
+                    cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+                )
+                or (
+                    # PaginationCache is not a project-level table
+                    cls.__name__ == "PaginationCache"
+                )
+                or (
+                    # Although project summaries are related to projects, their lifecycle is related
+                    # to the project summary calculation cycle and not to the creation/deletion of projects
+                    # (In each cycle the table is wiped clean and re-populated with only the existing projects)
+                    cls.__name__ == "ProjectSummary"
+                )
+                or (
+                    # TimeWindowTracker is not a project-level table
+                    cls.__name__ == "TimeWindowTracker"
+                )
             ):
                 continue
 

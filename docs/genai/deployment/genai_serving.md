@@ -17,12 +17,10 @@ hugging_face_serving = project.set_function("hub://hugging_face_serving")
 Next, you can add a model to the function using this code:
 
 ```python
-
 hugging_face_serving.add_model(
-    'mymodel',
-    class_name='HuggingFaceModelServer',
-    model_path='123',  # This is not used, just for enabling the process.
-    
+    "mymodel",
+    class_name="HuggingFaceModelServer",
+    model_path="123",  # This is not used, just for enabling the process.
     task="text-generation",
     model_class="AutoModelForCausalLM",
     model_name="openai-community/gpt2",
@@ -35,8 +33,7 @@ And test the model:
 ```python
 hugging_face_mock_server = hugging_face_serving.to_mock_server()
 result = hugging_face_mock_server.test(
-    "/v2/models/mymodel",
-    body={"inputs": ["write a short poem"]}
+    "/v2/models/mymodel", body={"inputs": ["write a short poem"]}
 )
 print(f"Output: {result['outputs']}")
 ```
@@ -63,7 +60,6 @@ import mlrun
 
 
 class OnnxGenaiModelServer(mlrun.serving.v2_serving.V2ModelServer):
-
     def __init__(
         self,
         context: mlrun.MLClientCtx,
@@ -101,16 +97,19 @@ class OnnxGenaiModelServer(mlrun.serving.v2_serving.V2ModelServer):
     def load(self):
         # Download the model snapshot and save it to the model folder
         self.model_folder = snapshot_download(self.model_name)
-        
+
         # Load the model from the model folder
         self.model = og.Model(os.path.join(self.model_folder, self.model_path))
-        
+
         # Create a tokenizer using the loaded model
         self.tokenizer = og.Tokenizer(self.model)
-        
+
     def predict(self, request: Dict[str, Any]) -> list:
         # Get prompts from inputs::
-        prompts = [f'{self.chat_template.format(prompt=input.get("prompt"))}' for input in request["inputs"]]
+        prompts = [
+            f'{self.chat_template.format(prompt=input.get("prompt"))}'
+            for input in request["inputs"]
+        ]
 
         # Tokenize:
         input_tokens = self.tokenizer.encode_batch(prompts)
@@ -119,12 +118,15 @@ class OnnxGenaiModelServer(mlrun.serving.v2_serving.V2ModelServer):
         params = og.GeneratorParams(self.model)
         params.set_search_options(**self.search_options)
         params.input_ids = input_tokens
-        
+
         # Generate output tokens:
         output_tokens = self.model.generate(params)
-        
+
         # Decode output tokens to text:
-        response = [{"prediction": self.tokenizer.decode(output), "prompt": prompt} for (output, prompt) in zip(output_tokens, prompts)]
+        response = [
+            {"prediction": self.tokenizer.decode(output), "prompt": prompt}
+            for (output, prompt) in zip(output_tokens, prompts)
+        ]
 
         return response
 ```
@@ -139,20 +141,24 @@ Save the code above to `src/onnx_genai_serving.ay` and then create a model servi
 import os
 import mlrun
 
-project = mlrun.get_or_create_project("genai-deployment", context = "./", user_project=True)
+project = mlrun.get_or_create_project(
+    "genai-deployment", context="./", user_project=True
+)
 
-genai_serving = project.set_function("src/onnx_genai_serving.py",
-                                     name="genai-serving",
-                                     kind="serving",
-                                     image="mlrun/mlrun",
-                                     requirements=["huggingface_hub", "onnxruntime_genai"])
+genai_serving = project.set_function(
+    "src/onnx_genai_serving.py",
+    name="genai-serving",
+    kind="serving",
+    image="mlrun/mlrun",
+    requirements=["huggingface_hub", "onnxruntime_genai"],
+)
 
-genai_serving.add_model("mymodel",
-                        model_name="microsoft/Phi-3-mini-4k-instruct-onnx",
-                        model_path=os.path.join("cpu_and_mobile", "cpu-int4-rtn-block-32-acc-level-4"),
-                        class_name="OnnxGenaiModelServer"
-                       )
-
+genai_serving.add_model(
+    "mymodel",
+    model_name="microsoft/Phi-3-mini-4k-instruct-onnx",
+    model_path=os.path.join("cpu_and_mobile", "cpu-int4-rtn-block-32-acc-level-4"),
+    class_name="OnnxGenaiModelServer",
+)
 ```
 
 The code loads a Phi-3 model. This example uses the CPU version so it's easy to test and run, but you can just as easily provide a GPU-based model.
@@ -163,8 +169,7 @@ Test the model with the following code:
 mock_server = genai_serving.to_mock_server()
 
 result = mock_server.test(
-    "/v2/models/mymodel",
-    body={"inputs": [{"prompt":"What is 1+1?"}]}
+    "/v2/models/mymodel", body={"inputs": [{"prompt": "What is 1+1?"}]}
 )
 print(f"Output: {result['outputs']}")
 ```
@@ -184,7 +189,6 @@ This builds a docker images with the required dependencies and deploys a Nuclio 
 To test the model, use the HTTP trigger:
 ```python
 genai_serving.invoke(
-    "/v2/models/mymodel",
-    body={"inputs": [{"prompt":"What is 1+1?"}]}
+    "/v2/models/mymodel", body={"inputs": [{"prompt": "What is 1+1?"}]}
 )
 ```

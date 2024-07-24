@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import typing
 from abc import ABC, abstractmethod
 
@@ -94,6 +94,7 @@ class StoreBase(ABC):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
         """
         Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
@@ -107,6 +108,7 @@ class StoreBase(ABC):
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param uids:             List of model endpoint unique ids to include in the result.
+        :param include_stats:   If True, will include model endpoint statistics in the result.
 
         :return: A list of model endpoint dictionaries.
         """
@@ -170,3 +172,41 @@ class StoreBase(ABC):
 
         :return:             A list of the available metrics.
         """
+
+    @staticmethod
+    def _validate_labels(
+        endpoint_dict: dict,
+        labels: list,
+    ) -> bool:
+        """Validate that the model endpoint dictionary has the provided labels. There are 2 possible cases:
+        1 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
+            that each pair exist in the endpoint dictionary.
+        2 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
+            the endpoint labels dictionary.
+
+        :param endpoint_dict: Dictionary of the model endpoint records.
+        :param labels:        List of dictionary of required labels.
+
+        :return: True if the labels exist in the endpoint labels dictionary, otherwise False.
+        """
+
+        # Convert endpoint labels into dictionary
+        endpoint_labels = json.loads(
+            endpoint_dict.get(mm_schemas.EventFieldType.LABELS)
+        )
+
+        for label in labels:
+            # Case 1 - label is a key=value pair
+            if "=" in label:
+                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
+                if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
+                    return False
+            # Case 2 - label is just a key
+            else:
+                if label not in endpoint_labels:
+                    return False
+
+        return True
+
+    def create_tables(self):
+        pass

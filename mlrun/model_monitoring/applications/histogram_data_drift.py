@@ -193,9 +193,12 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             status=status,
             extra_data={
                 EventFieldType.CURRENT_STATS: json.dumps(
-                    monitoring_context.feature_stats
+                    monitoring_context.sample_df_stats
                 ),
-                EventFieldType.DRIFT_MEASURES: metrics_per_feature.T.to_json(),
+                EventFieldType.DRIFT_MEASURES: json.dumps(
+                    metrics_per_feature.T.to_dict()
+                    | {metric.name: metric.value for metric in metrics}
+                ),
                 EventFieldType.DRIFT_STATUS: status.value,
             },
         )

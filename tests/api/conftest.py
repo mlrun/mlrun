@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import datetime
 import typing
 import unittest.mock
@@ -131,13 +130,13 @@ def client(db) -> Generator:
         mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
+        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def unversioned_client(db) -> Generator:
     """
     unversioned_client is a test client that doesn't have the version prefix in the url.
@@ -207,23 +206,39 @@ def iguazio_client(
 
 class MockedK8sHelper:
     @pytest.fixture(autouse=True)
-    def mock_k8s_helper(self, db: sqlalchemy.orm.Session, client: TestClient):
-        # We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
-        # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
-        server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
-            unittest.mock.Mock(return_value=[])
-        )
-        server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-        server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
-        server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
+    def mock_k8s_helper(self):
+        """
+        This fixture mocks the k8s helper singleton for all tests in the class that inherit from this class.
+        Example:
+            class TestSomething(MockedK8sHelper):
+                # Automatically uses the mocked k8s helper
+                def test_something(self):
+                    ...
+        """
+        _mocked_k8s_helper()
 
-        config_map = unittest.mock.Mock()
-        config_map.items = []
-        server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
-            return_value=config_map
-        )
+
+@pytest.fixture()
+def mocked_k8s_helper():
+    _mocked_k8s_helper()
+
+
+def _mocked_k8s_helper():
+    # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
+    server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+        unittest.mock.Mock(return_value=[])
+    )
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+    server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
+    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
+
+    config_map = unittest.mock.Mock()
+    config_map.items = []
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+        return_value=config_map
+    )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):

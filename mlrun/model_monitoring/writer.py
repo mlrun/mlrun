@@ -153,11 +153,7 @@ class ModelMonitoringWriter(StepToDict):
         result_kind: int, result_status: int
     ) -> alert_objects.EventKind:
         """Generate the required Event Kind format for the alerting system"""
-        if result_kind == ResultKindApp.custom.value:
-            # Custom kind is represented as an anomaly detection
-            event_kind = "mm_app_anomaly"
-        else:
-            event_kind = ResultKindApp(value=result_kind).name
+        event_kind = ResultKindApp(value=result_kind).name
 
         if result_status == ResultStatusApp.detected.value:
             event_kind = f"{event_kind}_detected"
@@ -261,8 +257,7 @@ class ModelMonitoringWriter(StepToDict):
                 "data drift app",
                 endpoint_id=endpoint_id,
             )
-            store = mlrun.model_monitoring.get_store_object(project=self.project)
-            store.update_model_endpoint(
+            self._app_result_store.update_model_endpoint(
                 endpoint_id=endpoint_id,
                 attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
             )

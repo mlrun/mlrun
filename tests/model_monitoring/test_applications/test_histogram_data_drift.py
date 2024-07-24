@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import inspect
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -24,8 +26,10 @@ from hypothesis import strategies as st
 
 import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.common.schemas.model_monitoring.constants import (
+    EventFieldType,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -104,13 +108,15 @@ class TestDataDriftClassifier:
 
 
 class TestApplication:
-    @staticmethod
+    COUNT = 12  # the sample df size
+
+    @classmethod
     @pytest.fixture
-    def sample_df_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+    def sample_df_stats(cls) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
                 "timestamp": {
-                    "count": 1,
+                    "count": cls.COUNT,
                     "25%": "2024-03-11 09:31:39.152301+00:00",
                     "50%": "2024-03-11 09:31:39.152301+00:00",
                     "75%": "2024-03-11 09:31:39.152301+00:00",
@@ -119,17 +125,17 @@ class TestApplication:
                     "min": "2024-03-11 09:31:39.152301+00:00",
                 },
                 "f1": {
-                    "count": 100,
-                    "hist": [[10, 30, 0, 30, 5, 25], [-10, -5, 0, 5, 10, 15, 20]],
+                    "count": cls.COUNT,
+                    "hist": [[2, 3, 0, 3, 1, 3], [-10, -5, 0, 5, 10, 15, 20]],
                 },
                 "f2": {
-                    "count": 100,
-                    "hist": [[0, 50, 0, 20, 5, 25], [66, 67, 68, 69, 70, 71, 72]],
+                    "count": cls.COUNT,
+                    "hist": [[0, 6, 0, 2, 1, 3], [66, 67, 68, 69, 70, 71, 72]],
                 },
                 "l": {
-                    "count": 100,
+                    "count": cls.COUNT,
                     "hist": [
-                        [90, 0, 0, 0, 0, 10],
+                        [10, 0, 0, 0, 0, 2],
                         [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
                     ],
                 },
@@ -187,9 +193,11 @@ class TestApplication:
         )
         return kwargs
 
-    @staticmethod
+    @classmethod
     def test(
-        application: HistogramDataDriftApplication, application_kwargs: dict[str, Any]
+        cls,
+        application: HistogramDataDriftApplication,
+        application_kwargs: dict[str, Any],
     ) -> None:
         results = application.do_tracking(**application_kwargs)
         metrics = []
@@ -208,6 +216,12 @@ class TestApplication:
                 assert (
                     res.status == ResultStatusApp.potential_detection
                 ), "Expected potential detection in the general drift"
+                assert (
+                    json.loads(res.extra_data[EventFieldType.CURRENT_STATS])[
+                        EventFieldType.TIMESTAMP
+                    ]["count"]
+                    == cls.COUNT
+                ), "The current statistics count is different than expected"
             elif isinstance(
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric,

@@ -284,6 +284,7 @@ class RunDBMock:
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -303,7 +304,7 @@ class RunDBMock:
 
         self._runs[uid] = struct
 
-    def read_run(self, uid, project, iter=0):
+    def read_run(self, uid, project, iter=0, format_=None):
         return self._runs.get(uid, {})
 
     def list_runs(

@@ -21,7 +21,7 @@ from mlrun.datastore.datastore_profile import datastore_profile_read
 from mlrun.errors import err_to_str
 from mlrun.utils.helpers import get_local_file_schema
 
-from ..utils import DB_SCHEMA, run_keys
+from ..utils import DB_SCHEMA, RunKeys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
@@ -32,6 +32,8 @@ in_memory_store = InMemoryStore()
 
 
 def parse_url(url):
+    if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
+        url = url.replace("v3io://", "v3io:///", 1)
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
     endpoint = parsed_url.hostname
@@ -94,7 +96,7 @@ def schema_to_store(schema):
         from .dbfs_store import DBFSStore
 
         return DBFSStore
-    elif schema == "hdfs":
+    elif schema in ["hdfs", "webhdfs"]:
         from .hdfs import HdfsStore
 
         return HdfsStore
@@ -133,7 +135,7 @@ class StoreManager:
         return self._db
 
     def from_dict(self, struct: dict):
-        stor_list = struct.get(run_keys.data_stores)
+        stor_list = struct.get(RunKeys.data_stores)
         if stor_list and isinstance(stor_list, list):
             for stor in stor_list:
                 schema, endpoint, parsed_url = parse_url(stor.get("url"))
@@ -145,7 +147,7 @@ class StoreManager:
                 self._stores[stor["name"]] = new_stor
 
     def to_dict(self, struct):
-        struct[run_keys.data_stores] = [
+        struct[RunKeys.data_stores] = [
             stor.to_dict() for stor in self._stores.values() if stor.from_spec
         ]
 
@@ -207,7 +209,7 @@ class StoreManager:
     ) -> (DataStore, str, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
-        store_key = f"{schema}://{endpoint}"
+        store_key = f"{schema}://{endpoint}" if endpoint else f"{schema}://"
 
         if schema == "ds":
             datastore_profile = datastore_profile_read(url, project_name, secrets)

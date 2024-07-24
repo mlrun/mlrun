@@ -115,7 +115,7 @@ async def get_function(
     name: str,
     tag: str = "",
     hash_key="",
-    _format: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
+    format_: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -126,7 +126,7 @@ async def get_function(
         project,
         tag,
         hash_key,
-        _format,
+        format_,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -207,15 +207,18 @@ async def list_functions(
     tag: str = None,
     labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
+    since: str = None,
+    until: str = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
-    _format: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
+    format_: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -250,7 +253,9 @@ async def list_functions(
         tag=tag,
         labels=labels,
         hash_key=hash_key,
-        _format=_format,
+        format_=format_,
+        since=mlrun.utils.datetime_from_iso(since),
+        until=mlrun.utils.datetime_from_iso(until),
     )
 
     return {

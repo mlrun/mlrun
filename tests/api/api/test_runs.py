@@ -395,7 +395,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         params={
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.created,
             "partition-order": mlrun.common.schemas.OrderType.asc,
         },
@@ -410,7 +410,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         params={
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
         },
@@ -425,7 +425,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     _list_and_assert_objects(
         client,
         params={
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
@@ -438,7 +438,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         params={
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
@@ -456,7 +456,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         client,
         params={
             "iter": False,
-            "partition-by": mlrun.common.schemas.RunPartitionByField.name,
+            "partition-by": mlrun.common.schemas.RunPartitionByField.project_and_name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 2,

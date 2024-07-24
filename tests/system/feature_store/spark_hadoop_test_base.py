@@ -24,6 +24,7 @@ from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import (
     ParquetTarget,
 )
+from mlrun.runtimes import RemoteSparkRuntime
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.expected_stats import expected_stats
 
@@ -100,7 +101,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
             sj = new_function(kind="remote-spark", name=cls.remote_function_name)
             if additional_pip_packages:
                 sj.spec.build.commands = [f"pip install {additional_pip_packages}"]
-            sj.spec.build.image = "." + cls.remote_function_name
+            sj.spec.build.image = RemoteSparkRuntime.default_image
             sj.with_spark_service(spark_service=cls.spark_service_name)
             sj.deploy(with_mlrun=False)
             get_run_db().delete_function(name=sj.metadata.name)

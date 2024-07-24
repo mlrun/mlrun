@@ -226,24 +226,8 @@ class KVStoreBase(StoreBase):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
-        """
-        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available model endpoints for the given project will
-        be listed.
-
-        :param model:           The name of the model to filter by.
-        :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                                key (i.e. "key").
-        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param uids:            List of model endpoint unique ids to include in the result.
-
-
-        :return: A list of model endpoint dictionaries.
-        """
-
         # # Initialize an empty model endpoints list
         endpoint_list = []
 
@@ -256,7 +240,6 @@ class KVStoreBase(StoreBase):
                     self.project,
                     function,
                     model,
-                    labels,
                     top_level,
                 ),
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -269,7 +252,6 @@ class KVStoreBase(StoreBase):
                 exc=mlrun.errors.err_to_str(exc),
             )
             return endpoint_list
-
         # Create a list of model endpoints unique ids
         if uids is None:
             uids = []
@@ -282,10 +264,20 @@ class KVStoreBase(StoreBase):
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
-            endpoint = self.get_model_endpoint(
+            endpoint_dict = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            endpoint_list.append(endpoint)
+            if not include_stats:
+                # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
+
+            if labels and not self._validate_labels(
+                endpoint_dict=endpoint_dict, labels=labels
+            ):
+                continue
+
+            endpoint_list.append(endpoint_dict)
 
         return endpoint_list
 
@@ -509,20 +501,16 @@ class KVStoreBase(StoreBase):
         project: str,
         function: str = None,
         model: str = None,
-        labels: list[str] = None,
         top_level: bool = False,
     ) -> str:
         """
         Convert the provided filters into a valid filter expression. The expected filter expression includes different
         conditions, divided by ' AND '.
 
-        :param project:    The name of the project.
-        :param model:      The name of the model to filter by.
-        :param function:   The name of the function to filter by.
-        :param labels:     A list of labels to filter by. Label filters work by either filtering a specific value of
-                           a label (i.e. list("key=value")) or by looking for the existence of a given
-                           key (i.e. "key").
-        :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
+        :param project:         The name of the project.
+        :param model:           The name of the model to filter by.
+        :param function:        The name of the function to filter by.
+        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
 
@@ -533,25 +521,17 @@ class KVStoreBase(StoreBase):
             raise mlrun.errors.MLRunInvalidArgumentError("project can't be empty")
 
         # Add project filter
-        filter_expression = [f"project=='{project}'"]
+        filter_expression = [f"{mm_schemas.EventFieldType.PROJECT}=='{project}'"]
 
         # Add function and model filters
         if function:
-            filter_expression.append(f"function=='{function}'")
+            function_uri = f"{project}/{function}" if function else None
+            filter_expression.append(
+                f"{mm_schemas.EventFieldType.FUNCTION_URI}=='{function_uri}'"
+            )
         if model:
-            filter_expression.append(f"model=='{model}'")
-
-        # Add labels filters
-        if labels:
-            for label in labels:
-                if not label.startswith("_"):
-                    label = f"_{label}"
-
-                if "=" in label:
-                    lbl, value = list(map(lambda x: x.strip(), label.split("=")))
-                    filter_expression.append(f"{lbl}=='{value}'")
-                else:
-                    filter_expression.append(f"exists({label})")
+            model = model if ":" in model else f"{model}:latest"
+            filter_expression.append(f"{mm_schemas.EventFieldType.MODEL}=='{model}'")
 
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:

@@ -131,7 +131,7 @@ class TestSQLStore:
     @staticmethod
     @pytest.fixture(autouse=True)
     def init_sql_tables(new_sql_store: SQLStoreBase) -> None:
-        new_sql_store._create_tables_if_not_exist()
+        new_sql_store.create_tables()
 
     @classmethod
     @pytest.fixture
@@ -150,8 +150,8 @@ class TestSQLStore:
             list_of_endpoints = sql_store.list_model_endpoints()
             assert (len(list_of_endpoints)) == 0
 
-    @staticmethod
     def test_sql_target_list_model_endpoints(
+        self,
         new_sql_store: SQLStoreBase,
         _mock_random_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> None:
@@ -168,7 +168,8 @@ class TestSQLStore:
 
         # Generate and write the 2nd model endpoint into the DB table
         mock_endpoint_2 = _mock_random_endpoint
-        mock_endpoint_2.spec.model = "test_model"
+        mock_endpoint_2.spec.model = "test_model:latest"
+        mock_endpoint_2.spec.function_uri = f"{self._TEST_PROJECT}/function_test"
         mock_endpoint_2.metadata.uid = "12345"
         new_sql_store.write_model_endpoint(endpoint=mock_endpoint_2.flat_dict())
 
@@ -179,6 +180,11 @@ class TestSQLStore:
         # List only the model endpoint that has the model test_model
         filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
             model="test_model"
+        )
+        assert len(filtered_list_of_endpoints) == 1
+
+        filtered_list_of_endpoints = new_sql_store.list_model_endpoints(
+            function="function_test"
         )
         assert len(filtered_list_of_endpoints) == 1
 

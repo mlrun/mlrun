@@ -14,11 +14,24 @@
 #
 
 import tempfile
+import typing
 
+import kfp
 from kfp.compiler import Compiler
 
 
-def compile_pipeline(pipeline, **kwargs):
-    pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
-    Compiler().compile(pipeline, pipe_file, type_check=False)
+def compile_pipeline(
+    pipeline, pipe_file: typing.Optional[str] = None, type_check: bool = False, **kwargs
+):
+    if not pipe_file:
+        pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
+    Compiler().compile(pipeline, pipe_file, type_check=type_check)
     return pipe_file
+
+
+def get_client(
+    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+) -> kfp.Client:
+    if url or namespace:
+        return kfp.Client(host=url, namespace=namespace)
+    return kfp.Client()

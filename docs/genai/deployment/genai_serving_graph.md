@@ -36,7 +36,6 @@ To run a model as part of a larger pipeline, you can use the {py:method}`~mlrun.
 Store the code above to `src/serve-llm.py`. Then, to create the serving function, run the following code:
 
 ```python
-
 serving_fn = project.set_function(
     name="serve-llm",
     func="src/serve_llm.py",
@@ -62,20 +61,20 @@ The following code shows how to set up an multi-step inference pipeline using ML
 graph = serving_function.set_topology("flow", engine="async")
 
 # Add the steps:
-graph.to(handler="preprocess", name="preprocess") \
-     .to("LLMModelServer",
-         name="infer",
-         model_args={"load_in_8bit": True,
-                     "device_map": "cuda:0",
-                     "trust_remote_code": True},
-         tokenizer_name="tiiuae/falcon-7b",
-         model_name="tiiuae/falcon-7b",
-         peft_model=project.get_artifact_uri("falcon-7b-mlrun")) \
-     .to(handler="postprocess", name="postprocess") \
-     .to("ToxicityClassifierModelServer",
-         name="toxicity-classifier",
-         threshold=0.7).respond()
-
+graph.to(handler="preprocess", name="preprocess").to(
+    "LLMModelServer",
+    name="infer",
+    model_args={
+        "load_in_8bit": True,
+        "device_map": "cuda:0",
+        "trust_remote_code": True,
+    },
+    tokenizer_name="tiiuae/falcon-7b",
+    model_name="tiiuae/falcon-7b",
+    peft_model=project.get_artifact_uri("falcon-7b-mlrun"),
+).to(handler="postprocess", name="postprocess").to(
+    "ToxicityClassifierModelServer", name="toxicity-classifier", threshold=0.7
+).respond()
 ```
 
 This flow is illustrated as follows:
@@ -100,8 +99,16 @@ Once you have the serving pipeline, it behaves just like any other serving funct
 An example of calling the pipeline:
 
 ```python
-generate_kwargs = {"max_length": 150, "temperature": 0.9, "top_p": 0.5, "top_k": 25, "repetition_penalty": 1.0}
-response = serving_function.invoke(path='/predict', body={"prompt": "What is MLRun?", **generate_kwargs})
+generate_kwargs = {
+    "max_length": 150,
+    "temperature": 0.9,
+    "top_p": 0.5,
+    "top_k": 25,
+    "repetition_penalty": 1.0,
+}
+response = serving_function.invoke(
+    path="/predict", body={"prompt": "What is MLRun?", **generate_kwargs}
+)
 print(response["outputs"])
 ```
 

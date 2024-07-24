@@ -75,14 +75,14 @@ import mlrun.common.schemas
 # Add a custom hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
     order=-1,
-	source=mlrun.common.schemas.HubSource(
-		metadata=mlrun.common.schemas.HubObjectMetadata(
-		name="private", description="a private hub"
-		),
-		spec=mlrun.common.schemas.HubSourceSpec(
-		path="https://mlrun.github.io/marketplace", channel="development"
-		),
-	)
+    source=mlrun.common.schemas.HubSource(
+        metadata=mlrun.common.schemas.HubObjectMetadata(
+            name="private", description="a private hub"
+        ),
+        spec=mlrun.common.schemas.HubSourceSpec(
+            path="https://mlrun.github.io/marketplace", channel="development"
+        ),
+    ),
 )
 
 db.create_hub_source(private_source)
@@ -97,11 +97,11 @@ The first step for each project is to set the project name and path:
 from os import path, getenv
 from mlrun import new_project
 
-project_name = 'load-func'
-project_path = path.abspath('conf')
+project_name = "load-func"
+project_path = path.abspath("conf")
 project = new_project(project_name, project_path, init_git=True)
 
-print(f'Project path: {project_path}\nProject name: {project_name}')
+print(f"Project path: {project_path}\nProject name: {project_name}")
 ```
 
 ### Set the artifacts path  <!-- omit in toc -->
@@ -112,11 +112,11 @@ The artifact path is the default path for saving all the artifacts that the func
 from mlrun import mlconf
 
 # Target location for storing pipeline artifacts
-artifact_path = path.abspath('jobs')
+artifact_path = path.abspath("jobs")
 # MLRun DB path or API service URL
-mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
+mlconf.dbpath = mlconf.dbpath or "http://mlrun-api:8080"
 
-print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
+print(f"Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}")
 ```
 
 ## Loading functions from the hub
@@ -141,12 +141,12 @@ The `describe` function analyzes a csv or parquet file for data analysis.
 To load the `describe` function from the MLRun function hub:
 
 ```python
-project.set_function('hub://describe', 'describe')
+project.set_function("hub://describe", "describe")
 ```
 
 To load the same function from your custom hub:
 ```python
-project.set_function('hub://<hub-name>/describe', 'describe')
+project.set_function("hub://<hub-name>/describe", "describe")
 ```
 ```{caution} 
 If you don't specify a hub name at all, the algorithm searches for the function in all the hubs, 
@@ -157,7 +157,7 @@ have multiple hubs, best practice is to explicitly mention the hub name.
 After loading the function, create a function object named, for example, `my_describe`:
 
 ```python
-my_describe = project.func('describe')
+my_describe = project.func("describe")
 ```
 
 ## View the function params
@@ -195,20 +195,22 @@ When working with functions, pay attention to the following:
 This example runs the describe function. This function analyzes a dataset (in this case it's a csv file) and generates HTML files (e.g. correlation, histogram) and saves them under the artifact path.
 
 ```python
-DATA_URL = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
+DATA_URL = "https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv"
 
-my_describe.run(name='describe',
-                inputs={'table': DATA_URL},
-                artifact_path=artifact_path)
+my_describe.run(
+    name="describe", inputs={"table": DATA_URL}, artifact_path=artifact_path
+)
 ```
 
 ### Saving the artifacts in a unique folder for each run  <!-- omit in toc -->
 
 ```python
-out = mlconf.artifact_path or path.abspath('./data')
-my_describe.run(name='describe',
-                inputs={'table': DATA_URL},
-                artifact_path=path.join(out, '{{run.uid}}'))
+out = mlconf.artifact_path or path.abspath("./data")
+my_describe.run(
+    name="describe",
+    inputs={"table": DATA_URL},
+    artifact_path=path.join(out, "{{run.uid}}"),
+)
 ```
 
 ### Viewing the jobs & the artifacts  <!-- omit in toc -->

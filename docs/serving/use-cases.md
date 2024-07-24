@@ -34,17 +34,18 @@ To deploy a serving function, you need to import or create the serving function,
 add models to it, and then deploy it.  
 
 ```python
-    import mlrun  
-    # load the sklearn model serving function and add models to it  
-    fn = mlrun.import_function('hub://v2_model_server')
-    fn.add_model("model1", model_path={model1-url})
-    fn.add_model("model2", model_path={model2-url})
+import mlrun
 
-    # deploy the function to the cluster
-    fn.deploy()
-    
-    # test the live model endpoint
-    fn.invoke('/v2/models/model1/infer', body={"inputs": [5]})
+# load the sklearn model serving function and add models to it
+fn = mlrun.import_function("hub://v2_model_server")
+fn.add_model("model1", model_path={model1 - url})
+fn.add_model("model2", model_path={model2 - url})
+
+# deploy the function to the cluster
+fn.deploy()
+
+# test the live model endpoint
+fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 ```
 
 The serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
@@ -90,9 +91,14 @@ Create a new function of type serving from code and set the graph topology to `a
 
 ```python
 import mlrun
-function = mlrun.code_to_function("advanced", filename="demo.py", 
-                                  kind="serving", image="mlrun/mlrun",
-                                  requirements=['storey'])
+
+function = mlrun.code_to_function(
+    "advanced",
+    filename="demo.py",
+    kind="serving",
+    image="mlrun/mlrun",
+    requirements=["storey"],
+)
 graph = function.set_topology("flow", engine="async")
 ```
 
@@ -107,11 +113,14 @@ If the responder is not specified, the graph is non-blocking.
 
 ```python
 # use built-in storey class or our custom Echo class to create and link Task steps. Add an error handling step that runs only if the "Echo" step fails
-graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler(name='catcher', handler='handle_error', full_event=True)
+graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})').to(
+    class_name="Echo", name="pre-process", some_arg="abc"
+).error_handler(name="catcher", handler="handle_error", full_event=True)
 
 # add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
-router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
+router = graph.add_step(
+    "*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process"
+)
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
@@ -119,7 +128,7 @@ router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 
 # plot the graph (using Graphviz) and run a test
-graph.plot(rankdir='LR')
+graph.plot(rankdir="LR")
 ```
 
 <br><img src="../_static/images/graph-flow.svg" alt="graph-flow" width="800"/><br>
@@ -152,25 +161,36 @@ See the [full notebook example](./distributed-graph.html).
 
 ```python
 # define a new real-time serving function (from code) with an async graph
-fn = mlrun.code_to_function("multi-func", filename="./data_prep.py", kind="serving", image='mlrun/mlrun')
+fn = mlrun.code_to_function(
+    "multi-func", filename="./data_prep.py", kind="serving", image="mlrun/mlrun"
+)
 graph = fn.set_topology("flow", engine="async")
 
 # define the graph steps (DAG)
-graph.to(name="load_url", handler="load_url")\
-     .to(name="to_paragraphs", handler="to_paragraphs")\
-     .to("storey.FlatMap", "flatten_paragraphs", _fn="(event)")\
-     .to(">>", "q1", path=internal_stream)\
-     .to(name="nlp", class_name="ApplyNLP", function="enrich")\
-     .to(name="extract_entities", handler="extract_entities", function="enrich")\
-     .to(name="enrich_entities", handler="enrich_entities", function="enrich")\
-     .to("storey.FlatMap", "flatten_entities", _fn="(event)", function="enrich")\
-     .to(name="printer", handler="myprint", function="enrich")\
-     .to(">>", "output_stream", path=out_stream)
+graph.to(name="load_url", handler="load_url").to(
+    name="to_paragraphs", handler="to_paragraphs"
+).to("storey.FlatMap", "flatten_paragraphs", _fn="(event)").to(
+    ">>", "q1", path=internal_stream
+).to(
+    name="nlp", class_name="ApplyNLP", function="enrich"
+).to(
+    name="extract_entities", handler="extract_entities", function="enrich"
+).to(
+    name="enrich_entities", handler="enrich_entities", function="enrich"
+).to(
+    "storey.FlatMap", "flatten_entities", _fn="(event)", function="enrich"
+).to(
+    name="printer", handler="myprint", function="enrich"
+).to(
+    ">>", "output_stream", path=out_stream
+)
 
 # specify the "enrich" child function, add extra package requirements
-child = fn.add_child_function('enrich', './nlp.py', 'mlrun/mlrun')
-child.spec.build.commands = ["python -m pip install spacy",
-                             "python -m spacy download en_core_web_sm"]
+child = fn.add_child_function("enrich", "./nlp.py", "mlrun/mlrun")
+child.spec.build.commands = [
+    "python -m pip install spacy",
+    "python -m spacy download en_core_web_sm",
+]
 graph.plot()
 ```
 

@@ -73,7 +73,13 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     def list_runs(
@@ -141,6 +147,7 @@ class NopDB(RunDBInterface):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 
@@ -155,6 +162,7 @@ class NopDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         pass
 
@@ -170,7 +178,9 @@ class NopDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         pass
 
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     def tag_objects(
@@ -262,9 +272,24 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
     def list_entities(
         self, project: str, name: str = None, tag: str = None, labels: list[str] = None
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    def list_entities_v2(
+        self, project: str, name: str = None, tag: str = None, labels: list[str] = None
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     def list_feature_sets(
@@ -686,6 +711,7 @@ class NopDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
 
@@ -708,7 +734,15 @@ class NopDB(RunDBInterface):
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
     ) -> None:
-        raise NotImplementedError
+        pass
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
+    ) -> None:
+        pass
 
     def generate_event(
         self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""

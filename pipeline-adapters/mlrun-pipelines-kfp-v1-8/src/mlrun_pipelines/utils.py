@@ -13,8 +13,10 @@
 # limitations under the License.
 #
 import tempfile
+import typing
 
 import kfp
+import kfp.compiler
 from kubernetes import client
 from mlrun_pipelines.helpers import new_pipe_metadata
 
@@ -59,14 +61,30 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def compile_pipeline(artifact_path, cleanup_ttl, ops, pipeline):
-    pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
+def compile_pipeline(
+    artifact_path,
+    cleanup_ttl,
+    ops,
+    pipeline,
+    pipe_file: typing.Optional[str] = None,
+    type_check: bool = False,
+):
+    if not pipe_file:
+        pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
     conf = new_pipe_metadata(
         artifact_path=artifact_path,
         cleanup_ttl=cleanup_ttl,
         op_transformers=ops,
     )
     kfp.compiler.Compiler().compile(
-        pipeline, pipe_file, type_check=False, pipeline_conf=conf
+        pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
     )
     return pipe_file
+
+
+def get_client(
+    url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
+) -> kfp.Client:
+    if url or namespace:
+        return kfp.Client(host=url, namespace=namespace)
+    return kfp.Client()

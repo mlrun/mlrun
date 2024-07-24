@@ -16,27 +16,27 @@ To use a vector database, you can create a function that stores the text data in
 For example, the following function adds data to a ChromaDB vector database:
 
 ```python
-def handler_chroma(context:MLClientCtx,
-                   vector_db_data: DataItem,
-                   cache_dir: str,
-                   collection-name: str):
-    
+def handler_chroma(
+    context: MLClientCtx, vector_db_data: DataItem, cache_dir: str, collection_name: str
+):
+
     df = vector_db_data.as_df()
 
     # Create chroma client
     chroma_client = chromadb.PersistentClient(path=cache_dir)
-    
+
     if collection_name in [c.name for c in chroma_client.list_collections()]:
         chroma_client.delete_collection(name=collection_name)
-    
-	# Add data to the collection 
+
+    # Add data to the collection
     collection = chroma_client.create_collection(name=collection_name)
 
     collection.add(
         documents=df["title"].tolist(),
         metadatas=[{"topic": topic} for topic in df["topic"].tolist()],
-        ids=[f"id{x}" for x in range(len(documents)])
-    
+        ids=[f"id{x}" for x in range(len(documents))],
+    )
+
     context.logger.info("Vector DB was created")
 ```
 
@@ -48,7 +48,6 @@ results = collection.query(query_texts=[topic], n_results=10)
 collection.query(query_texts=[topic], n_results=10)
 q_context = " ".join([f"#{str(i)}" for i in results["documents"][0]])
 prompt_template = f"Relevant context: {q_context}\n\n The user's question: {question}"
-
 ```
 
 ## Supported vector databases

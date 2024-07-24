@@ -303,6 +303,13 @@ if [ -z "$mlrun_version" ]; then # mlrun version isn't specified. using installe
         mlrun_version="${pip_mlrun##Version: }"
     fi
 fi
+
+# Handling the case mlrun version is 0.0.0+unstable
+tag_prefix=`echo "${mlrun_version}" | cut -d . -f1-2`
+if [[ "$tag_prefix"=="0.0" ]]; then
+    mlrun_version="1.7.0"
+fi
+
 echo "Looking for demos with MLRun version - ${mlrun_version}."
 if [[ "${mlrun_version}"<"1.7" ]]; then
     git_repo="demos"

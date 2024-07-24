@@ -18,8 +18,8 @@ import tempfile
 import traceback
 import typing
 
-import kfp
 import kfp_server_api
+import mlrun_pipelines.utils
 import sqlalchemy.orm
 from mlrun_pipelines.mixins import PipelineProviderMixin
 from mlrun_pipelines.models import PipelineExperiment, PipelineRun
@@ -235,7 +235,6 @@ class Pipelines(
         content_type: str,
         data: bytes,
         arguments: dict = None,
-        namespace: typing.Optional[str] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -263,7 +262,7 @@ class Pipelines(
         )
 
         try:
-            kfp_client = self.initialize_kfp_client(namespace)
+            kfp_client = self.initialize_kfp_client()
             experiment = PipelineExperiment(
                 kfp_client.create_experiment(name=experiment_name)
             )
@@ -287,13 +286,8 @@ class Pipelines(
         return run
 
     @staticmethod
-    def initialize_kfp_client(namespace: typing.Optional[str] = None) -> kfp.Client:
-        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-        if not kfp_url:
-            raise mlrun.errors.MLRunNotFoundError(
-                "KubeFlow Pipelines is not configured"
-            )
-        return kfp.Client(host=kfp_url)
+    def initialize_kfp_client(namespace: typing.Optional[str] = None):
+        return mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url, namespace)
 
     def _format_runs(
         self,
@@ -301,7 +295,6 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
     ) -> list[dict]:
         formatted_runs = []
-        logger.debug("Formatting pipeline runs", runs_len=len(runs), format=format_)
         for run in runs:
             formatted_runs.append(self._format_run(run, format_))
         return formatted_runs

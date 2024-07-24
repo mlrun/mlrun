@@ -12,7 +12,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
-* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
+* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://<data-container>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
@@ -51,7 +51,7 @@ Refer to [Working with secrets](../secrets.html) for details on secret handling 
 For example, running a function locally:
 
 ```python
-# Access object in AWS S3, in the "input-data" bucket 
+# Access object in AWS S3, in the "input-data" bucket
 source_url = "s3://input-data/input_data.csv"
 
 os.environ["AWS_ACCESS_KEY_ID"] = "<access key ID>"
@@ -59,22 +59,27 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "<access key>"
 
 # Execute a function that reads from the object pointed at by source_url.
 # When running locally, the function can use the local environment variables.
-local_run = func.run(name='aws_func', inputs={'source_url': source_url}, local=True)
+local_run = func.run(name="aws_func", inputs={"source_url": source_url}, local=True)
 ```
 
 Running the same function remotely:
 
 ```python
 # Executing the function remotely using env variables (not recommended!)
-func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env("AWS_SECRET_ACCESS_KEY", "<access key>")
-remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
+func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env(
+    "AWS_SECRET_ACCESS_KEY", "<access key>"
+)
+remote_run = func.run(name="aws_func", inputs={"source_url": source_url})
 
 # Using project-secrets (recommended) - project secrets are automatically mounted to project functions
-secrets = {"AWS_ACCESS_KEY_ID": "<access key ID>", "AWS_SECRET_ACCESS_KEY": "<access key>"}
+secrets = {
+    "AWS_ACCESS_KEY_ID": "<access key ID>",
+    "AWS_SECRET_ACCESS_KEY": "<access key>",
+}
 db = mlrun.get_run_db()
 db.create_project_secrets(project=project_name, provider="kubernetes", secrets=secrets)
 
-remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
+remote_run = func.run(name="aws_func", inputs={"source_url": source_url})
 ```
   
 ## Data store profiles
@@ -110,7 +115,12 @@ More options:
     For example, using Redis:
     ```python
     redis_profile = project.get_datastore_profile("my_profile")
-    local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
+    local_redis_profile = DatastoreProfileRedis(
+        redis_profile.name,
+        redis_profile.endpoint_url,
+        username="mylocaluser",
+        password="mylocalpassword",
+    )
     register_temporary_client_datastore_profile(local_redis_profile)
     ```
 
@@ -158,7 +168,9 @@ authentication methods that use the `fsspec` mechanism.
 
 ### Azure data store profile
 ```python
-profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
+profile = DatastoreProfileAzureBlob(
+    name="profile-name", connection_string=connection_string
+)
 ParquetTarget(path="ds://profile-name/az_blob/path/to/parquet.pq")
 ```
 
@@ -212,7 +224,11 @@ Not supported by the spark and remote-spark runtimes.
 ### DBFS data store profile
 
 ```python
-profile = DatastoreProfileDBFS(name="profile-name", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
+profile = DatastoreProfileDBFS(
+    name="profile-name",
+    endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com",
+    token=token,
+)
 ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 ```
 
@@ -237,7 +253,9 @@ contents directly to the query engine.
 ### GCS data store profile
 
 ```python
-profile = DatastoreProfileGCS(name="profile-name",credentials_path="/local_path/to/gcs_credentials.json")
+profile = DatastoreProfileGCS(
+    name="profile-name", credentials_path="/local_path/to/gcs_credentials.json"
+)
 ParquetTarget(path="ds://profile-name/gcs_bucket/path/to/parquet.pq")
 ```
 
@@ -277,6 +295,7 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 You can set `HADOOP_USER_NAME` locally as follows: 
 ```python
 import os
+
 os.environ["HADOOP_USER_NAME"] = "..."
 ```
 
@@ -298,15 +317,13 @@ function.spec.env.append({"name": "HADOOP_USER_NAME", "value": "galt"})
 In feature store, you can set it via `RunConfig`:
 ```python
 from mlrun.feature_store.common import RunConfig
+
 run_config = RunConfig(
     local=False,
     kind="remote-spark",
     extra_spec={"spec": {"env": [{"name": "HADOOP_USER_NAME", "value": "galt"}]}},
 )
-feature_set.ingest(
-    ...,
-    run_config=run_config
-)
+feature_set.ingest(..., run_config=run_config)
 ```
 
 ## S3
@@ -360,9 +377,13 @@ authenticate, it is used in several use-cases, such as resolving paths to the ho
 
 ### V3IO data store profile
 ```python
-profile = DatastoreProfileV3io(name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012")
-register_temporary_client_datastore_profile(profile) or project.register_datastore_profile(profile)
-ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
+profile = DatastoreProfileV3io(
+    name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012"
+)
+register_temporary_client_datastore_profile(
+    profile
+) or project.register_datastore_profile(profile)
+ParquetTarget(path="ds://test_profile/container/path/to/parquet.pq")
 ```
 
 `DatastoreProfileV3io` init parameters:

@@ -86,12 +86,12 @@ metadata/stats and once for the actual ingest. This is normal behavior.
 Use a feature set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
 ```python
-# Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
+# Simple feature set that reads a csv file as a dataframe and ingests it "as is"
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
 df = stocks_set.ingest(stocks)
 
-# Specify a csv file as source, specify a custom CSV target 
+# Specify a csv file as source, specify a custom CSV target
 source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 measurements.ingest(source, targets)
@@ -101,6 +101,7 @@ To append data you need to reuse the feature set that was used in previous inges
 that was saved in the DB (and not create a new feature set on every ingest).<br>
 For example:
 ```python
+try:
     my_fset = fstore.get_feature_set("my_fset")
 except mlrun.errors.MLRunNotFoundError:
     my_fset = FeatureSet("my_fset", entities=[Entity("key")])
@@ -120,7 +121,7 @@ It also enables you to schedule the job or use bigger/faster resources.
 ```python
 # Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
-config = RunConfig(image='mlrun/mlrun')
+config = RunConfig(image="mlrun/mlrun")
 df = stocks_set.ingest(stocks, run_config=config)
 ```
 

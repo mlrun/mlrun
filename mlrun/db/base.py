@@ -16,6 +16,8 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
+from deprecated import deprecated
+
 import mlrun.alerts
 import mlrun.common
 import mlrun.common.formatters
@@ -56,7 +58,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid: str,
+        project: str = "",
+        iter: int = 0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     @abstractmethod
@@ -130,6 +138,7 @@ class RunDBInterface(ABC):
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 
@@ -145,6 +154,7 @@ class RunDBInterface(ABC):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         pass
 
@@ -165,7 +175,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -312,6 +324,12 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
     @abstractmethod
     def list_features(
         self,
@@ -324,6 +342,23 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
     def list_entities(
         self,
         project: str,
@@ -331,6 +366,16 @@ class RunDBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     @abstractmethod
@@ -849,6 +894,7 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         pass
 
@@ -873,5 +919,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass

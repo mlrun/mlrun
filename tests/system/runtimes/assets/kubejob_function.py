@@ -16,7 +16,7 @@ def hello_world(context):
     context.logger.info("hello world")
 
 
-class mycls:
+class MyCls:
     def __init__(self, context=None, a1=1):
         self.context = context
         self.a1 = a1

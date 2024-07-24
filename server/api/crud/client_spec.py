@@ -42,7 +42,7 @@ class ClientSpec(
             kfp_image=self._resolve_image_by_client_versions(
                 config.kfp_image, client_version, client_python_version
             ),
-            kfp_url=config.resolve_kfp_url(),
+            kfp_url=config.kfp_url,
             dask_kfp_image=self._resolve_image_by_client_versions(
                 config.dask_kfp_image, client_version, client_python_version
             ),
@@ -115,6 +115,9 @@ class ClientSpec(
             ),
             model_monitoring_tsdb_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.tsdb_connection"
+            ),
+            model_monitoring_stream_connection=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.stream_connection"
             ),
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),

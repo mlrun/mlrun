@@ -89,7 +89,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         mlrun.datastore.store_manager.reset_secrets()
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = f"{self.run_dir_url}{object_file}"
+        self.object_url = f"{self.run_dir_url}{object_file}"
         register_temporary_client_datastore_profile(self.profile)
 
         # We give priority to profiles, then to secrets, and finally to environment variables.
@@ -118,7 +118,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         with open(tempfile_1_path, "wb") as f:
             data = os.urandom(file_size)
             f.write(data)
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         self._logger.debug(
             f"test_v3io_large_object_upload - finished to write locally in {time.monotonic() - first_start_time} "
             "seconds"
@@ -150,7 +150,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         # Do the test again, this time exercising the v3io datastore _upload() loop
         self._logger.debug("Exercising the v3io _upload() loop")
         os.remove(tempfile_2_path)
-        object_path = urlparse(self._object_url).path
+        object_path = urlparse(self.object_url).path
         start_time = time.monotonic()
         data_item.store._upload(object_path, tempfile_1_path, max_chunk_size=500 * 1024)
         self._logger.debug(
@@ -180,8 +180,8 @@ class TestV3ioDataStore(TestMLRunSystem):
     def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
         generated_buffer = bytearray(os.urandom(file_size))
-        data_item = mlrun.run.get_dataitem(self._object_url)
-        object_path = urlparse(self._object_url).path
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        object_path = urlparse(self.object_url).path
 
         first_start_time = time.monotonic()
         data_item.put(generated_buffer)
@@ -225,7 +225,7 @@ class TestV3ioDataStore(TestMLRunSystem):
                 else {"V3IO_ACCESS_KEY": self.token}
             )
 
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
         response = data_item.get()
         assert response.decode() == self.test_string
@@ -249,7 +249,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert response.decode() == self.test_string + self.test_string
 
     def test_stat(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
@@ -269,13 +269,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert all(item in actual_dir_content for item in ["test_dir/", filename])
 
     def test_upload(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file_path)
         response = data_item.get()
         assert response.decode() == self.test_string
 
     def test_rm(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file_path)
         data_item.stat()
         data_item.delete()
@@ -351,3 +351,31 @@ class TestV3ioDataStore(TestMLRunSystem):
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+        credentials_dict = {"v3io_access_key": fake_token} if fake_token else {}
+        os.environ.pop("V3IO_ACCESS_KEY")
+        if use_datastore_profile:
+            self.profile = DatastoreProfileV3io(
+                name=self.profile_name, **credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["V3IO_ACCESS_KEY"] = fake_token
+
+        if fake_token:
+            data_item = mlrun.run.get_dataitem(self.object_url)
+            #  v3iofs raise general exception for wrong access key
+            with pytest.raises(Exception):
+                data_item.delete()
+        else:
+            #  unlike other datastores, v3io has a check that V3IO_ACCESS_KEY exists in the constructor
+            with pytest.raises(ValueError):
+                mlrun.run.get_dataitem(self.object_url)
+
+    def test_rm_file_not_found(self):
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

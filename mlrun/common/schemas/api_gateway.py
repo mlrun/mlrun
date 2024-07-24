@@ -102,6 +102,13 @@ class APIGateway(_APIGatewayBaseModel):
             if upstream.nucliofunction.get("name")
         ]
 
+    def get_invoke_url(self):
+        return (
+            self.spec.host + self.spec.path
+            if self.spec.path and self.spec.host
+            else self.spec.host
+        )
+
     def enrich_mlrun_names(self):
         self._enrich_api_gateway_mlrun_name()
         self._enrich_mlrun_function_names()

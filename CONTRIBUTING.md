@@ -36,6 +36,14 @@ python -m venv venv
 source venv/bin/activate
 ```
 
+Using [UV](https://github.com/astral-sh/uv) is also an option, 
+you may need to override current MLRun default packager-installer env var `MLRUN_PYTHON_PACKAGE_INSTALLER` to `uv`
+
+```shell script
+uv venv venv --seed
+source venv/bin/activate
+```
+
 Install MLRun, dependencies and dev dependencies
 ```shell script
 make install-requirements
@@ -44,8 +52,8 @@ pip install -e '.[complete]'
 
 ## Developing with ARM64 machines
 
-Some mlrun dependencies are not yet available for ARM64 machines via pypi, so we need to work with conda to get the packages compiled for ARM64 platform.   
-Install Anaconda from [here](https://docs.anaconda.com/free/anaconda/install/index.html) and then follow the steps below:
+Some MLRun dependencies are not yet available for ARM64 machines via pypi, 
+so we need to work with conda to get the packages compiled for ARM64 platform.   
 
 Fork, clone and cd into the MLRun repository directory
 ```shell script
@@ -53,15 +61,26 @@ git clone git@github.com:<your username>/mlrun.git
 cd mlrun
 ```
 
-Create a conda environment and activate it
+Create a [Conda](https://docs.anaconda.com/free/anaconda/install/index.html) environment and activate it
 ```shell script
 conda create -n mlrun python=3.9
 conda activate mlrun
-``` 
+```
 
 Then, install the dependencies
 ```shell script
 make install-conda-requirements
+```
+
+*Or*, alternatively, you may use native Python atop the ARM64 machine, but you will need to compile some dependencies.
+Execute below script to overcome MLRun current protobuf~3.20 incompatibility.
+
+NOTE: This script will compile and install protobuf 3.20.0 for macOS arm64. At the end of the installation, it will
+ask you to type your password to finish installing the compiled protobuf.
+
+```shell script
+./automation/scripts/compile_protobuf320_for_mac_arm64.sh
+make install-requirements
 ```
 
 Run some unit tests to make sure everything works:
@@ -188,6 +207,7 @@ For example:
 import pytest
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestSomeFunctionality(TestMLRunSystem):
@@ -200,9 +220,9 @@ Example of a suite with two tests, one of them meant for enterprise only
 import pytest
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def test_open_source_features(self):
         pass
 
@@ -216,15 +236,15 @@ If some setup or teardown is required for the tests in the suite, add these foll
 ```python
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-    
     def custom_setup(self):
         pass
-    
+
     def custom_teardown(self):
         pass
-    
+
     def test_the_functionality(self):
         pass
 ```
@@ -309,7 +329,7 @@ def function_name(parameter1, parameter2):
 try to avoid logging large objects which are hard to decipher.
 17. Use f-strings for string formatting instead of the old `.format(...)` except when dealing with template strings.
 
-### MLRun Code Conventions:
+### MLRun Coding Conventions:
 
 1. When converting an error object to a string representation, instead of using: `str(error)` use: `mlrun.errors.err_to_str(error)`
 2. Use `mlrun.mlconf` Instead of `mlrun.config.config`.

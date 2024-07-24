@@ -79,7 +79,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 name = notification_object.name
                 notification_type = NotificationTypes(notification_object.kind)
                 params = {}
-                params.update(notification_object.secret_params)
+                if notification_object.secret_params:
+                    params.update(notification_object.secret_params)
                 if notification_object.params:
                     params.update(notification_object.params)
                 notification = notification_type.get_notification()(name, params)
@@ -101,8 +102,6 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                     )
-
-        logger.debug("Pushing notification")
 
         self._push(sync_push, async_push)
 
@@ -181,6 +180,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(
+            None,
             [notification],
             alert_id,
             project,

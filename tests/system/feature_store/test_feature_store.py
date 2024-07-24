@@ -17,6 +17,7 @@ import math
 import os
 import pathlib
 import random
+import shutil
 import string
 import tempfile
 import uuid
@@ -53,6 +54,7 @@ from mlrun.datastore.sources import (
     DataFrameSource,
     KafkaSource,
     ParquetSource,
+    SnowflakeSource,
     StreamSource,
 )
 from mlrun.datastore.targets import (
@@ -61,7 +63,10 @@ from mlrun.datastore.targets import (
     NoSqlTarget,
     ParquetTarget,
     RedisNoSqlTarget,
+    SnowflakeTarget,
     TargetTypes,
+    get_offline_target,
+    get_online_target,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
@@ -70,8 +75,13 @@ from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import DropFeatures, FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
+from mlrun.runtimes import RunError
 from tests.system.base import TestMLRunSystem
-from tests.system.feature_store.utils import sort_df
+from tests.system.feature_store.utils import (
+    get_missing_snowflake_spark_parameters,
+    get_snowflake_spark_parameters,
+    sort_df,
+)
 
 from .data_sample import quotes, stocks, trades
 
@@ -2309,35 +2319,61 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
-    def test_purge_v3io(self):
-        key = "patient_id"
-        fset = fstore.FeatureSet(
-            "purge", entities=[Entity(key)], timestamp_key="timestamp"
-        )
-        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        source = CSVSource(
-            "mycsv",
-            path=path,
-        )
-        targets = [
-            CSVTarget(),
-            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
-            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-            NoSqlTarget(),
-        ]
-        fset.set_targets(
-            targets=targets,
-            with_defaults=False,
-        )
-        fset.ingest(source)
+    @pytest.mark.parametrize("schema", ["v3io", "file"])
+    def test_purge_v3io(self, schema):
+        folder_url = ""
+        try:
+            if schema == "v3io":
+                folder_url = (
+                    f"v3io:///projects/{self.project_name}/purge_test_{uuid.uuid4()}"
+                )
+            else:
+                temp_dir = tempfile.TemporaryDirectory().name
+                folder_url = f"file://{temp_dir}"
+            key = "patient_id"
+            fset = fstore.FeatureSet(
+                "purge", entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+            source = CSVSource(
+                "mycsv",
+                path=path,
+            )
 
-        verify_purge(fset, targets)
+            targets = [
+                CSVTarget(),
+                CSVTarget(
+                    name="specified-path", path=f"{folder_url}/csv-purge-test.csv"
+                ),
+                ParquetTarget(
+                    name="parquets_dir_target",
+                    partitioned=True,
+                    partition_cols=["timestamp"],
+                    path=f"{folder_url}/parquet_folder_target",
+                ),
+                ParquetTarget(
+                    name="parquet_file_target",
+                    path=f"{folder_url}/file.parquet",
+                ),
+                NoSqlTarget(),
+            ]
+            fset.set_targets(
+                targets=targets,
+                with_defaults=False,
+            )
+            fset.ingest(source)
 
-        fset.ingest(source)
+            verify_purge(fset, targets)
 
-        targets_to_purge = targets[:-1]
+            fset.ingest(source)
 
-        verify_purge(fset, targets_to_purge)
+            targets_to_purge = targets[:-1]
+
+            verify_purge(fset, targets_to_purge)
+        finally:
+            if schema == "file" and folder_url:
+                path_only = folder_url.replace("file://", "")
+                shutil.rmtree(path_only)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2392,29 +2428,6 @@ class TestFeatureStore(TestMLRunSystem):
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
     def test_purge_nosql(self):
-        def get_v3io_api_host():
-            """Return only the host out of v3io_api
-
-            Takes the parameter from config and strip it from it's protocol and port
-            returning only the host name.
-            """
-            api = None
-            if config.v3io_api:
-                api = config.v3io_api
-
-                # strip protocol
-                if "//" in api:
-                    api = api[api.find("//") + 2 :]
-
-                # strip port
-                if ":" in api:
-                    api = api[: api.find(":")]
-
-                # ensure webapi prefix
-                if not api.startswith("webapi."):
-                    api = f"webapi.{api}"
-            return api
-
         key = "patient_id"
         fset = fstore.FeatureSet(
             name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
@@ -2427,10 +2440,6 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [
             NoSqlTarget(
                 name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
-            ),
-            NoSqlTarget(
-                name="fullpath",
-                path=f"v3io://{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
             ),
         ]
 
@@ -4819,6 +4828,56 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
     @pytest.mark.parametrize("local", [True, False])
+    def test_attributes_in_target(self, local):
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        parquet_path = os.path.relpath(str(self.assets_path / "testdata.parquet"))
+        df = pd.read_parquet(parquet_path)
+
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/df_attributes_source_{run_uuid}.parquet"
+        v3io_parquet_target_path = (
+            f"v3io:///projects/{self.project_name}/df_attributes_target_{run_uuid}"
+        )
+        df.to_parquet(v3io_parquet_source_path)
+
+        feature_set = fstore.FeatureSet(
+            "attributes_fs",
+            entities=[fstore.Entity("patient_id")],
+        )
+
+        offline_target = ParquetTarget(
+            name="test_target",
+            path=v3io_parquet_target_path,
+            attributes={"test_key": "test_value"},
+        )
+        online_target = NoSqlTarget(
+            "no_sql_target", attributes={"test_key_online": "test_value_online"}
+        )
+        source = ParquetSource("test_source", path=v3io_parquet_source_path)
+        feature_set.ingest(
+            source=source,
+            targets=[offline_target, online_target],
+            run_config=run_config,
+        )
+        result_offline_target = get_offline_target(feature_set)
+        result_online_target = get_online_target(feature_set)
+
+        assert result_offline_target.attributes == offline_target.attributes
+        assert result_online_target.attributes == online_target.attributes
+
+        read_back_feature_set = self._run_db.get_feature_set("attributes_fs")
+        assert (
+            get_offline_target(read_back_feature_set).attributes
+            == offline_target.attributes
+        )
+        assert (
+            get_online_target(read_back_feature_set).attributes
+            == online_target.attributes
+        )
+
+    @pytest.mark.parametrize("local", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("passthrough", [True, False])
     def test_parquet_filters(self, engine, local, passthrough):
@@ -4895,6 +4954,86 @@ class TestFeatureStore(TestMLRunSystem):
         expected = sort_df(expected.query("bad == 95"), "patient_id")
         result = sort_df(result, "patient_id")
         assert_frame_equal(result, expected, check_dtype=False, check_categorical=False)
+
+    #  In the following snowflake tests, PySpark is not required because the test is looking for an error:
+    @pytest.mark.parametrize("local", [True, False])
+    def test_snowflake_storey_source_error(self, local):
+        snowflake_missing_keys = get_missing_snowflake_spark_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
+        snowflake_spark_parameters = get_snowflake_spark_parameters()
+        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = SnowflakeSource(
+            "snowflake_source_for_ingest",
+            query=f"select * from source_{now} order by ID limit 10",
+            schema=schema,
+            **snowflake_spark_parameters,
+        )
+        target = ParquetTarget(
+            "snowflake_target_for_ingest",
+            path=f"v3io:///projects/{self.project_name}/result.parquet",
+        )
+        error_type = mlrun.errors.MLRunRuntimeError if local else RunError
+        with pytest.raises(
+            error_type, match=".*SnowflakeSource supports only spark engine.*"
+        ):
+            feature_set.ingest(source, targets=[target], run_config=run_config)
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_snowflake_target_error(self, local):
+        snowflake_missing_keys = get_missing_snowflake_spark_parameters()
+        if snowflake_missing_keys:
+            pytest.skip(
+                f"The following snowflake keys are missing: {snowflake_missing_keys}"
+            )
+        snowflake_spark_parameters = get_snowflake_spark_parameters()
+        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
+
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        v3io_parquet_source_path = (
+            f"v3io:///projects/{self.project_name}/df_source_{uuid.uuid4()}.parquet"
+        )
+        df.to_parquet(v3io_parquet_source_path)
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+        )
+        source = ParquetSource(
+            "snowflake_source_for_ingest",
+            path=v3io_parquet_source_path,
+        )
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=f"result_{now}",
+            db_schema=schema,
+            **snowflake_spark_parameters,
+        )
+        error_type = mlrun.errors.MLRunRuntimeError if local else RunError
+        with pytest.raises(
+            error_type,
+            match=".*SnowflakeTarget does not support storey engine.*",
+        ):
+            feature_set.ingest(source, targets=[target], run_config=run_config)
 
 
 def verify_purge(fset, targets):

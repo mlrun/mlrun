@@ -109,11 +109,11 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # 0.1.0 is not compatible with mlrun >=1.7.0rc19
-        "mlrun-pipelines-kfp-common": {"~=0.1.1, >0.1.0"},
-        "mlrun-pipelines-kfp-v1-8": {"~=0.1.1, >0.1.0"},
+        "mlrun-pipelines-kfp-common": {"~=0.1.2"},
+        "mlrun-pipelines-kfp-v1-8": {"~=0.1.2"},
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.7.17"},
+        "storey": {"~=1.7.23"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -181,7 +181,7 @@ def test_requirement_specifiers_inconsistencies():
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
-        "pyyaml": {"~=5.1", ">=5.4.1, <6"},
+        "pyyaml": {">=5.4.1, <7"},
     }
 
     for (

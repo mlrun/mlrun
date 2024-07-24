@@ -16,11 +16,28 @@ import datetime
 import typing
 
 import pydantic
+from deprecated import deprecated
 
 import mlrun.common.types
 
 from .common import ImageBuilder
 from .object import ObjectKind, ObjectStatus
+
+
+@deprecated(
+    version="1.7.0",
+    reason="mlrun.common.schemas.ProjectsFormat is deprecated and will be removed in 1.9.0. "
+    "Use mlrun.common.formatters.ProjectFormat instead.",
+    category=FutureWarning,
+)
+class ProjectsFormat(mlrun.common.types.StrEnum):
+    full = "full"
+    name_only = "name_only"
+    # minimal format removes large fields from the response (e.g. functions, workflows, artifacts)
+    # and is used for faster response times (in the UI)
+    minimal = "minimal"
+    # internal - allowed only in follower mode, only for the leader for upgrade purposes
+    leader = "leader"
 
 
 class ProjectMetadata(pydantic.BaseModel):
@@ -97,18 +114,19 @@ class ProjectOwner(pydantic.BaseModel):
 
 class ProjectSummary(pydantic.BaseModel):
     name: str
-    files_count: int
-    feature_sets_count: int
-    models_count: int
-    runs_completed_recent_count: int
-    runs_failed_recent_count: int
-    runs_running_count: int
-    distinct_schedules_count: int
-    distinct_scheduled_jobs_pending_count: int
-    distinct_scheduled_pipelines_pending_count: int
+    files_count: int = 0
+    feature_sets_count: int = 0
+    models_count: int = 0
+    runs_completed_recent_count: int = 0
+    runs_failed_recent_count: int = 0
+    runs_running_count: int = 0
+    distinct_schedules_count: int = 0
+    distinct_scheduled_jobs_pending_count: int = 0
+    distinct_scheduled_pipelines_pending_count: int = 0
     pipelines_completed_recent_count: typing.Optional[int] = None
     pipelines_failed_recent_count: typing.Optional[int] = None
     pipelines_running_count: typing.Optional[int] = None
+    updated: typing.Optional[datetime.datetime] = None
 
 
 class IguazioProject(pydantic.BaseModel):

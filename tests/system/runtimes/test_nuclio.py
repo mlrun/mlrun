@@ -201,7 +201,11 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         )
 
         graph.add_step(
-            name="otherchild", class_name="Augment", after="q1", function="otherchild"
+            name="otherchild",
+            class_name="Augment",
+            after="q1",
+            function="otherchild",
+            full_event=True,
         )
 
         graph["out"].after_step("otherchild")
@@ -245,7 +249,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         record1, record2 = resp.output.records
 
         expected_record = b'{"hello": "world"}'
-        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
         assert (
             record1.data == expected_record and record2.data == expected_other_record
@@ -605,7 +609,8 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         assert res.status_code == 200
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
         self._cleanup_gateway()
 
@@ -617,7 +622,8 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
         self._cleanup_gateway()
 
@@ -629,10 +635,12 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
 
         # check that api gateway url is in function's external_invocation_urls
         self._check_functions_external_invocation_urls(
-            function_name=self.f1.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
         self._check_functions_external_invocation_urls(
-            function_name=self.f2.metadata.name, expected_url=api_gateway.spec.host
+            function_name=self.f2.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
         )
 
     def _get_basic_gateway(self):

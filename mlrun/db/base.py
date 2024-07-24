@@ -692,7 +692,7 @@ class RunDBInterface(ABC):
         self,
         api_gateway: Union[
             mlrun.common.schemas.APIGateway,
-            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+            "mlrun.runtimes.nuclio.api_gateway.APIGateway",
         ],
         project: Optional[str] = None,
     ):

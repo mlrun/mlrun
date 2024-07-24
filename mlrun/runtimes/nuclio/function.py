@@ -587,11 +587,13 @@ class RemoteRuntime(KubeResource):
             self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
         elif self.status.address and self.status.address != "":
             self.spec.command = f"http://{self.status.address}"
+
         logger.info(
             "Successfully deployed function",
             internal_invocation_urls=self.status.internal_invocation_urls,
             external_invocation_urls=self.status.external_invocation_urls,
         )
+
         self.save(versioned=False)
 
         return self.spec.command

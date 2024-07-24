@@ -1705,6 +1705,15 @@ def is_parquet_file(file_path, format_=None):
     )
 
 
+def validate_handler_name(function_kind: str, handler: str):
+    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+    # it would override MLRun's wrapper
+    if function_kind == "mlrun" and handler == "handler":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Handler function name 'handler' is reserved. Use different name instead."
+        )
+
+
 def _reload(module, max_recursion_depth):
     """Recursively reload modules."""
     if max_recursion_depth <= 0:

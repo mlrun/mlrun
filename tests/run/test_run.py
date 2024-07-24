@@ -45,6 +45,10 @@ s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
+ERROR_MSG_INVALID_HANDLER_NAME = (
+    "Handler function name 'handler' is reserved. Use different name instead."
+)
+
 
 @contextlib.contextmanager
 def captured_output():
@@ -383,7 +387,7 @@ def test_verify_tag_in_output_for_relogged_artifact(setup_project):
 def test_code_to_function_invalid_handler_name_for_nuclio_mlrun_run_kind():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Handler function name cannot be 'handler'",
+        match=ERROR_MSG_INVALID_HANDLER_NAME,
     ):
         mlrun.code_to_function(
             filename=f"{assets_path}/fail.py",
@@ -404,7 +408,7 @@ def test_nuclio_mlrun_invalid_handler_name():
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Handler function name cannot be 'handler'",
+        match=ERROR_MSG_INVALID_HANDLER_NAME,
     ):
         function.run(handler="handler")
 
@@ -422,6 +426,6 @@ def test_nuclio_mlrun_invalid_handler_signature():
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="Handler function name cannot be 'handler'",
+        match=ERROR_MSG_INVALID_HANDLER_NAME,
     ):
         function.run(handler=handler)

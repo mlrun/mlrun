@@ -738,12 +738,8 @@ def code_to_function(
         filename, handler = ApplicationRuntime.get_filename_and_handler()
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
-    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
-    # it would override MLRun's wrapper
-    if sub_kind == "mlrun" and handler == "handler":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Handler function name cannot be 'handler'"
-        )
+
+    mlrun.utils.helpers.validate_handler_name(function_kind=sub_kind, handler=handler)
 
     code_origin = add_name(add_code_metadata(filename), name)
 

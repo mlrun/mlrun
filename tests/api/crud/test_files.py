@@ -23,10 +23,9 @@ import server.api.crud
 
 
 @pytest.mark.parametrize(
-    "auth_info, user_secrets, expected_secrets",
+    "user_secrets, expected_secrets",
     [
         (
-            mlrun.common.schemas.AuthInfo(data_session="auth-info-secret"),
             None,
             {
                 "secret1": "value1",
@@ -35,7 +34,6 @@ import server.api.crud
             },
         ),
         (
-            mlrun.common.schemas.AuthInfo(data_session="auth-info-secret"),
             {"V3IO_ACCESS_KEY": "user-access-key", "secret1": "user-secret"},
             {
                 "secret1": "user-secret",
@@ -49,13 +47,13 @@ def test_delete_artifact_data(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
-    auth_info,
     user_secrets,
     expected_secrets,
 ) -> None:
     path = "s3://somebucket/some/path/file"
     project = "proj1"
 
+    auth_info = mlrun.common.schemas.AuthInfo(data_session="auth-info-secret")
     user_access_key = "user-access-key"
     env_secrets = {"V3IO_ACCESS_KEY": user_access_key}
     project_secrets = {"secret1": "value1", "secret2": "value2"}

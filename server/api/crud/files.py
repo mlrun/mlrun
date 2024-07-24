@@ -77,12 +77,10 @@ class Files(
 
         logger.debug("Got get filestat request", path=path)
 
-        secrets = secrets or {}
-        secrets.update(server.api.api.utils.get_secrets(auth_info))
-
+        enriched_secrets = self._enrich_secrets_with_auth_info(auth_info, secrets)
         stat = None
         try:
-            stat = store_manager.object(url=path, secrets=secrets).stat()
+            stat = store_manager.object(url=path, secrets=enriched_secrets).stat()
         except FileNotFoundError as exc:
             server.api.api.utils.log_and_raise(
                 HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc)
@@ -108,13 +106,22 @@ class Files(
         project: str = "",
     ):
         path = self._resolve_obj_path(schema, path, user)
-
-        secrets = secrets or {}
-        enriched_secrets = server.api.api.utils.get_secrets(auth_info)
-        enriched_secrets.update(secrets)
+        enriched_secrets = self._enrich_secrets_with_auth_info(auth_info, secrets)
 
         obj = store_manager.object(url=path, secrets=enriched_secrets, project=project)
         obj.delete()
+
+    @staticmethod
+    def _enrich_secrets_with_auth_info(
+        auth_info: mlrun.common.schemas.AuthInfo, secrets: dict = None
+    ):
+        """
+        Update user-provided secrets with auth_info (user-provided secrets take precedence)
+        """
+        secrets = secrets or {}
+        enriched_secrets = server.api.api.utils.get_secrets(auth_info)
+        enriched_secrets.update(secrets)
+        return enriched_secrets
 
     @staticmethod
     def _resolve_obj_path(schema: str, path: str, user: str):

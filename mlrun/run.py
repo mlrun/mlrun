@@ -201,13 +201,13 @@ def get_or_create_ctx(
     rundb: str = "",
     project: str = "",
     upload_artifacts=False,
-    labels: Optional[dict] = None,
 ) -> MLClientCtx:
-    """called from within the user program to obtain a run context
+    """
+    Called from within the user program to obtain a run context.
 
-    the run context is an interface for receiving parameters, data and logging
+    The run context is an interface for receiving parameters, data and logging
     run results, the run context is read from the event, spec, or environment
-    (in that order), user can also work without a context (local defaults mode)
+    (in that order), user can also work without a context (local defaults mode).
 
     all results are automatically stored in the "rundb" or artifact store,
     the path to the rundb can be specified in the call or obtained from env.
@@ -220,7 +220,6 @@ def get_or_create_ctx(
     :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels:   dict of the context labels
     :return: execution context
 
     Examples::
@@ -306,9 +305,6 @@ def get_or_create_ctx(
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
-    labels = labels or {}
-    for key, val in labels.items():
-        ctx.set_label(key=key, value=val)
     global_context.set(ctx)
     return ctx
 

@@ -102,7 +102,10 @@ The explain method provides a hook for model explainability, and is accessed usi
 You can overwrite the `preprocess`, `validate`, and `postprocess` methods for additional control 
 The call flow is:
 
-    pre-process -> validate -> predict/explain -> post-process 
+```{mermaid}
+flowchart LR
+    id1(pre-process) --> id2(validate) --> id3(predict/explain) --> id4(post-process)
+```
     
 ## Models, routers and graphs
 

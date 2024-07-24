@@ -1537,23 +1537,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         reason="HDFS host, ports and user name are not defined",
     )
     def test_hdfs_wrong_credentials(self):
-        host = os.environ.pop("HDFS_HOST")
-        try:
-            datastore_profile = DatastoreProfileHdfs(
-                name="my-hdfs",
-                host="localhost",
-                port=int(os.getenv("HDFS_PORT")),
-                http_port=int(os.getenv("HDFS_HTTP_PORT")),
-            )
-            register_temporary_client_datastore_profile(datastore_profile)
-            self.project.register_datastore_profile(datastore_profile)
-            target = ParquetTarget(
-                "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
-            )
-            with pytest.raises(ConnectionError):
-                target.purge()
-        finally:
-            os.environ["HDFS_HOST"] = host
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            user="wrong-user",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(PermissionError):
+            target.purge()
 
     @pytest.mark.skipif(
         not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(

@@ -348,7 +348,15 @@ def v2_serving_init(context, namespace=None):
 
 
 def _set_callbacks(server, context):
-    if server.graph.kind != RootFlowStep.kind or not hasattr(context, "platform"):
+    # termination is only implemented for flow topology with async engine, and only if the context supports it
+    # (as would be the case when running inside a recent version of nuclio)
+    if not all(
+        (
+            server.graph.kind == RootFlowStep.kind,
+            server.graph.engine == "async",
+            hasattr(context, "platform"),
+        )
+    ):
         return
 
     if hasattr(context, "platform") and hasattr(

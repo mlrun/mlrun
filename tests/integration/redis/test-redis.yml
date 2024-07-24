@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,29 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.common.db.sql_session import create_session
-from server.api.utils.scheduler import Scheduler
-
-# TODO: something nicer
-scheduler: Scheduler = None
-
-
-def ensure_scheduler():
-    global scheduler
-    scheduler = Scheduler()
-
-
-async def start_scheduler():
-    db_session = None
-    try:
-        db_session = create_session()
-        await get_scheduler().start(
-            db_session,
-        )
-    finally:
-        db_session.close()
-
-
-def get_scheduler() -> Scheduler:
-    global scheduler
-    return scheduler
+env:
+  redis_endpoint:

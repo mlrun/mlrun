@@ -30,6 +30,10 @@ class Member(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def start(self):
+        pass
+
+    @abc.abstractmethod
     def shutdown(self):
         pass
 

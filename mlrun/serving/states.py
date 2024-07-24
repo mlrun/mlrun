@@ -388,6 +388,9 @@ class BaseStep(ModelObj):
         """
         raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
+    def supports_termination(self):
+        return False
+
 
 class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
@@ -1385,6 +1388,9 @@ class FlowStep(BaseStep):
                 step = step.to(next_step)
 
         return step
+
+    def supports_termination(self):
+        return self.engine == "async"
 
 
 class RootFlowStep(FlowStep):

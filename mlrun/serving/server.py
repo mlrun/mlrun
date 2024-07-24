@@ -348,20 +348,10 @@ def v2_serving_init(context, namespace=None):
 
 
 def _set_callbacks(server, context):
-    # termination is only implemented for flow topology with async engine, and only if the context supports it
-    # (as would be the case when running inside a recent version of nuclio)
-    if not all(
-        (
-            server.graph.kind == RootFlowStep.kind,
-            server.graph.engine == "async",
-            hasattr(context, "platform"),
-        )
-    ):
+    if not server.graph.supports_termination() or not hasattr(context, "platform"):
         return
 
-    if hasattr(context, "platform") and hasattr(
-        context.platform, "set_termination_callback"
-    ):
+    if hasattr(context.platform, "set_termination_callback"):
         context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )

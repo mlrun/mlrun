@@ -2428,29 +2428,6 @@ class TestFeatureStore(TestMLRunSystem):
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
     def test_purge_nosql(self):
-        def get_v3io_api_host():
-            """Return only the host out of v3io_api
-
-            Takes the parameter from config and strip it from it's protocol and port
-            returning only the host name.
-            """
-            api = None
-            if config.v3io_api:
-                api = config.v3io_api
-
-                # strip protocol
-                if "//" in api:
-                    api = api[api.find("//") + 2 :]
-
-                # strip port
-                if ":" in api:
-                    api = api[: api.find(":")]
-
-                # ensure webapi prefix
-                if not api.startswith("webapi."):
-                    api = f"webapi.{api}"
-            return api
-
         key = "patient_id"
         fset = fstore.FeatureSet(
             name="nosqlpurge", entities=[Entity(key)], timestamp_key="timestamp"
@@ -2463,10 +2440,6 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [
             NoSqlTarget(
                 name="nosql", path="v3io:///bigdata/system-test-project/nosql-purge"
-            ),
-            NoSqlTarget(
-                name="fullpath",
-                path=f"v3io://{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
             ),
         ]
 

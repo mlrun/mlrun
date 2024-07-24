@@ -378,3 +378,50 @@ def test_verify_tag_in_output_for_relogged_artifact(setup_project):
 
     assert "v3" in output_uri, "Expected 'v3' tag in output_uri"
     assert "v3" in outputs_uri, "Expected 'v3' tag in outputs_uri"
+
+
+def test_code_to_function_invalid_handler_name_for_nuclio_mlrun_run_kind():
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Handler function name cannot be 'handler'",
+    ):
+        mlrun.code_to_function(
+            filename=f"{assets_path}/fail.py",
+            name="nuclio-mlrun",
+            image="mlrun/mlrun",
+            kind="nuclio:mlrun",
+            handler="handler",
+        )
+
+
+def test_nuclio_mlrun_invalid_handler_name():
+    function = mlrun.code_to_function(
+        filename=f"{assets_path}/fail.py",
+        name="nuclio-mlrun",
+        image="mlrun/mlrun",
+        kind="nuclio:mlrun",
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Handler function name cannot be 'handler'",
+    ):
+        function.run(handler="handler")
+
+
+def test_nuclio_mlrun_invalid_handler_signature():
+    def handler(context):
+        context.log_result("accuracy", 16)
+
+    function = mlrun.code_to_function(
+        filename=f"{assets_path}/fail.py",
+        name="nuclio-mlrun",
+        image="mlrun/mlrun",
+        kind="nuclio:mlrun",
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Handler function name cannot be 'handler'",
+    ):
+        function.run(handler=handler)

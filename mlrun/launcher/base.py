@@ -248,6 +248,12 @@ class BaseLauncher(abc.ABC):
         # for other runtimes we need to convert the handler to a string
         if run.spec.handler and runtime.kind not in ["handler", "dask"]:
             run.spec.handler = run.spec.handler_name
+            # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+            # it would override MLRun's wrapper
+            if runtime.spec.function_kind == "mlrun" and run.spec.handler == "handler":
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Handler function name cannot be 'handler'"
+                )
 
         def_name = runtime.metadata.name
         if run.spec.handler_name:

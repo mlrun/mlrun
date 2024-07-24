@@ -110,9 +110,10 @@ class Files(
         path = self._resolve_obj_path(schema, path, user)
 
         secrets = secrets or {}
-        secrets.update(server.api.api.utils.get_secrets(auth_info))
+        enriched_secrets = server.api.api.utils.get_secrets(auth_info)
+        enriched_secrets.update(secrets)
 
-        obj = store_manager.object(url=path, secrets=secrets, project=project)
+        obj = store_manager.object(url=path, secrets=enriched_secrets, project=project)
         obj.delete()
 
     @staticmethod

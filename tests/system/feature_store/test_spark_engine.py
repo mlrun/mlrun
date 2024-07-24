@@ -1527,6 +1527,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target.purge()
         with pytest.raises(FileNotFoundError):
             target.as_df()
+        # Checks that a FileNotFoundError is not raised in the rm method.
         target.purge()
 
     @pytest.mark.skipif(

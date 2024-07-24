@@ -149,6 +149,7 @@ class ApplicationStatus(NuclioStatus):
         build_pod=None,
         container_image=None,
         application_image=None,
+        application_source=None,
         sidecar_name=None,
         api_gateway_name=None,
         api_gateway=None,
@@ -164,6 +165,7 @@ class ApplicationStatus(NuclioStatus):
             container_image=container_image,
         )
         self.application_image = application_image or None
+        self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
         self.api_gateway = api_gateway or None
@@ -317,15 +319,25 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         super().deploy(
-            project,
-            tag,
-            verbose,
-            auth_info,
-            builder_env,
+            project=project,
+            tag=tag,
+            verbose=verbose,
+            auth_info=auth_info,
+            builder_env=builder_env,
+        )
+        logger.info(
+            "Successfully deployed function, creating API gateway",
+            api_gateway_name=self.status.api_gateway_name,
+            authentication_mode=authentication_mode,
         )
 
+        # Restore the source in case it was removed to make nuclio not consider it when building
+        if not self.spec.build.source and self.status.application_source:
+            self.spec.build.source = self.status.application_source
+        self.save(versioned=False)
+
         ports = self.spec.internal_application_port if direct_port_access else []
-        self.create_api_gateway(
+        return self.create_api_gateway(
             name=self.status.api_gateway_name,
             ports=ports,
             authentication_mode=authentication_mode,
@@ -409,6 +421,9 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
 
+        logger.info("Successfully created API gateway", url=self.url)
+        return self.url
+
     def invoke(
         self,
         path: str,
@@ -447,6 +462,14 @@ class ApplicationRuntime(RemoteRuntime):
             path=path,
             **http_client_kwargs,
         )
+
+    def _run(self, runobj: "mlrun.RunObject", execution):
+        raise mlrun.runtimes.RunError(
+            "Application runtime .run() is not yet supported. Use .invoke() instead."
+        )
+
+    def _enrich_command_from_status(self):
+        pass
 
     def _build_application_image(
         self,
@@ -506,9 +529,11 @@ class ApplicationRuntime(RemoteRuntime):
 
         if self.status.container_image:
             self.from_image(self.status.container_image)
-            # nuclio implementation detail - when providing the image and emptying out the source code,
+            # nuclio implementation detail - when providing the image and emptying out the source code and build source,
             # nuclio skips rebuilding the image and simply takes the prebuilt image
             self.spec.build.functionSourceCode = ""
+            self.status.application_source = self.spec.build.source
+            self.spec.build.source = ""
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(

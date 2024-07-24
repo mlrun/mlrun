@@ -568,6 +568,9 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
@@ -584,13 +587,11 @@ class RemoteRuntime(KubeResource):
             self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
         elif self.status.address and self.status.address != "":
             self.spec.command = f"http://{self.status.address}"
-
         logger.info(
             "Successfully deployed function",
             internal_invocation_urls=self.status.internal_invocation_urls,
             external_invocation_urls=self.status.external_invocation_urls,
         )
-
         self.save(versioned=False)
 
         return self.spec.command

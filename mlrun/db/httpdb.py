@@ -1071,8 +1071,8 @@ class HTTPRunDB(RunDBInterface):
         project=None,
         tag=None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
@@ -1102,8 +1102,8 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
-        :param since: Not in use in :py:class:`HTTPRunDB`.
-        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
             ``None`` (default) return artifacts from all iterations.
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
@@ -1137,6 +1137,8 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "producer_uri": producer_uri,
             "limit": limit,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"

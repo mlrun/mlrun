@@ -663,8 +663,8 @@ class SQLDB(DBInterface):
         project=None,
         tag=None,
         labels=None,
-        since=None,
-        until=None,
+        since: datetime = None,
+        until: datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -5202,6 +5202,11 @@ class SQLDB(DBInterface):
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
         return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
+        state = self.get_alert_state(session, alert_id)
+        if state is not None:
+            return state.to_dict()
 
     def delete_alert_notifications(
         self,

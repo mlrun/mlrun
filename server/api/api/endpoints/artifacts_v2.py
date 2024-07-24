@@ -154,6 +154,8 @@ async def list_artifacts(
     best_iteration: bool = Query(False, alias="best-iteration"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     limit: int = Query(None),
+    since: str = None,
+    until: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -170,6 +172,8 @@ async def list_artifacts(
         name,
         tag,
         labels,
+        since=mlrun.utils.datetime_from_iso(since),
+        until=mlrun.utils.datetime_from_iso(until),
         kind=kind,
         category=category,
         iter=iter,

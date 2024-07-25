@@ -1560,8 +1560,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     )
     def test_hdfs_empty_credentials(self):
         host = os.environ.pop("HDFS_HOST")
-        port = int(os.environ.pop("HDFS_PORT"))
-        http_port = int(os.environ.pop("HDFS_HTTP_PORT"))
+        port = os.environ.pop("HDFS_PORT")
+        http_port = os.environ.pop("HDFS_HTTP_PORT")
         try:
             datastore_profile = DatastoreProfileHdfs(
                 name="my-hdfs",
@@ -1576,8 +1576,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
             datastore_profile = DatastoreProfileHdfs(
                 name="my-hdfs",
-                port=port,
-                http_port=http_port,
+                port=int(port),
+                http_port=int(http_port),
             )
             register_temporary_client_datastore_profile(datastore_profile)
             self.project.register_datastore_profile(datastore_profile)
@@ -1589,8 +1589,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         finally:
             os.environ["HDFS_HOST"] = host
             #  change back to str
-            os.environ["HDFS_PORT"] = str(port)
-            os.environ["HDFS_HTTP_PORT"] = str(http_port)
+            os.environ["HDFS_PORT"] = port
+            os.environ["HDFS_HTTP_PORT"] = http_port
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):

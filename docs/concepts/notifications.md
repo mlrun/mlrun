@@ -68,7 +68,13 @@ Currently, the supported notification kinds and their params are as follows:
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
   - `headers`: (dict) The http headers to send with the notification.
   - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
-                     `name`, `message`, `severity`, and the `runs` list of the completed runs.
+                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
+					 Results would look like 
+					 ```
+					 {
+                       "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
+                     }
+					 ```
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
                   The default is set to `True`.
 - `console` (no params, local only)
@@ -81,7 +87,7 @@ In any `run` method you can configure the notifications via their model. For exa
 ```python
 notification = mlrun.model.Notification(
     kind="webhook",
-    when=["completed","error"],
+    when=["completed", "error"],
     name="notification-1",
     message="completed",
     severity="info",
@@ -97,7 +103,7 @@ For example:
 ```python
 notification = mlrun.model.Notification(
     kind="webhook",
-    when=["completed","error"],
+    when=["completed", "error"],
     name="notification-1",
     message="completed",
     severity="info",
@@ -117,8 +123,13 @@ This is a fallback to the old notification behavior, therefore not all of the ne
 In these engines the old way of setting project notifiers is still supported:
 
 ```python
-project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})
-project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"})
+project.notifiers.add_notification(
+    notification_type="slack", params={"webhook": "<slack webhook url>"}
+)
+project.notifiers.add_notification(
+    notification_type="git",
+    params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"},
+)
 ```
 Instead of passing the webhook in the notification `params`, it is also possible in a Jupyter notebook to use the ` %env` 
 magic command:
@@ -128,7 +139,9 @@ magic command:
 
 Editing and removing notifications is done similarly with the following methods:
 ```python
-project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
+project.notifiers.edit_notification(
+    notification_type="slack", params={"webhook": "<new slack webhook url>"}
+)
 project.notifiers.remove_notification(notification_type="slack")
 ```
 
@@ -138,7 +151,9 @@ You can set notifications on live runs via the `set_run_notifications` method. F
 ```python
 import mlrun
 
-mlrun.get_run_db().set_run_notifications("<project-name>", "<run-uid>", [notification1, notification2])
+mlrun.get_run_db().set_run_notifications(
+    "<project-name>", "<run-uid>", [notification1, notification2]
+)
 ```
 
 Using the `set_run_notifications` method overrides any existing notifications on the run. To delete all notifications, pass an empty list.
@@ -149,7 +164,9 @@ You can set notifications on scheduled runs via the `set_schedule_notifications`
 ```python
 import mlrun
 
-mlrun.get_run_db().set_schedule_notifications("<project-name>", "<schedule-name>", [notification1, notification2])
+mlrun.get_run_db().set_schedule_notifications(
+    "<project-name>", "<schedule-name>", [notification1, notification2]
+)
 ```
 
 Using the `set_schedule_notifications` method overrides any existing notifications on the schedule. To delete all notifications, pass an empty list.
@@ -167,11 +184,11 @@ if the drift is above a certain threshold:
 ```python
 notification = mlrun.model.Notification(
     kind="slack",
-    when=["completed","error"],
+    when=["completed", "error"],
     name="notification-1",
     message="completed",
     severity="info",
     secret_params={"webhook": "<slack webhook url>"},
-    condition='{{ run["status"]["results"]["drift"] > 0.1 }}'
+    condition='{{ run["status"]["results"]["drift"] > 0.1 }}',
 )
 ```

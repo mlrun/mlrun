@@ -106,6 +106,7 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         pass
 

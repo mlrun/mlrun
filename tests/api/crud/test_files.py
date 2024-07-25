@@ -22,40 +22,55 @@ import mlrun.common.schemas
 import server.api.crud
 
 
+@pytest.mark.parametrize(
+    "user_secrets, expected_secrets",
+    [
+        (
+            None,
+            {
+                "secret1": "value1",
+                "secret2": "value2",
+                "V3IO_ACCESS_KEY": "auth-info-secret",
+            },
+        ),
+        (
+            {"V3IO_ACCESS_KEY": "user-access-key", "secret1": "user-secret"},
+            {
+                "secret1": "user-secret",
+                "secret2": "value2",
+                "V3IO_ACCESS_KEY": "user-access-key",
+            },
+        ),
+    ],
+)
 def test_delete_artifact_data(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
+    user_secrets,
+    expected_secrets,
 ) -> None:
     path = "s3://somebucket/some/path/file"
     project = "proj1"
 
-    env_secrets = {"V3IO_ACCESS_KEY": None}
+    auth_info = mlrun.common.schemas.AuthInfo(data_session="auth-info-secret")
+    user_access_key = "user-access-key"
+    env_secrets = {"V3IO_ACCESS_KEY": user_access_key}
     project_secrets = {"secret1": "value1", "secret2": "value2"}
     full_secrets = project_secrets.copy()
     full_secrets.update(env_secrets)
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
+
     with unittest.mock.patch(
         "mlrun.datastore.store_manager.object"
     ) as store_manager_object_mock:
         server.api.crud.Files().delete_artifact_data(
-            mlrun.common.schemas.AuthInfo(), project, path
+            auth_info, project, path, secrets=user_secrets
         )
         store_manager_object_mock.assert_called_once_with(
-            url=path, secrets=full_secrets, project=project
+            url=path, secrets=expected_secrets, project=project
         )
         store_manager_object_mock.reset_mock()
-
-        # user supplied secrets - use the same key to override project secrets
-        user_secrets = {"secret1": "user-secret"}
-        override_secrets = full_secrets.copy()
-        override_secrets.update(user_secrets)
-        server.api.crud.Files().delete_artifact_data(
-            mlrun.common.schemas.AuthInfo(), project, path, secrets=user_secrets
-        )
-        store_manager_object_mock.assert_called_once_with(
-            url=path, secrets=override_secrets, project=project
-        )
 
 
 def test_delete_artifact_data_internal_secret(

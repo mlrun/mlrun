@@ -68,7 +68,13 @@ Currently, the supported notification kinds and their params are as follows:
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
   - `headers`: (dict) The http headers to send with the notification.
   - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
-                     `name`, `message`, `severity`, and the `runs` list of the completed runs.
+                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
+					 Results would look like 
+					 ```
+					 {
+                       "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
+                     }
+					 ```
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
                   The default is set to `True`.
 - `console` (no params, local only)

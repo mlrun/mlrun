@@ -1558,7 +1558,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ),
         reason="HDFS host, ports and user name are not defined",
     )
-    def test_hdfs_empty_credentials(self):
+    def test_hdfs_empty_host(self):
         host = os.environ.pop("HDFS_HOST")
         port = os.environ.pop("HDFS_PORT")
         http_port = os.environ.pop("HDFS_HTTP_PORT")

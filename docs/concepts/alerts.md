@@ -38,8 +38,8 @@ The templates are cross-project objects. When generating an alert, the user must
 - concept_drift_suspected &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
 - model_performance_detected &mdash; A detected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
 - model_performance_suspected &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
-- model_serving_performance_detected &mdash; 
-- model_serving_performance_suspected &mdash; 
+- model_serving_performance_detected &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units)
+- model_serving_performance_suspected &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units)
 - mm_app_anomaly_detected &mdash; 
 - mm_app_anomaly_suspected &mdash; 
 - failed &mdash; The job failed.

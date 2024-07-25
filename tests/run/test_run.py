@@ -46,7 +46,7 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
 ERROR_MSG_INVALID_HANDLER_NAME = (
-    "Handler function name 'handler' is reserved. Use different name instead."
+    "The name “handler“ is reserved. Use a different name for your function."
 )
 
 

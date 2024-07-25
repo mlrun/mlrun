@@ -1710,7 +1710,7 @@ def validate_handler_name(function_kind: str, handler: str):
     # it would override MLRun's wrapper
     if function_kind == "mlrun" and handler == "handler":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Handler function name 'handler' is reserved. Use different name instead."
+            "The name “handler“ is reserved. Use a different name for your function."
         )
 
 

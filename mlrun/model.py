@@ -753,10 +753,6 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
-        if secret_params and params and secret_params != params:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both 'secret_params' and 'params' are defined but they contain different values"
-            )
 
         notification_class.validate_params(secret_params or params)
 
@@ -1494,14 +1490,37 @@ class RunObject(RunTemplate):
             )
         return ""
 
-    def output(self, key):
-        """return the value of a specific result or artifact by key"""
+    def output(self, key: str):
+        """
+        Return the value of a specific result or artifact by key.
+
+        This method waits for the outputs to complete and retrieves the value corresponding to the provided key.
+        If the key exists in the results, it returns the corresponding result value.
+        If not found in results, it attempts to fetch the artifact by key (cached in the run status).
+        If the artifact is not found, it tries to fetch the artifact URI by key.
+        If no artifact or result is found for the key, returns None.
+
+        :param key: The key of the result or artifact to retrieve.
+        :return: The value of the result or the artifact URI corresponding to the key, or None if not found.
+        """
         self._outputs_wait_for_completion()
+
+        # Check if the key exists in results and return the result value
         if self.status.results and key in self.status.results:
-            return self.status.results.get(key)
+            return self.status.results[key]
+
+        # Artifacts are usually cached in the run object under `status.artifacts`. However, the artifacts are not
+        # stored in the DB as part of the run. The server may enrich the run with the artifacts or provide
+        # `status.artifact_uris` instead. See mlrun.common.formatters.run.RunFormat.
+        # When running locally - `status.artifact_uri` does not exist in the run.
+        # When listing runs - `status.artifacts` does not exist in the run.
         artifact = self._artifact(key)
         if artifact:
             return get_artifact_target(artifact, self.metadata.project)
+
+        if self.status.artifact_uris and key in self.status.artifact_uris:
+            return self.status.artifact_uris[key]
+
         return None
 
     @property
@@ -1514,26 +1533,50 @@ class RunObject(RunTemplate):
 
     @property
     def outputs(self):
-        """return a dict of outputs, result values and artifact uris"""
-        outputs = {}
+        """
+        Return a dictionary of outputs, including result values and artifact URIs.
+
+        This method waits for the outputs to complete and combines result values
+        and artifact URIs into a single dictionary. If there are multiple artifacts
+        for the same key, only include the artifact that does not have the "latest" tag.
+        If there is no other tag, include the "latest" tag as a fallback.
+
+        :return: Dictionary containing result values and artifact URIs.
+        """
         self._outputs_wait_for_completion()
+        outputs = {}
+
+        # Add results if available
         if self.status.results:
-            outputs = {k: v for k, v in self.status.results.items()}
+            outputs.update(self.status.results)
+
+        # Artifacts are usually cached in the run object under `status.artifacts`. However, the artifacts are not
+        # stored in the DB as part of the run. The server may enrich the run with the artifacts or provide
+        # `status.artifact_uris` instead. See mlrun.common.formatters.run.RunFormat.
+        # When running locally - `status.artifact_uri` does not exist in the run.
+        # When listing runs - `status.artifacts` does not exist in the run.
         if self.status.artifacts:
-            for a in self.status.artifacts:
-                key = a["metadata"]["key"]
-                outputs[key] = get_artifact_target(a, self.metadata.project)
+            outputs.update(self._process_artifacts(self.status.artifacts))
+        elif self.status.artifact_uris:
+            outputs.update(self.status.artifact_uris)
+
         return outputs
 
-    def artifact(self, key) -> "mlrun.DataItem":
-        """return artifact DataItem by key"""
+    def artifact(self, key: str) -> "mlrun.DataItem":
+        """Return artifact DataItem by key.
+
+        This method waits for the outputs to complete, searches for the artifact matching the given key,
+        and returns a DataItem if the artifact is found.
+
+        :param key: The key of the artifact to find.
+        :return: A DataItem corresponding to the artifact with the given key, or None if no such artifact is found.
+        """
         self._outputs_wait_for_completion()
         artifact = self._artifact(key)
-        if artifact:
-            uri = get_artifact_target(artifact, self.metadata.project)
-            if uri:
-                return mlrun.get_dataitem(uri)
-        return None
+        if not artifact:
+            return None
+        uri = get_artifact_target(artifact, self.metadata.project)
+        return mlrun.get_dataitem(uri) if uri else None
 
     def _outputs_wait_for_completion(
         self,
@@ -1551,12 +1594,85 @@ class RunObject(RunTemplate):
             )
 
     def _artifact(self, key):
-        """return artifact DataItem by key"""
-        if self.status.artifacts:
-            for a in self.status.artifacts:
-                if a["metadata"]["key"] == key:
-                    return a
-        return None
+        """
+        Return the last artifact DataItem that matches the given key.
+
+        If multiple artifacts with the same key exist, return the last one in the list.
+        If there are artifacts with different tags, the method will return the one with a tag other than 'latest'
+        if available.
+        If no artifact with the given key is found, return None.
+
+        :param key: The key of the artifact to retrieve.
+        :return: The last artifact DataItem with the given key, or None if no such artifact is found.
+        """
+        if not self.status.artifacts:
+            return None
+
+        # Collect artifacts that match the key
+        matching_artifacts = [
+            artifact
+            for artifact in self.status.artifacts
+            if artifact["metadata"].get("key") == key
+        ]
+
+        if not matching_artifacts:
+            return None
+
+        # Sort matching artifacts by creation date in ascending order.
+        # The last element in the list will be the one created most recently.
+        # In case the `created` field does not exist in the artifact, that artifact will appear first in the sorted list
+        matching_artifacts.sort(
+            key=lambda artifact: artifact["metadata"].get("created", datetime.min)
+        )
+
+        # Filter out artifacts with 'latest' tag
+        non_latest_artifacts = [
+            artifact
+            for artifact in matching_artifacts
+            if artifact["metadata"].get("tag") != "latest"
+        ]
+
+        # Return the last non-'latest' artifact if available, otherwise return the last artifact
+        # In the case of only one tag, `status.artifacts` includes [v1, latest]. In that case, we want to return v1.
+        # In the case of multiple tags, `status.artifacts` includes [v1, latest, v2, v3].
+        # In that case, we need to return the last one (v3).
+        return (non_latest_artifacts or matching_artifacts)[-1]
+
+    def _process_artifacts(self, artifacts):
+        artifacts_by_key = {}
+
+        # Organize artifacts by key
+        for artifact in artifacts:
+            key = artifact["metadata"]["key"]
+            if key not in artifacts_by_key:
+                artifacts_by_key[key] = []
+            artifacts_by_key[key].append(artifact)
+
+        outputs = {}
+        for key, artifacts in artifacts_by_key.items():
+            # Sort matching artifacts by creation date in ascending order.
+            # The last element in the list will be the one created most recently.
+            # In case the `created` field does not exist in the artifactthat artifact will appear
+            # first in the sorted list
+            artifacts.sort(
+                key=lambda artifact: artifact["metadata"].get("created", datetime.min)
+            )
+
+            # Filter out artifacts with 'latest' tag
+            non_latest_artifacts = [
+                artifact
+                for artifact in artifacts
+                if artifact["metadata"].get("tag") != "latest"
+            ]
+
+            # Save the last non-'latest' artifact if available, otherwise save the last artifact
+            # In the case of only one tag, `artifacts` includes [v1, latest], in that case, we want to save v1.
+            # In the case of multiple tags, `artifacts` includes [v1, latest, v2, v3].
+            # In that case, we need to save the last one (v3).
+            artifact_to_save = (non_latest_artifacts or artifacts)[-1]
+            outputs[key] = get_artifact_target(artifact_to_save, self.metadata.project)
+
+        return outputs
 
     def uid(self):
         """run unique id"""

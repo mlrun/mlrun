@@ -175,7 +175,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -688,8 +690,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        api_gateway: mlrun.common.schemas.APIGateway,
-        project: str = None,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            "mlrun.runtimes.nuclio.api_gateway.APIGateway",
+        ],
+        project: Optional[str] = None,
     ):
         pass
 
@@ -925,5 +930,6 @@ class RunDBInterface(ABC):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass

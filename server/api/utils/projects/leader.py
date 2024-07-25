@@ -52,6 +52,8 @@ class Member(
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
         self._sync_projects()
+
+    def start(self):
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -111,6 +113,7 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
@@ -128,7 +131,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return self._leader_follower.get_project(db_session, name)
 
     def list_projects(

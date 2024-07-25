@@ -149,6 +149,7 @@ class ApplicationStatus(NuclioStatus):
         build_pod=None,
         container_image=None,
         application_image=None,
+        application_source=None,
         sidecar_name=None,
         api_gateway_name=None,
         api_gateway=None,
@@ -164,6 +165,7 @@ class ApplicationStatus(NuclioStatus):
             container_image=container_image,
         )
         self.application_image = application_image or None
+        self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
         self.api_gateway = api_gateway or None
@@ -266,6 +268,7 @@ class ApplicationRuntime(RemoteRuntime):
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -285,6 +288,9 @@ class ApplicationRuntime(RemoteRuntime):
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
+        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
+                                        mlrun.mlconf.force_api_gateway_ssl_redirect()
+
         :return: True if the function is ready (deployed)
         """
         if self.requires_build() or force_build:
@@ -313,19 +319,30 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         super().deploy(
-            project,
-            tag,
-            verbose,
-            auth_info,
-            builder_env,
+            project=project,
+            tag=tag,
+            verbose=verbose,
+            auth_info=auth_info,
+            builder_env=builder_env,
+        )
+        logger.info(
+            "Successfully deployed function, creating API gateway",
+            api_gateway_name=self.status.api_gateway_name,
+            authentication_mode=authentication_mode,
         )
 
+        # Restore the source in case it was removed to make nuclio not consider it when building
+        if not self.spec.build.source and self.status.application_source:
+            self.spec.build.source = self.status.application_source
+        self.save(versioned=False)
+
         ports = self.spec.internal_application_port if direct_port_access else []
-        self.create_api_gateway(
+        return self.create_api_gateway(
             name=self.status.api_gateway_name,
             ports=ports,
             authentication_mode=authentication_mode,
             authentication_creds=authentication_creds,
+            ssl_redirect=ssl_redirect,
         )
 
     def with_source_archive(
@@ -349,6 +366,14 @@ class ApplicationRuntime(RemoteRuntime):
             target_dir=target_dir,
         )
 
+    def from_image(self, image):
+        super().from_image(image)
+        # nuclio implementation detail - when providing the image and emptying out the source code and build source,
+        # nuclio skips rebuilding the image and simply takes the prebuilt image
+        self.spec.build.functionSourceCode = ""
+        self.status.application_source = self.spec.build.source
+        self.spec.build.source = ""
+
     @classmethod
     def get_filename_and_handler(cls) -> (str, str):
         reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
@@ -361,6 +386,7 @@ class ApplicationRuntime(RemoteRuntime):
         ports: list[int] = None,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
+        ssl_redirect: bool = None,
     ):
         api_gateway = APIGateway(
             APIGatewayMetadata(
@@ -377,6 +403,13 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        if ssl_redirect is None:
+            ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
+        if ssl_redirect:
+            # force ssl redirect so that the application is only accessible via https
+            api_gateway.with_force_ssl_redirect()
+
+        # add authentication if required
         authentication_mode = (
             authentication_mode
             or mlrun.mlconf.function.application.default_authentication_mode
@@ -395,6 +428,9 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
+
+        logger.info("Successfully created API gateway", url=self.url)
+        return self.url
 
     def invoke(
         self,
@@ -434,6 +470,14 @@ class ApplicationRuntime(RemoteRuntime):
             path=path,
             **http_client_kwargs,
         )
+
+    def _run(self, runobj: "mlrun.RunObject", execution):
+        raise mlrun.runtimes.RunError(
+            "Application runtime .run() is not yet supported. Use .invoke() instead."
+        )
+
+    def _enrich_command_from_status(self):
+        pass
 
     def _build_application_image(
         self,
@@ -493,9 +537,6 @@ class ApplicationRuntime(RemoteRuntime):
 
         if self.status.container_image:
             self.from_image(self.status.container_image)
-            # nuclio implementation detail - when providing the image and emptying out the source code,
-            # nuclio skips rebuilding the image and simply takes the prebuilt image
-            self.spec.build.functionSourceCode = ""
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(

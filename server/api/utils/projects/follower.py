@@ -49,9 +49,11 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._is_chief = (
+        self._should_sync = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
+            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
+            == "enabled"
         )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
@@ -72,7 +74,7 @@ class Member(
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        if self._is_chief:
+        if self._should_sync:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
                 # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
@@ -85,11 +87,14 @@ class Member(
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+    def start(self):
+        if self._should_sync:
             self._start_periodic_sync()
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
-        if self._is_chief:
+        if self._should_sync:
             self._stop_periodic_sync()
 
     def create_project(
@@ -195,19 +200,25 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy, auth_info, background_task_name
+                session=db_session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                auth_info=auth_info,
+                background_task_name=background_task_name,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         else:
             return self._leader_client.delete_project(
-                auth_info.session,
-                name,
-                deletion_strategy,
-                wait_for_completion,
+                session=auth_info.session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                wait_for_completion=wait_for_completion,
             )
         return False
 

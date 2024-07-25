@@ -170,6 +170,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOut,
     ProjectOutput,
     ProjectOwner,
     ProjectsOutput,

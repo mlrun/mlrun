@@ -21,6 +21,7 @@ import tempfile
 import time
 import typing
 import uuid
+import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -196,11 +197,12 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
 def get_or_create_ctx(
     name: str,
     event=None,
-    spec=None,
+    spec: Optional[dict] = None,
     with_env: bool = True,
     rundb: str = "",
     project: str = "",
-    upload_artifacts=False,
+    upload_artifacts: bool = False,
+    labels: Optional[dict] = None,
 ) -> MLClientCtx:
     """
     Called from within the user program to obtain a run context.
@@ -220,6 +222,7 @@ def get_or_create_ctx(
     :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
+    :param labels: (deprecated - use spec instead) dict of the context labels.
     :return: execution context
 
     Examples::
@@ -252,6 +255,20 @@ def get_or_create_ctx(
         context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
+    if labels:
+        warnings.warn(
+            "The `labels` argument is deprecated and will be removed in 1.9.0. "
+            "Please use `spec` instead, e.g.:\n"
+            "spec={'metadata': {'labels': {'key': 'value'}}}",
+            FutureWarning,
+        )
+        if spec is None:
+            spec = {}
+        if "metadata" not in spec:
+            spec["metadata"] = {}
+        if "labels" not in spec["metadata"]:
+            spec["metadata"]["labels"] = {}
+        spec["metadata"]["labels"].update(labels)
 
     if global_context.get() and not spec and not event:
         return global_context.get()

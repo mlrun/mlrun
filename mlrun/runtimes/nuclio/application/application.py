@@ -366,6 +366,14 @@ class ApplicationRuntime(RemoteRuntime):
             target_dir=target_dir,
         )
 
+    def from_image(self, image):
+        super().from_image(image)
+        # nuclio implementation detail - when providing the image and emptying out the source code and build source,
+        # nuclio skips rebuilding the image and simply takes the prebuilt image
+        self.spec.build.functionSourceCode = ""
+        self.status.application_source = self.spec.build.source
+        self.spec.build.source = ""
+
     @classmethod
     def get_filename_and_handler(cls) -> (str, str):
         reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
@@ -529,11 +537,6 @@ class ApplicationRuntime(RemoteRuntime):
 
         if self.status.container_image:
             self.from_image(self.status.container_image)
-            # nuclio implementation detail - when providing the image and emptying out the source code and build source,
-            # nuclio skips rebuilding the image and simply takes the prebuilt image
-            self.spec.build.functionSourceCode = ""
-            self.status.application_source = self.spec.build.source
-            self.spec.build.source = ""
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(

@@ -265,6 +265,7 @@ def _assert_function_handler(fn):
     ) = mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
     expected_filename = pathlib.Path(filepath).name
     expected_module = mlrun.utils.normalize_name(expected_filename.split(".")[0])
+    # '-nuclio' suffix is added by nuclio-jupyter
     expected_function_handler = f"{expected_module}-nuclio:{expected_handler}"
     assert fn.spec.function_handler == expected_function_handler
 

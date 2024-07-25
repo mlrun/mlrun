@@ -2555,7 +2555,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str = None,
         project_id: int = None,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -4680,7 +4680,7 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = mlrun.common.schemas.Project(
@@ -4698,9 +4698,9 @@ class SQLDB(DBInterface):
                 ),
             )
             self.store_project(session, project_record.name, project)
-            return project
+            return mlrun.common.schemas.ProjectOut(**project.dict())
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return mlrun.common.schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(
         self,

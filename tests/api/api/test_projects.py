@@ -1177,6 +1177,90 @@ def test_delete_project_fail_fast(
             )
 
 
+def test_project_image_builder_validation(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # test image builder input is validated though output is not
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            build=mlrun.common.schemas.ImageBuilder()
+        ),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.build.requirements = ["pandas", "numpy"]
+    expected_requirements = ["pandas", "numpy"]
+
+    # store project request to save the requirements
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project and validate the project
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    assert response_body["spec"]["build"]["requirements"] == expected_requirements
+
+    project.spec.build.requirements = {"corrupted": "value"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert (
+        '{"detail":[{"loc":["body","spec","build","requirements"],'
+        '"msg":"value is not a valid list","type":"type_error.list"}]}'
+        in str(response.content.decode())
+    )
+
+    # bypass the validation
+    corrupted_project_name = "corrupted_project"
+    full_object = {
+        "metadata": {"name": corrupted_project_name},
+        "spec": {"build": {"requirements": {"corrupted": "value"}}},
+    }
+
+    project_record = Project(name=corrupted_project_name, full_object=full_object)
+    db.add(project_record)
+    db.commit()
+
+    # get the corrupted project
+    response = client.get(f"projects/{corrupted_project_name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # ensure corrupted requirements passed validation
+    assert (
+        response_body["spec"]["build"]["requirements"]
+        == full_object["spec"]["build"]["requirements"]
+    )
+
+    # ensures list projects
+    response = client.get("projects")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    projects = response_body["projects"]
+
+    # ensure corrupted requirements passed validation
+    assert len(projects) == 2
+    for project in projects:
+        if project["metadata"]["name"] == corrupted_project_name:
+            assert (
+                project["spec"]["build"]["requirements"]
+                == full_object["spec"]["build"]["requirements"]
+            )
+            break
+    else:
+        pytest.fail(f"Project {corrupted_project_name} not found")
+
+
 def _create_resources_of_all_kinds(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,

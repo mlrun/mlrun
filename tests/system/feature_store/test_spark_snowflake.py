@@ -181,30 +181,45 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             expected_df, result.sort_values(by="ID"), check_dtype=False
         )
 
-    def test_purge_snowflake_target(self):
+    def test_wrong_letters_case(self):
+        from mlrun import feature_store as fs
+        from mlrun.feature_store import Entity
+
         self.generate_snowflake_source_table()
-        target = SnowflakeTarget(
-            "snowflake_target",
-            table_name=self.source_table,
+        result_table = f"result_{self.current_time}"
+        self.tables_to_drop.append(result_table)
+
+        source = SnowflakeSource(
+            "snowflake_target_for_ingest",
+            query=f"select * from {self.source_table} order by ID limit 10",
             db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
-        table_path = f"{self.database}.{self.schema}.{self.source_table}"
-        self.cursor.execute(f"select * from {table_path}").fetchall()
-        target.purge()
-        with pytest.raises(
-            snowflake.connector.errors.ProgrammingError,
-            match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
-        ):
-            self.cursor.execute(f"select * from {table_path}").fetchall()
 
-    def test_purge_with_missing_attribute(self):
-        fake_target = SnowflakeTarget(
-            "fake_snowflake_target",
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=result_table,
+            db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
-        with pytest.raises(
-            mlrun.errors.MLRunRuntimeError,
-            match=".*some attributes are missing.*",
-        ):
-            fake_target.purge()
+        timestamp_key_feature_store = fs.FeatureSet(
+            "timestamp_key_feature_store",
+            timestamp_key="license_date",
+            engine="spark",
+            passthrough=False,
+            relations=None,
+        )
+        entity_feature_store = fs.FeatureSet(
+            "entity_feature_store",
+            entities=[Entity("id")],
+            engine="spark",
+            passthrough=False,
+            relations=None,
+        )
+        run_config = fstore.RunConfig(local=self.run_local)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
+                           match="Snowflake supports timestamp_key as upper case only"):
+            timestamp_key_feature_store.ingest(source, [target], run_config=run_config, spark_context=self.spark_service)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
+                           match="Snowflake supports entity as upper case only"):
+            entity_feature_store.ingest(source, [target], run_config=run_config, spark_context=self.spark_service)

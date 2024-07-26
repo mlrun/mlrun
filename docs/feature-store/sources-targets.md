@@ -10,7 +10,7 @@ For batch ingestion the feature store supports dataframes and files (i.e. csv & 
 The files can reside on S3, NFS, SQL (for example, MYSQL), Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 
 For real time ingestion the source can be http, Kafka, MySQL, or V3IO stream, etc.
-When defining a source, it maps to nuclio event triggers. <br>
+When defining a source, it maps to Nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
@@ -133,16 +133,16 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
 
-| Class name                                                                                                    | Description                                            | storey | spark | pandas |
-| --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                          | Y      | Y     | Y      |
-| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
-| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+| Class name                               | Description                                                                                                 | storey | spark | pandas |
+|------------------------------------------|-------------------------------------------------------------------------------------------------------------|--------|-------|--------|
+| {py:meth}`~mlrun.datastore.CSVTarget`    | Offline. Writes events to a CSV file.                                                                       | Y      | Y     | Y      |
+| [Kafka target](#kafka-target)            | Offline. Writes all incoming events into a Kafka stream.                                                    | Y      | N     | N      |
+| {py:meth}`~mlrun.datastore.StreamSource` | Offline. Writes all incoming events into a V3IO stream.                                                     | Y      | N     | N      |
+| [ParquetTarget](#parquet-target)         | Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files. | Y      | Y     | Y      |
+| {py:meth}`~mlrun.datastore.StreamSource` | Offline. Writes all incoming events into a V3IO stream.                                                     | Y      | N     | N      |
+| [NoSqlTarget](#nosql-target)             | Online. Persists the data in V3IO table to its associated storage by key .                                  | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redisnosql-target)   | Online. Persists the data in Redis table to its associated storage by key.                                  | Y      | Y     | N      |
+| [SqlTarget](#sql-target)                 | Online. Persists the data in SQL table to its associated storage by key.                                    | Y      | N     | Y      |
 
 
 ## Kafka target
@@ -219,8 +219,8 @@ See also [Redis data store profile](#redis-data-store-profile).
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The RedisNoSqlTarget accepts the path parameter in the form: `<redis|rediss>://<host>[:port]`
-For example: `rediss://localhost:6379` creates a redis target, where:
-   - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)
+For example: `rediss://localhost:6379` creates a Redis target, where:
+   - The client/server protocol (`rediss`) is TLS protected (vs. `redis` if no TLS is established)
    - The server location is localhost port 6379.
 - If the path parameter is not set, it tries to fetch it from the MLRUN_REDIS__URL environment variable.
 - You cannot pass the username/password as part of the URL. If you want to provide the username/password, use secrets as:
@@ -228,7 +228,7 @@ For example: `rediss://localhost:6379` creates a redis target, where:
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
     
-The K8s secrets are not available when executing locally (from the sdk). Therefore, if RedisNoSqlTarget with secret is used, 
+The K8s secrets are not available when executing locally (from the SDK). Therefore, if RedisNoSqlTarget with secret is used, 
 You must add the secret as an env-var.
 
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 

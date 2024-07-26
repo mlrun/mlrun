@@ -217,7 +217,7 @@ Preemption mode has these values:
 - none: No preemptible configuration is applied to the function
 
 To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" envvar to either one of the above modes).
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environmental variable to either one of the above modes).
 
 ### SDK configuration
 
@@ -230,7 +230,7 @@ This example illustrates a function that cannot be scheduled on preemptible node
 fn. with_preemption_mode("allow")
 ```
 
-And another function that can only be scheduled on preemptible noodes:
+And another function that can only be scheduled on preemptible nodes:
 
 ```
 import mlrun
@@ -339,7 +339,7 @@ Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.co
 ```
 Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
 When you get to the **Resources** tab, add **Key:Value** pair(s). Configure the node selection for individual Nuclio functions when creating a 
-function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
+function in the **Configuration** tab, under **Resources**, by adding **Key:Value** pairs.
 
 
 ## Scaling and auto-scaling

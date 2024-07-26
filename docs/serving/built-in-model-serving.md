@@ -6,15 +6,14 @@ it is often not necessary to write one if you use these standard classes.
 
 The following table specifies, for each framework, the corresponding MLRun `ModelServer` serving class and its dependencies:
 
-| Framework        | Serving class                                         | Dependencies   |
-|------------------|-------------------------------------------------------|----------------|
-| scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`         | `scikit-learn` |
-| TensorFlow.Keras | `mlrun.frameworks.tf_keras.TFKerasModelServer`        | `tensorflow`   |
-| ONNX             | `mlrun.frameworks.onnx.ONNXModelServer`               | `onnxruntime`  |
-| XGBoost          | `mlrun.frameworks.xgboost.XGBoostModelServer`         | `xgboost`      |
-| LightGBM         | `mlrun.frameworks.lgbm.LGBMModelServer`               | `lightgbm`     |
-| PyTorch          | `mlrun.frameworks.pytorch.PyTorchModelServer`         | `torch`        |
-| Hugging Face     | `mlrun.frameworks.huggingface.HuggingFaceModelServer` | `transformers` |
+| framework        | serving class                                  | dependencies   |
+|:-----------------|:-----------------------------------------------|:---------------|
+| Scikit-learn     | `mlrun.frameworks.sklearn.SklearnModelServer`  | `scikit-learn` |
+| TensorFlow.Keras | `mlrun.frameworks.tf_keras.TFKerasModelServer` | `tensorflow`   |
+| ONNX             | `mlrun.frameworks.onnx.ONNXModelServer`        | `onnxruntime`  |
+| XGBoost          | `mlrun.frameworks.xgboost.XGBoostModelServer`  | `xgboost`      |
+| LightGBM         | `mlrun.frameworks.lgbm.LGBMModelServer`        | `lightgbm`     |
+| PyTorch          | `mlrun.frameworks.pytorch.PyTorchModelServer`  | `torch`        |
 
 For GPU support, use the `mlrun/mlrun-gpu` image (adding GPU drivers and support).
 
@@ -73,6 +72,8 @@ mock_server.test(f"/v2/models/{model_key}/infer", body=my_data)
 Similarly, you can deploy the serving function and test it with some data:
 
 ``` python
+serving_fn.with_code(body=" ")  # Workaround, required only for mlrun <= 1.0.2
+
 # Deploy the serving function
 serving_fn.apply(mlrun.auto_mount()).deploy()
 

@@ -20,7 +20,7 @@ In order to avoid duplication, the `setup` function in `docs/conf.py` copies
 over some markdown files into `docs/external/`. It also generates HTML from a
 notebook in the `examples` directory which is embedded in `docs/examples.rst`.
 
-## readthedocs
+## ReadTheDocs
 There's a git hook in `readthedocs` that builds the documentation.
 See https://readthedocs.org/projects/mlrun/ for more details.
 Ask @yaronha to add you to the project if you don't have access.

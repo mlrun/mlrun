@@ -829,7 +829,8 @@ class SnowflakeSource(BaseSourceDriver):
         if timestamp_key:
             if not timestamp_key.isupper():
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Snowflake supports timestamp_key as uppercase only during ingestion. timestamp_key: {timestamp_key}"
+                    f"Snowflake supports timestamp_key as uppercase only during ingestion."
+                    f" timestamp_key: {timestamp_key}"
                 )
         entity_error = (
             "Snowflake supports entity as uppercase only during ingestion. entity:"

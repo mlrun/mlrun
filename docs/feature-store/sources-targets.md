@@ -27,6 +27,11 @@ You can also create a custom `source` to access various databases or data source
 | [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
+## Snowflake source
+```{admonition} Note
+Snowflake SQL columns are always set to uppercase letters.
+```
+
 ## Kafka source
 
 

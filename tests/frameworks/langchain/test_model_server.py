@@ -269,7 +269,7 @@ def test_huggingface():
     serving_func.add_model(
         "huggingface-langchain-model",
         class_name="LangChainModelServer",
-        llm=_HUGGINGFACE_MODEL,
+        llm="HuggingFacePipeline",
         init_kwargs={"pipeline": pipe},
         model_path=".",
     )
@@ -320,7 +320,7 @@ async def test_huggingface_async():
     serving_func.add_model(
         "huggingface-langchain-model",
         class_name="LangChainModelServer",
-        llm=_HUGGINGFACE_MODEL,
+        llm="HuggingFacePipeline",
         init_kwargs={"pipeline": pipe},
         model_path=".",
     )

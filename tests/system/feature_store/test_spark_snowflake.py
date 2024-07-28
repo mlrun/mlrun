@@ -181,7 +181,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             expected_df, result.sort_values(by="ID"), check_dtype=False
         )
 
-    def test_wrong_letters_case(self):
+    def test_feature_set_wrong_letters_case(self):
         from mlrun import feature_store as fs
         from mlrun.feature_store import Entity
 

@@ -218,13 +218,20 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             passthrough=False,
             relations=None,
         )
+        label_feature_store = fstore.FeatureSet(
+            "entity_feature_store",
+            label_column="name",
+            engine="spark",
+            passthrough=False,
+            relations=None,
+        )
         run_config = fstore.RunConfig(local=self.run_local)
         error_type = (
             mlrun.errors.MLRunInvalidArgumentError if self.run_local else RunError
         )
         with pytest.raises(
             error_type,
-            match="Snowflake supports timestamp_key as upper case only",
+            match="Snowflake supports timestamp_key as uppercase only during ingestion",
         ):
             timestamp_key_feature_store.ingest(
                 source,
@@ -234,9 +241,21 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             )
 
         with pytest.raises(
-            error_type, match="Snowflake supports entity as upper case only"
+            error_type,
+            match="Snowflake supports entity as uppercase only during ingestion",
         ):
             entity_feature_store.ingest(
+                source,
+                [target],
+                run_config=run_config,
+                spark_context=self.spark_service,
+            )
+
+        with pytest.raises(
+            error_type,
+            match="Snowflake supports label_column as uppercase only during ingestion",
+        ):
+            label_feature_store.ingest(
                 source,
                 [target],
                 run_config=run_config,

@@ -1052,7 +1052,9 @@ def _ingest_with_spark(
         timestamp_key = featureset.spec.timestamp_key
         if isinstance(source, mlrun.datastore.sources.SnowflakeSource):
             source.check_upper_case(
-                timestamp_key=timestamp_key, entities=featureset.spec.entities
+                timestamp_key=timestamp_key,
+                entities=featureset.spec.entities,
+                label_column=featureset.spec.label_column,
             )
 
         if isinstance(source, pd.DataFrame):

@@ -186,6 +186,34 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             expected_df, result.sort_values(by="ID"), check_dtype=False
         )
 
+    def test_purge_snowflake_target(self):
+        self.generate_snowflake_source_table()
+        target = SnowflakeTarget(
+            "snowflake_target",
+            table_name=self.source_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        table_path = f"{self.database}.{self.schema}.{self.source_table}"
+        self.cursor.execute(f"select * from {table_path}").fetchall()
+        target.purge()
+        with pytest.raises(
+            snowflake.connector.errors.ProgrammingError,
+            match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
+        ):
+            self.cursor.execute(f"select * from {table_path}").fetchall()
+
+    def test_purge_with_missing_attribute(self):
+        fake_target = SnowflakeTarget(
+            "fake_snowflake_target",
+            **self.snowflake_spark_parameters,
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match=".*some attributes are missing.*",
+        ):
+            fake_target.purge()
+
     def test_feature_set_wrong_letters_case(self):
         self.generate_snowflake_source_table()
         result_table = f"result_{self.current_time}"

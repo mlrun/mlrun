@@ -32,7 +32,8 @@ def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
     prefix = "_"
 
     def norm_key(key: str) -> str:
-        if key and key[0].isdigit():
+        key = key.replace("-", "_")  # hyphens `-` are not allowed
+        if key and key[0].isdigit():  # starting with a digit is not allowed
             return prefix + key
         return key
 

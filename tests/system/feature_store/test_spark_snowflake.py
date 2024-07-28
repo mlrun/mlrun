@@ -14,6 +14,8 @@
 #
 import os
 import random
+import tempfile
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -22,8 +24,9 @@ import snowflake.connector
 
 import mlrun.errors
 import mlrun.feature_store as fstore
-from mlrun.datastore.sources import SnowflakeSource
+from mlrun.datastore.sources import ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
+from mlrun.feature_store import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
@@ -32,6 +35,7 @@ from tests.system.feature_store.spark_hadoop_test_base import (
 from tests.system.feature_store.utils import (
     get_missing_snowflake_spark_parameters,
     get_snowflake_spark_parameters,
+    sort_df,
 )
 
 
@@ -182,9 +186,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
 
     def test_feature_set_wrong_letters_case(self):
-        from mlrun import feature_store as fs
-        from mlrun.feature_store import Entity
-
         self.generate_snowflake_source_table()
         result_table = f"result_{self.current_time}"
         self.tables_to_drop.append(result_table)
@@ -202,14 +203,14 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
-        timestamp_key_feature_store = fs.FeatureSet(
+        timestamp_key_feature_store = fstore.FeatureSet(
             "timestamp_key_feature_store",
             timestamp_key="license_date",
             engine="spark",
             passthrough=False,
             relations=None,
         )
-        entity_feature_store = fs.FeatureSet(
+        entity_feature_store = fstore.FeatureSet(
             "entity_feature_store",
             entities=[Entity("id")],
             engine="spark",
@@ -217,9 +218,89 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             relations=None,
         )
         run_config = fstore.RunConfig(local=self.run_local)
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
-                           match="Snowflake supports timestamp_key as upper case only"):
-            timestamp_key_feature_store.ingest(source, [target], run_config=run_config, spark_context=self.spark_service)
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError,
-                           match="Snowflake supports entity as upper case only"):
-            entity_feature_store.ingest(source, [target], run_config=run_config, spark_context=self.spark_service)
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Snowflake supports timestamp_key as upper case only",
+        ):
+            timestamp_key_feature_store.ingest(
+                source,
+                [target],
+                run_config=run_config,
+                spark_context=self.spark_service,
+            )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Snowflake supports entity as upper case only",
+        ):
+            entity_feature_store.ingest(
+                source,
+                [target],
+                run_config=run_config,
+                spark_context=self.spark_service,
+            )
+
+    def test_parquet_source_ingest(self):
+        result_table = f"result_{self.current_time}"
+        self.tables_to_drop.append(result_table)
+        data = {
+            "id": [1, 2, 3],
+            "time_stamp": [
+                datetime.now(),
+                datetime.now() - timedelta(minutes=10),
+                datetime.now() - timedelta(minutes=20),
+            ],
+            "name": ["Alice", "Bob", "Charlie"],
+        }
+        df = pd.DataFrame(data)
+        #  spark has problem to read datetime64[ns] type
+        df["time_stamp"] = df["time_stamp"].astype("datetime64[us]")
+        temp_file = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        if self.run_local:
+            df.to_parquet(temp_file.name)
+            path = temp_file.name
+            source = ParquetSource("parquet_source", path=path)
+        else:
+            v3io_parquet_source_path = (
+                f"v3io:///projects/{self.project_name}/"
+                f"df_parquet_filtered_source_{uuid.uuid4()}.parquet"
+            )
+            df.to_parquet(v3io_parquet_source_path)
+            source = ParquetSource("parquet_source", path=v3io_parquet_source_path)
+
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=result_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        fset_obj = fstore.FeatureSet(
+            "feature_set",
+            timestamp_key="time_stamp",
+            entities=[Entity("id")],
+            engine="spark",
+            passthrough=False,
+            relations=None,
+        )
+        run_config = fstore.RunConfig(local=self.run_local)
+        fset_obj.ingest(
+            source, [target], run_config=run_config, spark_context=self.spark_service
+        )
+
+        features = ["feature_set.*"]
+        vector = fstore.FeatureVector("feature_vector", features)
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
+        target = ParquetTarget()
+        result = vector.get_offline_features(
+            engine="spark",
+            with_indexes=True,
+            spark_service=self.spark_service,
+            run_config=run_config,
+            target=None if self.run_local else target,
+        )
+        result_df = result.to_dataframe()
+        result_df = result_df.reset_index(drop=False)
+        pd.testing.assert_frame_equal(
+            sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
+        )

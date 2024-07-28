@@ -1,7 +1,9 @@
 (log-artifacts)=
-# Logging Artifacts
+# Logging srtifacts
 To log artifacts that are not of kind model or dataset, use the {py:meth}`~mlrun.execution.MLClientCtx.log_artifact` method.
 You can apply this method to the project object or the context object when logging an artifact in runtime, for example a job.
+
+
 **In this section**
 - [Basic logging of an artifacts file](#basic-logging-of-an-artifacts-file)
 - [Log a Plotly object as an html file](#log-a-plotly-object-as-an-html-file)

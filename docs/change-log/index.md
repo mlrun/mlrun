@@ -2,7 +2,7 @@
 # Change log
 
 - [v1.7.0](#)
-- [v1.6.4](#v1-6-4-30-june-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
+- [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -18,10 +18,11 @@
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5287|You can now configure alerts for model monitoring. See(**add link**)[].|
-|ML-5459|
-|ML-6119|APIs for model monitoring view per endpoint**add details/link**|
-|ML-6569|Model monitoring UI per-endpoint view presents information about the actual inference of the model endpoint.**add details/link**|
+|ML-5287|You can now configure {ref}`alerts` for model monitoring.|
+|ML-5459|Model monitoring data-path now supports LLM/deep-learning models **add details/link**|
+|ML-5851|Model monitoring does not require V3IO. See the {ref}`<example using a NoSql target>`. **add link**|
+|ML-6119|APIs for model monitoring view per endpoint **add details/link**|
+|ML-5460|The model monitoring now has a per-endpoint view that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.**add details/link**|
 
 
 
@@ -87,11 +88,11 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |NA     | New page: {ref}`genai-live-ops`.|
-|ML-6052|New page: {ref}`(log-artifacts`.|
-|ML-6573|Example of Model monitoring app without V3IO (using a NoSql target). **add link**|
+|ML-6052|New page: {ref}`log-artifacts`.|
 
 
-## Closed issues
+
+### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2223|Can now deploy a function when notebook names contain "." |
@@ -118,7 +119,7 @@
 |ML-7203|Function yaml is no longer created twice during a scheduled workflow trigger.|
 
 
-## v1.6.4 (30 June 2024)
+## v1.6.4 (2 July 2024)
 
 ### UI
 | ID       |Description                                                               |

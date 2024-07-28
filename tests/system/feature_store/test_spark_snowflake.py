@@ -17,7 +17,7 @@ import random
 import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
-
+from mlrun.runtimes.utils import RunError
 import pandas as pd
 import pytest
 import snowflake.connector
@@ -218,8 +218,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             relations=None,
         )
         run_config = fstore.RunConfig(local=self.run_local)
+        error_type = mlrun.errors.MLRunInvalidArgumentError if self.run_local else RunError
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
+            error_type,
             match="Snowflake supports timestamp_key as upper case only",
         ):
             timestamp_key_feature_store.ingest(
@@ -228,10 +229,8 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
                 run_config=run_config,
                 spark_context=self.spark_service,
             )
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="Snowflake supports entity as upper case only",
-        ):
+
+        with pytest.raises(error_type, match="Snowflake supports entity as upper case only"):
             entity_feature_store.ingest(
                 source,
                 [target],

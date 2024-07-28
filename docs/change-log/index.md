@@ -14,48 +14,35 @@
 
 ## v1.7.0 (          August 2024)
 
-### Data store
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-5726|Add support for Hadoop/hdfs datastore. See [HDFS data store profile](..store/datastore.html#hdfs-data-store-profile).|
-|ML-5656|Add Snowflake as offline target store. See [Snowflake target](../feature-store/sources-targets.html#snowflake-target).|
-
-### Feature store
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-3303|Optimized the parquet read when the partitioning is on fields other than the timestamp.|
-|ML-5656|Add Snowflake as an offline target store. See [Snowflake target](../feature-store/sources-targets.html#snowflake-target)|
-
 ### Model monitoring
-
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-5287|You can now configure alerts for model monitoring. See(**add link**)[].|
+|ML-5459|
+|ML-6119|APIs for model monitoring view per endpoint**add details/link**|
+|ML-6569|Model monitoring UI per-endpoint view presents information about the actual inference of the model endpoint.**add details/link**|
+
+
 
 
 ### Projects
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2585|When deleting a project, you can also delete its artifacts. See [Deleting artifacts](..store/artifacts.html##deleting-artifacts).|
-|ML-3874|Node selector can now be defined in the project spec. See [Node selection](../runtimes/configuring-job-resources.html#node-selection).|
+|ML-2585|When deleting a project, you can also [delete its artifacts](..store/artifacts.html##deleting-artifacts).|
+|ML-3874|Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.html#node-selection).|
 
 ### Runtimes
 
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2652|Supports creating an API gateway using the MLRun SDK. See [API gateway](../concepts/nuclio-real-time-functions.html#api-gateway).|
-|ML-4601|New `application` type runtime`where you can run provide an image (for example a web-app) that runs as a deployment. See {ref}`application`.|
+|ML-2652|Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.html#api-gateway).|
+|ML-4601|New {ref}`application <application type runtime>` where you can run provide an image (for example a web-app) that runs as a deployment. |
 
 ### Workflows
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-6885|You can now add run details by using `{{ runs }}` in the `override_body` section in notifications. See [Notifications kinds](../concepts/notifications.html#notification-kinds).|
 
-### Model monitoring
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-6119|APIs for model monitoring view per endpoint**add details/link**|
-|ML-6569|Model monitoring UI per-endpoint view presents information about the actual inference of the model endpoint.**add details/link**|
 
 
 ### Serving graph
@@ -77,6 +64,17 @@
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
 
+### Data store
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5726|Add support for [Hadoop/hdfs datastore](..store/datastore.html#hdfs-data-store-profile).|
+|ML-5656|Add [Snowflake as offline target store](../feature-store/sources-targets.html#snowflake-target).|
+
+### Feature store
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-3303|Optimized the parquet read when the partitioning is on fields other than the timestamp.|
+|ML-5656|Add [Snowflake as an offline target store](../feature-store/sources-targets.html#snowflake-target)|
 
 ### Breaking changes
 | ID    |Description                                                                 |

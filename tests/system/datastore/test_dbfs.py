@@ -96,22 +96,33 @@ class TestDBFS(TestMLRunSystem):
         logger.info(f"Object URL: {self._dir_url}")
 
     @pytest.mark.parametrize(
-        "source_class, target_class, local_filename, reader, reader_kwargs, drop_index",
+        "source_class, target_class, local_filename, reader, reader_kwargs, drop_index, use_folder",
         [
             (
                 CSVSource,
                 CSVTarget,
-                "testdata_short.csv",
+                "test_data.csv",
                 pd.read_csv,
                 {"parse_dates": ["date_of_birth"]},
+                False,
                 False,
             ),
             (
                 ParquetSource,
                 ParquetTarget,
-                "testdata_short.parquet",
+                "test_data.parquet",
                 pd.read_parquet,
                 {},
+                True,
+                False,
+            ),
+            (
+                ParquetSource,
+                ParquetTarget,
+                "test_data.parquet",
+                pd.read_parquet,
+                {},
+                True,
                 True,
             ),
         ],
@@ -124,6 +135,7 @@ class TestDBFS(TestMLRunSystem):
         reader,
         reader_kwargs,
         drop_index,
+        use_folder,
         use_datastore_profile,
     ):
         local_source_path = os.path.relpath(str(self.assets_path / local_filename))
@@ -134,8 +146,11 @@ class TestDBFS(TestMLRunSystem):
         measurements = fstore.FeatureSet("measurements", entities=[Entity(key)])
 
         dbfs_source_path = f"{self._dir_url}/source_{local_filename}"
-        dbfs_target_path = f"{self._dir_url}/target_{local_filename}"
+        dbfs_target_path = (
+            f"{self._dir_url}/target_{'parquets' if use_folder else local_filename}"
+        )
         target = target_class(name="specified-path", path=dbfs_target_path)
+        measurements.set_targets(targets=[target], with_defaults=False)
 
         with open(local_source_path, "rb") as source_file:
             source_content = source_file.read()
@@ -146,9 +161,13 @@ class TestDBFS(TestMLRunSystem):
         ) as f:
             f.write(source_content)
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
-        measurements.ingest(source=source, targets=[target])
+        measurements.ingest(source=source)
         target_file_path = measurements.get_target_path()
-        result = source_class(path=target_file_path, **reader_kwargs).to_dataframe()
+        # Avoids adding date columns when using a folder as the target.
+        to_dataframe_dict = {"columns": list(expected.columns)} if use_folder else {}
+        result = source_class(path=target_file_path, **reader_kwargs).to_dataframe(
+            **to_dataframe_dict
+        )
         if drop_index:
             result.reset_index(inplace=True, drop=False)
 
@@ -158,3 +177,8 @@ class TestDBFS(TestMLRunSystem):
             check_like=True,
             check_dtype=False,
         )
+        # Check for ML-6587 regression
+        target_path = target_file_path[target_file_path.index(MLRUN_ROOT_DIR) :]
+        assert self.workspace.dbfs.exists(target_path)
+        measurements.purge_targets()
+        assert not self.workspace.dbfs.exists(target_path)

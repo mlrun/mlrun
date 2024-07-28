@@ -21,6 +21,7 @@ from time import monotonic, sleep
 from typing import Optional, Union
 
 import fsspec
+import mlrun_pipelines.mounts
 import numpy as np
 import pandas as pd
 import pytest
@@ -39,18 +40,29 @@ import mlrun.serving.routers
 import mlrun.utils
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 
+_MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_monitoring"
+
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "pr-endpoints-operations"
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
     def test_clear_endpoint(self):
         """Validates the process of create and delete a basic model endpoint"""
@@ -94,25 +106,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert endpoint_before_update.status.state == "null"
 
-        # Check default drift thresholds
-        assert endpoint_before_update.spec.monitor_configuration == {
-            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
-            ),
-            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
-            ),
-        }
-
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
         current_stats = {
-            "tvd_sum": 2.2,
-            "tvd_mean": 0.5,
-            "hellinger_sum": 3.6,
-            "hellinger_mean": 0.9,
-            "kld_sum": 24.2,
-            "kld_mean": 6.0,
             "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
             "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
         }
@@ -172,7 +168,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             endpoint_details = self._mock_random_endpoint()
 
             if i < 1:
-                endpoint_details.spec.model = "filterme"
+                endpoint_details.spec.model = "filterme:latest"
 
             if i < 2:
                 endpoint_details.spec.function_uri = "test/filterme"
@@ -239,6 +235,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBasicModelMonitoring(TestMLRunSystem):
     """Deploy and apply monitoring on a basic pre-trained model"""
 
@@ -246,15 +243,31 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: Optional[str] = None
 
-    @pytest.mark.timeout(270)
-    @pytest.mark.parametrize("engine", ["sync", "async"])
-    def test_basic_model_monitoring(self, engine) -> None:
+    @pytest.mark.timeout(540)
+    @pytest.mark.parametrize(
+        "with_sql_target",
+        [
+            True,
+            False,
+        ],
+    )
+    def test_basic_model_monitoring(self, with_sql_target: bool) -> None:
         # Main validations:
         # 1 - a single model endpoint is created
-        # 2 - stream metrics are recorded as expected under the model endpoint
+        # 2 - model name, tag and values are recorded as expected under the model endpoint
+        # 3 - stream metrics are recorded as expected under the model endpoint
+        # 4 - test on both SQL and KV store targets
 
         # Deploy Model Servers
         project = self.project
+
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            if with_sql_target
+            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -270,13 +283,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
-
-        serving_fn.set_topology(
-            "router",
-            engine=engine,
-        )
-
+        ).apply(mlrun_pipelines.mounts.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
         project.enable_model_monitoring(
@@ -285,20 +292,24 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         )
 
         model_name = "sklearn_RandomForestClassifier"
+        tag = "some-tag"
+        labels = {"framework": "sklearn", "mylabel": "l1"}
 
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model_obj = project.log_model(
             model_name,
             model_dir=str(self.assets_path),
             model_file="model.pkl",
             training_set=train_set,
             artifact_path=f"v3io:///projects/{project.metadata.name}",
+            tag=tag,
+            labels=labels,
         )
         # Add the model to the serving function's routing spec
         serving_fn.add_model(
             model_name,
             model_path=project.get_artifact_uri(
-                key=model_name, category="model", tag="latest"
+                key=model_name, category="model", tag=tag
             ),
         )
         if self.image is not None:
@@ -317,11 +328,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(choice([0.01, 0.04]))
 
-        # Test metrics
         sleep(5)
-        self._assert_model_endpoint_metrics()
-
-    def _assert_model_endpoint_metrics(self) -> None:
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -329,6 +336,40 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
+        assert not endpoint.status.feature_stats
+
+        self._assert_model_endpoint_tags_and_labels(
+            endpoint=endpoint, model_name=model_name, tag=tag, labels=labels
+        )
+
+        # Test metrics
+        self._assert_model_endpoint_metrics(endpoint=endpoint)
+
+        self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+
+    def _assert_model_uri(
+        self,
+        model_obj: mlrun.artifacts.ModelArtifact,
+        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+    ) -> None:
+        assert (
+            endpoint.spec.model_uri
+            == f"store://models/{model_obj.metadata.project}/{model_obj.key}#{model_obj.iter}@{model_obj.tree}"
+        )
+
+    def _assert_model_endpoint_tags_and_labels(
+        self,
+        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+        model_name: str,
+        tag: str,
+        labels: dict[str, str],
+    ) -> None:
+        assert endpoint.metadata.labels == labels
+        assert endpoint.spec.model == f"{model_name}:{tag}"
+
+    def _assert_model_endpoint_metrics(
+        self, endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint
+    ) -> None:
         assert len(endpoint.status.metrics) > 0
         self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
@@ -350,6 +391,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
     # TODO: Temporary skip this test on open source until fixed
     @pytest.mark.enterprise
+    @pytest.mark.model_monitoring
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # Main validations:
@@ -496,6 +538,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 @pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestVotingModelMonitoring(TestMLRunSystem):
     """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
 
@@ -541,7 +584,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2-model-server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         serving_fn.set_topology(
             "router", "mlrun.serving.VotingEnsemble", name="VotingEnsemble"
@@ -773,6 +816,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBatchDrift(TestMLRunSystem):
     """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
     the monitoring process of the batch infer job function that can be imported from the functions hub.
@@ -822,10 +866,16 @@ class TestBatchDrift(TestMLRunSystem):
         )
 
         # Deploy model monitoring infra
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
 
         # Generate a dataframe that will be written as a monitoring parquet
@@ -886,6 +936,7 @@ class TestBatchDrift(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelMonitoringKafka(TestMLRunSystem):
     """Deploy a basic iris model configured with kafka stream"""
 
@@ -921,7 +972,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
             "hub://v2_model_server", project=self.project_name
-        ).apply(mlrun.auto_mount())
+        ).apply(mlrun_pipelines.mounts.auto_mount())
 
         model_name = "sklearn_RandomForestClassifier"
 
@@ -941,10 +992,15 @@ class TestModelMonitoringKafka(TestMLRunSystem):
             ),
         )
 
-        project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=f"kafka://{self.brokers}",
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
         # enable model monitoring
         serving_fn.set_tracking()
+
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             **({} if self.image is None else {"image": self.image}),
@@ -997,6 +1053,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
@@ -1094,6 +1151,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelInferenceTSDBRecord(TestMLRunSystem):
     """
     Test that batch inference records results to V3IO TSDB when tracking is
@@ -1120,9 +1178,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         cls.model_name = "clf_model"
 
         cls.infer_results_df = cls.train_set.copy()
-        cls.infer_results_df[mlrun.common.schemas.EventFieldType.TIMESTAMP] = (
-            mlrun.utils.datetime_now()
-        )
 
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
@@ -1139,33 +1194,40 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        tsdb_client = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container=ModelMonitoringWriter.get_v3io_container(cls.project_name)
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=cls.project_name,
+            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
-        df: pd.DataFrame = tsdb_client.read(
-            backend=_TSDB_BE, table=_TSDB_TABLE, start="now-5m", end="now"
+
+        df: pd.DataFrame = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.APP_RESULTS,
+            start="now-5m",
+            end="now",
         )
 
         assert not df.empty, "No TSDB data"
         assert (
-            len(df) == 4
-        ), "Expects four results of the histogram data drift app in the TSDB"
+            len(df) == 1
+        ), "Expects a single result from the histogram data drift app in the TSDB"
         assert set(df.application_name) == {
             "histogram-data-drift"
-        }, "The application names are different than expected"
+        }, "The application name is different than expected"
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
-            "hellinger_mean",
-            "kld_mean",
-            "tvd_mean",
-        }, "The results are different than expected"
+        }, "The result is different than expected"
 
     def test_record(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,
             **({} if self.image is None else {"image": self.image}),
+            wait_for_deployment=True,
         )
 
         model_uri = self._log_model()

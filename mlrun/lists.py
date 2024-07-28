@@ -21,7 +21,7 @@ import mlrun.frameworks
 from .artifacts import Artifact, dict_to_artifact
 from .config import config
 from .render import artifacts_to_html, runs_to_html
-from .utils import flatten, get_artifact_target, get_in, is_legacy_artifact
+from .utils import flatten, get_artifact_target, get_in
 
 list_header = [
     "project",
@@ -29,12 +29,14 @@ list_header = [
     "iter",
     "start",
     "state",
+    "kind",
     "name",
     "labels",
     "inputs",
     "parameters",
     "results",
     "artifacts",
+    "artifact_uris",
     "error",
 ]
 
@@ -56,12 +58,14 @@ class RunList(list):
                 get_in(run, "metadata.iteration", ""),
                 get_in(run, "status.start_time", ""),
                 get_in(run, "status.state", ""),
+                get_in(run, "step_kind", get_in(run, "kind", "")),
                 get_in(run, "metadata.name", ""),
                 get_in(run, "metadata.labels", ""),
                 get_in(run, "spec.inputs", ""),
                 get_in(run, "spec.parameters", ""),
                 get_in(run, "status.results", ""),
                 get_in(run, "status.artifacts", []),
+                get_in(run, "status.artifact_uris", {}),
                 get_in(run, "status.error", ""),
             ]
             if extend_iterations and iterations:
@@ -184,7 +188,7 @@ class ArtifactList(list):
             "uri": ["uri", "uri"],
         }
         for artifact in self:
-            fields_index = 0 if is_legacy_artifact(artifact) else 1
+            fields_index = 1
             row = [get_in(artifact, v[fields_index], "") for k, v in head.items()]
             artifact_uri = dict_to_artifact(artifact).uri
             last_index = len(row) - 1

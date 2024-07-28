@@ -22,17 +22,16 @@ from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
 from pprint import pprint
-from subprocess import Popen
-from sys import executable
-from urllib.parse import urlparse
 
 import click
 import dotenv
 import pandas as pd
 import yaml
+from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 
@@ -40,7 +39,6 @@ from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
 from .model import RunTemplate
-from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import (
     get_object,
@@ -52,12 +50,12 @@ from .run import (
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_yaml,
     get_in,
     is_relative_path,
     list2dict,
     logger,
-    run_keys,
     update_in,
 )
 from .utils.version import Version
@@ -104,7 +102,9 @@ def main():
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
-@click.option("--workflow", help="workflow name/id")
+@click.option(
+    "--workflow", help="sets the run labels to match the given workflow name/id"
+)
 @click.option("--project", help="project name/id")
 @click.option("--db", default="", help="save run results to path or DB url")
 @click.option(
@@ -259,8 +259,10 @@ def run(
             runobj.metadata.labels[k] = v
 
     if workflow:
-        runobj.metadata.labels["workflow"] = workflow
-        runobj.metadata.labels["mlrun/runner-pod"] = socket.gethostname()
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
+            socket.gethostname()
+        )
 
     if db:
         mlconf.dbpath = db
@@ -378,15 +380,15 @@ def run(
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
-    set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
     set_item(
-        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+        runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
     )
-    set_item(runobj.spec, in_path, run_keys.input_path)
-    set_item(runobj.spec, out_path, run_keys.output_path)
-    set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
+    set_item(runobj.spec, in_path, RunKeys.input_path)
+    set_item(runobj.spec, out_path, RunKeys.output_path)
+    set_item(runobj.spec, outputs, RunKeys.outputs, list(outputs))
     set_item(
-        runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, "kind", "source")
+        runobj.spec, secrets, RunKeys.secrets, line2keylist(secrets, "kind", "source")
     )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
@@ -469,6 +471,17 @@ def run(
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--state-file-path", default="/tmp/state", help="path to file with state data"
+)
+@click.option(
+    "--image-file-path", default="/tmp/image", help="path to file with image data"
+)
+@click.option(
+    "--full-image-file-path",
+    default="/tmp/fullimage",
+    help="path to file with full image data",
+)
 def build(
     func_url,
     name,
@@ -488,6 +501,9 @@ def build(
     skip,
     env_file,
     ensure_project,
+    state_file_path,
+    image_file_path,
+    full_image_file_path,
 ):
     """Build a container image from code and requirements."""
 
@@ -505,6 +521,8 @@ def build(
         if kfp:
             print("Runtime:")
             pprint(runtime)
+        # use kind = "job" by default if not specified
+        runtime.setdefault("kind", "job")
         func = new_function(runtime=runtime)
 
     elif func_url:
@@ -575,12 +593,12 @@ def build(
         state = func.status.state
         image = func.spec.image
         if kfp:
-            with open("/tmp/state", "w") as fp:
+            with open(state_file_path, "w") as fp:
                 fp.write(state or "none")
             full_image = func.full_image_path(image) or ""
-            with open("/tmp/image", "w") as fp:
+            with open(image_file_path, "w") as fp:
                 fp.write(image)
-            with open("/tmp/fullimage", "w") as fp:
+            with open(full_image_file_path, "w") as fp:
                 fp.write(full_image)
             print("Full image path = ", full_image)
 
@@ -823,108 +841,6 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(
             "Currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
-
-
-@main.command(deprecated=True)
-@click.option("--port", "-p", help="port to listen on", type=int)
-@click.option("--dirpath", "-d", help="database directory (dirpath)")
-@click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
-@click.option("--logs-path", "-l", help="logs directory path")
-@click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
-@click.option("--verbose", is_flag=True, help="verbose log")
-@click.option("--background", "-b", is_flag=True, help="run in background process")
-@click.option("--artifact-path", "-a", help="default artifact path")
-@click.option(
-    "--update-env",
-    default="",
-    is_flag=False,
-    flag_value=mlrun.config.default_env_file,
-    help=f"update the specified mlrun .env file (if TEXT not provided defaults to {mlrun.config.default_env_file})",
-)
-def db(
-    port,
-    dirpath,
-    dsn,
-    logs_path,
-    data_volume,
-    verbose,
-    background,
-    artifact_path,
-    update_env,
-):
-    """Run HTTP api/database server"""
-    warnings.warn(
-        "The `mlrun db` command is deprecated in 1.5.0 and will be removed in 1.7.0, it is for internal use only.",
-        FutureWarning,
-    )
-    env = environ.copy()
-    # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
-    env["MLRUN_IGNORE_ENV_FILE"] = "true"
-    env["MLRUN_DBPATH"] = ""
-
-    if port is not None:
-        env["MLRUN_HTTPDB__PORT"] = str(port)
-    if dirpath is not None:
-        env["MLRUN_HTTPDB__DIRPATH"] = dirpath
-    if dsn is not None:
-        if dsn.startswith("sqlite://") and "check_same_thread=" not in dsn:
-            dsn += "?check_same_thread=false"
-        env["MLRUN_HTTPDB__DSN"] = dsn
-    if logs_path is not None:
-        env["MLRUN_HTTPDB__LOGS_PATH"] = logs_path
-    if data_volume is not None:
-        env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
-    if verbose:
-        env["MLRUN_LOG_LEVEL"] = "DEBUG"
-    if artifact_path or "MLRUN_ARTIFACT_PATH" not in env:
-        if not artifact_path:
-            artifact_path = (
-                env.get("MLRUN_HTTPDB__DATA_VOLUME", "./artifacts").rstrip("/")
-                + "/{{project}}"
-            )
-        env["MLRUN_ARTIFACT_PATH"] = path.realpath(path.expanduser(artifact_path))
-
-    env["MLRUN_IS_API_SERVER"] = "true"
-
-    # create the DB dir if needed
-    dsn = dsn or mlconf.httpdb.dsn
-    if dsn and dsn.startswith("sqlite:///"):
-        parsed = urlparse(dsn)
-        p = pathlib.Path(parsed.path[1:]).parent
-        p.mkdir(parents=True, exist_ok=True)
-
-    cmd = [executable, "-m", "server.api.main"]
-    pid = None
-    if background:
-        print("Starting MLRun API service in the background...")
-        child = Popen(
-            cmd,
-            env=env,
-            stdout=open("mlrun-stdout.log", "w"),
-            stderr=open("mlrun-stderr.log", "w"),
-            start_new_session=True,
-        )
-        pid = child.pid
-        print(
-            f"Background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
-            f"`kill {pid}` (linux/mac) or `taskkill /pid {pid} /t /f` (windows), to kill the mlrun service process"
-        )
-    else:
-        child = Popen(cmd, env=env)
-        returncode = child.wait()
-        if returncode != 0:
-            raise SystemExit(returncode)
-    if update_env:
-        # update mlrun client env file with the API path, so client will use the new DB
-        # update and PID, allow killing the correct process in a config script
-        filename = path.expanduser(update_env)
-        dotenv.set_key(
-            filename, "MLRUN_DBPATH", f"http://localhost:{port or 8080}", quote_mode=""
-        )
-        dotenv.set_key(filename, "MLRUN_MOCK_NUCLIO_DEPLOYMENT", "auto", quote_mode="")
-        if pid:
-            dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
-        print(f"Updated configuration in {update_env} .env file")
 
 
 @main.command()

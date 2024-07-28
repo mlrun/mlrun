@@ -31,7 +31,7 @@ class RedisStore(DataStore):
     """
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
-        REDIS_DEFAULT_PORT = "6379"
+        redis_default_port = "6379"
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.headers = None
 
@@ -49,7 +49,7 @@ class RedisStore(DataStore):
         user = self._get_secret_or_env("REDIS_USER", "", credentials_prefix)
         password = self._get_secret_or_env("REDIS_PASSWORD", "", credentials_prefix)
         host = parsed_endpoint.hostname
-        port = parsed_endpoint.port if parsed_endpoint.port else REDIS_DEFAULT_PORT
+        port = parsed_endpoint.port if parsed_endpoint.port else redis_default_port
         schema = parsed_endpoint.scheme
         if user or password:
             endpoint = f"{schema}://{user}:{password}@{host}:{port}"

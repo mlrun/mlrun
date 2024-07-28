@@ -122,7 +122,7 @@ class HTTPSessionWithRetry(requests.Session):
 
                 self._logger.warning(
                     "Error during request handling, retrying",
-                    exc=str(exc),
+                    exc=err_to_str(exc),
                     retry_count=retry_count,
                     url=url,
                     method=method,

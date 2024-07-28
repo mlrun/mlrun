@@ -11,16 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import enum
 import json
-from typing import Any, Optional
+import re
+from datetime import datetime
+from typing import Any, NamedTuple, Optional
 
 from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
+import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
@@ -29,6 +31,8 @@ from .constants import (
     EventKeyMetrics,
     EventLiveStats,
     ModelMonitoringMode,
+    ResultKindApp,
+    ResultStatusApp,
 )
 
 
@@ -99,18 +103,8 @@ class ModelEndpointSpec(ObjectSpec):
             json_parse_values=json_parse_values,
         )
 
-    @validator("monitor_configuration")
-    def set_name(cls, monitor_configuration):
-        return monitor_configuration or {
-            EventFieldType.DRIFT_DETECTED_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
-            ),
-            EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
-            ),
-        }
-
     @validator("model_uri")
+    @classmethod
     def validate_model_uri(cls, model_uri):
         """Validate that the model uri includes the required prefix"""
         prefix, uri = mlrun.datastore.parse_store_uri(model_uri)
@@ -290,6 +284,84 @@ class ModelEndpoint(BaseModel):
 
 class ModelEndpointList(BaseModel):
     endpoints: list[ModelEndpoint] = []
+
+
+class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
+    RESULT = "result"
+    METRIC = "metric"
+
+
+class ModelEndpointMonitoringMetric(BaseModel):
+    project: str
+    app: str
+    type: ModelEndpointMonitoringMetricType
+    name: str
+    full_name: str
+
+
+def _compose_full_name(
+    *,
+    project: str,
+    app: str,
+    name: str,
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT,
+) -> str:
+    return ".".join([project, app, type, name])
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_FQN_PATTERN = (
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+_FQN_REGEX = re.compile(_FQN_PATTERN)
+
+
+def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
+    match = _FQN_REGEX.fullmatch(fqn)
+    if match is None:
+        raise ValueError("The fully qualified name is not in the expected format")
+    return ModelEndpointMonitoringMetric.parse_obj(
+        match.groupdict() | {"full_name": fqn}
+    )
+
+
+class _MetricPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+
+
+class _ResultPoint(NamedTuple):
+    timestamp: datetime
+    value: float
+    status: ResultStatusApp
+
+
+class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool
+
+
+class ModelEndpointMonitoringMetricValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.METRIC
+    values: list[_MetricPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringResultValues(_ModelEndpointMonitoringMetricValuesBase):
+    type: ModelEndpointMonitoringMetricType = ModelEndpointMonitoringMetricType.RESULT
+    result_kind: ResultKindApp
+    values: list[_ResultPoint]
+    data: bool = True
+
+
+class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBase):
+    full_name: str
+    type: ModelEndpointMonitoringMetricType
+    data: bool = False
 
 
 def _mapping_attributes(

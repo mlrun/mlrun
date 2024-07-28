@@ -18,10 +18,11 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
+import mlrun_pipelines.common.ops
+
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
@@ -353,7 +354,7 @@ class BaseLauncher(abc.ABC):
             or {}
         )
         state_thresholds = (
-            mlrun.config.config.function.spec.state_thresholds.default.to_dict()
+            mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
             | state_thresholds
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
@@ -390,7 +391,7 @@ class BaseLauncher(abc.ABC):
             return
 
         if result and runtime.kfp and err is None:
-            mlrun.kfpops.write_kfpmeta(result)
+            mlrun_pipelines.common.ops.write_kfpmeta(result)
 
         self._log_track_results(runtime.is_child, result, run)
 
@@ -403,7 +404,7 @@ class BaseLauncher(abc.ABC):
             )
             if (
                 run.status.state
-                in mlrun.runtimes.constants.RunStates.error_and_abortion_states()
+                in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
             ):
                 if runtime._is_remote and not runtime.is_child:
                     logger.error(

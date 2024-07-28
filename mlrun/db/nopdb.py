@@ -16,6 +16,9 @@
 import datetime
 from typing import Optional, Union
 
+import mlrun.alerts
+import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 
@@ -70,7 +73,13 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid,
+        project="",
+        iter=0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     def list_runs(
@@ -79,7 +88,10 @@ class NopDB(RunDBInterface):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -109,7 +121,16 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         pass
 
     def list_artifacts(
@@ -125,10 +146,24 @@ class NopDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+        iter=None,
+    ):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -143,7 +178,9 @@ class NopDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         pass
 
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     def tag_objects(
@@ -196,7 +233,7 @@ class NopDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -235,9 +272,24 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
     def list_entities(
         self, project: str, name: str = None, tag: str = None, labels: list[str] = None
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    def list_entities_v2(
+        self, project: str, name: str = None, tag: str = None, labels: list[str] = None
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     def list_feature_sets(
@@ -351,8 +403,8 @@ class NopDB(RunDBInterface):
         namespace: str = None,
         timeout: int = 30,
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.summary,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         pass
@@ -365,8 +417,8 @@ class NopDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         pass
@@ -508,8 +560,11 @@ class NopDB(RunDBInterface):
 
     def store_api_gateway(
         self,
-        project: str,
-        api_gateway: mlrun.runtimes.nuclio.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            mlrun.runtimes.nuclio.api_gateway.APIGateway,
+        ],
+        project: str = None,
     ) -> mlrun.common.schemas.APIGateway:
         pass
 
@@ -528,6 +583,75 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def remote_builder(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        with_mlrun: bool,
+        mlrun_version_specifier: Optional[str] = None,
+        skip_deployed: bool = False,
+        builder_env: Optional[dict] = None,
+        force_build: bool = False,
+    ):
+        pass
+
+    def deploy_nuclio_function(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        builder_env: Optional[dict] = None,
+    ):
+        pass
+
+    def get_builder_status(
+        self,
+        func: "mlrun.runtimes.BaseRuntime",
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        pass
+
+    def get_nuclio_deploy_status(
+        self,
+        func: "mlrun.runtimes.RemoteRuntime",
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        pass
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: list[mlrun.model.RunObject],
+        notifications: list[mlrun.model.Notification],
+    ):
+        pass
+
+    def store_run_notifications(
+        self,
+        notification_objects: list[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        pass
+
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+        mask_params: bool = True,
+    ):
+        pass
+
+    def get_log_size(self, uid, project=""):
+        pass
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        pass
+
     def get_datastore_profile(
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
@@ -544,4 +668,109 @@ class NopDB(RunDBInterface):
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
+        pass
+
+    def function_status(self, project, name, kind, selector):
+        pass
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        pass
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            "mlrun.projects.pipelines.WorkflowSpec",
+            "mlrun.common.schemas.WorkflowSpec",
+            dict,
+        ],
+        arguments: Optional[dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        notifications: list["mlrun.model.Notification"] = None,
+    ) -> "mlrun.common.schemas.WorkflowResponse":
+        pass
+
+    def update_model_monitoring_controller(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+    ):
+        pass
+
+    def enable_model_monitoring(
+        self,
+        project: str,
+        base_period: int = 10,
+        image: str = "mlrun/mlrun",
+        deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
+    ) -> None:
+        pass
+
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        pass
+
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
+        pass
+
+    def deploy_histogram_data_drift_app(
+        self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        pass
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
+    ) -> None:
+        pass
+
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def get_alert_template(self, template_name: str):
+        pass
+
+    def list_alert_templates(self):
         pass

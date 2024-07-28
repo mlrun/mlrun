@@ -64,7 +64,7 @@ from .store_resources import (
     parse_store_uri,
 )
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
-from .utils import parse_kafka_url
+from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 
 store_manager = StoreManager()
 
@@ -107,19 +107,17 @@ def get_stream_pusher(stream_path: str, **kwargs):
     :param stream_path:        path/url of stream
     """
 
-    if stream_path.startswith("kafka://") or "kafka_bootstrap_servers" in kwargs:
-        topic, bootstrap_servers = parse_kafka_url(
-            stream_path, kwargs.get("kafka_bootstrap_servers")
-        )
-        return KafkaOutputStream(
-            topic, bootstrap_servers, kwargs.get("kafka_producer_options")
-        )
+    kafka_brokers = get_kafka_brokers_from_dict(kwargs)
+    if stream_path.startswith("kafka://") or kafka_brokers:
+        topic, brokers = parse_kafka_url(stream_path, kafka_brokers)
+        return KafkaOutputStream(topic, brokers, kwargs.get("kafka_producer_options"))
     elif stream_path.startswith("http://") or stream_path.startswith("https://"):
         return HTTPOutputStream(stream_path=stream_path)
     elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):
         endpoint, stream_path = parse_path(stream_path)
+        endpoint = kwargs.pop("endpoint", None) or endpoint
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)

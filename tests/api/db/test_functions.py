@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+import time
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -255,6 +258,39 @@ def test_list_functions_filtering_unversioned_untagged(
     assert functions[0]["metadata"]["hash"] == tagged_function_hash_key
 
 
+def test_list_functions_with_format(db: DBInterface, db_session: Session):
+    name = "function_name_1"
+    tag = "some_tag"
+    function_body = {
+        "metadata": {"name": name},
+        "kind": "remote",
+        "status": {"state": "online"},
+        "spec": {
+            "description": "some_description",
+            "command": "some_command",
+            "image": "some_image",
+            "default_handler": "some_handler",
+            "default_class": "some_class",
+            "graph": "some_graph",
+            "preemption_mode": "some_preemption_mode",
+            "node_selector": "some_node_selector",
+            "priority_class_name": "some_priority_class_name",
+            "extra_field": "extra_field",
+        },
+    }
+    db.store_function(db_session, function_body, name, tag=tag, versioned=True)
+    functions = db.list_functions(db_session, tag=tag, format_="full")
+    assert len(functions) == 1
+    function = functions[0]
+    assert function["spec"] == function_body["spec"]
+
+    functions = db.list_functions(db_session, tag=tag, format_="minimal")
+    assert len(functions) == 1
+    function = functions[0]
+    del function_body["spec"]["extra_field"]
+    assert function["spec"] == function_body["spec"]
+
+
 def test_delete_function(db: DBInterface, db_session: Session):
     labels = {
         "name": "value",
@@ -368,6 +404,179 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     assert (
         len(functions) == 1 and functions[0]["metadata"]["hash"] == function_1_hash_key
     )
+
+
+def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
+    function_1 = _generate_function("function-name-1")
+    function_2 = _generate_function("function-name-2")
+    function_3 = _generate_function("function-name-3")
+
+    for function in [function_1, function_2, function_3]:
+        db.store_function(
+            db_session, function.to_dict(), function.metadata.name, versioned=True
+        )
+        time.sleep(1)
+
+    # Verifying that the time filters are working:
+    # No Filters
+    all_functions = db.list_functions(db_session)
+    assert len(all_functions) == 3
+
+    # extract the updated time of the functions
+    function_times = [
+        function["metadata"]["updated"]
+        for function in sorted(all_functions, key=lambda x: x["metadata"]["updated"])
+    ]
+
+    # Since only
+    functions = db.list_functions(db_session, since=function_times[1])
+    assert len(functions) == 2
+
+    # Until only
+    functions = db.list_functions(db_session, until=function_times[1])
+    assert len(functions) == 2
+
+    # Since and Until
+    functions = db.list_functions(
+        db_session, since=function_times[0], until=function_times[0]
+    )
+    assert len(functions) == 1
+
+    # Since and Until with no results
+    now = datetime.datetime.now()
+    yesterday = now - datetime.timedelta(days=1)
+    functions = db.list_functions(db_session, until=yesterday)
+    assert len(functions) == 0
+    functions = db.list_functions(db_session, since=now)
+    assert len(functions) == 0
+
+
+def test_list_untagged_functions(db: DBInterface, db_session: Session):
+    # create 2 functions, one with tag and one without
+    function_1_name = "function-name-1"
+    function_2_name = "function-name-2"
+    function_1 = _generate_function(function_1_name)
+    function_2 = _generate_function(function_2_name)
+    tag = "some-tag"
+
+    # function 1 should get the tag
+    tagged_function_hash = db.store_function(
+        db_session,
+        function_1.to_dict(),
+        function_1_name,
+        tag=tag,
+        versioned=True,
+    )
+
+    # function 2 should get the "latest" tag
+    func_2_dict = function_2.to_dict()
+    function_2_hash_key = db.store_function(
+        db_session,
+        func_2_dict,
+        function_2_name,
+        versioned=True,
+    )
+
+    # list all functions
+    functions = db.list_functions(db_session)
+    assert len(functions) == 2
+
+    # change something in the second function
+    func_2_dict["spec"]["command"] = "new_command"
+
+    # store the function again, the new instance should get the "latest" tag
+    db.store_function(
+        db_session,
+        func_2_dict,
+        function_2_name,
+        versioned=True,
+    )
+
+    # list all functions
+    functions = db.list_functions(db_session)
+
+    # list only tagged functions
+    tagged_function = db.list_functions(db_session, tag="*")
+
+    assert len(functions) != len(tagged_function)
+
+    all_hashes = [function["metadata"]["hash"] for function in functions]
+    untagged_hashes = [function["metadata"]["hash"] for function in tagged_function]
+
+    assert function_2_hash_key in all_hashes
+    assert function_2_hash_key not in untagged_hashes
+
+    # list function with specific tag
+    tagged_function = db.list_functions(db_session, tag=tag)
+    assert len(tagged_function) == 1
+    assert tagged_function[0]["metadata"]["hash"] == tagged_function_hash
+
+
+def test_delete_functions(db: DBInterface, db_session: Session):
+    names = ["some_name", "some_name2", "some_name3"]
+    labels = {
+        "key": "value",
+    }
+    function = {
+        "bla": "blabla",
+        "metadata": {"labels": labels},
+        "status": {"bla": "blabla"},
+    }
+    for name in names:
+        db.store_function(
+            db_session, function, name, project="project1", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project1",
+            tag="latest_2",
+            versioned=True,
+        )
+        db.store_function(
+            db_session, function, name, project="project2", tag="latest", versioned=True
+        )
+        db.store_function(
+            db_session,
+            function,
+            name,
+            project="project2",
+            tag="latest_2",
+            versioned=True,
+        )
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == len(names) * 2
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == len(names) * 2
+
+    assert db_session.query(Function.Label).count() != 0
+    assert db_session.query(Function.Tag).count() != 0
+    assert db_session.query(Function).count() != 0
+
+    db.delete_functions(db_session, "*", names=names[:2])
+    functions = db.list_functions(db_session, project="project1")
+    assert len(functions) == 2
+    functions = db.list_functions(db_session, project="project2")
+    assert len(functions) == 2
+
+    assert db_session.query(Function.Label).count() == 2
+    assert db_session.query(Function.Tag).count() == 4
+    assert db_session.query(Function).count() == 2
+
+    db.store_function(
+        db_session,
+        function,
+        "no_delete",
+        project="project1",
+        tag="latest",
+        versioned=True,
+    )
+    db.delete_functions(db_session, "*", names=names[:2])
+
+    assert db_session.query(Function.Label).count() == 3
+    assert db_session.query(Function.Tag).count() == 5
+    assert db_session.query(Function).count() == 3
 
 
 def _generate_function(

@@ -6,10 +6,34 @@ Table of Contents
    :caption: MLRun basics
    
    index
-   mlops-dev-flow
    tutorials/index
    install   
 
+       
+.. toctree::
+   :maxdepth: 1
+   :caption: Gen AI tasks
+   
+   genai/genai-flow
+   genai/data-mgmt/index
+   genai/development/index
+   genai/deployment/index	  
+   genai/live-ops/index
+	  
+	
+	   
+.. toctree::
+   :maxdepth: 1
+   :caption: MLOps tasks
+   
+   mlops-dev-flow
+   data-prep/index
+   development/index
+   deployment/index
+   monitoring/index
+   projects/ci-cd-automate
+   
+   
 .. toctree::
    :maxdepth: 1
    :caption: Core components
@@ -21,16 +45,6 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
-       
-.. toctree::
-   :maxdepth: 1
-   :caption: MLOps tasks
-   
-   data-prep/index
-   development/index
-   deployment/index
-   monitoring/index
-   projects/ci-cd-automate
      
 .. toctree::
    :maxdepth: 1

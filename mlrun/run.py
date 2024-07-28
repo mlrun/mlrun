@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import importlib.util as imputil
 import json
 import os
@@ -20,6 +21,7 @@ import tempfile
 import time
 import typing
 import uuid
+import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -28,12 +30,15 @@ from typing import Optional, Union
 
 import nuclio
 import yaml
-from kfp import Client
+from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.common.ops import format_summary_from_kfp_run, show_kfp_run
+from mlrun_pipelines.utils import get_client
 
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
-from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
@@ -47,7 +52,6 @@ from .runtimes import (
     KubejobRuntime,
     LocalRuntime,
     MpiRuntimeV1,
-    MpiRuntimeV1Alpha1,
     RemoteRuntime,
     RemoteSparkRuntime,
     RuntimeKinds,
@@ -60,48 +64,13 @@ from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
+    RunKeys,
     extend_hub_uri_if_needed,
     get_in,
     logger,
     retry_until_successful,
-    run_keys,
     update_in,
 )
-
-
-class RunStatuses:
-    succeeded = "Succeeded"
-    failed = "Failed"
-    skipped = "Skipped"
-    error = "Error"
-    running = "Running"
-
-    @staticmethod
-    def all():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-            RunStatuses.running,
-        ]
-
-    @staticmethod
-    def stable_statuses():
-        return [
-            RunStatuses.succeeded,
-            RunStatuses.failed,
-            RunStatuses.skipped,
-            RunStatuses.error,
-        ]
-
-    @staticmethod
-    def transient_statuses():
-        return [
-            status
-            for status in RunStatuses.all()
-            if status not in RunStatuses.stable_statuses()
-        ]
 
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):
@@ -114,16 +83,18 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
 
     example::
 
-        mod = mlrun.function_to_module('./examples/training.py')
-        task = mlrun.new_task(inputs={'infile.txt': '../examples/infile.txt'})
-        context = mlrun.get_or_create_ctx('myfunc', spec=task)
-        mod.my_job(context, p1=1, p2='x')
+        mod = mlrun.function_to_module("./examples/training.py")
+        task = mlrun.new_task(inputs={"infile.txt": "../examples/infile.txt"})
+        context = mlrun.get_or_create_ctx("myfunc", spec=task)
+        mod.my_job(context, p1=1, p2="x")
         print(context.to_yaml())
 
-        fn = mlrun.import_function('hub://open-archive')
+        fn = mlrun.import_function("hub://open-archive")
         mod = mlrun.function_to_module(fn)
-        data = mlrun.run.get_dataitem("https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz")
-        context = mlrun.get_or_create_ctx('myfunc')
+        data = mlrun.run.get_dataitem(
+            "https://fpsignals-public.s3.amazonaws.com/catsndogs.tar.gz"
+        )
+        context = mlrun.get_or_create_ctx("myfunc")
         mod.open_archive(context, archive_url=data)
         print(context.to_yaml())
 
@@ -226,18 +197,19 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
 def get_or_create_ctx(
     name: str,
     event=None,
-    spec=None,
+    spec: Optional[dict] = None,
     with_env: bool = True,
     rundb: str = "",
     project: str = "",
-    upload_artifacts=False,
-    labels: dict = None,
-):
-    """called from within the user program to obtain a run context
+    upload_artifacts: bool = False,
+    labels: Optional[dict] = None,
+) -> MLClientCtx:
+    """
+    Called from within the user program to obtain a run context.
 
-    the run context is an interface for receiving parameters, data and logging
+    The run context is an interface for receiving parameters, data and logging
     run results, the run context is read from the event, spec, or environment
-    (in that order), user can also work without a context (local defaults mode)
+    (in that order), user can also work without a context (local defaults mode).
 
     all results are automatically stored in the "rundb" or artifact store,
     the path to the rundb can be specified in the call or obtained from env.
@@ -247,40 +219,56 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels:      dict of the context labels
+    :param labels: (deprecated - use spec instead) dict of the context labels.
     :return: execution context
 
     Examples::
 
         # load MLRUN runtime context (will be set by the runtime framework e.g. KubeFlow)
-        context = get_or_create_ctx('train')
+        context = get_or_create_ctx("train")
 
         # get parameters from the runtime context (or use defaults)
-        p1 = context.get_param('p1', 1)
-        p2 = context.get_param('p2', 'a-string')
+        p1 = context.get_param("p1", 1)
+        p2 = context.get_param("p2", "a-string")
 
         # access input metadata, values, files, and secrets (passwords)
-        print(f'Run: {context.name} (uid={context.uid})')
-        print(f'Params: p1={p1}, p2={p2}')
+        print(f"Run: {context.name} (uid={context.uid})")
+        print(f"Params: p1={p1}, p2={p2}")
         print(f'accesskey = {context.get_secret("ACCESS_KEY")}')
-        input_str = context.get_input('infile.txt').get()
-        print(f'file: {input_str}')
+        input_str = context.get_input("infile.txt").get()
+        print(f"file: {input_str}")
 
         # RUN some useful code e.g. ML training, data prep, etc.
 
         # log scalar result values (job result metrics)
-        context.log_result('accuracy', p1 * 2)
-        context.log_result('loss', p1 * 3)
-        context.set_label('framework', 'sklearn')
+        context.log_result("accuracy", p1 * 2)
+        context.log_result("loss", p1 * 3)
+        context.set_label("framework", "sklearn")
 
         # log various types of artifacts (file, web page, table), will be versioned and visible in the UI
-        context.log_artifact('model.txt', body=b'abc is 123', labels={'framework': 'xgboost'})
-        context.log_artifact('results.html', body=b'<b> Some HTML <b>', viewer='web-app')
+        context.log_artifact(
+            "model.txt", body=b"abc is 123", labels={"framework": "xgboost"}
+        )
+        context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
+    if labels:
+        warnings.warn(
+            "The `labels` argument is deprecated and will be removed in 1.9.0. "
+            "Please use `spec` instead, e.g.:\n"
+            "spec={'metadata': {'labels': {'key': 'value'}}}",
+            FutureWarning,
+        )
+        if spec is None:
+            spec = {}
+        if "metadata" not in spec:
+            spec["metadata"] = {}
+        if "labels" not in spec["metadata"]:
+            spec["metadata"]["labels"] = {}
+        spec["metadata"]["labels"].update(labels)
 
     if global_context.get() and not spec and not event:
         return global_context.get()
@@ -308,7 +296,7 @@ def get_or_create_ctx(
             artifact_path = mlrun.utils.helpers.template_artifact_path(
                 mlconf.artifact_path, project or mlconf.default_project
             )
-            update_in(newspec, ["spec", run_keys.output_path], artifact_path)
+            update_in(newspec, ["spec", RunKeys.output_path], artifact_path)
 
     newspec.setdefault("metadata", {})
     update_in(newspec, "metadata.name", name, replace=False)
@@ -323,12 +311,17 @@ def get_or_create_ctx(
         newspec["metadata"].get("project") or project or mlconf.default_project
     )
 
+    newspec["metadata"].setdefault("labels", {})
+
+    # This function can also be called as a local run if it is not called within a function.
+    # It will create a local run, and the run kind must be local by default.
+    newspec["metadata"]["labels"].setdefault(
+        mlrun_constants.MLRunInternalLabels.kind, RuntimeKinds.local
+    )
+
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
-    labels = labels or {}
-    for key, val in labels.items():
-        ctx.set_label(key=key, value=val)
     global_context.set(ctx)
     return ctx
 
@@ -348,7 +341,9 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
         function = mlrun.import_function("hub://auto-trainer")
         function = mlrun.import_function("./func.yaml")
-        function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
+        function = mlrun.import_function(
+            "https://raw.githubusercontent.com/org/repo/func.yaml"
+        )
 
     :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
@@ -389,6 +384,8 @@ def import_function_to_dict(url, secrets=None):
     code = get_in(runtime, "spec.build.functionSourceCode")
     update_in(runtime, "metadata.build.code_origin", url)
     cmd = code_file = get_in(runtime, "spec.command", "")
+    # use kind = "job" by default if not specified
+    runtime.setdefault("kind", "job")
     if " " in cmd:
         code_file = cmd[: cmd.find(" ")]
     if runtime["kind"] in ["", "local"]:
@@ -445,12 +442,18 @@ def new_function(
     Example::
 
            # define a container based function (the `training.py` must exist in the container workdir)
-           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
+           f = new_function(
+               command="training.py -x {x}", image="myrepo/image:latest", kind="job"
+           )
            f.run(params={"x": 5})
 
            # define a container based function which reads its source from a git archive
-           f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job',
-                            source='git://github.com/mlrun/something.git')
+           f = new_function(
+               command="training.py -x {x}",
+               image="myrepo/image:latest",
+               kind="job",
+               source="git://github.com/mlrun/something.git",
+           )
            f.run(params={"x": 5})
 
            # define a local handler function (execute a local function handler)
@@ -535,7 +538,7 @@ def new_function(
     if source:
         runner.spec.build.source = source
     if handler:
-        if kind in [RuntimeKinds.serving, RuntimeKinds.application]:
+        if kind in RuntimeKinds.handlerless_runtimes():
             raise MLRunInvalidArgumentError(
                 f"Handler is not supported for {kind} runtime"
             )
@@ -592,7 +595,6 @@ def code_to_function(
     ignored_tags: Optional[str] = None,
     requirements_file: Optional[str] = "",
 ) -> Union[
-    MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
     RemoteRuntime,
     ServingRuntime,
@@ -628,6 +630,8 @@ def code_to_function(
     - mpijob: run distributed Horovod jobs over the MPI job operator
     - spark: run distributed Spark job using Spark Kubernetes Operator
     - remote-spark: run distributed Spark job on remote Spark service
+    - databricks: run code on Databricks cluster (python scripts, Spark etc.)
+    - application: run a long living application (e.g. a web server, UI, etc.)
 
     Learn more about [Kinds of function (runtimes)](../concepts/functions-overview.html).
 
@@ -645,11 +649,10 @@ def code_to_function(
     :param embed_code:   indicates whether or not to inject the code directly into the function runtime spec,
                          defaults to True
     :param description:  short function description, defaults to ''
-    :param requirements: list of python packages or pip requirements file path, defaults to None
     :param requirements: a list of python packages
     :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
-    :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
+    :param labels:       name/value pairs dict to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
 
@@ -661,11 +664,15 @@ def code_to_function(
         import mlrun
 
         # create job function object from notebook code and add doc/metadata
-        fn = mlrun.code_to_function("file_utils", kind="job",
-                                    handler="open_archive", image="mlrun/mlrun",
-                                    description = "this function opens a zip archive into a local/mounted folder",
-                                    categories = ["fileutils"],
-                                    labels = {"author": "me"})
+        fn = mlrun.code_to_function(
+            "file_utils",
+            kind="job",
+            handler="open_archive",
+            image="mlrun/mlrun",
+            description="this function opens a zip archive into a local/mounted folder",
+            categories=["fileutils"],
+            labels={"author": "me"},
+        )
 
     example::
 
@@ -676,11 +683,15 @@ def code_to_function(
         Path("mover.py").touch()
 
         # create nuclio function object from python module call mover.py
-        fn = mlrun.code_to_function("nuclio-mover", kind="nuclio",
-                                    filename="mover.py", image="python:3.7",
-                                    description = "this function moves files from one system to another",
-                                    requirements = ["pandas"],
-                                    labels = {"author": "me"})
+        fn = mlrun.code_to_function(
+            "nuclio-mover",
+            kind="nuclio",
+            filename="mover.py",
+            image="python:3.9",
+            description="this function moves files from one system to another",
+            requirements=["pandas"],
+            labels={"author": "me"},
+        )
 
     """
     filebase, _ = path.splitext(path.basename(filename))
@@ -955,7 +966,7 @@ def wait_for_pipeline_completion(
             _wait_for_pipeline_completion,
         )
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.wait_for_run_completion(run_id, timeout)
         if resp:
             resp = resp.to_dict()
@@ -985,8 +996,8 @@ def get_pipeline(
     run_id,
     namespace=None,
     format_: Union[
-        str, mlrun.common.schemas.PipelinesFormat
-    ] = mlrun.common.schemas.PipelinesFormat.summary,
+        str, mlrun.common.formatters.PipelineFormat
+    ] = mlrun.common.formatters.PipelineFormat.summary,
     project: str = None,
     remote: bool = True,
 ):
@@ -1000,7 +1011,7 @@ def get_pipeline(
     :param project:    the project of the pipeline run
     :param remote:     read kfp data from mlrun service (default=True)
 
-    :return: kfp run dict
+    :return: kfp run
     """
     namespace = namespace or mlconf.namespace
     if remote:
@@ -1016,15 +1027,15 @@ def get_pipeline(
         )
 
     else:
-        client = Client(namespace=namespace)
+        client = get_client(namespace=namespace)
         resp = client.get_run(run_id)
         if resp:
             resp = resp.to_dict()
             if (
                 not format_
-                or format_ == mlrun.common.schemas.PipelinesFormat.summary.value
+                or format_ == mlrun.common.formatters.PipelineFormat.summary.value
             ):
-                resp = format_summary_from_kfp_run(resp)
+                resp = mlrun.common.formatters.PipelineFormat.format_obj(resp, format_)
 
     show_kfp_run(resp)
     return resp
@@ -1038,7 +1049,7 @@ def list_pipelines(
     filter_="",
     namespace=None,
     project="*",
-    format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+    format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
 ) -> tuple[int, Optional[int], list[dict]]:
     """List pipelines
 
@@ -1058,7 +1069,7 @@ def list_pipelines(
     :param format_:    Control what will be returned (full/metadata_only/name_only)
     """
     if full:
-        format_ = mlrun.common.schemas.PipelinesFormat.full
+        format_ = mlrun.common.formatters.PipelineFormat.full
     run_db = mlrun.db.get_run_db()
     pipelines = run_db.list_pipelines(
         project, namespace, sort_by, page_token, filter_, format_, page_size
@@ -1094,13 +1105,25 @@ def wait_for_runs_completion(
     example::
 
         # run two training functions in parallel and wait for the results
-        inputs = {'dataset': cleaned_data}
-        run1 = train.run(name='train_lr', inputs=inputs, watch=False,
-                         params={'model_pkg_class': 'sklearn.linear_model.LogisticRegression',
-                                 'label_column': 'label'})
-        run2 = train.run(name='train_lr', inputs=inputs, watch=False,
-                         params={'model_pkg_class': 'sklearn.ensemble.RandomForestClassifier',
-                                 'label_column': 'label'})
+        inputs = {"dataset": cleaned_data}
+        run1 = train.run(
+            name="train_lr",
+            inputs=inputs,
+            watch=False,
+            params={
+                "model_pkg_class": "sklearn.linear_model.LogisticRegression",
+                "label_column": "label",
+            },
+        )
+        run2 = train.run(
+            name="train_lr",
+            inputs=inputs,
+            watch=False,
+            params={
+                "model_pkg_class": "sklearn.ensemble.RandomForestClassifier",
+                "label_column": "label",
+            },
+        )
         completed = wait_for_runs_completion([run1, run2])
 
     :param runs:    list of run objects (the returned values of function.run())
@@ -1115,7 +1138,7 @@ def wait_for_runs_completion(
         running = []
         for run in runs:
             state = run.state()
-            if state in mlrun.runtimes.constants.RunStates.terminal_states():
+            if state in mlrun.common.runtimes.constants.RunStates.terminal_states():
                 completed.append(run)
             else:
                 running.append(run)

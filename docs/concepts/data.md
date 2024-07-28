@@ -16,4 +16,5 @@ MLRun provides these main abstractions to access structured and unstructured dat
 ../store/data-items
 ../store/artifacts
 ../store/models
+../store/log-artifacts
 ```

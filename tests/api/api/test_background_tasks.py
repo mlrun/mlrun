@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import datetime
 import http
@@ -24,6 +24,7 @@ import fastapi.concurrency
 import fastapi.testclient
 import httpx
 import pytest
+import pytest_asyncio
 import requests
 import sqlalchemy.orm
 
@@ -157,8 +158,8 @@ class ThreadedAsyncClient(httpx.AsyncClient):
         return future
 
 
-@pytest.fixture
-async def async_client() -> typing.Generator:
+@pytest_asyncio.fixture
+async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
     """
     Async client that runs in a separate thread.
     When posting with the client, the request is sent on a different thread, and the method returns a future.

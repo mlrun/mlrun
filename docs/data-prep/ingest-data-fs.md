@@ -12,7 +12,7 @@ the ingestion process runs the graph transformations, infers metadata and stats,
 
 When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 
-### Ingestion engines
+## Ingestion engines
 
 MLRun supports a several ingestion engines:
 - `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
@@ -86,21 +86,22 @@ metadata/stats and once for the actual ingest. This is normal behavior.
 Use a feature set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
 ```python
-# Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
+# Simple feature set that reads a csv file as a dataframe and ingests it "as is"
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
-df = ingest(stocks_set, stocks)
+df = stocks_set.ingest(stocks)
 
-# Specify a csv file as source, specify a custom CSV target 
+# Specify a csv file as source, specify a custom CSV target
 source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
-ingest(measurements, source, targets)
+measurements.ingest(source, targets)
 ```
 You can **update a feature set** either by overwriting its data (`overwrite=true`), or by appending data (`overwrite=false`). 
 To append data you need to reuse the feature set that was used in previous ingestions 
 that was saved in the DB (and not create a new feature set on every ingest).<br>
 For example:
 ```python
+try:
     my_fset = fstore.get_feature_set("my_fset")
 except mlrun.errors.MLRunNotFoundError:
     my_fset = FeatureSet("my_fset", entities=[Entity("key")])
@@ -120,8 +121,8 @@ It also enables you to schedule the job or use bigger/faster resources.
 ```python
 # Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
-config = RunConfig(image='mlrun/mlrun')
-df = ingest(stocks_set, stocks, run_config=config)
+config = RunConfig(image="mlrun/mlrun")
+df = stocks_set.ingest(stocks, run_config=config)
 ```
 
 ## Real-time ingestion

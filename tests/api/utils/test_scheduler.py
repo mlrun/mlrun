@@ -21,6 +21,7 @@ import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import pytest_asyncio
 from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
@@ -33,15 +34,15 @@ import server.api.utils.auth
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
 import tests.api.conftest
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.config import config
-from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 from server.api.utils.scheduler import Scheduler
 from server.api.utils.singletons.db import get_db
 
 
-@pytest.fixture()
-async def scheduler(db: Session) -> typing.Generator:
+@pytest_asyncio.fixture()
+async def scheduler(db: Session) -> typing.AsyncIterator[Scheduler]:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     config.httpdb.jobs.allow_local_run = True
@@ -1088,8 +1089,12 @@ async def test_schedule_convert_from_old_credentials_to_new(
     _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
 
 
+@unittest.mock.patch.object(
+    Scheduler, "_store_schedule_secrets_using_auth_secret", return_value="auth-secret"
+)
 @pytest.mark.asyncio
 async def test_update_schedule(
+    mock_store_schedule_secrets_using_auth_secret,
     db: Session,
     client: tests.api.conftest.TestClient,
     scheduler: Scheduler,
@@ -1195,7 +1200,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         inactive_cron_trigger,
         None,
-        {},
+        {"mlrun-auth-key": "auth-secret"},
         config.httpdb.scheduling.default_concurrency_limit,
     )
 
@@ -1236,7 +1241,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger,
         next_run_time,
-        {},
+        {"mlrun-auth-key": "auth-secret"},
         config.httpdb.scheduling.default_concurrency_limit,
     )
     time_to_sleep = (

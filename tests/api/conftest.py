@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 import datetime
 import typing
 import unittest.mock
@@ -22,6 +21,7 @@ import deepdiff
 import httpx
 import kfp
 import pytest
+import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -64,6 +64,7 @@ def api_config_test():
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
+    server.api.utils.singletons.k8s.get_k8s_helper().running_inside_kubernetes_cluster = False
 
     # we need to override the run db container manually because we run all unit tests in the same process in CI
     # so API is imported even when it's not needed
@@ -86,7 +87,7 @@ def api_config_test():
 
 
 @pytest.fixture()
-def db() -> Generator:
+def db() -> typing.Iterator[sqlalchemy.orm.Session]:
     """
     This fixture initialize the db singleton (so it will be accessible using server.api.singletons.get_db()
     and generates a db session that can be used by the test
@@ -129,13 +130,13 @@ def client(db) -> Generator:
         mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
+        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client
 
 
-@pytest.fixture()
+@pytest.fixture
 def unversioned_client(db) -> Generator:
     """
     unversioned_client is a test client that doesn't have the version prefix in the url.
@@ -153,9 +154,8 @@ def unversioned_client(db) -> Generator:
             yield unversioned_test_client
 
 
-@pytest.fixture()
-@pytest.mark.asyncio
-async def async_client(db) -> Generator:
+@pytest_asyncio.fixture()
+async def async_client(db) -> typing.AsyncIterator[httpx.AsyncClient]:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
         mlconf.monitoring.runs.interval = 0
@@ -179,15 +179,14 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config.iguazio_api_url = api_url
+    mlrun.mlconf.iguazio_api_url = api_url
     return api_url
 
 
 @pytest.fixture()
-async def iguazio_client(
-    api_url: str,
+def iguazio_client(
     request: pytest.FixtureRequest,
 ) -> server.api.utils.clients.iguazio.Client:
     if request.param == "async":
@@ -207,17 +206,39 @@ async def iguazio_client(
 
 class MockedK8sHelper:
     @pytest.fixture(autouse=True)
-    def mock_k8s_helper(self, db: sqlalchemy.orm.Session, client: TestClient):
-        # We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
-        # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
-        server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
-            unittest.mock.Mock(return_value=[])
-        )
-        server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-        server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
-        server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
+    def mock_k8s_helper(self):
+        """
+        This fixture mocks the k8s helper singleton for all tests in the class that inherit from this class.
+        Example:
+            class TestSomething(MockedK8sHelper):
+                # Automatically uses the mocked k8s helper
+                def test_something(self):
+                    ...
+        """
+        _mocked_k8s_helper()
+
+
+@pytest.fixture()
+def mocked_k8s_helper():
+    _mocked_k8s_helper()
+
+
+def _mocked_k8s_helper():
+    # We don't need to restore the original functions since the k8s cluster is never configured in unit tests
+    server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys = (
+        unittest.mock.Mock(return_value=[])
+    )
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
+    server.api.utils.singletons.k8s.get_k8s_helper().crdapi = unittest.mock.Mock()
+    server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+        return_value=True
+    )
+
+    config_map = unittest.mock.Mock()
+    config_map.items = []
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
+        return_value=config_map
+    )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):
@@ -424,7 +445,7 @@ def mock_project_follower_iguazio_client(
     """
     This fixture mocks the project leader iguazio client.
     """
-    mlrun.config.config.httpdb.projects.leader = "iguazio"
+    mlrun.mlconf.httpdb.projects.leader = "iguazio"
     mlrun.mlconf.httpdb.projects.iguazio_access_key = "access_key"
     old_iguazio_client = server.api.utils.clients.iguazio.Client
     server.api.utils.clients.iguazio.Client = MockedProjectFollowerIguazioClient

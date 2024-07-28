@@ -72,10 +72,12 @@ Docs: [Create, save, and use projects](./projects/create-project.html)
 project = mlrun.get_or_create_project(name="my-project", context="./")
 
 # Add a function to the project
-project.set_function(name='train_model', func='train_model.py', kind='job', image='mlrun/mlrun')
+project.set_function(
+    name="train_model", func="train_model.py", kind="job", image="mlrun/mlrun"
+)
 
 # Add aworkflow (pipeline) to the project
-project.set_workflow(name='training_pipeline', workflow_path='straining_pipeline.py')
+project.set_workflow(name="training_pipeline", workflow_path="straining_pipeline.py")
 
 # Save the project and generate the project.yaml file
 project.save()
@@ -95,8 +97,11 @@ An MLRun project can be backed by a Git repo. Functions consume the repo and pul
 project.set_source(source="git://github.com/mlrun/project-archive.git")
 
 fn = project.set_function(
-    name="myjob", handler="job_func.job_handler",
-    image="mlrun/mlrun", kind="job", with_repo=True,
+    name="myjob",
+    handler="job_func.job_handler",
+    image="mlrun/mlrun",
+    kind="job",
+    with_repo=True,
 )
 
 project.build_function(fn)
@@ -105,11 +110,16 @@ project.build_function(fn)
 #### Pull the repo code at runtime
 
 ```python
-project.set_source(source="git://github.com/mlrun/project-archive.git", pull_at_runtime=True)
+project.set_source(
+    source="git://github.com/mlrun/project-archive.git", pull_at_runtime=True
+)
 
 fn = project.set_function(
-    name="nuclio", handler="nuclio_func:nuclio_handler",
-    image="mlrun/mlrun", kind="nuclio", with_repo=True,
+    name="nuclio",
+    handler="nuclio_func:nuclio_handler",
+    image="mlrun/mlrun",
+    kind="nuclio",
+    with_repo=True,
 )
 ```
 
@@ -167,7 +177,7 @@ Docs: [Working with secrets](./secrets.html)
 
 ```python
 # Add secrets to the project
-project.set_secrets(secrets={'AWS_KEY': '111222333'}, provider="kubernetes")
+project.set_secrets(secrets={"AWS_KEY": "111222333"}, provider="kubernetes")
 
 # Run the job with all secrets (automatically injects all project secrets for non-local runtimes)
 project.run_function(fn)
@@ -185,7 +195,9 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 
 ```python
 # Job - run once to completion
-job = project.set_function(name="my-job", func="my_job.py", kind="job", image="mlrun/mlrun", handler="handler")
+job = project.set_function(
+    name="my-job", func="my_job.py", kind="job", image="mlrun/mlrun", handler="handler"
+)
 project.run_function(job)
 ```
 
@@ -193,7 +205,13 @@ project.run_function(job)
 
 ```python
 # Nuclio - generic real-time function to do something when triggered
-nuclio = project.set_function(name="my-nuclio", func="my_nuclio.py", kind="nuclio", image="mlrun/mlrun", handler="handler")
+nuclio = project.set_function(
+    name="my-nuclio",
+    func="my_nuclio.py",
+    kind="nuclio",
+    image="mlrun/mlrun",
+    handler="handler",
+)
 project.deploy_function(nuclio)
 ```
 
@@ -201,8 +219,18 @@ project.deploy_function(nuclio)
 
 ```python
 # Serving - specialized Nuclio function specifically for model serving
-serving = project.set_function(name="my-serving", func="my_serving.py", kind="serving", image="mlrun/mlrun", handler="handler")
-serving.add_model(key="iris", model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl", model_class="ClassifierModel")
+serving = project.set_function(
+    name="my-serving",
+    func="my_serving.py",
+    kind="serving",
+    image="mlrun/mlrun",
+    handler="handler",
+)
+serving.add_model(
+    key="iris",
+    model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl",
+    model_class="ClassifierModel",
+)
 project.deploy_function(serving)
 ```
 
@@ -212,7 +240,13 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 #### MPIJob (Horovod)
 
 ```python
-mpijob = mlrun.code_to_function(name="my-mpijob", filename="my_mpijob.py", kind="mpijob", image="mlrun/mlrun", handler="handler")
+mpijob = mlrun.code_to_function(
+    name="my-mpijob",
+    filename="my_mpijob.py",
+    kind="mpijob",
+    image="mlrun/mlrun",
+    handler="handler",
+)
 mpijob.spec.replicas = 3
 mpijob.run()
 ```
@@ -223,7 +257,7 @@ mpijob.run()
 dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
-dask.spec.service_type = 'NodePort'
+dask.spec.service_type = "NodePort"
 dask.with_worker_limits(mem="6G")
 dask.with_scheduler_limits(mem="1G")
 dask.spec.nthreads = 5
@@ -235,18 +269,19 @@ dask.client
 
 ```python
 import os
-read_csv_filepath = os.path.join(os.path.abspath('.'), 'spark_read_csv.py')
 
-spark = mlrun.new_function(kind='spark', command=read_csv_filepath, name='sparkreadcsv') 
+read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
+
+spark = mlrun.new_function(kind="spark", command=read_csv_filepath, name="sparkreadcsv")
 spark.with_driver_limits(cpu="1300m")
-spark.with_driver_requests(cpu=1, mem="512m") 
+spark.with_driver_requests(cpu=1, mem="512m")
 spark.with_executor_limits(cpu="1400m")
 spark.with_executor_requests(cpu=1, mem="512m")
-spark.with_igz_spark() 
-spark.spec.replicas = 2 
+spark.with_igz_spark()
+spark.spec.replicas = 2
 
-spark.deploy() # build image
-spark.run(artifact_path='/User') # run spark job
+spark.deploy()  # build image
+spark.run(artifact_path="/User")  # run spark job
 ```
 
 ### Resource management
@@ -275,14 +310,20 @@ fn.spec.max_replicas = 4
 
 ```python
 # Nuclio/serving scaling
-fn.spec.min_replicas = 0    # zero value is mandatory for scale to zero
+fn.spec.min_replicas = 0  # zero value is mandatory for scale to zero
 fn.spec.max_replicas = 2
 
 # Scaling to zero in case of 30 minutes (idle-time duration)
-fn.set_config(key="spec.scaleToZero.scaleResources",
-              value=[{"metricName":"nuclio_processor_handled_events_total",
-                      "windowSize" : "30m",     # default values are 1m, 2m, 5m, 10m, 30m
-                      "threshold" : 0}])
+fn.set_config(
+    key="spec.scaleToZero.scaleResources",
+    value=[
+        {
+            "metricName": "nuclio_processor_handled_events_total",
+            "windowSize": "30m",  # default values are 1m, 2m, 5m, 10m, 30m
+            "threshold": 0,
+        }
+    ],
+)
 ```
 
 #### Mount persistent storage
@@ -292,7 +333,11 @@ fn.set_config(key="spec.scaleToZero.scaleResources",
 fn.apply(mlrun.mount_v3io())
 
 # Mount PVC
-fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
+fn.apply(
+    mlrun.platforms.mount_pvc(
+        pvc_name="data-claim", volume_name="data", volume_mount_path="/data"
+    )
+)
 ```
 
 #### Pod priority
@@ -304,7 +349,7 @@ fn.with_priority_class(name="igz-workload-medium")
 #### Node selection
 
 ```python
-fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
+fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
 ```
 
 ### Serving/Nuclio triggers
@@ -323,18 +368,31 @@ If you didn't set this parameter explicitly, the value is taken from [Nuclio pla
 
 ```python
 import nuclio
-serve = mlrun.import_function('hub://v2_model_server')
 
-# Set amount of workers 
+serve = mlrun.import_function("hub://v2_model_server")
+
+# Set amount of workers
 serve.with_http(workers=8, worker_timeout=10)
 
 # V3IO stream trigger
-serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', name='stream', group='serving', seek_to='earliest', shards=1)
+serve.add_v3io_stream_trigger(
+    stream_path="v3io:///projects/myproj/stream1",
+    name="stream",
+    group="serving",
+    seek_to="earliest",
+    shards=1,
+)
 
 # Kafka stream trigger
 serve.add_trigger(
     name="kafka",
-    spec=nuclio.KafkaTrigger(brokers=["192.168.1.123:39092"], topics=["TOPIC"], partitions=4, consumer_group="serving", initial_offset="earliest")
+    spec=nuclio.KafkaTrigger(
+        brokers=["192.168.1.123:39092"],
+        topics=["TOPIC"],
+        partitions=4,
+        consumer_group="serving",
+        initial_offset="earliest",
+    ),
 )
 
 # Cron trigger
@@ -354,8 +412,12 @@ Docs: [Build function image](./runtimes/image-build.html), [Images and their usa
 
 ```python
 project.set_function(
-   "train_code.py", name="trainer", kind="job",
-   image="mlrun/mlrun", handler="train_func", requirements=["pandas==1.3.5"]
+    "train_code.py",
+    name="trainer",
+    kind="job",
+    image="mlrun/mlrun",
+    handler="train_func",
+    requirements=["pandas==1.3.5"],
 )
 
 project.build_function(
@@ -363,10 +425,10 @@ project.build_function(
     # Specify base image
     base_image="myrepo/base_image:latest",
     # Run arbitrary commands
-    commands= [
+    commands=[
         "pip install git+https://github.com/myusername/myrepo.git@mybranch",
-        "mkdir -p /some/path && chmod 0777 /some/path",    
-    ]
+        "mkdir -p /some/path && chmod 0777 /some/path",
+    ],
 )
 ```
 
@@ -374,11 +436,15 @@ project.build_function(
 
 ```python
 project.set_function(
-   "train_code.py", name="trainer", kind="job",
-   image="mlrun/mlrun", handler="train_func", requirements=["pandas==1.3.5"]
+    "train_code.py",
+    name="trainer",
+    kind="job",
+    image="mlrun/mlrun",
+    handler="train_func",
+    requirements=["pandas==1.3.5"],
 )
 
-# auto_build will trigger building the image before running, 
+# auto_build will trigger building the image before running,
 # due to the additional requirements.
 project.run_function("trainer", auto_build=True)
 ```
@@ -395,32 +461,33 @@ from kfp import dsl
 import mlrun
 import nuclio
 
+
 # Create a Kubeflow Pipelines pipeline
 @dsl.pipeline(
     name="batch-pipeline",
-    description="Example of batch pipeline for heart disease dataset"
+    description="Example of batch pipeline for heart disease dataset",
 )
 def pipeline(source_url, label_column):
-    
+
     # Get current project
     project = mlrun.get_current_project()
-    
+
     # Ingest the data set
     ingest = mlrun.run_function(
-        'get-data',
-        handler='prep_data',
-        inputs={'source_url': source_url},
-        params={'label_column': label_column},
-        outputs=["cleaned_data"]
+        "get-data",
+        handler="prep_data",
+        inputs={"source_url": source_url},
+        params={"label_column": label_column},
+        outputs=["cleaned_data"],
     )
-    
-    # Train a model   
+
+    # Train a model
     train = mlrun.run_function(
         "train",
         handler="train_model",
         inputs={"dataset": ingest.outputs["cleaned_data"]},
         params={"label_column": label_column},
-        outputs=['model']
+        outputs=["model"],
     )
 ```
 
@@ -428,11 +495,13 @@ def pipeline(source_url, label_column):
 
 ```python
 # Functions within the workflow
-project.set_function(name='get-data', func='get_data.py', kind='job', image='mlrun/mlrun')
-project.set_function(name='train', func='train.py', kind='job', image='mlrun/mlrun')
+project.set_function(
+    name="get-data", func="get_data.py", kind="job", image="mlrun/mlrun"
+)
+project.set_function(name="train", func="train.py", kind="job", image="mlrun/mlrun")
 
 # Workflow
-project.set_workflow(name='main', workflow_path='pipeline.py')
+project.set_workflow(name="main", workflow_path="pipeline.py")
 
 project.save()
 ```
@@ -444,9 +513,9 @@ Python SDK
 run_id = project.run(
     name="main",
     arguments={
-        "source_url" : "store://feature-vectors/heart-disease-classifier/heart-disease-vec:latest",
-        "label_column" : "target"
-    }
+        "source_url": "store://feature-vectors/heart-disease-classifier/heart-disease-vec:latest",
+        "label_column": "target",
+    },
 )
 ```
 
@@ -463,10 +532,10 @@ mlrun project --run main \
 run_id = project.run(
     name="main",
     arguments={
-        "source_url" : "store://feature-vectors/heart-disease-classifier/heart-disease-vec:latest",
-        "label_column" : "target"
+        "source_url": "store://feature-vectors/heart-disease-classifier/heart-disease-vec:latest",
+        "label_column": "target",
     },
-    schedule="0 * * * *"
+    schedule="0 * * * *",
 )
 ```
 
@@ -475,10 +544,12 @@ run_id = project.run(
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html)
 
 ```python
-context.logger.debug(message="Debugging info")              # logging all (debug, info, warning, error)
-context.logger.info(message="Something happened")           # logging info, warning and error
+context.logger.debug(
+    message="Debugging info"
+)  # logging all (debug, info, warning, error)
+context.logger.info(message="Something happened")  # logging info, warning and error
 context.logger.warning(message="Something might go wrong")  # logging warning and error
-context.logger.error(message="Something went wrong")        # logging only error
+context.logger.error(message="Something went wrong")  # logging only error
 ```
 
 ```{admonition} Note
@@ -527,14 +598,14 @@ from mlrun.frameworks.sklearn import apply_mlrun
 apply_mlrun(model=model, model_name="my_model", x_test=X_test, y_test=y_test)
 model.fit(X_train, y_train)
 
+
 # MLRun decorator for input/output parsing
-@mlrun.handler(labels={'framework':'scikit-learn'},
-               outputs=['prediction:dataset'],
-               inputs={"train_data": pd.DataFrame,
-                       "predict_input": pd.DataFrame})
-def train_and_predict(train_data,
-                      predict_input,
-                      label_column='label'):
+@mlrun.handler(
+    labels={"framework": "scikit-learn"},
+    outputs=["prediction:dataset"],
+    inputs={"train_data": pd.DataFrame, "predict_input": pd.DataFrame},
+)
+def train_and_predict(train_data, predict_input, label_column="label"):
 
     x = train_data.drop(label_column, axis=1)
     y = train_data[label_column]
@@ -553,8 +624,10 @@ Docs: [Deploy models and applications](./deployment/index.html)
 Docs: [Using built-in model serving classes](./serving/built-in-model-serving.html), [Build your own model serving class](./serving/custom-model-serving-class.html), [Model serving API](./serving/model-api.html)
 
 ```python
-serve = mlrun.import_function('hub://v2_model_server')
-serve.add_model(key="iris", model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl")
+serve = mlrun.import_function("hub://v2_model_server")
+serve.add_model(
+    key="iris", model_path="https://s3.wasabisys.com/iguazio/models/iris/model.pkl"
+)
 
 # Deploy to local mock server (Development testing)
 mock_server = serve.to_mock_server()
@@ -586,8 +659,12 @@ Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html)
 context.log_model("model", model_file="model.pkl", training_set=X_train)
 
 # Enable tracking for the model server
-serving_fn = import_function('hub://v2_model_server', project=project_name).apply(auto_mount())
-serving_fn.add_model("model", model_path="store://models/project-name/model:latest") # Model path comes from experiment tracking DB
+serving_fn = import_function("hub://v2_model_server", project=project_name).apply(
+    auto_mount()
+)
+serving_fn.add_model(
+    "model", model_path="store://models/project-name/model:latest"
+)  # Model path comes from experiment tracking DB
 serving_fn.set_tracking()
 
 # Deploy the model server
@@ -600,15 +677,12 @@ serving_fn.deploy()
 batch_inference = mlrun.import_function("hub://batch_inference")
 batch_run = project.run_function(
     batch_inference,
-    inputs={
-        "dataset": prediction_set_path,
-        "sample_set": training_set_path
-    },
+    inputs={"dataset": prediction_set_path, "sample_set": training_set_path},
     params={
         "model": model_artifact.uri,
         "label_columns": "label",
-        "perform_drift_analysis" : True
-    }
+        "perform_drift_analysis": True,
+    },
 )
 ```
 
@@ -623,7 +697,12 @@ Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 Docs: [Sources](./feature-store/sources-targets.html#sources)
 
 ```python
-from mlrun.datastore.sources import CSVSource, ParquetSource, BigQuerySource, KafkaSource
+from mlrun.datastore.sources import (
+    CSVSource,
+    ParquetSource,
+    BigQuerySource,
+    KafkaSource,
+)
 
 # CSV
 csv_source = CSVSource(name="read", path="/User/getting_started/examples/demo.csv")
@@ -633,20 +712,24 @@ csv_df = csv_source.to_dataframe()
 from pyspark.sql import SparkSession
 
 session = SparkSession.builder.master("local").getOrCreate()
-parquet_source = ParquetSource(name="read", path="v3io:///users/admin/getting_started/examples/userdata1.parquet")
+parquet_source = ParquetSource(
+    name="read", path="v3io:///users/admin/getting_started/examples/userdata1.parquet"
+)
 spark_df = parquet_source.to_spark_df(session=session)
 
 # BigQuery
-bq_source = BigQuerySource(name="read", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+bq_source = BigQuerySource(
+    name="read", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+)
 bq_df = bq_source.to_dataframe()
 
 # Kafka
 kafka_source = KafkaSource(
     name="read",
-    brokers='localhost:9092',
-    topics='topic',
-    group='serving',
-    initial_offset='earliest'
+    brokers="localhost:9092",
+    topics="topic",
+    group="serving",
+    initial_offset="earliest",
 )
 kafka_source.add_nuclio_trigger(function=fn)
 
@@ -658,7 +741,7 @@ snowflake_source = SnowflakeSource(
     user="<user>",
     password="<password>",
     database="SNOWFLAKE_SAMPLE_DATA",
-    schema="TPCH_SF1",
+    db_schema="TPCH_SF1",
     warehouse="compute_wh",
 )
 snowflake_df = snowflake_source.to_dataframe()
@@ -680,7 +763,7 @@ pq_target = ParquetTarget(
     name="write",
     path="/User/test.parquet",
     partitioned=True,
-    partition_cols=["country"]
+    partition_cols=["country"],
 )
 pq_target.write_dataframe(df=pq_df, key_column="id")
 
@@ -691,8 +774,8 @@ redis_target.write_dataframe(df=redis_df)
 # Kafka (see docs for writing online features)
 kafka_target = KafkaTarget(
     name="write",
-    bootstrap_servers='localhost:9092',
-    topic='topic',
+    brokers="localhost:9092",
+    path="topic",
 )
 kafka_target.write_dataframe(df=kafka_df)
 ```
@@ -732,10 +815,11 @@ from mlrun.datastore.sources import ParquetSource
 categorical_fset = fstore.FeatureSet(
     name="heart-disease-categorical",
     entities=[fstore.Entity("patient_id")],
-    description="Categorical columns for heart disease dataset"
+    description="Categorical columns for heart disease dataset",
 )
 
-categorical_fset.ingest(source=ParquetSource(path="./data/heart_disease_categorical.parquet")
+categorical_fset.ingest(
+    source=ParquetSource(path="./data/heart_disease_categorical.parquet")
 )
 ```
 
@@ -749,7 +833,7 @@ storey_set = fstore.FeatureSet(
     name="heart-disease-storey",
     entities=[fstore.Entity("patient_id")],
     description="Heart disease data via storey engine",
-    engine="storey"
+    engine="storey",
 )
 storey_set.ingest(source=DataFrameSource(df=data))
 
@@ -758,19 +842,20 @@ pandas_set = fstore.FeatureSet(
     name="heart-disease-pandas",
     entities=[fstore.Entity("patient_id")],
     description="Heart disease data via pandas engine",
-    engine="pandas"
+    engine="pandas",
 )
 pandas_set.ingest(source=DataFrameSource(df=data))
 
 # Spark engine
 from pyspark.sql import SparkSession
+
 spark = SparkSession.builder.appName("Spark function").getOrCreate()
 
 spark_set = fstore.FeatureSet(
     name="heart-disease-spark",
     entities=[fstore.Entity("patient_id")],
     description="Heart disease data via spark engine",
-    engine="spark"
+    engine="spark",
 )
 spark_set.ingest(source=CSVSource(path=v3io_data_path), spark_context=spark)
 ```
@@ -783,19 +868,17 @@ Docs: [Ingest data locally](./data-prep/ingest-data-fs.html#ingest-data-locally)
 # Local
 from mlrun.datastore.sources import CSVSource
 
-fs=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
-df = fs.ingest(    
-    source=CSVSource("mycsv", path="stocks.csv")
-)
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+df = fs.ingest(source=CSVSource("mycsv", path="stocks.csv"))
 
 # Job
 from mlrun.datastore.sources import ParquetSource
 
 fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
-df = fs.ingest(    
-    source=ParquetSource("mypq", path="stocks.parquet")
-    run_config=fstore.RunConfig(image='mlrun/mlrun')
-	)
+df = fs.ingest(
+    source=ParquetSource("mypq", path="stocks.parquet"),
+    run_config=fstore.RunConfig(image="mlrun/mlrun"),
+)
 
 # Real-Time
 from mlrun.datastore.sources import HttpSource
@@ -803,15 +886,17 @@ from mlrun.datastore.sources import HttpSource
 fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
 url, _ = fs.deploy_ingestion_service(
     source=HttpSource(key_field="ticker"),
-    run_config=fstore.RunConfig(image='mlrun/mlrun', kind="serving")
+    run_config=fstore.RunConfig(image="mlrun/mlrun", kind="serving"),
 )
 
 # Incremental
-cron_trigger = "* */1 * * *" # will run every hour
+cron_trigger = "* */1 * * *"  # will run every hour
 fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
 fset.ingest(
-    source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
-    run_config=fstore.RunConfig(image='mlrun/mlrun')
+    source=ParquetSource(
+        "mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger
+    ),
+    run_config=fstore.RunConfig(image="mlrun/mlrun"),
 )
 ```
 
@@ -848,6 +933,7 @@ class MyMapStorey(MapClass):
         event["multi"] = event["bid"] * self._multiplier
         return event
 
+
 # Pandas
 class MyMapPandas:
     def __init__(self, multiplier=1, **kwargs):
@@ -856,6 +942,7 @@ class MyMapPandas:
     def do(self, df):
         df["multi"] = df["bid"] * self._multiplier
         return df
+
 
 # Spark
 class MyMapSpark:
@@ -889,20 +976,20 @@ fvec = fstore.FeatureVector(
 )
 fvec.save()
 
-# Instantiate feature-vector from mlrun DB 
+# Instantiate feature-vector from mlrun DB
 fvec = fstore.get_feature_vector("iguazio-academy/heart-disease-vector")
 
 # Offline features for training
 df = fvec.get_offline_features().to_dataframe()
-..
+
 # Materialize offline features to parquet
 fvec.get_offline_features(target=ParquetTarget())
-..
+
 # Online features for serving
-feature_service = fvec.get_online_feature_service()feature_service.get(
+feature_service = fvec.get_online_feature_service().feature_service.get(
     [
-        {"patient_id" : "e443544b-8d9e-4f6c-9623-e24b6139aae0"},
-        {"patient_id" : "8227d3df-16ab-4452-8ea5-99472362d982"}
+        {"patient_id": "e443544b-8d9e-4f6c-9623-e24b6139aae0"},
+        {"patient_id": "8227d3df-16ab-4452-8ea5-99472362d982"},
     ]
 )
 ```
@@ -931,8 +1018,10 @@ Define Python file(s) to orchestrate
 def inc(x):
     return x + 1
 
+
 def mul(x):
     return x * 2
+
 
 class WithState:
     def __init__(self, name, context, init_val=0):
@@ -949,16 +1038,16 @@ class WithState:
 Define MLRun function and graph
 ```python
 import mlrun
+
 fn = project.set_function(
-    name="simple-graph", func="graph.py",
-    kind="serving", image="mlrun/mlrun"
+    name="simple-graph", func="graph.py", kind="serving", image="mlrun/mlrun"
 )
 graph = fn.set_topology("flow")
 
 # inc, mul, and WithState are all defined in graph.py
-graph.to(name="+1", handler='inc')\
-     .to(name="*2", handler='mul')\
-     .to(name="(X+counter)", class_name='WithState').respond()
+graph.to(name="+1", handler="inc").to(name="*2", handler="mul").to(
+    name="(X+counter)", class_name="WithState"
+).respond()
 
 # Local testing
 server = fn.to_mock_server()
@@ -974,8 +1063,8 @@ project.deploy_function(fn)
 Docs: [Example of a simple model serving router](./serving/use-cases.html#example-of-a-simple-model-serving-router)
 
 ```python
-# load the sklearn model serving function and add models to it  
-fn = mlrun.import_function('hub://v2_model_server')
+# load the sklearn model serving function and add models to it
+fn = mlrun.import_function("hub://v2_model_server")
 fn.add_model("model1", model_path="s3://...")
 fn.add_model("model2", model_path="store://...")
 
@@ -983,7 +1072,7 @@ fn.add_model("model2", model_path="store://...")
 project.deploy_function(fn)
 
 # test the live model endpoint
-fn.invoke('/v2/models/model1/infer', body={"inputs": [5]})
+fn.invoke("/v2/models/model1/infer", body={"inputs": [5]})
 ```
 ![](./_static/images/simple_model_serving.png)
 
@@ -997,6 +1086,7 @@ from typing import List
 import numpy as np
 
 import mlrun
+
 
 class ClassifierModel(mlrun.serving.V2ModelServer):
     def load(self):
@@ -1017,18 +1107,20 @@ Docs: {ref}`graph-example`
 
 ```python
 fn = project.set_function(
-    name="advanced", func="demo.py", 
-    kind="serving", image="mlrun/mlrun"
+    name="advanced", func="demo.py", kind="serving", image="mlrun/mlrun"
 )
 graph = function.set_topology("flow", engine="async")
 
-# use built-in storey class or our custom Echo class to create and link Task steps. Add an error 
+# use built-in storey class or our custom Echo class to create and link Task steps. Add an error
 # handling step that runs only if the "Echo" step fails
-graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler(name='catcher', handler='handle_error', full_event=True)
+graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})').to(
+    class_name="Echo", name="pre-process", some_arg="abc"
+).error_handler(name="catcher", handler="handle_error", full_event=True)
 
 # add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
-router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
+router = graph.add_step(
+    "*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process"
+)
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
@@ -1047,13 +1139,10 @@ def hyper_func(context, p1, p2):
     print(f"p1={p1}, p2={p2}, result={p1 * p2}")
     context.log_result("multiplier", p1 * p2)
 
+
 # MLRun function in project
 fn = project.set_function(
-    name="hp",
-    func="hp.py",
-    image="mlrun/mlrun",
-    kind="job",
-    handler="hyper_func"
+    name="hp", func="hp.py", image="mlrun/mlrun", kind="job", handler="hyper_func"
 )
 ```
 ```{admonition} Note
@@ -1068,9 +1157,7 @@ Docs: [Grid Search](./hyper-params.html#grid-search-default)
 Runs all parameter combinations
 ```python
 hp_tuning_run = project.run_function(
-    "hp", 
-    hyperparams={"p1": [2,4,1], "p2": [10,20]}, 
-    selector="max.multiplier"
+    "hp", hyperparams={"p1": [2, 4, 1], "p2": [10, 20]}, selector="max.multiplier"
 )
 ```
 
@@ -1141,10 +1228,7 @@ Docs: [Running the workers using Nuclio](./hyper-params.html#running-the-workers
 ```python
 # Create nuclio:mlrun function
 fn = project.set_function(
-    name='hyper-tst2',
-    func="hp.py",
-    kind='nuclio:mlrun',
-    image='mlrun/mlrun'
+    name="hyper-tst2", func="hp.py", kind="nuclio:mlrun", image="mlrun/mlrun"
 )
 # (replicas * workers) must be equal to or greater than parallel_runs
 fn.spec.replicas = 2
@@ -1157,10 +1241,8 @@ hp_tuning_run_dask = project.run_function(
     hyperparams={"p1": [2, 4, 1], "p2": [10, 20, 30]},
     selector="max.multiplier",
     hyper_param_options=mlrun.model.HyperParamOptions(
-        strategy="grid",
-        parallel_runs=4,
-        max_errors=3
+        strategy="grid", parallel_runs=4, max_errors=3
     ),
-    handler="hyper_func"
+    handler="hyper_func",
 )
 ```

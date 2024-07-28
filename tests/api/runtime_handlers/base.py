@@ -24,18 +24,18 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
-import mlrun.runtimes.constants
 import server.api.crud
 import server.api.utils.clients.chief
-from mlrun.runtimes.constants import PodPhases, RunStates
-from mlrun.utils import create_logger, now_date
-from server.api.constants import LogSources
+from mlrun.common.runtimes.constants import PodPhases, RunStates
+from mlrun.utils import create_test_logger, now_date
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
 from server.api.utils.singletons.k8s import get_k8s_helper
 
-logger = create_logger(level="debug", name="test-runtime-handlers")
+logger = create_test_logger(name="test-runtime-handlers")
 
 
 class TestRuntimeHandlerBase:
@@ -49,7 +49,9 @@ class TestRuntimeHandlerBase:
         self.run_uid = "test_run_uid"
         self.kind = "job"
 
-        mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
+        mlrun.mlconf.mpijob_crd_version = (
+            mlrun.common.runtimes.constants.MPIJobCRDVersions.v1
+        )
         self.custom_setup()
 
         self._logger.info(
@@ -82,6 +84,7 @@ class TestRuntimeHandlerBase:
             },
             "spec": {
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+                "node_selector": {"test/host": "node1"},
             },
         }
         if start_time:
@@ -151,9 +154,13 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_job_labels(run_name, uid=None, job_labels=None):
         labels = job_labels.copy() if job_labels else {}
-        labels["mlrun/uid"] = uid or str(uuid.uuid4())
-        labels["mlrun/name"] = run_name
+        labels[mlrun_constants.MLRunInternalLabels.uid] = uid or str(uuid.uuid4())
+        labels[mlrun_constants.MLRunInternalLabels.name] = run_name
         return labels
+
+    @staticmethod
+    def _generate_run_pod_label_selector(run_uid):
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
 
     @staticmethod
     def _generate_config_map(name, labels, data=None):
@@ -163,12 +170,6 @@ class TestRuntimeHandlerBase:
         if data is None:
             data = {"key": "value"}
         return client.V1ConfigMap(metadata=metadata, data=data)
-
-    def _generate_get_logger_pods_label_selector(self, runtime_handler):
-        run_label_selector = runtime_handler._get_run_label_selector(
-            self.project, self.run_uid
-        )
-        return f"mlrun/class,{run_label_selector}"
 
     def _assert_runtime_handler_list_resources(
         self,
@@ -190,7 +191,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{mlrun_constants.MLRunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = (
@@ -201,7 +202,7 @@ class TestRuntimeHandlerBase:
             label_selector = ",".join(
                 [
                     runtime_handler._get_default_label_selector(),
-                    f"mlrun/project={self.project}",
+                    f"{mlrun_constants.MLRunInternalLabels.project}={self.project}",
                 ]
             )
             assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
@@ -247,7 +248,10 @@ class TestRuntimeHandlerBase:
     ):
         self._assert_list_resources_grouped_by_response(
             resources,
-            lambda labels: (labels["mlrun/project"], labels["mlrun/uid"]),
+            lambda labels: (
+                labels[mlrun_constants.MLRunInternalLabels.project],
+                labels[mlrun_constants.MLRunInternalLabels.uid],
+            ),
             expected_crds,
             expected_pods,
             expected_services,
@@ -264,8 +268,8 @@ class TestRuntimeHandlerBase:
         def _extract_project_and_kind_from_runtime_resources_labels(
             labels: dict,
         ) -> tuple[str, str]:
-            project = labels.get("mlrun/project", "")
-            class_ = labels["mlrun/class"]
+            project = labels.get(mlrun_constants.MLRunInternalLabels.project, "")
+            class_ = labels[mlrun_constants.MLRunInternalLabels.mlrun_class]
             kind = runtime_handler._resolve_kind_from_class(class_)
             return project, kind
 
@@ -383,7 +387,9 @@ class TestRuntimeHandlerBase:
     def _mock_list_namespaced_pods(list_pods_call_responses: list[list[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
-            pods = client.V1PodList(items=list_pods_call_response)
+            pods = client.V1PodList(
+                items=list_pods_call_response, metadata=client.V1ListMeta()
+            )
             calls.append(pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
             side_effect=calls
@@ -472,7 +478,9 @@ class TestRuntimeHandlerBase:
     def _mock_list_namespaced_crds(crd_dicts_call_responses: list[list[dict]]):
         calls = []
         for crd_dicts_call_response in crd_dicts_call_responses:
-            calls.append({"items": crd_dicts_call_response})
+            calls.append(
+                {"items": crd_dicts_call_response, "metadata": {"continue": None}}
+            )
         get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
             side_effect=calls
         )
@@ -499,6 +507,7 @@ class TestRuntimeHandlerBase:
         runtime_handler,
         expected_number_of_calls: int,
         expected_label_selector: str = None,
+        paginated: bool = True,
     ):
         assert (
             get_k8s_helper().v1api.list_namespaced_pod.call_count
@@ -507,49 +516,47 @@ class TestRuntimeHandlerBase:
             f"Unexpected number of calls to list_namespaced_pod "
             f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
         )
+        # if expected_label_selector and expected_label_selector != "":
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()
         )
+        kwargs = {}
+        if paginated:
+            kwargs = {
+                "watch": False,
+                "limit": int(mlrun.mlconf.kubernetes.pagination.list_pods_limit),
+                "_continue": None,
+            }
         get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
             get_k8s_helper().resolve_namespace(),
             label_selector=expected_label_selector,
+            **kwargs,
         )
 
     @staticmethod
     def _assert_list_namespaced_crds_calls(
-        runtime_handler, expected_number_of_calls: int
+        runtime_handler, expected_number_of_calls: int, paginated: bool = True
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         assert (
             get_k8s_helper().crdapi.list_namespaced_custom_object.call_count
             == expected_number_of_calls
         )
+        kwargs = {}
+        if paginated:
+            kwargs = {
+                "watch": False,
+                "limit": int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit),
+                "_continue": None,
+            }
         get_k8s_helper().crdapi.list_namespaced_custom_object.assert_any_call(
             crd_group,
             crd_version,
             get_k8s_helper().resolve_namespace(),
             crd_plural,
             label_selector=runtime_handler._get_default_label_selector(),
+            **kwargs,
         )
-
-    @staticmethod
-    async def _assert_run_logs(
-        db: Session,
-        project: str,
-        uid: str,
-        expected_log: str,
-        logger_pod_name: str = None,
-    ):
-        if logger_pod_name is not None:
-            get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name,
-                namespace=get_k8s_helper().resolve_namespace(),
-            )
-        _, logs = await server.api.crud.Logs().get_logs(
-            db, project, uid, source=LogSources.PERSISTENCY
-        )
-        async for log_line in logs:
-            assert log_line == expected_log.encode()
 
     @staticmethod
     def _assert_run_reached_state(

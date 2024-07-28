@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import re
 import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
+import mlrun.common.schemas.artifact
 import mlrun.config
+import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
@@ -24,7 +27,6 @@ from mlrun.utils.helpers import (
 )
 
 from ..utils import (
-    is_legacy_artifact,
     is_relative_path,
     logger,
     validate_artifact_key_name,
@@ -33,56 +35,28 @@ from ..utils import (
 from .base import (
     Artifact,
     DirArtifact,
-    LegacyArtifact,
-    LegacyDirArtifact,
-    LegacyLinkArtifact,
     LinkArtifact,
 )
 from .dataset import (
     DatasetArtifact,
-    LegacyDatasetArtifact,
-    LegacyTableArtifact,
     TableArtifact,
 )
-from .model import LegacyModelArtifact, ModelArtifact
+from .model import ModelArtifact
 from .plots import (
-    BokehArtifact,
-    ChartArtifact,
-    LegacyBokehArtifact,
-    LegacyChartArtifact,
-    LegacyPlotArtifact,
-    LegacyPlotlyArtifact,
     PlotArtifact,
     PlotlyArtifact,
 )
 
-# TODO - Remove deprecated types when deleted in 1.7.0
 artifact_types = {
     "": Artifact,
     "artifact": Artifact,
     "dir": DirArtifact,
     "link": LinkArtifact,
     "plot": PlotArtifact,
-    "chart": ChartArtifact,
     "table": TableArtifact,
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
     "plotly": PlotlyArtifact,
-    "bokeh": BokehArtifact,
-}
-
-# TODO - Remove this when legacy types are deleted in 1.7.0
-legacy_artifact_types = {
-    "": LegacyArtifact,
-    "dir": LegacyDirArtifact,
-    "link": LegacyLinkArtifact,
-    "plot": LegacyPlotArtifact,
-    "chart": LegacyChartArtifact,
-    "table": LegacyTableArtifact,
-    "model": LegacyModelArtifact,
-    "dataset": LegacyDatasetArtifact,
-    "plotly": LegacyPlotlyArtifact,
-    "bokeh": LegacyBokehArtifact,
 }
 
 
@@ -100,17 +74,38 @@ class ArtifactProducer:
     def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
+    @property
+    def uid(self):
+        return None
+
+    @staticmethod
+    def parse_uri(uri: str) -> tuple[str, str, str]:
+        """Parse artifact producer's uri
+
+        :param uri: artifact producer's uri in the format <project>/<uid>[-<iteration>]
+        :returns: tuple of project, uid, iteration
+        """
+        uri_pattern = mlrun.utils.regex.artifact_producer_uri_pattern
+        match = re.match(uri_pattern, uri)
+        if not match:
+            return "", "", ""
+        group_dict = match.groupdict()
+
+        return (
+            group_dict["project"] or "",
+            group_dict["uid"] or "",
+            group_dict["iteration"] or "",
+        )
+
 
 def dict_to_artifact(struct: dict) -> Artifact:
-    # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
-    # property to make this distinction
     kind = struct.get("kind", "")
 
-    if is_legacy_artifact(struct):
+    # TODO: remove this in 1.8.0
+    if mlrun.utils.is_legacy_artifact(struct):
         return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
 
     artifact_class = artifact_types[kind]
-
     return artifact_class.from_dict(struct)
 
 
@@ -180,11 +175,13 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
+        project=None,
+        is_retained_producer=None,
         **kwargs,
     ) -> Artifact:
         """
         Log an artifact to the DB and upload it to the artifact store.
-        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
+        :param producer: The producer of the artifact, the producer depends on where the artifact is being logged.
         :param item: The artifact to log.
         :param body: The body of the artifact.
         :param target_path: The target path of the artifact. (cannot be a relative path)
@@ -202,6 +199,9 @@ class ArtifactManager:
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
+        :param project: The project to log the artifact to. If not provided, will use the producer's project.
+        :param is_retained_producer: Whether the producer is retained or not. Relevant to register artifacts flow
+        where a project may log artifacts which were produced by another producer.
         :param kwargs: Arguments to pass to the artifact class.
         :return: The logged artifact.
         """
@@ -226,7 +226,7 @@ class ArtifactManager:
 
         if db_key is None:
             # set the default artifact db key
-            if producer.kind == "run":
+            if producer.kind == "run" and not is_retained_producer:
                 # When the producer's type is "run,"
                 # we generate a different db_key than the one we obtained in the request.
                 # As a result, a new artifact for the requested key will be created,
@@ -251,8 +251,11 @@ class ArtifactManager:
             item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
-        project = producer.project
+        project = project or producer.project
         item.project = project
+        if is_retained_producer:
+            # if the producer is retained, we want to use the original target path
+            target_path = target_path or item.target_path
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
@@ -260,7 +263,8 @@ class ArtifactManager:
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
-            upload = False
+            if upload is None:
+                upload = False
 
         # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
         # already exists. In this case set the target_path to the src_path and set upload to False
@@ -287,7 +291,9 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = template_artifact_path(artifact_path=target_path, project=project)
+        target_path = template_artifact_path(
+            artifact_path=target_path, project=producer.project, run_uid=producer.uid
+        )
         item.target_path = target_path
 
         item.before_log()
@@ -297,13 +303,10 @@ class ArtifactManager:
             # before uploading the item, we want to ensure that its tags are valid,
             # so that we don't upload something that won't be stored later
             validate_tag_name(item.metadata.tag, "artifact.metadata.tag")
-            if is_legacy_artifact(item):
-                item.upload()
-            else:
-                item.upload(artifact_path=artifact_path)
+            item.upload(artifact_path=artifact_path)
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item)
+            self._log_to_db(db_key, project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -370,6 +373,23 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
+
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        self.artifact_db.del_artifact(
+            key=item.db_key,
+            project=item.project,
+            tag=item.tag,
+            tree=item.tree,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
+        )
 
 
 def extend_artifact_path(artifact_path: str, default_artifact_path: str):

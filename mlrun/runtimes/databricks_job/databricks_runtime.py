@@ -232,6 +232,7 @@ def run_mlrun_databricks_job(context,task_parameters: dict, **kwargs):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if local:

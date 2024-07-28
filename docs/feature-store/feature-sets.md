@@ -51,7 +51,7 @@ Avoid using timestamps or bool as entities.
    
 Example:
 ```python
-#Create a basic feature set example
+# Create a basic feature set example
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 ```
 
@@ -77,7 +77,7 @@ Typical code, from defining the feature set through ingesting its data:
 ```
 # Flag the feature set as passthrough
 my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
-csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
+csv_source = CSVSource("my_csv", path="data.csv")
 # Ingest the source data, but only to online/nosql target
 my_fset.ingest(csv_source) 
 vector = fstore.FeatureVector("myvector", features=[f"my_fset"])
@@ -105,11 +105,15 @@ in the Iguazio NoSQL DB (`NoSqlTarget`). You can use the default targets or add/
 Graph example (storey engine):
 ```python
 import mlrun.feature_store as fstore
-feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
+
+feature_set = fstore.FeatureSet(
+    "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+)
 # Define the computational graph including the custom functions
-feature_set.graph.to(DropColumns(drop_columns))\
-                 .to(RenameColumns(mapping={'bad': 'bed'}))
-feature_set.add_aggregation('hr', ['avg'], ["1h"])
+feature_set.graph.to(DropColumns(drop_columns)).to(
+    RenameColumns(mapping={"bad": "bed"})
+)
+feature_set.add_aggregation("hr", ["avg"], ["1h"])
 feature_set.plot()
 feature_set.ingest(data_df)
 ```
@@ -119,6 +123,7 @@ Graph example (pandas engine):
 def myfunc1(df, context=None):
     df = df.drop(columns=["exchange"])
     return df
+
 
 stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")

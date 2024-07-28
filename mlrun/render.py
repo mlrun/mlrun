@@ -121,20 +121,12 @@ def artifacts_html(
     html = ""
 
     for artifact in artifacts:
-        # TODO: remove this in 1.7.0 once we no longer support legacy format
-        if mlrun.utils.is_legacy_artifact(artifact):
-            attribute_value = artifact.get(attribute_name)
-        else:
-            attribute_value = artifact["spec"].get(attribute_name)
-
-        if mlrun.utils.is_legacy_artifact(artifact):
-            key = artifact["key"]
-        else:
-            key = artifact["metadata"]["key"]
+        attribute_value = artifact["spec"].get(attribute_name)
+        key = artifact["metadata"]["key"]
 
         if not attribute_value:
             mlrun.utils.logger.warning(
-                "Artifact is incomplete, omitting from output (most likely due to a failed artifact logging)",
+                f"Artifact required attribute {attribute_name} is missing, omitting from output",
                 artifact_key=key,
             )
             continue
@@ -291,9 +283,14 @@ function copyToClipboard(fld) {
 }
 function expandPanel(el) {
   const panelName = "#" + el.getAttribute('paneName');
-  console.log(el.title);
 
-  document.querySelector(panelName + "-title").innerHTML = el.title
+  // Get the base URL of the current notebook
+  var baseUrl = window.location.origin;
+
+  // Construct the full URL
+  var fullUrl = new URL(el.title, baseUrl).href;
+
+  document.querySelector(panelName + "-title").innerHTML = fullUrl
   iframe = document.querySelector(panelName + "-body");
 
   const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
@@ -307,7 +304,7 @@ function expandPanel(el) {
   }
 
   function reqListener () {
-    if (el.title.endsWith(".csv")) {
+    if (fullUrl.endsWith(".csv")) {
       iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
     } else {
       iframe.setAttribute("srcdoc", this.responseText);
@@ -317,11 +314,11 @@ function expandPanel(el) {
 
   const oReq = new XMLHttpRequest();
   oReq.addEventListener("load", reqListener);
-  oReq.open("GET", el.title);
+  oReq.open("GET", fullUrl);
   oReq.send();
 
 
-  //iframe.src = el.title;
+  //iframe.src = fullUrl;
   const resultPane = document.querySelector(panelName + "-pane");
   if (resultPane.classList.contains("hidden")) {
     resultPane.classList.remove("hidden");
@@ -404,12 +401,21 @@ def runs_to_html(
         df.drop("labels", axis=1, inplace=True)
         df.drop("inputs", axis=1, inplace=True)
         df.drop("artifacts", axis=1, inplace=True)
+        df.drop("artifact_uris", axis=1, inplace=True)
     else:
         df["labels"] = df["labels"].apply(dict_html)
         df["inputs"] = df["inputs"].apply(inputs_html)
-        df["artifacts"] = df["artifacts"].apply(
-            lambda artifacts: artifacts_html(artifacts, "target_path"),
-        )
+        if df["artifacts"][0]:
+            df["artifacts"] = df["artifacts"].apply(
+                lambda artifacts: artifacts_html(artifacts, "target_path"),
+            )
+            df.drop("artifact_uris", axis=1, inplace=True)
+        elif df["artifact_uris"][0]:
+            df["artifact_uris"] = df["artifact_uris"].apply(dict_html)
+            df.drop("artifacts", axis=1, inplace=True)
+        else:
+            df.drop("artifacts", axis=1, inplace=True)
+            df.drop("artifact_uris", axis=1, inplace=True)
 
     def expand_error(x):
         if x["state"] == "error":

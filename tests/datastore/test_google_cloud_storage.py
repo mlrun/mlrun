@@ -31,3 +31,10 @@ def test_get_storage_options():
 
     st._get_secret_or_env = MagicMock(return_value="/path/to/gcs_credentials_file")
     assert st.get_storage_options() == {"token": "/path/to/gcs_credentials_file"}
+
+    st._get_secret_or_env = MagicMock(
+        return_value={"token": {"key1": "value1", "key2": "value2"}}
+    )
+    assert st.get_storage_options() == {
+        "token": {"token": {"key1": "value1", "key2": "value2"}}
+    }

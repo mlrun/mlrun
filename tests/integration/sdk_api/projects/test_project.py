@@ -19,6 +19,7 @@ import deepdiff
 import pytest
 
 import mlrun
+import mlrun.common.formatters
 import mlrun.common.schemas
 import tests.conftest
 import tests.integration.sdk_api.base
@@ -50,7 +51,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         project_function_object = project.spec._function_objects
         project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
         project.export(str(project_file_path))
-        imported_project = mlrun.load_project("./", str(project_file_path))
+        imported_project = mlrun.load_project(
+            "./", str(project_file_path), allow_cross_project=True
+        )
         assert imported_project.spec._function_objects == {}
         imported_project.sync_functions()
         _assert_project_function_objects(imported_project, project_function_object)
@@ -113,7 +116,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
                 project=project.metadata.name,
             )
 
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -144,7 +147,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         old_creation_time = projects[0].metadata.created
 
         mlrun.new_project(project_name, overwrite=True)
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -159,7 +162,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         db = mlrun.get_run_db()
 
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -169,7 +172,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # overwrite empty project
         mlrun.new_project(project_name, overwrite=True)
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -183,7 +186,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         db = mlrun.get_run_db()
 
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
         old_creation_time = projects[0].metadata.created
@@ -193,7 +196,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             mlrun.new_project(project_name, from_template="bla", overwrite=True)
 
         # ensure project was not deleted
-        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+        projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
         assert projects[0].metadata.created == old_creation_time
@@ -201,7 +204,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_load_project_from_db(self):
         project_name = "some-project"
         mlrun.new_project(project_name)
-        mlrun.load_project(".", f"db://{project_name}")
+        mlrun.load_project(".", f"db://{project_name}", allow_cross_project=True)
 
     def test_load_project_with_save(self):
         project_name = "some-project"
@@ -212,30 +215,42 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         imported_project_name = "imported-project"
         # loaded project but didn't saved
         mlrun.load_project(
-            "./", str(project_file_path), name=imported_project_name, save=False
+            "./",
+            str(project_file_path),
+            name=imported_project_name,
+            save=False,
+            allow_cross_project=True,
         )
 
         # loading project from db, but earlier load didn't saved, expected to fail
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            mlrun.load_project(".", f"db://{imported_project_name}", save=False)
+            mlrun.load_project(
+                ".",
+                f"db://{imported_project_name}",
+                save=False,
+                allow_cross_project=True,
+            )
 
         # loading project and saving
         expected_project = mlrun.load_project(
-            "./", str(project_file_path), name=imported_project_name
+            "./",
+            str(project_file_path),
+            name=imported_project_name,
+            allow_cross_project=True,
         )
 
         # loading project from db, expected to succeed
         loaded_project_from_db = mlrun.load_project(
-            ".", f"db://{imported_project_name}", save=False
+            ".", f"db://{imported_project_name}", save=False, allow_cross_project=True
         )
         _assert_projects(expected_project, loaded_project_from_db)
 
     def test_get_project(self):
         project_name = "some-project"
         # create an empty project
-        mlrun.get_or_create_project(project_name)
+        mlrun.get_or_create_project(project_name, allow_cross_project=True)
         # get it from the db
-        project = mlrun.get_or_create_project(project_name)
+        project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 
         # verify default values
         assert project.metadata.name == project_name
@@ -250,7 +265,9 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
     def test_set_project_secrets(self):
         # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
         project_name = "some-project"
-        project_object = mlrun.get_or_create_project(project_name)
+        project_object = mlrun.get_or_create_project(
+            project_name, allow_cross_project=True
+        )
 
         secrets = {"secret1": "value1", "secret2": "value2"}
         project_object.set_secrets(secrets)

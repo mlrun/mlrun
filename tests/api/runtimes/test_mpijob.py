@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 import unittest.mock
 
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
-from mlrun.runtimes.constants import MPIJobCRDVersions
+from mlrun.common.runtimes.constants import MPIJobCRDVersions
 from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -78,10 +78,10 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
-                    "mpijob": "v1/mpi-job-role=worker",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=worker",
                 },
                 name=self.name,
             ),
@@ -92,19 +92,17 @@ class TestMpiV1Runtime(TestRuntimeBase):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
-                    "kind": "mpijob",
-                    "owner": "tester",
-                    "v3io_user": "tester",
-                    "mpijob": "v1/mpi-job-role=launcher",
+                    mlrun_constants.MLRunInternalLabels.kind: "mpijob",
+                    mlrun_constants.MLRunInternalLabels.owner: "tester",
+                    mlrun_constants.MLRunInternalLabels.v3io_user: "tester",
+                    "mpijob": f"v1/{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher",
                 },
                 name=self.name,
             ),
             status=k8s_client.V1PodStatus(phase=phase),
         )
 
-    def _generate_runtime(
-        self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.MpiRuntimeV1, mlrun.runtimes.MpiRuntimeV1Alpha1]:
+    def _generate_runtime(self, kind=None, labels=None) -> mlrun.runtimes.MpiRuntimeV1:
         runtime = code_to_function(
             name=self.name,
             project=self.project,

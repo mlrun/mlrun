@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from urllib.parse import urlparse
 
 import fsspec
 
@@ -49,3 +50,7 @@ class HdfsStore(DataStore):
     @property
     def spark_url(self):
         return f"hdfs://{self.host}:{self.port}"
+
+    def rm(self, url, recursive=False, maxdepth=None):
+        path = urlparse(url).path
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)

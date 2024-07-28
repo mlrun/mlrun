@@ -19,11 +19,12 @@ from fastapi import APIRouter, Depends, Header
 import mlrun.common.schemas
 import server.api.api.utils
 import server.api.crud
+import server.api.utils.helpers
 
 router = APIRouter()
 
 
-@server.api.api.utils.lru_cache_with_ttl(maxsize=32, ttl_seconds=60 * 5)
+@server.api.utils.helpers.lru_cache_with_ttl(maxsize=32, ttl_seconds=60 * 5)
 def get_cached_client_spec(
     client_version: typing.Optional[str] = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version

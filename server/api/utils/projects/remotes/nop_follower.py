@@ -17,9 +17,9 @@ import typing
 import mergedeep
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
-import server.api.utils.helpers
 import server.api.utils.projects.remotes.follower as project_follower
 
 
@@ -70,6 +70,8 @@ class Member(project_follower.Member):
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
     ) -> mlrun.common.schemas.Project:
+        if name not in self._projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
         # deep copy so we won't accidentally get changes from tests
         return self._projects[name].copy(deep=True)
 
@@ -77,7 +79,7 @@ class Member(project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
@@ -95,22 +97,17 @@ class Member(project_follower.Member):
                 for project_name, project in self._projects.items()
                 if project_name in names
             ]
-        if format_ == mlrun.common.schemas.ProjectsFormat.full:
-            return mlrun.common.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.common.schemas.ProjectsFormat.minimal:
-            return mlrun.common.schemas.ProjectsOutput(
-                projects=[
-                    server.api.utils.helpers.minimize_project_schema(project)
-                    for project in projects
-                ]
-            )
-        elif format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-            project_names = [project.metadata.name for project in projects]
-            return mlrun.common.schemas.ProjectsOutput(projects=project_names)
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=[
+                mlrun.common.formatters.ProjectFormat.format_obj(
+                    project,
+                    format_,
+                    exclude_formats=[mlrun.common.formatters.ProjectFormat.leader],
+                )
+                for project in projects
+            ]
+        )
 
     def list_project_summaries(
         self,

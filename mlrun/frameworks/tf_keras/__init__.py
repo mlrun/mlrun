@@ -18,6 +18,7 @@ from typing import Any, Union
 from tensorflow import keras
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 
 from .callbacks import MLRunLoggingCallback, TensorboardLoggingCallback
 from .mlrun_interface import TFKerasMLRunInterface
@@ -85,7 +86,7 @@ def apply_mlrun(
 
                                             {
                                                 "/.../custom_optimizer.py": "optimizer",
-                                                "/.../custom_layers.py": ["layer1", "layer2"]
+                                                "/.../custom_layers.py": ["layer1", "layer2"],
                                             }
 
                                         All the paths will be accessed from the given 'custom_objects_directory',
@@ -126,7 +127,9 @@ def apply_mlrun(
     # # Use horovod:
     if use_horovod is None:
         use_horovod = (
-            context.labels.get("kind", "") == "mpijob" if context is not None else False
+            context.labels.get(mlrun_constants.MLRunInternalLabels.kind, "") == "mpijob"
+            if context is not None
+            else False
         )
 
     # Create a model handler:

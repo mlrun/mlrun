@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 
 import pandas as pd
@@ -111,3 +112,20 @@ def test_write_with_too_many_partitions():
         match="Maximum number of partitions exceeded. To resolve this.*",
     ):
         parquet_target.write_dataframe(df)
+
+
+def test_transform_list_filters_to_tuple():
+    additional_filters = [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]]
+    parquet_target = ParquetTarget("parquet_target", path="path/to/file")
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
+    ):
+        parquet_target.as_df(additional_filters=additional_filters)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
+    ):
+        parquet_target.as_df(additional_filters=back_from_json_serialization)

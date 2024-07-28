@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2024 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,8 +41,10 @@ spec:
     engine: kfp
   artifacts:
   - kind: ''
-    target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
-    key: data
+    metadata:
+      key: data
+    spec:
+      target_path: https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv
   source: ./
   subpath: ''
   origin_url: ''

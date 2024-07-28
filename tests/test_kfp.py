@@ -18,13 +18,13 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import mlrun_pipelines.common.ops
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
 import yaml
 
-import mlrun.kfpops
 from mlrun import new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
@@ -87,8 +87,10 @@ def kfp_dirs(monkeypatch):
             artifacts_dir=artifacts_dir,
             output_dir=output_dir,
         )
-        monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
-        monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setattr(mlrun_pipelines.common.ops, "KFPMETA_DIR", str(meta_dir))
+        monkeypatch.setattr(
+            mlrun_pipelines.common.ops, "KFP_ARTIFACTS_DIR", str(artifacts_dir)
+        )
         yield str(meta_dir), str(artifacts_dir), str(output_dir)
 
 
@@ -133,7 +135,7 @@ def _assert_output_dir(output_dir, name, iterations=1):
         with open(iteration_results_file) as file:
             count = 0
             for row in csv.DictReader(file):
-                print(yaml.dump(row))
+                print(yaml.safe_dump(row))
                 count += 1
         assert count == 3, "didnt see expected iterations file output"
 
@@ -194,3 +196,24 @@ def _generate_task(p1, out_path):
         out_path=out_path,
         outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")
+
+
+def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
+    ensure_default_project,
+):
+    function = new_function(
+        kfp=True, kind="job", project=ensure_default_project.metadata.name
+    )
+    function_node_selector, function_val = "ns1", "val1"
+    function.spec.node_selector = {function_node_selector: function_val}
+
+    project_node_selector, project_val = "ns2", "val2"
+    ensure_default_project.spec.default_function_node_selector = {
+        project_node_selector: project_val
+    }
+
+    cop = function.as_step()
+    assert cop.node_selector == {
+        function_node_selector: function_val,
+        project_node_selector: project_val,
+    }

@@ -18,16 +18,22 @@ import pathlib
 import re
 import shutil
 import sys
+import time
 from sys import executable
 
+import igz_mgmt
+import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.logger
+import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
+from mlrun.common.runtimes.constants import RunStates
 from mlrun.model import EntrypointParam
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
@@ -164,13 +170,13 @@ class TestProject(TestMLRunSystem):
         # build function with image that has a protocol prefix
         self.project.build_function(
             fn,
-            image=f"https://{mlrun.config.config.httpdb.builder.docker_registry}/test/image:v3",
+            image=f"https://{mlrun.mlconf.httpdb.builder.docker_registry}/test/image:v3",
             base_image="mlrun/mlrun",
             commands=["echo 1"],
         )
         out = _stdout.getvalue()
         assert (
-            "[warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
+            "[mlrun:warning] The image has an unexpected protocol prefix ('http://' or 'https://'). "
             "If you wish to use the default configured registry, no protocol prefix is required "
             "(note that you can also use '.<image-name>' instead of the full URL "
             "where <image-name> is a placeholder). "
@@ -182,9 +188,13 @@ class TestProject(TestMLRunSystem):
         self._create_project(name)
 
         # load project from context dir and run a workflow
-        project2 = mlrun.load_project(str(self.assets_path), name=name)
+        project2 = mlrun.load_project(
+            str(self.assets_path), name=name, allow_cross_project=True
+        )
         run = project2.run("main", watch=True, artifact_path=f"v3io:///projects/{name}")
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
         # test the list_runs/artifacts/functions methods
         runs_list = project2.list_runs(name="test", labels=f"workflow={run.run_id}")
@@ -212,10 +222,14 @@ class TestProject(TestMLRunSystem):
         self._create_project(name)
 
         # load project from context dir and run a workflow
-        project = mlrun.load_project(str(self.assets_path), name=name)
+        project = mlrun.load_project(
+            str(self.assets_path), name=name, allow_cross_project=True
+        )
         # Don't provide an artifact-path, to verify that the run-id is added by default
         workflow_run = project.run("main", watch=True)
-        assert workflow_run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            workflow_run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
         # check that the functions running in the workflow had the output_path set correctly
         db = mlrun.get_run_db()
@@ -235,7 +249,10 @@ class TestProject(TestMLRunSystem):
         shutil.rmtree(project_dir, ignore_errors=True)
 
         project2 = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git#main",
+            name=name,
+            allow_cross_project=True,
         )
         self._logger.info("run pipeline from git")
 
@@ -243,7 +260,9 @@ class TestProject(TestMLRunSystem):
         project2.spec.load_source_on_run = True
         run = project2.run("main", artifact_path=f"v3io:///projects/{name}")
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_run_git_build(self):
         name = "pipe3"
@@ -253,7 +272,10 @@ class TestProject(TestMLRunSystem):
 
         # load project from git, build the container image from source (in the workflow)
         project2 = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git#main", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git#main",
+            name=name,
+            allow_cross_project=True,
         )
         self._logger.info("run pipeline from git")
         project2.spec.load_source_on_run = False
@@ -263,7 +285,9 @@ class TestProject(TestMLRunSystem):
             arguments={"build": 1},
         )
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     @staticmethod
     def _assert_cli_output(output: str, project_name: str):
@@ -274,7 +298,9 @@ class TestProject(TestMLRunSystem):
         db = mlrun.get_run_db()
         pipeline = db.get_pipeline(run_id, project=project_name)
         state = pipeline["run"]["status"]
-        assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_run_cli(self):
         # load project from git
@@ -295,7 +321,7 @@ class TestProject(TestMLRunSystem):
         self._logger.debug("executed project", out=out)
 
         # load the project from local dir and change a workflow
-        project2 = mlrun.load_project(project_dir)
+        project2 = mlrun.load_project(project_dir, allow_cross_project=True)
         self.custom_project_names_to_delete.append(project2.metadata.name)
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
@@ -364,7 +390,9 @@ class TestProject(TestMLRunSystem):
             workflow_handler=pipe_test,
         )
         run.wait_for_completion()
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
 
     def test_cli_no_save_flag(self):
         # load project from git
@@ -393,19 +421,25 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.spec.description = "mytest"
         project.save()
 
         # get project should read from DB
         shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         project.save()
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
 
         # get project should read from context (project.yaml)
-        project = mlrun.get_or_create_project(name, project_dir)
+        project = mlrun.get_or_create_project(
+            name, project_dir, allow_cross_project=True
+        )
         assert project.spec.description == "mytest", "failed to get project"
 
     def test_new_project_overwrite(self):
@@ -485,7 +519,9 @@ class TestProject(TestMLRunSystem):
             artifact_path=f"v3io:///projects/{name}",
             watch=True,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
@@ -560,23 +596,50 @@ class TestProject(TestMLRunSystem):
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
     def _test_remote_pipeline_from_github(
-        self, name, workflow_name, engine=None, local=None, watch=False
+        self,
+        name,
+        workflow_name,
+        engine=None,
+        local=None,
+        watch=False,
+        notification_steps=None,
     ):
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.load_project(
-            project_dir, "git://github.com/mlrun/project-demo.git", name=name
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+            allow_cross_project=True,
         )
+
+        nuclio_function_url = None
+        notifications = []
+        if notification_steps:
+            # nuclio function for storing notifications, to validate the notifications from the pipeline
+            nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+                project
+            )
+            notifications = self._generate_pipeline_notifications(nuclio_function_url)
+
         run = project.run(
             workflow_name,
             watch=watch,
             local=local,
             engine=engine,
+            notifications=notifications,
         )
 
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         # run.run_id can be empty in case of a local engine:
         assert run.run_id is not None, "workflow's run id failed to fetch"
+
+        if notification_steps:
+            self._assert_pipeline_notification_steps(
+                nuclio_function_url, notification_steps
+            )
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"
@@ -584,9 +647,17 @@ class TestProject(TestMLRunSystem):
 
         self._test_remote_pipeline_from_github(
             name=project_name,
-            workflow_name="main",
+            workflow_name="newflow",
             engine="remote",
             watch=True,
+            notification_steps={
+                # gen data function build step
+                "build": 1,
+                # workflow runner, gen data, summary, train, test and model testing steps
+                "run": 6,
+                # serving step
+                "deploy": 1,
+            },
         )
         self._test_remote_pipeline_from_github(
             name=project_name, workflow_name="main", engine="remote:kfp"
@@ -632,7 +703,9 @@ class TestProject(TestMLRunSystem):
             watch=True,
             engine="remote",
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
     def test_kfp_from_local_code(self):
@@ -644,7 +717,9 @@ class TestProject(TestMLRunSystem):
         current_dirname = os.path.dirname(current_file_abspath)
         os.chdir(current_dirname)
 
-        project = mlrun.get_or_create_project(name, user_project=True, context="./")
+        project = mlrun.get_or_create_project(
+            name, user_project=True, context="./", allow_cross_project=True
+        )
 
         handler_fn = project.set_function(
             func="./assets/handler.py",
@@ -664,7 +739,9 @@ class TestProject(TestMLRunSystem):
             "main",
             watch=True,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
 
     def test_local_cli(self):
@@ -827,6 +904,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             "git://github.com/mlrun/project-demo.git",
             name=name,
+            allow_cross_project=True,
         )
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
@@ -872,6 +950,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             "git://github.com/mlrun/project-demo.git",
             name=name,
+            allow_cross_project=True,
         )
 
         args = [
@@ -914,13 +993,13 @@ class TestProject(TestMLRunSystem):
         # scheduling project with non-remote source (scheduling)
         run = project.run("main", schedule="*/10 * * * *")
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), f"pipeline should failed, state = {run.state}"
 
         # scheduling project with non-remote source (single run)
         run = project.run("main", engine="remote")
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), f"pipeline should failed, state = {run.state}"
 
     def test_remote_workflow_source(self):
@@ -935,6 +1014,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             original_source,
             name=name,
+            allow_cross_project=True,
         )
         # Getting the expected source after possible enrichment:
         expected_source = project.source
@@ -946,7 +1026,7 @@ class TestProject(TestMLRunSystem):
             source=temporary_source,
             artifact_path=artifact_path,
         )
-        assert run.state == mlrun.run.RunStatuses.succeeded
+        assert run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.source == expected_source
@@ -974,7 +1054,7 @@ class TestProject(TestMLRunSystem):
             watch=True,
         )
         assert (
-            run.state == mlrun.run.RunStatuses.failed
+            run.state == mlrun_pipelines.common.models.RunStatuses.failed
         ), "pipeline supposed to fail since newflow is not in the temporary source"
 
     def test_workflow_image_fails(self):
@@ -997,7 +1077,7 @@ class TestProject(TestMLRunSystem):
             "bad-image",
             engine="remote",
         )
-        assert run.state == mlrun.run.RunStatuses.failed
+        assert run.state == mlrun_pipelines.common.models.RunStatuses.failed
 
     def _assert_scheduled(self, project_name, schedule_str):
         schedule = self._run_db.get_schedule(project_name, "main")
@@ -1014,6 +1094,7 @@ class TestProject(TestMLRunSystem):
             url=project_source,
             subpath="./test_remote_workflow_subpath",
             name=project_name,
+            allow_cross_project=True,
         )
         project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
@@ -1042,7 +1123,7 @@ class TestProject(TestMLRunSystem):
             True,
             _assert_workflow_status,
             workflow,
-            mlrun.run.RunStatuses.running,
+            mlrun_pipelines.common.models.RunStatuses.running,
         )
 
         # obtain the first run in the workflow when it began running
@@ -1064,8 +1145,130 @@ class TestProject(TestMLRunSystem):
             True,
             _assert_workflow_status,
             workflow,
-            mlrun.run.RunStatuses.failed,
+            mlrun_pipelines.common.models.RunStatuses.failed,
         )
+
+    def _create_and_validate_project_function_with_node_selector(
+        self, project: mlrun.projects.MlrunProject
+    ):
+        function_name = "test-func"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
+
+        code_path = str(self.assets_path / "sleep.py")
+        func = project.set_function(
+            name=function_name,
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        func.spec.node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+
+        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+        # but at runtime.
+        job = project.run_function(function_name)
+
+        # Verify that the node selector is correctly enriched on job object
+        assert job.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_override_label: function_override_val,
+            function_label_name: function_label_val,
+        }
+
+        # Verify that the node selector is not enriched on function object
+        result_func = project.get_function(function_name)
+        assert result_func.spec.node_selector == {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+
+    def _create_and_validate_mpi_function_with_node_selector(
+        self, project: mlrun.projects.MlrunProject
+    ):
+        function_name = "test-func"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
+
+        code_path = str(self.assets_path / "mpijob_function.py")
+        replicas = 2
+
+        mpi_func = mlrun.code_to_function(
+            name=function_name,
+            kind="mpijob",
+            handler="handler",
+            project=project.name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        mpi_func.spec.replicas = replicas
+        mpi_func.spec.node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+        # We run the function to ensure node selector enrichment, which doesn't occur during function build,
+        # but at runtime.
+        mpijob_run = mpi_func.run(returns=["reduced_result", "rank_0_result"])
+        assert mpijob_run.status.state == RunStates.completed
+
+        # Verify that the node selector is correctly enriched on job object
+        assert mpijob_run.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_override_label: function_override_val,
+            function_label_name: function_label_val,
+        }
+
+    @pytest.mark.enterprise
+    def test_project_default_function_node_selector_using_igz_mgmt(self):
+        project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+
+        # Test using Iguazio to create the project
+        project_name = "test-project"
+        self.custom_project_names_to_delete.append(project_name)
+
+        igz_mgmt.Project.create(
+            self._igz_mgmt_client,
+            name=project_name,
+            owner="admin",
+            default_function_node_selector=[
+                {"name": project_label_name, "value": project_label_val}
+            ],
+        )
+
+        project = self._run_db.get_project(project_name)
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val
+        }
+        self._create_and_validate_project_function_with_node_selector(project)
+
+    def test_project_default_function_node_selector(self):
+        project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
+        project_label_to_remove, project_label_to_remove_val = (
+            "kubernetes.io/hostname",
+            "k8s-node1",
+        )
+
+        # Test using mlrun sdk to create the project
+        project_name = "test-project"
+        self.custom_project_names_to_delete.append(project_name)
+
+        project = mlrun.new_project(
+            project_name,
+            default_function_node_selector={
+                project_label_name: project_label_val,
+                project_label_to_remove: project_label_to_remove_val,
+            },
+        )
+        assert project.spec.default_function_node_selector == {
+            project_label_name: project_label_val,
+            project_label_to_remove: project_label_to_remove_val,
+        }
+
+        self._create_and_validate_project_function_with_node_selector(project)
+        self._create_and_validate_mpi_function_with_node_selector(project)
 
     def test_project_build_image(self):
         name = "test-build-image"
@@ -1120,7 +1323,9 @@ class TestProject(TestMLRunSystem):
         proj_file_path = project_dir + "/project.yaml"
         project.export(proj_file_path)
 
-        new_project = mlrun.load_project(project_dir, name=name_import)
+        new_project = mlrun.load_project(
+            project_dir, name=name_import, allow_cross_project=True
+        )
         new_project.build_image()
 
         new_project.set_function(
@@ -1218,8 +1423,11 @@ class TestProject(TestMLRunSystem):
         # from the zip by the packager
         assert (
             use_artifact_run.state()
-            not in mlrun.runtimes.constants.RunStates.error_states()
+            not in mlrun.common.runtimes.constants.RunStates.error_states()
         )
+
+        exported_artifact = project_2.get_artifact(new_artifact_key)
+        assert exported_artifact.target_path == artifact.target_path
 
     def test_load_project_with_artifact_db_key(self):
         project_1_name = "test-load-with-artifact"
@@ -1230,7 +1438,9 @@ class TestProject(TestMLRunSystem):
         )
 
         context = "./load"
-        project = mlrun.get_or_create_project(project_1_name, context=context)
+        project = mlrun.get_or_create_project(
+            project_1_name, context=context, allow_cross_project=True
+        )
 
         # create artifact with an explicit db_key
         artifact_key = "artifact_key"
@@ -1250,7 +1460,9 @@ class TestProject(TestMLRunSystem):
         project.save()
 
         # create a project from the same spec
-        project2 = mlrun.load_project(context=context, name=project_2_name)
+        project2 = mlrun.load_project(
+            context=context, name=project_2_name, allow_cross_project=True
+        )
 
         # validate that the artifact was saved with the db_key
         artifacts = project2.list_artifacts(name=artifact_db_key)
@@ -1277,7 +1489,9 @@ class TestProject(TestMLRunSystem):
         project.save()
 
         # create a new project from the same spec, and validate the artifact was loaded properly
-        project3 = mlrun.load_project(context=context, name=project_3_name)
+        project3 = mlrun.load_project(
+            context=context, name=project_3_name, allow_cross_project=True
+        )
         # since it is imported from yaml, the artifact is saved with the set key
         artifacts = project3.list_artifacts(name=another_artifact_key)
         assert len(artifacts) == 1
@@ -1367,6 +1581,7 @@ class TestProject(TestMLRunSystem):
             project_dir,
             source,
             name=name,
+            allow_cross_project=True,
         )
         project.set_source(source)
 
@@ -1380,9 +1595,52 @@ class TestProject(TestMLRunSystem):
             source="./",  # Relative to project.spec.build.source_code_target_dir
             artifact_path=artifact_path,
             dirty=True,
+            watch=True,
         )
         assert run.state == mlrun.run.RunStatuses.succeeded
 
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.source == source
+
+    @staticmethod
+    def _generate_pipeline_notifications(
+        nuclio_function_url: str,
+    ) -> list[mlrun.model.Notification]:
+        return [
+            mlrun.model.Notification.from_dict(
+                {
+                    "kind": "webhook",
+                    "name": "Pipeline Completed",
+                    "message": "Pipeline Completed",
+                    "severity": "info",
+                    "when": ["completed"],
+                    "condition": "",
+                    "params": {
+                        "url": nuclio_function_url,
+                    },
+                    "secret_params": {
+                        "webhook": "some-webhook",
+                    },
+                }
+            ),
+        ]
+
+    @staticmethod
+    def _assert_pipeline_notification_steps(
+        nuclio_function_url: str, notification_steps: dict
+    ):
+        # in order to trigger the periodic monitor runs function, to detect the failed run and send an event on it
+        time.sleep(35)
+
+        notification_data = list(
+            notification_helpers.get_notifications_from_nuclio_and_reset_notification_cache(
+                nuclio_function_url
+            )
+        )[0]
+        notification_data_steps = {}
+        for step in notification_data:
+            notification_data_steps.setdefault(step.get("step_kind"), 0)
+            notification_data_steps[step.get("step_kind")] += 1
+
+        assert notification_data_steps == notification_steps

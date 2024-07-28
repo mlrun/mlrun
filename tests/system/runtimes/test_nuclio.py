@@ -17,6 +17,7 @@ import os
 import time
 import uuid
 
+import mlrun_pipelines.mounts
 import pandas as pd
 import pytest
 import requests
@@ -200,7 +201,11 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         )
 
         graph.add_step(
-            name="otherchild", class_name="Augment", after="q1", function="otherchild"
+            name="otherchild",
+            class_name="Augment",
+            after="q1",
+            function="otherchild",
+            full_event=True,
         )
 
         graph["out"].after_step("otherchild")
@@ -244,7 +249,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         record1, record2 = resp.output.records
 
         expected_record = b'{"hello": "world"}'
-        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
         assert (
             record1.data == expected_record and record2.data == expected_other_record
@@ -401,7 +406,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func.spec.max_replicas = 1
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
-            mlrun.auto_mount()
+            mlrun_pipelines.mounts.auto_mount()
         )
         stocks_set_endpoint, _ = stocks_set.deploy_ingestion_service(
             source=kafka_source,
@@ -437,7 +442,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_serving_with_kafka_queue(self, kafka_fixture):
-        kafka_consumer, _ = kafka_fixture
+        kafka_consumer, _, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 
@@ -462,12 +467,16 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             ">>",
             "out",
             path=self.topic_out,
-            kafka_bootstrap_servers=self.brokers,
+            kafka_brokers=self.brokers,
             sharding_func=2,
         )
 
         graph.add_step(
-            name="other-child", class_name="Augment", after="q1", function="other-child"
+            name="other-child",
+            class_name="Augment",
+            after="q1",
+            function="other-child",
+            full_event=True,
         )
 
         graph["out"].after_step("other-child")
@@ -491,7 +500,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         assert resp.status_code == 200
 
         expected_record = b'{"hello": "world"}'
-        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5, "path": "/"}'
 
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])
@@ -582,3 +591,89 @@ class TestNuclioMLRunJobs(tests.system.base.TestMLRunSystem):
         assert run_result.state() == "completed", "wrong state"
         # accuracy = max(p1) * 2, stop where accuracy > 9
         assert run_result.output("accuracy") == 10, "unexpected results"
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
+    project_name = "nuclio-mlrun-gateways"
+    gw_name = "test-gateway"
+
+    def custom_setup(self):
+        self.f1 = self._deploy_function(suffix="1")
+        self.f2 = self._deploy_function(suffix="2")
+
+    def test_basic_api_gateway_flow(self):
+        api_gateway = self._get_basic_gateway()
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
+        )
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_basic_auth("test", "test")
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+        res = api_gateway.invoke(credentials=("test", "test"), verify=False)
+        assert res.status_code == 200
+
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
+        )
+        self._cleanup_gateway()
+
+        api_gateway = self._get_basic_gateway()
+        api_gateway.with_canary(functions=[self.f1, self.f2], canary=[50, 50])
+        api_gateway = self.project.store_api_gateway(api_gateway=api_gateway)
+        res = api_gateway.invoke(verify=False)
+        assert res.status_code == 200
+
+        # check that api gateway url is in function's external_invocation_urls
+        self._check_functions_external_invocation_urls(
+            function_name=self.f1.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
+        )
+        self._check_functions_external_invocation_urls(
+            function_name=self.f2.metadata.name,
+            expected_url=api_gateway.invoke_url.replace("https://", ""),
+        )
+
+    def _get_basic_gateway(self):
+        return mlrun.runtimes.nuclio.api_gateway.APIGateway(
+            metadata=mlrun.runtimes.nuclio.api_gateway.APIGatewayMetadata(
+                name=self.gw_name,
+            ),
+            spec=mlrun.runtimes.nuclio.api_gateway.APIGatewaySpec(
+                functions=[self.f1], project=self.project_name
+            ),
+        )
+
+    def _cleanup_gateway(self):
+        self.project.delete_api_gateway(self.gw_name)
+
+    def _check_functions_external_invocation_urls(
+        self, function_name: str, expected_url: str
+    ):
+        function = self.project.get_function(function_name)
+        urls = function.to_dict().get("status", {}).get("external_invocation_urls")
+        assert expected_url in urls
+
+    def _deploy_function(self, replicas=1, suffix=""):
+        filename = str(self.assets_path / "nuclio_function.py")
+
+        fn = mlrun.code_to_function(
+            filename=filename,
+            name=f"nuclio-mlrun-{suffix}",
+            kind="nuclio",
+            image="python:3.9",
+            handler="handler",
+        )
+        fn.spec.replicas = replicas
+        fn.with_http(workers=1)
+        fn.deploy()
+        return fn

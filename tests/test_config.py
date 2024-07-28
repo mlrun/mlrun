@@ -86,7 +86,7 @@ def test_nothing(config):
 
 def create_yaml_config(**kw):
     tmp = NamedTemporaryFile(mode="wt", suffix=".yml", delete=False)
-    yaml.dump(kw, tmp, default_flow_style=False)
+    yaml.safe_dump(kw, tmp, default_flow_style=False)
     tmp.flush()
     return tmp.name
 
@@ -432,51 +432,32 @@ def test_gpu_validation(config):
     assert config.default_function_pod_resources.limits.gpu is None
 
 
-old_config_value = None
-new_config_value = "blabla"
-
-
-def test_overriding_config_not_remain_for_next_tests_setter():
-    global old_config_value, new_config_value
-    old_config_value = mlconf.config.igz_version
-    mlconf.config.igz_version = new_config_value
-    mlconf.config.httpdb.data_volume = new_config_value
-
-
-def test_overriding_config_not_remain_for_next_tests_tester():
-    global old_config_value
-    assert old_config_value == mlconf.config.igz_version
-    assert old_config_value == mlconf.config.httpdb.data_volume
-
-
-def test_resolve_kfp_url():
-    mlconf.config.igz_version = ""
-    mlconf.config.namespace = ""
-
-    # URL configured - return it
-    mlconf.config.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
-    assert mlconf.config.resolve_kfp_url() == mlconf.config.kfp_url
-
-    # igz configured and less than 3.6.0 without namespace - explode
-    mlconf.config.kfp_url = ""
-    mlconf.config.igz_version = "1.2.3"
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.resolve_kfp_url()
-
-    # igz configured and less than 3.6.0 with namespace - resolve
-    mlconf.config.namespace = "default-tenant"
-    assert (
-        mlconf.config.resolve_kfp_url()
-        == "http://ml-pipeline.default-tenant.svc.cluster.local:8888"
-    )
-
-    # igz configured and over 3.6.0 - return None (after 3.6.0 kfp_url should be configured)
-    mlconf.config.igz_version = "4.0.0"
-    assert mlconf.config.resolve_kfp_url() is None
-
-    # nothing configured - return None
-    mlconf.config.igz_version = ""
-    assert mlconf.config.resolve_kfp_url() is None
+##################################
+# Unit Test Memory Sharing Tests #
+##################################
+#
+# These tests are no longer relevant, since we run unit tests with pytest-fork.
+# pytest-fork creates a new process for each test, so the memory space is not shared between tests.
+# Each test receives its own memory page, so changes made in one test do not affect the memory of another test.
+#
+# old_config_value = None
+# new_config_value = "blabla"
+#
+#
+# def test_overriding_config_not_remain_for_next_tests_setter():
+#     global old_config_value, new_config_value
+#     old_config_value = mlconf.config.igz_version
+#     mlconf.config.igz_version = new_config_value
+#     mlconf.config.httpdb.data_volume = new_config_value
+#
+#
+# def test_overriding_config_not_remain_for_next_tests_tester():
+#     global old_config_value
+#     assert old_config_value == mlconf.config.igz_version
+#     assert old_config_value == mlconf.config.httpdb.data_volume
+#####################################
+# EO Unit Test Memory Sharing Tests #
+#####################################
 
 
 def test_get_parsed_igz_version():

@@ -15,9 +15,10 @@
 import warnings
 from typing import Optional, Union
 
-import kfp
+from mlrun_pipelines.models import PipelineNodeWrapper
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context
@@ -76,7 +77,8 @@ def run_function(
     notifications: list[mlrun.model.Notification] = None,
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
-) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
+    reset_on_run: Optional[bool] = None,
+) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
     run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
@@ -86,7 +88,7 @@ def run_function(
     when functions run as part of a workflow/pipeline (project.run()) some attributes can be set at the run level,
     e.g. local=True will run all the functions locally, setting artifact_path will direct all outputs to the same path.
     project runs provide additional notifications/reporting and exception handling.
-    inside a Kubeflow pipeline (KFP) run_function() generates KFP "ContainerOps" which are used to form a DAG
+    inside a Kubeflow pipeline (KFP) run_function() generates KFP node (see PipelineNodeWrapper) which forms a DAG
     some behavior may differ between regular runs and deferred KFP runs.
 
     example (use with function object)::
@@ -95,8 +97,11 @@ def run_function(
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
         DATA_PATH = "s3://bigdata/data.parquet"
         function = mlrun.import_function("hub://auto-trainer")
-        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                      inputs={"dataset": DATA_PATH})
+        run1 = run_function(
+            function,
+            params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+            inputs={"dataset": DATA_PATH},
+        )
 
     example (use with project)::
 
@@ -115,8 +120,12 @@ def run_function(
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url}, outputs=["data"])
-            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
-                                         inputs={"dataset": run1.outputs["data"]})
+            run2 = run_function(
+                "train",
+                params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                inputs={"dataset": run1.outputs["data"]},
+            )
+
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 
@@ -159,7 +168,10 @@ def run_function(
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
     :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-    :return: MLRun RunObject or KubeFlow containerOp
+    :param reset_on_run:    When True, function python modules would reload prior to code execution.
+                            This ensures latest code changes are executed. This argument must be used in
+                            conjunction with the local=True argument.
+    :return: MLRun RunObject or PipelineNodeWrapper
     """
     engine, function = _get_engine_and_function(function, project_object)
     task = mlrun.new_task(
@@ -183,7 +195,9 @@ def run_function(
         local = pipeline_context.is_run_local(local)
         task.metadata.labels = task.metadata.labels or labels or {}
         if pipeline_context.workflow_id:
-            task.metadata.labels["workflow"] = pipeline_context.workflow_id
+            task.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = (
+                pipeline_context.workflow_id
+            )
         if function.kind == "local":
             command, function = mlrun.run.load_func_code(function)
             function.spec.command = command
@@ -205,6 +219,7 @@ def run_function(
             schedule=schedule,
             notifications=notifications,
             builder_env=builder_env,
+            reset_on_run=reset_on_run,
         )
         if run_result:
             run_result._notified = False
@@ -218,9 +233,9 @@ def run_function(
 class BuildStatus:
     """returned status from build operation"""
 
-    def __init__(self, ready, outputs={}, function=None):
+    def __init__(self, ready, outputs=None, function=None):
         self.ready = ready
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):
@@ -247,7 +262,7 @@ def build_function(
     overwrite_build_params: bool = False,
     extra_args: str = None,
     force_build: bool = False,
-) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
+) -> Union[BuildStatus, PipelineNodeWrapper]:
     """deploy ML function, build container with its dependencies
 
     :param function:        Name of the function (in the project) or function object
@@ -287,7 +302,11 @@ def build_function(
         if overwrite_build_params:
             function.spec.build.commands = None
         if requirements or requirements_file:
-            function.with_requirements(requirements, requirements_file, overwrite=True)
+            function.with_requirements(
+                requirements=requirements,
+                requirements_file=requirements_file,
+                overwrite=True,
+            )
         if commands:
             function.with_commands(commands)
         return function.deploy_step(
@@ -311,6 +330,7 @@ def build_function(
                 commands=commands,
                 secret=secret_name,
                 requirements=requirements,
+                requirements_file=requirements_file,
                 overwrite=overwrite_build_params,
                 extra_args=extra_args,
             )
@@ -329,9 +349,9 @@ def build_function(
 class DeployStatus:
     """returned status from deploy operation"""
 
-    def __init__(self, state, outputs={}, function=None):
+    def __init__(self, state, outputs=None, function=None):
         self.state = state
-        self.outputs = outputs
+        self.outputs = outputs or {}
         self.function = function
 
     def after(self, step):
@@ -351,7 +371,7 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
+) -> Union[DeployStatus, PipelineNodeWrapper]:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object

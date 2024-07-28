@@ -20,8 +20,10 @@ from http import HTTPStatus
 import yaml
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
+from mlrun_pipelines.models import PipelineManifest
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud
@@ -43,8 +45,8 @@ async def list_pipelines(
     page_token: str = "",
     filter_: str = Query("", alias="filter"),
     name_contains: str = Query("", alias="name-contains"),
-    format_: mlrun.common.schemas.PipelinesFormat = Query(
-        mlrun.common.schemas.PipelinesFormat.metadata_only, alias="format"
+    format_: mlrun.common.formatters.PipelineFormat = Query(
+        mlrun.common.formatters.PipelineFormat.metadata_only, alias="format"
     ),
     page_size: int = Query(None, gt=0, le=200),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -65,8 +67,8 @@ async def list_pipelines(
         # we need to resolve the project from the returned run for the opa enforcement (project query param might be
         # "*"), so we can't really get back only the names here
         computed_format = (
-            mlrun.common.schemas.PipelinesFormat.metadata_only
-            if format_ == mlrun.common.schemas.PipelinesFormat.name_only
+            mlrun.common.formatters.PipelineFormat.metadata_only
+            if format_ == mlrun.common.formatters.PipelineFormat.name_only
             else format_
         )
         total_size, next_page_token, runs = await run_in_threadpool(
@@ -90,8 +92,11 @@ async def list_pipelines(
         ),
         auth_info,
     )
-    if format_ == mlrun.common.schemas.PipelinesFormat.name_only:
-        allowed_runs = [run["name"] for run in allowed_runs]
+    if format_ == mlrun.common.formatters.PipelineFormat.name_only:
+        allowed_runs = [
+            mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
+            for run in allowed_runs
+        ]
     return mlrun.common.schemas.PipelinesOutput(
         runs=allowed_runs,
         total_size=total_size or 0,
@@ -103,15 +108,16 @@ async def list_pipelines(
 async def create_pipeline(
     project: str,
     request: Request,
-    namespace: str = None,
     experiment_name: str = Query("Default", alias="experiment"),
     run_name: str = Query("", alias="run"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    if namespace is None:
-        namespace = config.namespace
     response = await _create_pipeline(
-        auth_info, request, namespace, experiment_name, run_name, project
+        auth_info=auth_info,
+        request=request,
+        experiment_name=experiment_name,
+        run_name=run_name,
+        project=project,
     )
     return response
 
@@ -121,8 +127,8 @@ async def get_pipeline(
     run_id: str,
     project: str,
     namespace: str = Query(config.namespace),
-    format_: mlrun.common.schemas.PipelinesFormat = Query(
-        mlrun.common.schemas.PipelinesFormat.summary, alias="format"
+    format_: mlrun.common.formatters.PipelineFormat = Query(
+        mlrun.common.formatters.PipelineFormat.summary, alias="format"
     ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -170,7 +176,7 @@ async def _get_pipeline_without_project(
         run_id,
         namespace=namespace,
         # minimal format that includes the project
-        format_=mlrun.common.schemas.PipelinesFormat.summary,
+        format_=mlrun.common.formatters.PipelineFormat.summary,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
@@ -185,20 +191,10 @@ async def _get_pipeline_without_project(
 async def _create_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo,
     request: Request,
-    namespace: str,
     experiment_name: str,
     run_name: str,
     project: typing.Optional[str] = None,
 ):
-    # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
-    if project:
-        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            "",
-            mlrun.common.schemas.AuthorizationAction.create,
-            auth_info,
-        )
     run_name = run_name or experiment_name + " " + datetime.now().strftime(
         "%Y-%m-%d %H-%M-%S"
     )
@@ -208,8 +204,15 @@ async def _create_pipeline(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="Request body is empty")
     content_type = request.headers.get("content-type", "")
 
-    # otherwise, best effort - try to parse it from the body - if successful - perform auth check - otherwise explode
-    project = _try_resolve_project_from_body(content_type, data)
+    workflow_project = _try_resolve_project_from_body(content_type, data)
+    if project and workflow_project and project != workflow_project:
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Pipeline contains resources from project {workflow_project} but was requested to be created in "
+            f"project {project}",
+        )
+
+    project = project or workflow_project
     if not project:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Pipelines can not be created without a project - you are probably running with old client - try upgrade to"
@@ -238,7 +241,6 @@ async def _create_pipeline(
         content_type,
         data,
         arguments,
-        namespace,
     )
 
     return {
@@ -258,5 +260,5 @@ def _try_resolve_project_from_body(
         return None
     workflow_manifest = yaml.load(data, Loader=yaml.FullLoader)
     return server.api.crud.Pipelines().resolve_project_from_workflow_manifest(
-        workflow_manifest
+        PipelineManifest(workflow_manifest)
     )

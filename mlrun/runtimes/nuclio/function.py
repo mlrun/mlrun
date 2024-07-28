@@ -19,12 +19,15 @@ import warnings
 from datetime import datetime
 from time import sleep
 
+import inflection
 import nuclio
 import nuclio.utils
 import requests
-import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
+from mlrun_pipelines.common.mounts import VolumeMount
+from mlrun_pipelines.common.ops import deploy_op
+from mlrun_pipelines.mounts import mount_v3io, v3io_cred
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
@@ -36,15 +39,11 @@ import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
-from mlrun.kfpops import deploy_op
 from mlrun.lists import RunList
 from mlrun.model import RunObject
 from mlrun.platforms.iguazio import (
-    VolumeMount,
-    mount_v3io,
     parse_path,
     split_path,
-    v3io_cred,
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
@@ -56,33 +55,9 @@ def validate_nuclio_version_compatibility(*min_versions):
     """
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
-    parsed_min_versions = [
-        semver.VersionInfo.parse(min_version) for min_version in min_versions
-    ]
-    try:
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
-    except ValueError:
-        # only log when version is set but invalid
-        if mlconf.nuclio_version:
-            logger.warning(
-                "Unable to parse nuclio version, assuming compatibility",
-                nuclio_version=mlconf.nuclio_version,
-                min_versions=min_versions,
-            )
-        return True
-
-    parsed_min_versions.sort(reverse=True)
-    for parsed_min_version in parsed_min_versions:
-        if (
-            parsed_current_version.major == parsed_min_version.major
-            and parsed_current_version.minor == parsed_min_version.minor
-            and parsed_current_version.patch < parsed_min_version.patch
-        ):
-            return False
-
-        if parsed_current_version >= parsed_min_version:
-            return True
-    return False
+    return mlrun.utils.helpers.validate_component_version_compatibility(
+        "nuclio", *min_versions
+    )
 
 
 def min_nuclio_versions(*versions):
@@ -91,9 +66,13 @@ def min_nuclio_versions(*versions):
             if validate_nuclio_version_compatibility(*versions):
                 return function(*args, **kwargs)
 
+            if function.__name__ == "__init__":
+                name = inflection.titleize(function.__qualname__.split(".")[0])
+            else:
+                name = function.__qualname__
+
             message = (
-                f"{function.__name__} is supported since nuclio {' or '.join(versions)}, currently using "
-                f"nuclio {mlconf.nuclio_version}, please upgrade."
+                f"'{name}' function requires Nuclio v{' or v'.join(versions)} or higher"
             )
             raise mlrun.errors.MLRunIncompatibleVersionError(message)
 
@@ -292,7 +271,8 @@ class RemoteRuntime(KubeResource):
         self._status = self._verify_dict(status, "status", NuclioStatus)
 
     def pre_deploy_validation(self):
-        pass
+        if self.metadata.tag:
+            mlrun.utils.validate_tag_name(self.metadata.tag, "function.metadata.tag")
 
     def set_config(self, key, value):
         self.spec.config[key] = value
@@ -345,17 +325,21 @@ class RemoteRuntime(KubeResource):
 
             git::
 
-                fn.with_source_archive("git://github.com/org/repo#my-branch",
-                        handler="main:handler",
-                        workdir="path/inside/repo")
+                fn.with_source_archive(
+                    "git://github.com/org/repo#my-branch",
+                    handler="main:handler",
+                    workdir="path/inside/repo",
+                )
 
             s3::
 
                 fn.spec.nuclio_runtime = "golang"
-                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                fn.with_source_archive(
+                    "s3://my-bucket/path/in/bucket/my-functions-archive",
                     handler="my_func:Handler",
                     workdir="path/inside/functions/archive",
-                    runtime="golang")
+                    runtime="golang",
+                )
         """
         self.spec.build.source = source
         # update handler in function_handler
@@ -526,8 +510,10 @@ class RemoteRuntime(KubeResource):
                 **kwargs,
             ),
         )
-        self.spec.min_replicas = shards
-        self.spec.max_replicas = shards
+        if self.spec.min_replicas != shards or self.spec.max_replicas != shards:
+            logger.warning(f"Setting function replicas to {shards}")
+            self.spec.min_replicas = shards
+            self.spec.max_replicas = shards
 
     def deploy(
         self,
@@ -543,11 +529,16 @@ class RemoteRuntime(KubeResource):
         :param project:    project name
         :param tag:        function tag
         :param verbose:    set True for verbose logging
-        :param auth_info:  service AuthInfo
+        :param auth_info:  service AuthInfo (deprecated and ignored)
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
         """
-        # todo: verify that the function name is normalized
+        if auth_info:
+            # TODO: remove in 1.9.0
+            warnings.warn(
+                "'auth_info' is deprecated for nuclio runtimes in 1.7.0 and will be removed in 1.9.0",
+                FutureWarning,
+            )
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
@@ -564,15 +555,12 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        save_record = False
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(
-            self, False, builder_env=builder_env, force_build=force_build
-        )
+        data = db.deploy_nuclio_function(func=self, builder_env=builder_env)
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -580,19 +568,25 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
         #       if not exists, take the internal invocation url
-        if self.status.external_invocation_urls:
+        if (
+            self.status.external_invocation_urls
+            and self.status.external_invocation_urls[0] != ""
+        ):
             self.spec.command = f"http://{self.status.external_invocation_urls[0]}"
-            save_record = True
-        elif self.status.internal_invocation_urls:
+        elif (
+            self.status.internal_invocation_urls
+            and self.status.internal_invocation_urls[0] != ""
+        ):
             self.spec.command = f"http://{self.status.internal_invocation_urls[0]}"
-            save_record = True
-        elif self.status.address:
+        elif self.status.address and self.status.address != "":
             self.spec.command = f"http://{self.status.address}"
-            save_record = True
 
         logger.info(
             "Successfully deployed function",
@@ -600,8 +594,7 @@ class RemoteRuntime(KubeResource):
             external_invocation_urls=self.status.external_invocation_urls,
         )
 
-        if save_record:
-            self.save(versioned=False)
+        self.save(versioned=False)
 
         return self.spec.command
 
@@ -613,7 +606,7 @@ class RemoteRuntime(KubeResource):
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )
             try:
-                text, last_log_timestamp = db.get_builder_status(
+                text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except mlrun.db.RunDBError:
@@ -771,7 +764,7 @@ class RemoteRuntime(KubeResource):
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
             runtime_env[
-                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+                mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session
             ] = self.metadata.credentials.access_key
         return runtime_env
 
@@ -985,20 +978,29 @@ class RemoteRuntime(KubeResource):
             sidecar["image"] = image
 
         ports = mlrun.utils.helpers.as_list(ports)
+        # according to RFC-6335, port name should be less than 15 characters,
+        # so we truncate it if needed and leave room for the index
+        port_name = name[:13].rstrip("-_") if len(name) > 13 else name
         sidecar["ports"] = [
             {
-                "name": "http",
+                "name": f"{port_name}-{i}",
                 "containerPort": port,
                 "protocol": "TCP",
             }
-            for port in ports
+            for i, port in enumerate(ports)
         ]
 
-        if command:
-            sidecar["command"] = command
+        # if it is a redeploy, 'command' might be set with the previous invocation url.
+        # in this case, we don't want to use it as the sidecar command
+        if command and not command.startswith("http"):
+            sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
-        if args:
-            sidecar["args"] = args
+        if args and sidecar["command"]:
+            sidecar["args"] = mlrun.utils.helpers.as_list(args)
+
+        # populate the sidecar resources from the function spec
+        if self.spec.resources:
+            sidecar["resources"] = self.spec.resources
 
     def _set_sidecar(self, name: str) -> dict:
         self.spec.config.setdefault("spec.sidecars", [])
@@ -1330,3 +1332,23 @@ def get_nuclio_deploy_status(
     else:
         text = "\n".join(outputs) if outputs else ""
         return state, address, name, last_log_timestamp, text, function_status
+
+
+def enrich_nuclio_function_from_headers(
+    func: RemoteRuntime,
+    headers: dict,
+):
+    func.status.state = headers.get("x-mlrun-function-status", "")
+    func.status.address = headers.get("x-mlrun-address", "")
+    func.status.nuclio_name = headers.get("x-mlrun-name", "")
+    func.status.internal_invocation_urls = (
+        headers.get("x-mlrun-internal-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-internal-invocation-urls")
+        else []
+    )
+    func.status.external_invocation_urls = (
+        headers.get("x-mlrun-external-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-external-invocation-urls")
+        else []
+    )
+    func.status.container_image = headers.get("x-mlrun-container-image", "")

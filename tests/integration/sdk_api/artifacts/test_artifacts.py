@@ -31,13 +31,10 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
     extra_env = {"MLRUN_HTTPDB__REAL_PATH": "/"}
 
-    def setup_method(self, method, extra_env=None):
-        super().setup_method(method, extra_env=self.extra_env)
-
     def test_artifacts(self):
         db = mlrun.get_run_db()
         prj, tree, key, body = "p9", "t19", "k802", "tomato"
-        mlrun.get_or_create_project(prj, "./")
+        mlrun.get_or_create_project(prj, "./", allow_cross_project=True)
         artifact = mlrun.artifacts.Artifact(key, body, target_path="/a.txt")
 
         db.store_artifact(key, artifact, tree=tree, project=prj)
@@ -60,7 +57,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_list_artifacts_filter_by_kind(self):
         prj, tree, key, body = "p9", "t19", "k802", "tomato"
-        mlrun.get_or_create_project(prj, context="./")
+        mlrun.get_or_create_project(prj, context="./", allow_cross_project=True)
         model_artifact = mlrun.artifacts.model.ModelArtifact(
             key, body, target_path="/a.txt"
         )

@@ -24,6 +24,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
@@ -33,15 +34,13 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
-import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
+from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
-from mlrun.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.utils import logger, now_date
-from server.api.constants import LogSources
 from server.api.db.base import DBInterface
 
 
@@ -180,14 +179,15 @@ class BaseRuntimeHandler(ABC):
     def monitor_runs(self, db: DBInterface, db_session: Session) -> list[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
-        runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
-            label_selector, namespace
-        )
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        runtime_resource_is_crd = bool(crd_group and crd_version and crd_plural)
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
         stale_runs = []
-        for runtime_resource in runtime_resources:
+        for runtime_resource in self._get_runtime_resources_paginated(
+            namespace, label_selector
+        ):
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
             run_runtime_resources_map.setdefault(project, {})
             run_runtime_resources_map.get(project).update({uid: {"name": name}})
@@ -230,13 +230,18 @@ class BaseRuntimeHandler(ABC):
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
-        if label_selector:
+        if label_selector and default_label_selector not in label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector
 
         if project and project != "*":
-            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
+            label_selector = ",".join(
+                [
+                    label_selector,
+                    f"{mlrun_constants.MLRunInternalLabels.project}={project}",
+                ]
+            )
 
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
@@ -577,7 +582,7 @@ class BaseRuntimeHandler(ABC):
                 namespace = (
                     server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
                 )
-                runtime_resources, _ = self._get_runtime_resources(
+                runtime_resources = self._get_runtime_resources(
                     label_selector, namespace
                 )
                 if runtime_resources:
@@ -600,15 +605,28 @@ class BaseRuntimeHandler(ABC):
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
 
-    def _get_runtime_resources(self, label_selector, namespace):
+    def _get_runtime_resources(self, label_selector: str, namespace: str):
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param label_selector: Labels to filter by
+        :param namespace:       Namespace to search
+        :return: List of pod dictionaries or crd object dictionaries
+        """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
-            runtime_resource_is_crd = True
             runtime_resources = self._list_crd_objects(namespace, label_selector)
         else:
-            runtime_resource_is_crd = False
             runtime_resources = self._list_pods(namespace, label_selector)
-        return runtime_resources, runtime_resource_is_crd
+        return runtime_resources
+
+    def _get_runtime_resources_paginated(self, namespace: str, label_selector: str):
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        runtime_resource_is_crd = crd_group and crd_version and crd_plural
+        if runtime_resource_is_crd:
+            yield from self._list_crd_objects_paginated(namespace, label_selector)
+        else:
+            yield from self._list_pods_paginated(namespace, label_selector)
 
     def _add_object_label_selector_if_needed(
         self,
@@ -771,6 +789,13 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> list:
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of pod dictionaries
+        """
         pods = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
             namespace, selector=label_selector
         )
@@ -779,7 +804,20 @@ class BaseRuntimeHandler(ABC):
         pods = [pod.to_dict() for pod in pods]
         return pods
 
+    def _list_pods_paginated(self, namespace: str, label_selector: str = None) -> list:
+        for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+            namespace, selector=label_selector
+        ):
+            yield pod.to_dict()
+
     def _list_crd_objects(self, namespace: str, label_selector: str = None) -> list:
+        """
+        Warning! Use only with precise label selection. Otherwise, it may return a large list of resources and
+        consume too much memory.
+        :param namespace:       Namespace to search
+        :param label_selector:  Labels to filter by
+        :return: List of crd object dictionaries
+        """
         crd_group, crd_version, crd_plural = self._get_crd_info()
         crd_objects = []
         if crd_group and crd_version and crd_plural:
@@ -799,6 +837,14 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
+    def _list_crd_objects_paginated(
+        self, namespace: str, label_selector: str = None
+    ) -> list:
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        yield from server.api.utils.singletons.k8s.get_k8s_helper().list_crds_paginated(
+            crd_group, crd_version, crd_plural, namespace, selector=label_selector
+        )
+
     def _wait_for_pods_deletion(
         self,
         namespace: str,
@@ -808,13 +854,14 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
-                namespace, label_selector=label_selector
-            )
-            existing_pod_names = [pod.metadata.name for pod in pods.items]
-            still_in_deletion_pods = set(existing_pod_names).intersection(
-                deleted_pod_names
-            )
+            still_in_deletion_pods = []
+            for (
+                pod
+            ) in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+                namespace, selector=label_selector
+            ):
+                if pod.metadata.name in deleted_pod_names:
+                    still_in_deletion_pods.append(pod.metadata.name)
             if still_in_deletion_pods:
                 raise RuntimeError(
                     f"Pods are still in deletion process: {still_in_deletion_pods}"
@@ -954,13 +1001,10 @@ class BaseRuntimeHandler(ABC):
     ) -> list[dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = (
-            server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
-                namespace, label_selector=label_selector
-            )
-        )
         deleted_pods = []
-        for pod in pods.items:
+        for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
+            namespace, selector=label_selector
+        ):
             pod_dict = pod.to_dict()
 
             # best effort - don't let one failure in pod deletion to cut the whole operation
@@ -1130,7 +1174,6 @@ class BaseRuntimeHandler(ABC):
         _, _, run = self._ensure_run_state(
             db, db_session, project, uid, name, run_state
         )
-        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1278,9 +1321,6 @@ class BaseRuntimeHandler(ABC):
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        if updated_run_state in RunStates.terminal_states():
-            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
-
     def _resolve_resource_state_and_apply_threshold(
         self,
         run: dict,
@@ -1310,7 +1350,7 @@ class BaseRuntimeHandler(ABC):
             # If the run state thresholds are set, we need to check the pods
             pods = self._list_pods(
                 namespace,
-                label_selector=f"mlrun/uid={run['metadata']['uid']}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={run['metadata']['uid']}",
             )
             for pod in pods:
                 _, threshold_exceeded = self._apply_state_threshold(
@@ -1481,9 +1521,13 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        if "mlrun/class" in resource.labels:
-            project = resource.labels.get("mlrun/project", "")
-            mlrun_class = resource.labels["mlrun/class"]
+        if mlrun_constants.MLRunInternalLabels.mlrun_class in resource.labels:
+            project = resource.labels.get(
+                mlrun_constants.MLRunInternalLabels.project, ""
+            )
+            mlrun_class = resource.labels[
+                mlrun_constants.MLRunInternalLabels.mlrun_class
+            ]
             kind = self._resolve_kind_from_class(mlrun_class)
             self._add_resource_to_grouped_by_field_resources_response(
                 project, kind, resources, resource_field_name, resource
@@ -1495,9 +1539,11 @@ class BaseRuntimeHandler(ABC):
         resource_field_name: str,
         resource: mlrun.common.schemas.RuntimeResource,
     ):
-        if "mlrun/uid" in resource.labels:
-            project = resource.labels.get("mlrun/project", config.default_project)
-            uid = resource.labels["mlrun/uid"]
+        if mlrun_constants.MLRunInternalLabels.uid in resource.labels:
+            project = resource.labels.get(
+                mlrun_constants.MLRunInternalLabels.project, config.default_project
+            )
+            uid = resource.labels[mlrun_constants.MLRunInternalLabels.uid]
             self._add_resource_to_grouped_by_field_resources_response(
                 project, uid, resources, resource_field_name, resource
             )
@@ -1542,24 +1588,10 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
-        return f"mlrun/project={project},mlrun/uid={run_uid}"
-
-    @staticmethod
-    def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
-    ):
-        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
-        if not log_file_exists:
-            # this stays for now for backwards compatibility in case we would not use the log collector but rather
-            # the legacy method to pull logs
-            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S, run=run
-            )
-            if logs_from_k8s:
-                logger.info("Storing run logs", project=project, uid=uid)
-                server.api.crud.Logs().store_log(
-                    logs_from_k8s, project, uid, append=False
-                )
+        return (
+            f"{mlrun_constants.MLRunInternalLabels.project}={project},"
+            f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
+        )
 
     def _ensure_run_state(
         self,
@@ -1624,7 +1656,7 @@ class BaseRuntimeHandler(ABC):
                     run_state=run_state,
                 )
 
-        logger.info("Updating run state", run_state=run_state)
+        logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
             "status.last_update": now_date().isoformat(),
@@ -1676,15 +1708,21 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: dict) -> tuple[str, str, str]:
         project = (
-            runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.project)
         )
         if not project:
             project = config.default_project
-        uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
+        uid = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.uid)
+        )
         name = (
             runtime_resource.get("metadata", {})
             .get("labels", {})
-            .get("mlrun/name", "no-name")
+            .get(mlrun_constants.MLRunInternalLabels.name, "no-name")
         )
         return project, uid, name
 
@@ -1738,7 +1776,7 @@ class BaseRuntimeHandler(ABC):
         if unique:
             norm_name += uuid.uuid4().hex[:8]
             new_meta.name = norm_name
-            run.set_label("mlrun/job", norm_name)
+            run.set_label(mlrun_constants.MLRunInternalLabels.job, norm_name)
         else:
             new_meta.generate_name = norm_name
         return new_meta

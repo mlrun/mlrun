@@ -15,12 +15,14 @@ import copy
 import inspect
 import os
 import re
+import time
 import typing
 from enum import Enum
 
 import dotenv
-import kfp.dsl
 import kubernetes.client as k8s_client
+import mlrun_pipelines.mounts
+from mlrun_pipelines.mixins import KfpAdapterMixin
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -40,7 +42,6 @@ from ..k8s_utils import (
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
-    apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
     set_named_item,
@@ -531,7 +532,9 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = {**node_selector, **self.node_selector}
+        self.node_selector = mlrun.utils.helpers.merge_with_precedence(
+            node_selector, self.node_selector
+        )
 
     def _merge_tolerations(
         self,
@@ -934,12 +937,12 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun.v3io_cred.__name__,
-            mlrun.mount_v3io.__name__,
-            mlrun.platforms.other.mount_pvc.__name__,
-            mlrun.auto_mount.__name__,
-            mlrun.platforms.mount_s3.__name__,
-            mlrun.platforms.set_env_variables.__name__,
+            mlrun_pipelines.mounts.v3io_cred.__name__,
+            mlrun_pipelines.mounts.mount_v3io.__name__,
+            mlrun_pipelines.mounts.mount_pvc.__name__,
+            mlrun_pipelines.mounts.auto_mount.__name__,
+            mlrun_pipelines.mounts.mount_s3.__name__,
+            mlrun_pipelines.mounts.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -956,27 +959,27 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun.v3io_cred
+            return mlrun_pipelines.mounts.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
             or "pvc_name" in mlconf.get_storage_auto_mount_params()
         )
-        return mlrun.platforms.other.mount_pvc if pvc_configured else None
+        return mlrun_pipelines.mounts.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun.mount_v3io,
-            AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
+            AutoMountType.v3io_credentials: mlrun_pipelines.mounts.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun_pipelines.mounts.mount_v3io,
+            AutoMountType.pvc: mlrun_pipelines.mounts.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun.platforms.mount_s3,
-            AutoMountType.env: mlrun.platforms.set_env_variables,
+            AutoMountType.s3: mlrun_pipelines.mounts.mount_s3,
+            AutoMountType.env: mlrun_pipelines.mounts.set_env_variables,
         }[self]
 
 
-class KubeResource(BaseRuntime):
+class KubeResource(BaseRuntime, KfpAdapterMixin):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -995,26 +998,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def apply(self, modify):
-        """
-        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
-        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
-        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
-        one after the other.
-
-        :param modify: a modifier runnable object
-        :return: the runtime (self) after the modifications
-        """
-
-        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
-        # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = kfp.dsl._container_op._register_op_handler
-        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = kfp.dsl.ContainerOp("name", "image")
-        kfp.dsl._container_op._register_op_handler = old_op_handler
-
-        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
@@ -1057,40 +1040,14 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
-    def enrich_runtime_spec(
-        self,
-        project_node_selector: dict[str, str],
-    ):
-        """
-        Enriches the runtime spec with the project-level node selector.
-
-        This method merges the project-level node selector with the existing function node_selector.
-        The merge logic used here combines the two dictionaries, giving precedence to
-        the keys in the runtime node_selector. If there are conflicting keys between the
-        two dictionaries, the values from self.spec.node_selector will overwrite the
-        values from project_node_selector.
-
-        Example:
-        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
-        and project_node_selector = {"type": "cpu", "environment": "production"}.
-        After the merge, the resulting node_selector will be:
-        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
-
-        Note:
-        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
-          combining key-value pairs from each dictionary. Later dictionaries take precedence
-          when there are conflicting keys.
-        """
-        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
-
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
-        i = 0
-        for v in self.spec.env:
-            if get_item_name(v) == name:
-                self.spec.env[i] = new_var
+
+        # ensure we don't have duplicate env vars with the same name
+        for env_index, value_item in enumerate(self.spec.env):
+            if get_item_name(value_item) == name:
+                self.spec.env[env_index] = new_var
                 return self
-            i += 1
         self.spec.env.append(new_var)
         return self
 
@@ -1277,9 +1234,9 @@ class KubeResource(BaseRuntime):
             from kubernetes import client as k8s_client
 
             security_context = k8s_client.V1SecurityContext(
-                        run_as_user=1000,
-                        run_as_group=3000,
-                    )
+                run_as_user=1000,
+                run_as_group=3000,
+            )
             function.with_security_context(security_context)
 
         More info:
@@ -1337,6 +1294,150 @@ class KubeResource(BaseRuntime):
                 )
 
         self.spec.validate_service_account(allowed_service_accounts)
+
+    def _configure_mlrun_build_with_source(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
+        mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
+
+        self.spec.build.source = source
+        if handler:
+            self.spec.default_handler = handler
+        if workdir:
+            self.spec.workdir = workdir
+        if target_dir:
+            self.spec.build.source_code_target_dir = target_dir
+
+        self.spec.build.load_source_on_run = pull_at_runtime
+        if (
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
+        ):
+            # if we load source from repo and don't need a full build use the base_image as the image
+            self.spec.image = self.spec.build.base_image
+        elif not pull_at_runtime:
+            # clear the image so build will not be skipped
+            self.spec.build.base_image = self.spec.build.base_image or self.spec.image
+            self.spec.image = ""
+
+    def _resolve_build_with_mlrun(self, with_mlrun: typing.Optional[bool] = None):
+        build = self.spec.build
+        if with_mlrun is None:
+            if build.with_mlrun is not None:
+                with_mlrun = build.with_mlrun
+            else:
+                with_mlrun = build.base_image and not (
+                    build.base_image.startswith("mlrun/")
+                    or "/mlrun/" in build.base_image
+                )
+        if (
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
+        ):
+            logger.info(
+                "Running build to add mlrun package, set "
+                "with_mlrun=False to skip if its already in the image"
+            )
+        return with_mlrun
+
+    def _build_image(
+        self,
+        builder_env,
+        force_build,
+        mlrun_version_specifier,
+        show_on_failure,
+        skip_deployed,
+        watch,
+        is_kfp,
+        with_mlrun,
+    ):
+        # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
+        # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
+        if is_kfp:
+            watch = True
+
+        db = self._get_db()
+        data = db.remote_builder(
+            self,
+            with_mlrun,
+            mlrun_version_specifier,
+            skip_deployed,
+            builder_env=builder_env,
+            force_build=force_build,
+        )
+        self.status = data["data"].get("status", None)
+        self.spec.image = mlrun.utils.get_in(
+            data, "data.spec.image"
+        ) or mlrun.utils.get_in(data, "data.spec.build.image")
+        self.spec.build.base_image = self.spec.build.base_image or mlrun.utils.get_in(
+            data, "data.spec.build.base_image"
+        )
+        # Get the source target dir in case it was enriched due to loading source
+        self.spec.build.source_code_target_dir = mlrun.utils.get_in(
+            data, "data.spec.build.source_code_target_dir"
+        ) or mlrun.utils.get_in(data, "data.spec.clone_target_dir")
+        ready = data.get("ready", False)
+        if not ready:
+            logger.info(
+                f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
+            )
+        if watch and not ready:
+            state = self._build_watch(
+                watch=watch,
+                show_on_failure=show_on_failure,
+            )
+            ready = state == "ready"
+            self.status.state = state
+
+        if watch and not ready:
+            raise mlrun.errors.MLRunRuntimeError("Deploy failed")
+        return ready
+
+    def _build_watch(
+        self,
+        watch: bool = True,
+        logs: bool = True,
+        show_on_failure: bool = False,
+    ):
+        db = self._get_db()
+        offset = 0
+        try:
+            text, _ = db.get_builder_status(self, 0, logs=logs)
+        except mlrun.db.RunDBError:
+            raise ValueError("function or build process not found")
+
+        def print_log(text):
+            if text and (
+                not show_on_failure
+                or self.status.state == mlrun.common.schemas.FunctionState.error
+            ):
+                print(text, end="")
+
+        print_log(text)
+        offset += len(text)
+        if watch:
+            while self.status.state in [
+                mlrun.common.schemas.FunctionState.pending,
+                mlrun.common.schemas.FunctionState.running,
+            ]:
+                time.sleep(2)
+                if show_on_failure:
+                    text = ""
+                    db.get_builder_status(self, 0, logs=False)
+                    if self.status.state == mlrun.common.schemas.FunctionState.error:
+                        # re-read the full log on failure
+                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                else:
+                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                print_log(text)
+                offset += len(text)
+
+        return self.status.state
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):
@@ -1417,7 +1518,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
 
     # check if attribute of type dict, and then check if type is sanitized
     if isinstance(attribute, dict):
-        if attribute_config["not_sanitized_class"] != dict:
+        if not isinstance(attribute_config["not_sanitized_class"], dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
@@ -1427,7 +1528,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     elif isinstance(attribute, list) and not isinstance(
         attribute[0], attribute_config["sub_attribute_type"]
     ):
-        if attribute_config["not_sanitized_class"] != list:
+        if not isinstance(attribute_config["not_sanitized_class"], list):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )

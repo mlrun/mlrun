@@ -20,6 +20,7 @@ import unittest.mock
 import uuid
 from contextlib import nullcontext as does_not_raise
 
+import deepdiff
 import pandas as pd
 import pytest
 import yaml
@@ -37,7 +38,6 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 def test_artifacts_export_required_fields():
     artifact_classes = [
         mlrun.artifacts.Artifact,
-        mlrun.artifacts.ChartArtifact,
         mlrun.artifacts.PlotArtifact,
         mlrun.artifacts.DatasetArtifact,
         mlrun.artifacts.ModelArtifact,
@@ -327,26 +327,34 @@ def test_log_artifact(
             assert expected_hash in logged_artifact.target_path
 
 
-def test_log_artifact_with_target_path_and_upload_options():
-    for target_path in ["s3://some/path", None]:
-        # True and None expected to upload
-        for upload_options in [False, True, None]:
-            artifact = mlrun.artifacts.Artifact(
-                key="some-artifact", body="asdasdasdasdas", format="parquet"
-            )
-            logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
-                artifact, target_path=target_path, upload=upload_options
-            )
-            print(logged_artifact)
-            if not target_path and (upload_options or upload_options is None):
-                # if no target path was given, and upload is True or None, we expect the artifact to get uploaded
-                # and a target path to be generated
-                assert logged_artifact.target_path is not None
-                assert logged_artifact.metadata.hash is not None
-            elif target_path:
-                # if target path is given, we don't upload and therefore don't calculate hash
-                assert logged_artifact.target_path == target_path
-                assert logged_artifact.metadata.hash is None
+@pytest.mark.parametrize(
+    "target_path,upload_options",
+    [
+        ("s3://some/path", False),
+        ("s3://some/path", True),
+        ("s3://some/path", None),
+        (None, False),
+        (None, True),
+        (None, None),
+    ],
+)
+def test_log_artifact_with_target_path_and_upload_options(target_path, upload_options):
+    artifact = mlrun.artifacts.Artifact(
+        key="some-artifact", body="asdasdasdasdas", format="parquet"
+    )
+    with unittest.mock.patch.object(mlrun.datastore.DataItem, "put"):
+        logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+            artifact, target_path=target_path, upload=upload_options
+        )
+    if upload_options or (not target_path and upload_options is None):
+        # if upload is True or no target path was given and upload is None,
+        # we expect the artifact to get uploaded and a target path to be generated
+        assert logged_artifact.target_path is not None
+        assert logged_artifact.metadata.hash is not None
+    elif target_path:
+        # if target path is given and upload is not True, we don't upload and therefore don't calculate hash
+        assert logged_artifact.target_path == target_path
+        assert logged_artifact.metadata.hash is None
 
 
 @pytest.mark.parametrize(
@@ -617,3 +625,46 @@ def test_producer_in_exported_artifact():
     with open(artifact_path) as file:
         exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
         assert "producer" not in exported_artifact["spec"]
+
+
+@pytest.mark.parametrize(
+    "uri,expected_parsed_result",
+    [
+        # Full URI
+        (
+            "my-project/1234-1",
+            ("my-project", "1234", "1"),
+        ),
+        # No iteration
+        (
+            "my-project/1234",
+            ("my-project", "1234", ""),
+        ),
+        # No project
+        (
+            "1234-1",
+            ("", "1234", "1"),
+        ),
+        # No UID
+        (
+            "my-project/-1",
+            ("my-project", "", "1"),
+        ),
+        # just iteration
+        (
+            "-1",
+            ("", "", "1"),
+        ),
+        # Nothing
+        (
+            "",
+            ("", "", ""),
+        ),
+    ],
+)
+def test_artifact_producer_parse_uri(uri, expected_parsed_result):
+    parsed_result = mlrun.artifacts.ArtifactProducer.parse_uri(uri)
+    assert (
+        deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True)
+        == {}
+    )

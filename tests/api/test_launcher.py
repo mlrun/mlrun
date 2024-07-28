@@ -117,7 +117,7 @@ def test_validate_state_thresholds_success():
                 "unknown_state": "10s",
             },
             f"Invalid state unknown_state for state threshold, must be one of "
-            f"{mlrun.runtimes.constants.ThresholdStates.all()}",
+            f"{mlrun.common.runtimes.constants.ThresholdStates.all()}",
         ),
         (
             {

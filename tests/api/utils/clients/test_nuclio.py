@@ -25,14 +25,14 @@ import server.api.utils.clients.nuclio
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     api_url = "http://nuclio-dashboard-url:8080"
-    mlrun.config.config.nuclio_dashboard_url = api_url
+    mlrun.mlconf.nuclio_dashboard_url = api_url
     return api_url
 
 
 @pytest.fixture()
-async def nuclio_client(
+def nuclio_client(
     api_url: str,
 ) -> server.api.utils.clients.nuclio.Client:
     client = server.api.utils.clients.nuclio.Client()

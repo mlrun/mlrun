@@ -32,7 +32,7 @@ Example of loading a project from git, using the default `context` dir,  and run
 ```python
 # load the project and run the 'main' workflow
 project = load_project(name="myproj", url="git://github.com/mlrun/project-archive.git")
-project.run("main", arguments={'data': data_url})
+project.run("main", arguments={"data": data_url})
 ```
 
 ```{admonition} Note

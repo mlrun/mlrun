@@ -1,23 +1,26 @@
 # uploading to PyPI
-twine~=3.1
+twine~=5.1
 build~=1.0
 
 # formatting & linting
-ruff==0.3.0
+ruff==0.5.0
 import-linter~=2.0
+blacken-docs~=1.18
+black~=24.4  # only used by by blacken-docs
 
 # testing
-pytest~=7.4
-pytest-asyncio~=0.18.0
-pytest-alembic~=0.9.1
+pytest~=8.2
+pytest-asyncio~=0.21.2
+pytest-alembic~=0.11.0
 pytest-httpserver~=1.0
 pytest-timeout~=2.0
 aioresponses~=0.7
 requests-mock~=1.8
-httpx~=0.24.0
-deepdiff~=6.5
-hypothesis[numpy]~=6.87
-pytest-rerunfailures~=13.0
+httpx~=0.27.0
+deepdiff~=7.0
+hypothesis[numpy]~=6.103
+pytest-rerunfailures~=14.0
+pytest-forked~=1.6
 
 # system tests
 matplotlib~=3.5
@@ -27,6 +30,6 @@ avro~=1.11
 sqlalchemy-utils~=0.39.0
 
 # frameworks tests
-scikit-learn~=1.4
-lightgbm~=3.0; platform_machine != 'arm64'
+scikit-learn~=1.4.0
+lightgbm~=4.3
 xgboost~=1.1

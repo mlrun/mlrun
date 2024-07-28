@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import pathlib
+import sys
 
 import pytest
 
@@ -20,7 +21,7 @@ import mlrun.launcher.local
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
-handler = "hello_word"
+handler = "hello_world"
 
 
 def test_launch_local():
@@ -116,3 +117,71 @@ def test_validate_runtime_success():
         spec=mlrun.model.RunSpec(inputs={"input1": ""}, output_path="./some_path")
     )
     launcher._validate_runtime(runtime, run)
+
+
+def test_launch_local_reload_module(tmp_path):
+    """This test ensures that the function code is updated when running a relative handler in local
+    mode when the code changes during execution"""
+    sys.path.append(str(tmp_path.parent))
+    dir_name = tmp_path.name
+    file_path = f"{tmp_path}/temp_function.py"
+
+    function_code = '''def func():
+    return "dummy value"'''
+
+    with open(file_path, mode="w+") as file:
+        file.write(function_code)
+
+    project = mlrun.new_project("some-project")
+    project.set_function(name="func", handler=f"{dir_name}.temp_function.func")
+    run = project.run_function("func", local=True)
+    assert run.output("return") == "dummy value"
+
+    # change the function's return value in the file
+    function_code = '''def func():
+    return "dummy value updated"'''
+
+    with open(file_path, mode="w+") as file:
+        file.write(function_code)
+
+    run = project.run_function("func", local=True, reset_on_run=True)
+    assert run.output("return") == "dummy value updated"
+
+
+def test_launch_local_reload_module_depends_on_another_changed_module(tmp_path):
+    """This test ensures that the function code is updated when running a relative handler in local mode
+    when the code module depends on another module and the other module has changed during execution."""
+    sys.path.append(str(tmp_path.parent))
+    dir_name = tmp_path.name
+
+    # creating the temp_a file
+    function_code = '''def func_a():
+    return "dummy value"'''
+
+    with open(f"{tmp_path}/temp_a.py", mode="w+") as file:
+        file.write(function_code)
+
+    # creating the temp_b file, which depends on temp_a
+    function_code = f"""import {dir_name}.temp_a as tmp_file
+def func_b():
+    return tmp_file.func_a()"""
+
+    with open(f"{tmp_path}/temp_b.py", mode="w+") as file:
+        file.write(function_code)
+
+    # running temp_b with temp_a dependency
+    project = mlrun.new_project("some-project")
+    project.set_function(name="func", handler=f"{dir_name}.temp_b.func_b")
+    run = project.run_function("func", local=True)
+    assert run.output("return") == "dummy value"
+
+    # changing the code in temp_a
+    function_code = '''def func_a():
+    return "dummy value updated"'''
+
+    with open(f"{tmp_path}/temp_a.py", mode="w+") as file:
+        file.write(function_code)
+
+    # rerunning temp_b with temp_a dependence and verifying with the updated temp_a code
+    run = project.run_function("func", local=True, reset_on_run=True)
+    assert run.output("return") == "dummy value updated"

@@ -363,7 +363,7 @@ class AutoMLRun:
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"]
+                                                 "/.../custom_objects.py": ["object1", "object2"],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',
@@ -464,7 +464,7 @@ class AutoMLRun:
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"]
+                                                 "/.../custom_objects.py": ["object1", "object2"],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',

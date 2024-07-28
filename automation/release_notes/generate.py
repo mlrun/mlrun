@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging
 import re
 import subprocess
 import tempfile
@@ -19,9 +20,8 @@ import tempfile
 import click
 import requests
 
-import mlrun.utils
-
-logger = mlrun.utils.create_logger(level="debug", name="automation")
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("automation")
 
 
 class ReleaseNotesGenerator:
@@ -55,34 +55,50 @@ class ReleaseNotesGenerator:
         self._release = release
         self._previous_release = previous_release
         self._release_branch = release_branch
+        if not self._previous_release.startswith("v"):
+            self._previous_release = "v" + self._previous_release
+        if not self._release.startswith("v"):
+            self._release = "v" + self._release
         self._raise_on_failed_parsing = raise_on_failed_parsing
         self._tmp_file_path = tmp_file_path
         self._skip_clone = skip_clone
         # adding a map with the common contributors to prevent going to github API on every commit (better performance,
         # and prevent rate limiting)
         self._git_to_github_usernames_map = {
-            "gilad-shaham": "gilad-shaham",
-            "Saar Cohen": "theSaarco",
-            "Yaron Haviv": "yaronha",
+            "moranbental": "moranbental",
+            "roei3000b": "roei3000b",
+            "Yael Genish": "yaelgen",
             "Liran BG": "liranbg",
-            "Gal Topper": "gtopper",
-            "guy1992l": "guy1992l",
-            "Nick Brown": "ihs-nick",
             "Adam": "quaark",
             "Alon Maor": "alonmr",
             "TomerShor": "TomerShor",
-            "Assaf Ben-Amitai": "assaf758",
-            "Yael Genish": "yaelgen",
-            "Eyal Danieli": "Eyal-Danieli",
+            "gilad-shaham": "gilad-shaham",
+            "jillnogold": "jillnogold",
+            "Saar Cohen": "theSaarco",
+            "Yaron Haviv": "yaronha",
+            "guy1992l": "guy1992l",
             "Yoni Shelach": "yonishelach",
+            "Yan Burman": "yanburman",
+            "Yacouby": "Yacouby",
+            "Assaf Ben-Amitai": "assaf758",
+            "alxtkr77": "alxtkr77",
+            "davesh0812": "davesh0812",
+            "tomer-mamia": "tomerm-iguazio",
+            "Gal Topper": "gtopper",
+            "Jonathan Daniel": "jond01",
+            "Eyal Danieli": "Eyal-Danieli",
+            "Nick Brown": "ihs-nick",
+            "jist": "george0st",
         }
 
     def run(self):
         self._logger.info(
             "Generating release notes",
-            release=self._release,
-            previous_release=self._previous_release,
-            release_branch=self._release_branch,
+            extra=dict(
+                release=self._release,
+                previous_release=self._previous_release,
+                release_branch=self._release_branch,
+            ),
         )
 
         with tempfile.TemporaryDirectory(
@@ -95,7 +111,9 @@ class ReleaseNotesGenerator:
                     "Skipping cloning repo, assuming already cloned, using current working dir"
                 )
             else:
-                self._logger.info("Cloning repo", repo_dir=current_working_dir)
+                self._logger.info(
+                    "Cloning repo", extra=dict(repo_dir=current_working_dir)
+                )
                 self._run_command(
                     "git",
                     args=[
@@ -178,7 +196,9 @@ class ReleaseNotesGenerator:
     def output_release_notes(self, release_notes: str):
         print(release_notes)
         if self._tmp_file_path:
-            logger.info("Writing release notes to file", path=self._tmp_file_path)
+            logger.info(
+                "Writing release notes to file", extra=dict(path=self._tmp_file_path)
+            )
             with open(self._tmp_file_path, "w") as f:
                 f.write(release_notes)
 
@@ -250,11 +270,13 @@ class ReleaseNotesGenerator:
         except subprocess.CalledProcessError as exc:
             logger.warning(
                 "Command failed",
-                stdout=exc.stdout,
-                stderr=exc.stderr,
-                return_code=exc.returncode,
-                cmd=exc.cmd,
-                args=exc.args,
+                extra=dict(
+                    stdout=exc.stdout,
+                    stderr=exc.stderr,
+                    return_code=exc.returncode,
+                    cmd=exc.cmd,
+                    excargs=exc.args,
+                ),
             )
             raise
         output = process.stdout
@@ -266,13 +288,13 @@ def main():
     pass
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("release", type=str, required=True)
-@click.argument("previous-release", type=str, required=True)
-@click.argument("release-branch", type=str, required=False, default="master")
-@click.argument("raise-on-failed-parsing", type=bool, required=False, default=True)
-@click.argument("tmp-file-path", type=str, required=False, default=None)
-@click.argument("skip-clone", type=bool, required=False, default=True)
+@main.command()
+@click.option("--release", type=str, required=True)
+@click.option("--previous-release", type=str, required=True)
+@click.option("--release-branch", type=str, required=False, default="master")
+@click.option("--raise-on-failed-parsing", type=bool, required=False, default=True)
+@click.option("--tmp-file-path", type=str, required=False, default=None)
+@click.option("--skip-clone", type=bool, required=False, default=True)
 def run(
     release: str,
     previous_release: str,
@@ -291,8 +313,8 @@ def run(
     )
     try:
         release_notes_generator.run()
-    except Exception as exc:
-        logger.error("Failed running release notes generator", exc=exc)
+    except Exception:
+        logger.exception("Failed running release notes generator")
         raise
 
 

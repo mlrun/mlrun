@@ -333,7 +333,7 @@ def test_module_load():
 
     def check_function(name, fn):
         graph = fn.set_topology("flow", engine="sync")
-        graph.to(name="s1", class_name="Mycls").to(name="s2", handler="myhand")
+        graph.to(name="s1", class_name="MyCls").to(name="s2", handler="myhand")
 
         server = fn.to_mock_server()
         resp = server.test(body=5)
@@ -396,3 +396,36 @@ def test_add_aggregate_as_insert():
 
     assert graph_2["s2"].after == ["Aggregates"]
     assert graph_2["Aggregates"].after == ["s1"]
+
+
+def test_set_flow_error():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    s1 = dict(name="s1", handler="(event + 1)")
+    s2 = dict(name="s2", handler="json.dumps")
+    graph.to(**s1).to(**s2)
+
+    r1 = dict(name="r1", handler="(event + 10)")
+    r2 = dict(name="r2", handler="json.dumps")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"set_flow\(\) called on a step that already has downstream steps. "
+        "If you want to overwrite existing steps, set force=True.",
+    ):
+        graph.set_flow(steps=[r1, r2])
+
+
+def test_set_flow():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    s1 = dict(name="s1", handler="(event + 1)")
+    s2 = dict(name="s2", handler="json.dumps")
+    graph.to(**s1).to(**s2)
+
+    r1 = dict(name="r1", handler="(event + 10)")
+    r2 = dict(name="r2", handler="json.dumps")
+    graph.set_flow(steps=[r1, r2], force=True)
+
+    server = fn.to_mock_server()
+    resp = server.test(body=5)
+    assert resp == "15"

@@ -53,7 +53,7 @@ class _StreamContext:
         Initialize _StreamContext object.
         :param enabled:      A boolean indication for applying the stream context
         :param parameters:   Dictionary of optional parameters, such as `log_stream` and `stream_args`. Note that these
-                             parameters might be relevant to the output source such as `kafka_bootstrap_servers` if
+                             parameters might be relevant to the output source such as `kafka_brokers` if
                              the output source is from type Kafka.
         :param function_uri: Full value of the function uri, usually it's <project-name>/<function-name>
         """
@@ -321,9 +321,9 @@ def v2_serving_init(context, namespace=None):
         server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
     context.logger.info_with(
         "Setting current function",
-        current_functiton=os.environ.get("SERVING_CURRENT_FUNCTION", ""),
+        current_function=os.getenv("SERVING_CURRENT_FUNCTION", ""),
     )
-    server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
+    server.set_current_function(os.getenv("SERVING_CURRENT_FUNCTION", ""))
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
@@ -344,9 +344,14 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    if hasattr(context, "platform") and hasattr(
-        context.platform, "set_termination_callback"
-    ):
+    _set_callbacks(server, context)
+
+
+def _set_callbacks(server, context):
+    if not server.graph.supports_termination() or not hasattr(context, "platform"):
+        return
+
+    if hasattr(context.platform, "set_termination_callback"):
         context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
@@ -358,7 +363,7 @@ def v2_serving_init(context, namespace=None):
 
         context.platform.set_termination_callback(termination_callback)
 
-    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+    if hasattr(context.platform, "set_drain_callback"):
         context.logger.info(
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
@@ -383,11 +388,22 @@ def v2_serving_handler(context, event, get_body=False):
         if event.body == b"":
             event.body = None
 
+    # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
+    # workaround for NUC-178
+    event.stream_path = event.path
+    if hasattr(event, "trigger") and event.trigger.kind in (
+        "kafka",
+        "kafka-cluster",
+        "v3ioStream",
+        "v3io-stream",
+    ):
+        event.path = "/"
+
     return context._server.run(event, context, get_body)
 
 
 def create_graph_server(
-    parameters={},
+    parameters=None,
     load_mode=None,
     graph=None,
     verbose=False,
@@ -403,9 +419,10 @@ def create_graph_server(
         server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
         print(server.test("/v2/models/my/infer", testdata))
     """
+    parameters = parameters or {}
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(
-        current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
+        current_function or os.getenv("SERVING_CURRENT_FUNCTION", "")
     )
     return server
 

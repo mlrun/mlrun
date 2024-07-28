@@ -108,9 +108,12 @@ def test_requirement_specifiers_convention():
                 continue
 
     ignored_invalid_map = {
+        # 0.1.0 is not compatible with mlrun >=1.7.0rc19
+        "mlrun-pipelines-kfp-common": {"~=0.1.2"},
+        "mlrun-pipelines-kfp-v1-8": {"~=0.1.2"},
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.7.6"},
+        "storey": {"~=1.7.23"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -131,6 +134,7 @@ def test_requirement_specifiers_convention():
         "pydantic": {"~=1.10, >=1.10.8"},
         "jinja2": {"~=3.1, >=3.1.3"},
         "pyopenssl": {">=23"},
+        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
@@ -139,9 +143,7 @@ def test_requirement_specifiers_convention():
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
-        # conda requirements since conda does not support ~= operator
-        "lightgbm": {">=3.0"},
-        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "scikit-learn": {"~=1.4.0"},
     }
 
     for (
@@ -178,9 +180,8 @@ def test_requirement_specifiers_inconsistencies():
         "python-dotenv": {"", "~=0.17.0"},
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
-        "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
-        "pyyaml": {"~=5.1", ">=5.4.1, <6"},
+        "pyyaml": {">=5.4.1, <7"},
     }
 
     for (

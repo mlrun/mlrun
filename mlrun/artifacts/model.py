@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import tempfile
+import warnings
 from os import path
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 import yaml
-from deprecated import deprecated
 
 import mlrun
 import mlrun.datastore
@@ -26,7 +27,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..features import Feature
 from ..model import ObjectList
 from ..utils import StorePrefix, is_relative_path
-from .base import Artifact, ArtifactSpec, LegacyArtifact, upload_extra_data
+from .base import Artifact, ArtifactSpec, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
 
@@ -69,8 +70,8 @@ class ModelArtifactSpec(ArtifactSpec):
         model_file=None,
         metrics=None,
         paraemeters=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
         framework=None,
         algorithm=None,
         feature_vector=None,
@@ -92,8 +93,8 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_file = model_file
         self.metrics = metrics or {}
         self.parameters = paraemeters or {}
-        self.inputs: list[Feature] = inputs or []
-        self.outputs: list[Feature] = outputs or []
+        self.inputs = inputs or []
+        self.outputs = outputs or []
         self.framework = framework
         self.algorithm = algorithm
         self.feature_vector = feature_vector
@@ -102,21 +103,21 @@ class ModelArtifactSpec(ArtifactSpec):
         self.model_target_file = model_target_file
 
     @property
-    def inputs(self) -> list[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: list[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         self._inputs = ObjectList.from_list(Feature, inputs)
 
     @property
-    def outputs(self) -> list[Feature]:
+    def outputs(self) -> ObjectList:
         """output feature list"""
         return self._outputs
 
     @outputs.setter
-    def outputs(self, outputs: list[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         self._outputs = ObjectList.from_list(Feature, outputs)
 
 
@@ -148,6 +149,12 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
+        if key or body or format or target_path:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
@@ -176,22 +183,22 @@ class ModelArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", ModelArtifactSpec)
 
     @property
-    def inputs(self) -> list[Feature]:
+    def inputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.inputs
 
     @inputs.setter
-    def inputs(self, inputs: list[Feature]):
+    def inputs(self, inputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.inputs = inputs
 
     @property
-    def outputs(self) -> list[Feature]:
+    def outputs(self) -> ObjectList:
         """input feature list"""
         return self.spec.outputs
 
     @outputs.setter
-    def outputs(self, outputs: list[Feature]):
+    def outputs(self, outputs: list[Feature]) -> None:
         """input feature list"""
         self.spec.outputs = outputs
 
@@ -396,144 +403,6 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyModelArtifact' will be removed in 1.7.0, use 'ModelArtifact' instead",
-    category=FutureWarning,
-)
-class LegacyModelArtifact(LegacyArtifact):
-    """ML Model artifact
-
-    Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
-    """
-
-    _dict_fields = LegacyArtifact._dict_fields + [
-        "model_file",
-        "metrics",
-        "parameters",
-        "inputs",
-        "outputs",
-        "framework",
-        "algorithm",
-        "extra_data",
-        "feature_vector",
-        "feature_weights",
-        "feature_stats",
-        "model_target_file",
-    ]
-    kind = "model"
-    _store_prefix = StorePrefix.Model
-
-    def __init__(
-        self,
-        key=None,
-        body=None,
-        format=None,
-        model_file=None,
-        metrics=None,
-        target_path=None,
-        parameters=None,
-        inputs=None,
-        outputs=None,
-        framework=None,
-        algorithm=None,
-        feature_vector=None,
-        feature_weights=None,
-        extra_data=None,
-        model_target_file=None,
-        **kwargs,
-    ):
-        super().__init__(key, body, format=format, target_path=target_path, **kwargs)
-        self._inputs: ObjectList = None
-        self._outputs: ObjectList = None
-
-        self.model_file = model_file
-        self.parameters = parameters or {}
-        self.metrics = metrics or {}
-        self.inputs: list[Feature] = inputs or []
-        self.outputs: list[Feature] = outputs or []
-        self.extra_data = extra_data or {}
-        self.framework = framework
-        self.algorithm = algorithm
-        self.feature_vector = feature_vector
-        self.feature_weights = feature_weights
-        self.feature_stats = None
-        self.model_target_file = model_target_file
-
-    @property
-    def inputs(self) -> list[Feature]:
-        """input feature list"""
-        return self._inputs
-
-    @inputs.setter
-    def inputs(self, inputs: list[Feature]):
-        self._inputs = ObjectList.from_list(Feature, inputs)
-
-    @property
-    def outputs(self) -> list[Feature]:
-        """output feature list"""
-        return self._outputs
-
-    @outputs.setter
-    def outputs(self, outputs: list[Feature]):
-        self._outputs = ObjectList.from_list(Feature, outputs)
-
-    def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
-        """infer inputs, outputs, and stats from provided df (training set)
-
-        :param df:      dataframe to infer from
-        :param label_columns: name of the label (target) column
-        :param with_stats:    infer statistics (min, max, .. histogram)
-        :param num_bins:      number of bins for histogram
-        """
-        subset = df
-        inferer = get_infer_interface(subset)
-        if label_columns:
-            if not isinstance(label_columns, list):
-                label_columns = [label_columns]
-            subset = df.drop(columns=label_columns)
-        inferer.infer_schema(subset, self.inputs, {}, options=InferOptions.Features)
-        if label_columns:
-            inferer.infer_schema(
-                df[label_columns], self.outputs, {}, options=InferOptions.Features
-            )
-        if with_stats:
-            self.feature_stats = inferer.get_stats(
-                df, options=InferOptions.Histogram, num_bins=num_bins
-            )
-
-    @property
-    def is_dir(self):
-        return True
-
-    def before_log(self):
-        if not self.model_file:
-            raise ValueError("model_file attr must be specified")
-
-        super().before_log()
-
-        if self.framework:
-            self.labels = self.labels or {}
-            self.labels["framework"] = self.framework
-
-    def upload(self):
-        target_model_path = path.join(self.target_path, self.model_file)
-        body = self.get_body()
-        if body:
-            self._upload_body(body, target=target_model_path)
-        else:
-            src_model_path = _get_src_path(self, self.model_file)
-            if not path.isfile(src_model_path):
-                raise ValueError(f"model file {src_model_path} not found")
-            self._upload_file(src_model_path, target=target_model_path)
-
-        upload_extra_data(self, self.extra_data)
-
-        spec_path = path.join(self.target_path, model_spec_filename)
-        mlrun.datastore.store_manager.object(url=spec_path).put(self.to_yaml())
-
-
 def _get_src_path(model_spec: ModelArtifact, filename):
     if model_spec.src_path:
         return path.join(model_spec.src_path, filename)
@@ -552,9 +421,9 @@ def get_model(model_dir, suffix=""):
 
     example::
 
-        model_file, model_artifact, extra_data = get_model(models_path, suffix='.pkl')
+        model_file, model_artifact, extra_data = get_model(models_path, suffix=".pkl")
         model = load(open(model_file, "rb"))
-        categories = extra_data['categories'].as_df()
+        categories = extra_data["categories"].as_df()
 
     :param model_dir:       model dir or artifact path (store://..) or DataItem
     :param suffix:          model filename suffix (when using a dir)
@@ -640,7 +509,7 @@ def _get_extra(target, extra_data, is_dir=False):
 def _remove_tag_from_spec_yaml(model_spec):
     spec_dict = model_spec.to_dict()
     spec_dict["metadata"].pop("tag", None)
-    return yaml.dump(spec_dict)
+    return yaml.safe_dump(spec_dict)
 
 
 def update_model(
@@ -663,8 +532,11 @@ def update_model(
 
     example::
 
-        update_model(model_path, metrics={'speed': 100},
-                     extra_data={'my_data': b'some text', 'file': 's3://mybucket/..'})
+        update_model(
+            model_path,
+            metrics={"speed": 100},
+            extra_data={"my_data": b"some text", "file": "s3://mybucket/.."},
+        )
 
     :param model_artifact:  model artifact object or path (store://..) or DataItem
     :param parameters:      parameters dict

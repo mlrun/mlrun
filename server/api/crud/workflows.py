@@ -15,8 +15,10 @@
 import os
 import uuid
 
+import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -86,8 +88,8 @@ class WorkflowRunners(
         :param auth_info:           auth info of the request
         """
         labels = {
-            "job-type": "workflow-runner",
-            "workflow": workflow_request.spec.name,
+            mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
+            mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
 
         run_spec = self._prepare_run_object_for_scheduling(
@@ -211,12 +213,12 @@ class WorkflowRunners(
         """
         labels = {"project": project.metadata.name}
         if load_only:
-            labels["job-type"] = "project-loader"
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "project-loader"
         else:
-            labels["job-type"] = "workflow-runner"
-            labels["workflow"] = runner.metadata.name
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "workflow-runner"
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
-            labels, [mlrun.runtimes.constants.RunLabels.owner]
+            labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
 
         run_spec = self._prepare_run_object_for_single_run(
@@ -274,10 +276,24 @@ class WorkflowRunners(
 
         if workflow_id is None:
             if (
-                engine == "local"
-                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+                run_object.metadata.is_workflow_runner()
+                and run_object.status.is_failed()
             ):
-                workflow_id = ""
+                state = run_object.status.state
+                state_text = run_object.status.error
+                workflow_name = run_object.spec.parameters.get(
+                    "workflow_name", "<unknown>"
+                )
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    f"Failed to run workflow {workflow_name}, state: {state}, state_text: {state_text}"
+                )
+
+            elif (
+                engine == "local"
+                and state.casefold()
+                == mlrun_pipelines.common.models.RunStatuses.running.casefold()
+            ):
+                workflow_id = run_object.metadata.uid
             else:
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Workflow id of run {project}:{uid} not found"

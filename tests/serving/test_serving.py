@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import time
-import unittest.mock
 
 import pandas as pd
 import pytest
@@ -85,10 +84,10 @@ ensemble_object_classification.routes = generate_test_routes_classification(
 )
 
 
-def generate_spec(graph, mode="sync", params={}):
+def generate_spec(graph, mode="sync", params=None):
     return {
         "version": "v2",
-        "parameters": params,
+        "parameters": params or {},
         "graph": graph,
         "load_mode": mode,
         "verbose": True,
@@ -750,30 +749,3 @@ def test_mock_invoke():
 
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
-
-
-def test_deploy_with_dashboard_argument():
-    fn = mlrun.new_function("tests", kind="serving")
-    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
-    db_instance = fn._get_db()
-    db_instance.remote_builder = unittest.mock.Mock(
-        return_value={
-            "data": {
-                "metadata": {
-                    "name": "test",
-                },
-                "status": {
-                    "state": "ready",
-                    "external_invocation_urls": ["http://test-url.com"],
-                },
-            },
-        },
-    )
-    db_instance.get_builder_status = unittest.mock.Mock(
-        return_value=(None, None),
-    )
-
-    mlrun.deploy_function(fn)
-
-    # test that the remote builder was called even with dashboard argument
-    assert db_instance.remote_builder.call_count == 1

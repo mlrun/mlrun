@@ -70,3 +70,4 @@ class FrontendSpec(pydantic.BaseModel):
     feature_store_data_prefixes: typing.Optional[dict[str, str]]
     allowed_artifact_path_prefixes_list: list[str]
     ce: typing.Optional[dict]
+    internal_labels: list[str] = []

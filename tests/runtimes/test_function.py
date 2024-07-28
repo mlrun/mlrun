@@ -20,6 +20,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.errors
 from mlrun import code_to_function
 from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
@@ -204,3 +205,17 @@ def test_update_credentials_from_remote_build(function_kind):
 
     assert function.metadata.credentials.access_key == secret_name
     assert function.spec.env == remote_data["spec"]["env"]
+
+
+@pytest.mark.parametrize(
+    "tag,expected",
+    [
+        ("valid_tag", does_not_raise()),
+        ("invalid%$tag", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("too-long-tag" * 10, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+    ],
+)
+def test_invalid_tags(tag, expected, rundb_mock):
+    function = mlrun.new_function("test", kind="nuclio", tag=tag)
+    with expected:
+        function.pre_deploy_validation()

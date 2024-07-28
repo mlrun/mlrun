@@ -17,14 +17,15 @@ import os
 import kfp.compiler
 import kfp.dsl
 import pytest
+from mlrun_pipelines.mounts import mount_v3io
 
+import mlrun.common.constants as mlrun_constants
 from mlrun import (
     _run_pipeline,
     code_to_function,
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.platforms.other import mount_v3io
 from tests.system.base import TestMLRunSystem
 
 
@@ -109,9 +110,13 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-training",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
-                "kind": "job",
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.kind: "job",
                 "category": "tests",
             },
         )
@@ -121,9 +126,13 @@ class TestJobs(TestMLRunSystem):
             name="my-trainer-validation",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
-                "kind": "job",
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.kind: "job",
             },
         )
         self._verify_run_spec(
@@ -140,7 +149,7 @@ class TestJobs(TestMLRunSystem):
             outputs=["validation", "run_id"],
             output_path=f"v3io:///users/admin/kfp/{workflow_run_id}/",
             inputs={
-                "model": f"store://artifacts/{self.project_name}/my-trainer-training_mymodel@{workflow_run_id}",
+                "model": f"store://artifacts/{self.project_name}/my-trainer-training_mymodel:latest@{workflow_run_id}",
             },
             data_stores=[],
         )

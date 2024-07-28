@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 import copy
+import datetime
 import tempfile
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -29,7 +31,7 @@ import server.api.initial_data
 from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
-from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
+from mlrun.artifacts.plots import PlotArtifact, PlotlyArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
 from server.api.db.base import DBInterface
 
@@ -105,7 +107,7 @@ class TestArtifacts:
 
     def test_list_artifact_kind_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         tree = "artifact_tree"
@@ -139,7 +141,7 @@ class TestArtifacts:
 
     def test_list_artifact_category_filter(self, db: DBInterface, db_session: Session):
         artifact_name_1 = "artifact_name_1"
-        artifact_kind_1 = ChartArtifact.kind
+        artifact_kind_1 = PlotlyArtifact.kind
         artifact_name_2 = "artifact_name_2"
         artifact_kind_2 = PlotArtifact.kind
         artifact_name_3 = "artifact_name_3"
@@ -242,7 +244,7 @@ class TestArtifacts:
         artifact_1_tree = "artifact_tree"
         artifact_1_tag = "artifact_tag_1"
         artifact_1_body = self._generate_artifact(artifact_1_key, tree=artifact_1_tree)
-        artifact_1_kind = ChartArtifact.kind
+        artifact_1_kind = PlotlyArtifact.kind
         artifact_1_with_kind_tree = "artifact_tree_2"
         artifact_2_tag = "artifact_tag_2"
         artifact_1_with_kind_body = self._generate_artifact(
@@ -613,6 +615,125 @@ class TestArtifacts:
         db.del_artifacts(db_session, tag=artifact_2_tag)
         artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
         assert len(artifacts) == 0
+
+    def test_delete_artifacts_failure(self, db: DBInterface, db_session: Session):
+        artifact_1_key = "artifact_key_1"
+        artifact_2_key = "artifact_key_2"
+        artifact_1_body = self._generate_artifact(artifact_1_key)
+        artifact_2_body = self._generate_artifact(artifact_2_key)
+        artifact_1_tag = "artifact-tag-one"
+        artifact_2_tag = "artifact-tag-two"
+
+        db.store_artifact(
+            db_session,
+            artifact_1_key,
+            artifact_1_body,
+            tag=artifact_1_tag,
+        )
+        db.store_artifact(
+            db_session,
+            artifact_2_key,
+            artifact_2_body,
+            tag=artifact_2_tag,
+        )
+        with (
+            unittest.mock.patch.object(db, "_delete_multi_objects", return_value=0),
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            db.del_artifacts(db_session)
+        assert "Failed to delete 2 artifacts" in str(exc.value)
+
+        with (
+            unittest.mock.patch.object(db, "_delete_multi_objects", return_value=1),
+            pytest.raises(mlrun.errors.MLRunInternalServerError) as exc,
+        ):
+            db.del_artifacts(db_session)
+        assert "Failed to delete 1 artifacts" in str(exc.value)
+
+        artifacts = db.list_artifacts(db_session, as_records=True)
+        assert len(artifacts) == 2
+        db.del_artifacts(db_session)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 0
+
+    def test_delete_artifacts_with_specific_iteration(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        num_of_iterations = 5
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # make sure all artifacts were created
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations
+
+        # delete the artifact with iteration 3
+        db.del_artifact(
+            db_session, project=project, key=artifact_key, iter=3, tag="latest"
+        )
+
+        # make sure the artifact with iteration 3 was deleted
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations - 1
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key, project=project, iter=3)
+
+    def test_delete_artifacts_with_specific_uid(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        num_of_iterations = 3
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, num_of_iterations + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # make sure all artifacts were created
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations
+
+        # take the uid of the first artifact
+        uid = artifacts[0]["metadata"]["uid"]
+
+        # delete the artifact with the specific uid
+        db.del_artifact(db_session, project=project, key=artifact_key, uid=uid)
+
+        # make sure the artifact with the specific uid was deleted
+        artifacts = db.list_artifacts(db_session, project=project, name=artifact_key)
+        assert len(artifacts) == num_of_iterations - 1
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            db.read_artifact(db_session, artifact_key, project=project, uid=uid)
 
     def test_delete_artifact_tag_filter(self, db: DBInterface, db_session: Session):
         project = "artifact_project"
@@ -1062,9 +1183,9 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
         assert len(artifacts) == 5
 
-        # query all artifacts tags, should return 15+5=20 tags
+        # query all artifacts tags, should return 4 tags = 3 tags + latest
         tags = db.list_artifact_tags(db_session, project=project)
-        assert len(tags) == 20
+        assert len(tags) == 4
 
         # files counters should return the most recent artifacts, for each key -> 5 artifacts
         project_to_files_count = db._calculate_files_counters(db_session)
@@ -1370,6 +1491,76 @@ class TestArtifacts:
         assert new_artifact.key == db_key
         assert new_artifact.iteration == iteration
 
+    def test_migrate_artifact_without_metadata_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        # empty key on purpose
+        artifact_key = ""
+        artifact_tree = "some-tree"
+        artifact_tag = "artifact-tag-1"
+        project = "project1"
+        db_key = "db-key-1"
+
+        # create project
+        self._create_project(db, db_session, project)
+
+        # create artifacts in the old format
+        artifact_body = self._generate_artifact(artifact_key, artifact_tree, "artifact")
+        artifact_body["metadata"]["project"] = project
+        artifact_body["spec"]["db_key"] = db_key
+
+        # store the artifact with the db_key
+        db.store_artifact_v1(
+            db_session,
+            db_key,
+            artifact_body,
+            artifact_tree,
+            project=project,
+            tag=artifact_tag,
+        )
+
+        # validate the artifact was stored with the db_key
+        artifact = db.read_artifact_v1(db_session, db_key, project=project)
+        assert artifact["metadata"]["key"] == ""
+        assert artifact["spec"]["db_key"] == db_key
+
+        # migrate the artifacts to v2
+        self._run_artifacts_v2_migration(db, db_session)
+
+        # validate the migration succeeded and the metadata key is the db_key
+        query_all = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        )
+        new_artifact = query_all.one()
+
+        assert new_artifact.key == db_key
+        artifact = new_artifact.full_object
+        assert artifact["metadata"]["key"] == db_key
+
+    def test_migrate_invalid_artifact(self, db: DBInterface, db_session: Session):
+        # create an artifact with an invalid struct
+        artifact = server.api.db.sqldb.models.Artifact(
+            project="my-project",
+            key="my-key",
+            updated=datetime.datetime.now(),
+            uid="something",
+        )
+        artifact.struct = {"something": "blabla"}
+
+        db_session.add(artifact)
+        db_session.commit()
+
+        self._run_artifacts_v2_migration(db, db_session)
+
+        query_all = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        )
+        new_artifacts = query_all.all()
+
+        assert len(new_artifacts) == 1
+
     def test_update_model_spec(self, db: DBInterface, db_session: Session):
         artifact_key = "model1"
 
@@ -1486,7 +1677,7 @@ class TestArtifacts:
     def _run_artifacts_v2_migration(db: DBInterface, db_session: Session):
         with tempfile.TemporaryDirectory() as temp_dir:
             # change the state file path to the temp directory for the test only
-            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            mlrun.mlconf.artifacts.artifact_migration_state_file_path = (
                 temp_dir + "/_artifact_migration_state.json"
             )
 

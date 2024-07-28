@@ -1,6 +1,7 @@
 [tool.ruff]
 extend-include = ["*.ipynb"]
 target-version = "py39"
+required-version = ">=0.5.0"
 
 [tool.ruff.lint]
 extend-select = [
@@ -10,6 +11,12 @@ extend-select = [
     "I",   # isort
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
+    "N801", # CamelCase for class names
+    "N805", # first argument of instance method should be 'self'
+    "N806", # lowercase variable names
+    "N816", # snake_case for global variable names
+    "N999", # snake_case for module names
+    "B006", # mutable default arguments
 ]
 exclude = ["*.ipynb"]
 explicit-preview-rules = true
@@ -24,6 +31,9 @@ max-line-length = 120
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"
 
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"
 python_files = [
@@ -33,6 +43,7 @@ python_files = [
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_packages = [
@@ -66,7 +77,6 @@ forbidden_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",
@@ -77,6 +87,17 @@ ignore_imports = [
     "mlrun.config -> mlrun.db",
     "mlrun.utils.clones -> mlrun",
     "mlrun.utils.helpers -> mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
+type = "forbidden"
+source_modules = [
+    "mlrun",
+    "server.api",
+]
+forbidden_modules = [
+    "kfp",
 ]
 
 [[tool.importlinter.contracts]]
@@ -110,7 +131,6 @@ source_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",

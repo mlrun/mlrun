@@ -19,15 +19,16 @@ from uuid import UUID
 import pandas as pd
 from sklearn.datasets import load_iris
 
-import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.application import ModelMonitoringApplicationResult
-from mlrun.model_monitoring.evidently_application import (
+from mlrun.model_monitoring.applications import (
     _HAS_EVIDENTLY,
     EvidentlyModelMonitoringApplicationBase,
+    EvidentlyModelMonitoringApplicationBaseV2,
+    ModelMonitoringApplicationResult,
 )
 
 if _HAS_EVIDENTLY:
@@ -165,8 +166,8 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     def do_tracking(
         self,
         application_name: str,
-        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
         start_infer_time: pd.Timestamp,
         end_infer_time: pd.Timestamp,
@@ -192,6 +193,115 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
         self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
 
         self.context.logger.info("Logged evidently objects")
+        return ModelMonitoringApplicationResult(
+            name="data_drift_test",
+            value=0.5,
+            kind=ResultKindApp.data_drift,
+            status=ResultStatusApp.potential_detection,
+        )
+
+    def create_report(
+        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
+    ) -> "Report":
+        metrics = [
+            DatasetDriftMetric(),
+            DatasetMissingValuesMetric(),
+        ]
+        for col_name in self.columns:
+            metrics.extend(
+                [
+                    ColumnDriftMetric(column_name=col_name, stattest="wasserstein"),
+                    ColumnSummaryMetric(column_name=col_name),
+                ]
+            )
+
+        data_drift_report = Report(
+            metrics=metrics,
+            timestamp=schedule_time,
+        )
+
+        data_drift_report.run(reference_data=self.train_set, current_data=sample_df)
+        return data_drift_report
+
+    def create_test_suite(
+        self, sample_df: pd.DataFrame, schedule_time: pd.Timestamp
+    ) -> "TestSuite":
+        data_drift_test_suite = TestSuite(
+            tests=[DataDriftTestPreset()],
+            timestamp=schedule_time,
+        )
+
+        data_drift_test_suite.run(reference_data=self.train_set, current_data=sample_df)
+        return data_drift_test_suite
+
+
+class CustomEvidentlyMonitoringAppV2(EvidentlyModelMonitoringApplicationBaseV2):
+    NAME = "evidently-app-test-v2"
+
+    def __init__(
+        self,
+        evidently_workspace_path: str,
+        evidently_project_id: "STR_UUID",
+    ) -> None:
+        super().__init__(evidently_workspace_path, evidently_project_id)
+        self._init_evidently_project()
+        self.train_set = None
+
+    def _init_iris_data(
+        self, monitoring_context: mm_context.MonitoringApplicationContext
+    ) -> None:
+        if self.train_set is None:
+            iris = load_iris()
+            self.columns = monitoring_context.feature_names
+            self.train_set = pd.DataFrame(iris.data, columns=self.columns)
+
+    def _init_evidently_project(self) -> None:
+        if self.evidently_project is None:
+            if isinstance(self.evidently_project_id, str):
+                self.evidently_project_id = UUID(self.evidently_project_id)
+            self.evidently_project = _create_evidently_project(
+                self.evidently_workspace, self.evidently_project_id
+            )
+
+    def do_tracking(
+        self,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> ModelMonitoringApplicationResult:
+        self._init_iris_data(monitoring_context)
+        monitoring_context.logger.info("Running evidently app")
+
+        sample_df = monitoring_context.sample_df[self.columns]
+
+        data_drift_report = self.create_report(
+            sample_df, monitoring_context.end_infer_time
+        )
+        self.evidently_workspace.add_report(
+            self.evidently_project_id, data_drift_report
+        )
+        data_drift_test_suite = self.create_test_suite(
+            sample_df, monitoring_context.end_infer_time
+        )
+        self.evidently_workspace.add_test_suite(
+            self.evidently_project_id, data_drift_test_suite
+        )
+
+        self.log_evidently_object(
+            monitoring_context,
+            data_drift_report,
+            f"report_{str(monitoring_context.end_infer_time)}",
+        )
+        self.log_evidently_object(
+            monitoring_context,
+            data_drift_test_suite,
+            f"suite_{str(monitoring_context.end_infer_time)}",
+        )
+        self.log_project_dashboard(
+            monitoring_context,
+            None,
+            monitoring_context.end_infer_time + datetime.timedelta(minutes=1),
+        )
+
+        monitoring_context.logger.info("Logged evidently objects")
         return ModelMonitoringApplicationResult(
             name="data_drift_test",
             value=0.5,

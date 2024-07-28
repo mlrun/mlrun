@@ -76,11 +76,6 @@ def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) ->
     full_secrets.update(env_secrets)
     k8s_secrets_mock.store_project_secrets(project, project_secrets)
 
-    resp = client.get(f"files?path={path}")
-    assert resp
-    files_mock.assert_called_once_with(url=path, secrets=env_secrets, project="")
-    files_mock.reset_mock()
-
     resp = client.get(f"projects/{project}/files?path={path}")
     assert resp
     files_mock.assert_called_once_with(url=path, secrets=full_secrets, project="proj1")

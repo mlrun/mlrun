@@ -114,12 +114,14 @@ class LocalFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         time_column=None,
+        additional_filters=None,
     ):
         df = feature_set.to_dataframe(
             columns=column_names,
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
+            additional_filters=additional_filters,
         )
         if df.index.names[0]:
             df.reset_index(inplace=True)

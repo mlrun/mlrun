@@ -24,7 +24,7 @@ from tests.conftest import tests_root_directory
 
 def load_rst_cases(name):
     with open(tests_root_directory / "runtimes" / name) as fp:
-        data = yaml.load(fp)
+        data = yaml.safe_load(fp)
 
     for i, case in enumerate(data):
         name = case.get("name", "")
@@ -50,33 +50,14 @@ def ast_func(code):
     return funcs[0]
 
 
-def eval_func(code):
-    out = {}
-    exec(code, None, out)
-    funcs = [obj for obj in out.values() if callable(obj)]
-    assert len(funcs) == 1, f"more than one function in:\n{code}"
-    return funcs[0]
-
-
-info_handlers = [
-    (funcdoc.func_info, eval_func),
-    (funcdoc.ast_func_info, ast_func),
-]
-
-
 def load_info_cases():
     with open(tests_root_directory / "runtimes" / "info_cases.yml") as fp:
-        cases = yaml.load(fp)
+        cases = yaml.safe_load(fp)
 
     for case in cases:
-        for info_fn, conv in info_handlers:
-            obj = conv(case["code"])
-            tid = f'{case["id"]}-{info_fn.__name__}'
-            expected = case["expected"].copy()
-            # No line info in evaled functions
-            if info_fn is funcdoc.func_info:
-                expected["lineno"] = -1
-            yield pytest.param(info_fn, obj, expected, id=tid)
+        obj = ast_func(case["code"])
+        expected = case["expected"].copy()
+        yield pytest.param(funcdoc.ast_func_info, obj, expected, id=case["id"])
 
 
 @pytest.mark.parametrize("info_fn, obj, expected", load_info_cases())

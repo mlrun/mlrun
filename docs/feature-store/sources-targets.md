@@ -3,7 +3,6 @@
 
 - [Sources](#sources)
 - [Targets](#targets)
-- [Data store profiles](#data-store-profiles)
 
 # Sources
 
@@ -17,15 +16,75 @@ You can also create a custom `source` to access various databases or data source
 
 | Class name                                                                                       | Description                                                   | storey | spark | pandas |
 | --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.BigQuerySource`               | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
+| {py:meth}`~mlrun.datastore.BigQuerySource`                                                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
 | SnowFlakeSource                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
 | [SQLSource](#sql-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
-| {py:meth}`~mlrun.datastore.CSVSource`              | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
+| {py:meth}`~mlrun.datastore.CSVSource`                                                            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.ParquetSource`    | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
-| {py:meth}`~mlrun.datastore.HttpSource`                                 |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
-| [Apache Kafka source](#apache-kafka-source) and [Confluent Kafka source](#confluent-kafka-source)|Event-based. Sets the kafka source for the flow.          | Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.StreamSource`                           |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+| {py:meth}`~mlrun.datastore.ParquetSource`                                                      | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
+| [S3/Azure source](#s3-azure-source)                                                            | Batch.                                                                 |       |      |       |
+| {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
+| {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+
+## Kafka source
+
+
+```{admonition} Note
+Confluent Kafka source is Tech Preview 
+```
+
+## Kafka source
+
+```python
+profile = DatastoreProfileKafkaSource(
+    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+)
+target = KafkaSource(path="ds://profile-name")
+```
+
+`DatastoreProfileKafkaSource` class parameters:
+- `name` &mdash; Name of the profile
+- `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
+- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data is sourced or read.
+- `group` &mdash; A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
+- `initial_offset` &mdash; A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
+- `partitions` &mdash; This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
+- `sasl_user` &mdash; A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
+- `sasl_pass` &mdash; A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+
+See also {py:meth}`~mlrun.datastore.KafkaSource`.
+  
+**Example**:
+
+```
+from mlrun.datastore.sources import KafkaSource
+
+kafka_source = KafkaSource(
+            brokers=['default-tenant.app.vmdev76.lab.iguazeng.com:9092'],
+            topics="stocks-topic",
+            initial_offset="earliest", 	
+            group="my_group",
+            attributes={"sasl" : {
+                      "enable": True,
+                      "password" : "pword",
+                      "user" : "user",
+                      "handshake" : True,
+                      "mechanism" : "SCRAM-SHA-256"},
+                    "tls" : {
+                      "enable": True,
+                      "insecureSkipVerify" : False
+                    },            
+                   "caCert" : caCert}
+	)
+        
+run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
+
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
+```
+
 
 ## S3/Azure source
 
@@ -41,87 +100,24 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
+See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
 ```
 {py:meth}`~mlrun.datastore.SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
-either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
+either, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
-source = SQLSource(table_name='my_table', 
-                     db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
-                     key_field='key',
-                     parse_dates=['timestamp'])
+source = SQLSource(
+    table_name="my_table", 
+    db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
+    key_field="key",
+    parse_dates=["timestamp"],
+)
  
- feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
- feature_set.set_targets([])
- df = fs.ingest(feature_set, source=source)
-```
-  
-## Apache Kafka source
-
-See also [Kafka data store profile](#kafka-data-store-profile).
-
-Example:
-
-```
-from mlrun.datastore.sources import KafkaSource
-
-kafka_source = KafkaSource(
-            brokers=['default-tenant.app.vmdev76.lab.iguazeng.com:9092'],
-            topics="stocks-topic",
-            initial_offset="earliest",
-            group="my_group",
-        )
-        
-run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
-
-stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
-```
-
-## Confluent Kafka source
-
-```{admonition} Note
-Tech Preview 
-```
-
-See also [Kafka data store profile](#kafka-data-store-profile).
-
-Example:
-
-```
-from mlrun.datastore.sources import KafkaSource
-
-
-with open('/v3io/bigdata/name.crt') as x: 
-    caCert = x.read()  
-caCert
-
-
-kafka_source = KafkaSource(
-        brokers=['server-1:9092', 
-        'server-2:9092', 
-        'server-3:9092', 
-        'server-4:9092', 
-        'server-5:9092'],
-        topics=["topic-name"],
-        initial_offset="earliest",
-        group="test",
-        attributes={"sasl" : {
-                      "enable": True,
-                      "password" : "pword",
-                      "user" : "user",
-                      "handshake" : True,
-                      "mechanism" : "SCRAM-SHA-256"},
-                    "tls" : {
-                      "enable": True,
-                      "insecureSkipVerify" : False
-                    },            
-                   "caCert" : caCert}
-    )
-    
-run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
-
-stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
+feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+feature_set.set_targets([])
+df = fs.ingest(feature_set, source=source)
 ```
 
 # Targets
@@ -140,12 +136,31 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 | Class name                                                                                                    | Description                                            | storey | spark | pandas |
 | --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |
 | {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                          | Y      | Y     | Y      |
-| {py:meth}`~mlrun.datastore.KafkaSource`    |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
-| [ParquetTarget](#parquet-target)                                                                |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
-| {py:meth}`~mlrun.datastore.StreamSource`  |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [NoSqlTarget](#nosql-target)     |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
-| [RedisNoSqlTarget](#redisnosql-target) |Online. Persists the data in Redis table to its associated storage by key.                                 | Y      | Y     | N      |
-| [SqlTarget](#sql-target)          |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
+| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
+| [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
+| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
+| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
+| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+
+
+## Kafka target
+
+```python
+profile = DatastoreProfileKafkaTarget(
+    name="profile-name", bootstrap_servers="localhost", topic="topic_name"
+)
+target = KafkaTarget(path="ds://profile-name")
+```
+
+`DatastoreProfileKafkaTarget` class parameters:
+- `name` &mdash; Name of the profile
+- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
+
 
 
 ## Parquet Target
@@ -220,8 +235,16 @@ To use the Redis online target store, you can either change the default to be pa
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
 
-
-
+### RedisNoSql data store profile
+```python
+profile = DatastoreProfileRedis(
+    name="profile-name",
+    endpoint_url="redis://11.22.33.44:6379",
+    username="user",
+    password="password",
+)
+RedisNoSqlTarget(path="ds://profile-name/a/b")
+```
 
 
 ## SQL target 
@@ -231,63 +254,23 @@ Tech Preview
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
+For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
+See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
 ```
 The {py:meth}`~mlrun.datastore.SQLSource` online target supports storey but does not support Spark. Aggregations are not supported.<br>
-To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
+To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 
 You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
 
 ```
- target = SQLTarget(
-            table_name='my_table',
-            schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
-            create_table=True,
-            primary_key_column='id',
-            parse_dates=["time"],
-        )
+target = SQLTarget(
+    table_name="my_table",
+    schema= {"id": string, "age": int, "time": pd.Timestamp, ...}
+    create_table=True,
+    primary_key_column="id",
+    parse_dates=["time"],
+)
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
 fs.ingest(feature_set, source=df, targets=[target])
-```
-
-# Data store profiles
-
-## Kafka data store profile 
-
-```python
-profile = DatastoreProfileKafkaTarget(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
-target = KafkaTarget(path="ds://profile-name")
-```
-
-`DatastoreProfileKafkaTarget` class parameters:
-- `name` &mdash; Name of the profile
-- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
-- `topic` &mdash; A string that denotes the Kafka topic to which data is sent or from which data is received.
-- `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
-- `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
-
-
-```python
-profile = DatastoreProfileKafkaSource(name="profile-name",bootstrap_servers="localhost", topic="topic_name")
-target = KafkaSource(path="ds://profile-name")
-```
-
-`DatastoreProfileKafkaSource` class parameters:
-- `name` &mdash; Name of the profile
-- `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
-- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data is sourced or read.
-- `group` &mdash; A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
-- `initial_offset` &mdash; A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
-- `partitions` &mdash; This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
-- `sasl_user` &mdash; A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
-- `sasl_pass` &mdash; A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
-- `kwargs_public` &mdash; This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
-- `kwargs_private` &mdash; This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
-
-
-## Redis data store profile
-
-```python
-profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
-RedisNoSqlTarget(path="ds://profile-name/a/b")
 ```

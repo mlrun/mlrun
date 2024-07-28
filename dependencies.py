@@ -32,7 +32,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "s3": [
             "boto3>=1.28.0,<1.29.0",
             "aiobotocore>=2.5.0,<2.8",
-            "s3fs==2023.9.2",
+            "s3fs>=2023.9.2, <2024.4",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
@@ -60,7 +60,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
             "google-cloud==0.34",
         ],
-        "google-cloud-storage": ["gcsfs==2023.9.2"],
+        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
@@ -76,6 +76,8 @@ def extra_requirements() -> dict[str, list[str]]:
             "distributed~=2023.9.0",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
+        "tdengine": ["taos-ws-py~=0.3.2"],
+        "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
     # see above why we are excluding google-cloud

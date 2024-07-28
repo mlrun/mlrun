@@ -16,6 +16,7 @@ import unittest.mock
 
 import pytest
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
@@ -26,8 +27,16 @@ import server.api.utils.singletons.k8s
     [
         ("job", "", ""),
         ("spark", "", "spark-role=driver"),
-        ("mpijob", "v1", "mpi-job-role=launcher"),
-        ("mpijob", "v1alpha1", "mpi_role_type=launcher"),
+        (
+            "mpijob",
+            "v1",
+            f"{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher",
+        ),
+        (
+            "mpijob",
+            "v1alpha1",
+            f"{mlrun_constants.MLRunInternalLabels.mpi_role_type}=launcher",
+        ),
     ],
 )
 def test_get_logger_pods_label_selector(
@@ -36,12 +45,16 @@ def test_get_logger_pods_label_selector(
     monkeypatch.setattr(
         server.api.runtime_handlers.mpijob,
         "cached_mpijob_crd_version",
-        mpi_version or mlrun.runtimes.constants.MPIJobCRDVersions.default(),
+        mpi_version or mlrun.common.runtimes.constants.MPIJobCRDVersions.default(),
     )
     uid = "test-uid"
     project = "test-project"
     namespace = "test-namespace"
-    selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+    selector = (
+        f"{mlrun_constants.MLRunInternalLabels.mlrun_class},"
+        f"{mlrun_constants.MLRunInternalLabels.project}={project},"
+        f"{mlrun_constants.MLRunInternalLabels.uid}={uid}"
+    )
     if extra_selector:
         selector += f",{extra_selector}"
 

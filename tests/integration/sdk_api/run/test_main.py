@@ -47,7 +47,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def custom_setup(self):
         # ensure default project exists
-        mlrun.get_or_create_project("default")
+        mlrun.get_or_create_project("default", allow_cross_project=True)
 
     def test_main_run_basic(self):
         out = self._exec_run(
@@ -255,7 +255,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "--some-arg",
                 ],
                 True,
-                '"status":"completed"',
+                "status: completed",
             ],
         ],
     )
@@ -368,7 +368,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
 
     def test_main_local_project(self):
-        mlrun.get_or_create_project("testproject")
+        mlrun.get_or_create_project("testproject", allow_cross_project=True)
         project_path = str(self.assets_path)
         args = "-f simple -p x=2 --dump"
         out = self._exec_main("run", args.split(), cwd=project_path)
@@ -391,7 +391,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         out = self._exec_run(
             function_path,
-            self._compose_param_list(dict(x=8)) + ["--handler", "mycls::mtd"],
+            self._compose_param_list(dict(x=8)) + ["--handler", "MyCls::mtd"],
             "test_main_run_class",
         )
         assert out.find("state: completed") != -1, out
@@ -432,7 +432,7 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_main_run_function_from_another_project(self):
         # test running function from another project and validate that the function is stored in the current project
-        project = mlrun.get_or_create_project("first-project")
+        project = mlrun.get_or_create_project("first-project", allow_cross_project=True)
 
         fn = mlrun.code_to_function(
             name="new-func",
@@ -444,7 +444,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         fn.save()
 
         # create another project
-        project2 = mlrun.get_or_create_project("second-project")
+        project2 = mlrun.get_or_create_project(
+            "second-project", allow_cross_project=True
+        )
 
         # from the second project - run the function that we stored in the first project
         args = (

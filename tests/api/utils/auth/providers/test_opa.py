@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import http
 import time
+import typing
 
 import aioresponses
 import deepdiff
 import pytest
+import pytest_asyncio
 
 import mlrun.common.schemas
 import mlrun.config
@@ -26,21 +28,21 @@ import server.api.utils.auth.providers.opa
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     api_url = "http://127.0.0.1:8181"
     mlrun.mlconf.httpdb.authorization.opa.address = api_url
     return api_url
 
 
 @pytest.fixture()
-async def permission_query_path() -> str:
+def permission_query_path() -> str:
     permission_query_path = "/v1/data/service/authz/allow"
     mlrun.mlconf.httpdb.authorization.opa.permission_query_path = permission_query_path
     return permission_query_path
 
 
 @pytest.fixture()
-async def permission_filter_path() -> str:
+def permission_filter_path() -> str:
     permission_filter_path = "/v1/data/service/authz/filter_allowed"
     mlrun.mlconf.httpdb.authorization.opa.permission_filter_path = (
         permission_filter_path
@@ -48,12 +50,10 @@ async def permission_filter_path() -> str:
     return permission_filter_path
 
 
-@pytest.fixture()
-async def opa_provider(
-    api_url: str,
-    permission_query_path: str,
-    permission_filter_path: str,
-) -> server.api.utils.auth.providers.opa.Provider:
+@pytest_asyncio.fixture()
+async def opa_provider() -> (
+    typing.AsyncIterator[server.api.utils.auth.providers.opa.Provider]
+):
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     provider = server.api.utils.auth.providers.opa.Provider()

@@ -15,7 +15,7 @@ import pathlib
 
 import mlrun.projects
 from mlrun.__main__ import load_notification
-from mlrun.artifacts.plots import ChartArtifact
+from mlrun.artifacts.plots import PlotArtifact
 from mlrun.lists import ArtifactList
 
 
@@ -59,7 +59,7 @@ def test_cli_get_artifacts_with_uri():
     for i in range(5):
         artifact_key = f"artifact_test_{i}"
         artifact_uid = f"artifact_uid_{i}"
-        artifact_kind = ChartArtifact.kind
+        artifact_kind = PlotArtifact.kind
         artifacts.append(
             generate_artifact(artifact_key, kind=artifact_kind, uid=artifact_uid)
         )

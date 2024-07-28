@@ -39,15 +39,15 @@ jobs:
         # 3.9 is the current >= 1.3.0 python version
         python-version: ["3.9"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=23.2.1
+        python -m pip install --upgrade pip~=24.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -84,7 +84,7 @@ jobs:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     # TODO: re-use the next 2 actions instead of duplicating
     - name: Extract git branch
       id: git_info
@@ -103,7 +103,7 @@ jobs:
     name: Run Dockerized Integration Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     # TODO: re-use the next 2 actions instead of duplicating
     - name: Extract git branch
       id: git_info
@@ -117,12 +117,13 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
+      timeout-minutes: 90
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -138,21 +139,27 @@ jobs:
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
   package-tests:
-    name: Run package tests (Python ${{ matrix.python-version }})
+    name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
         python-version: [3.9]
+        default-pipeline-adapter: ["kfp-v1-8"]
+        pipeline-adapter: ["kfp-v1-8", "kfp-v2"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
+    - name: Change default pipeline adapter for MLRun
+      if: matrix.default-pipeline-adapter != matrix.pipeline-adapter
+      run: sed -i -e 's/${{ matrix.default-pipeline-adapter }}/${{ matrix.pipeline-adapter }}/g' requirements.txt
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
+
     - name: Test package
       run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
 
@@ -160,7 +167,7 @@ jobs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -175,7 +182,7 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docs
           path: docs/_build/html
@@ -194,12 +201,12 @@ jobs:
         run: |
             echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -221,9 +228,9 @@ jobs:
         # 3.9 is the current >= 1.3.0 python version
         python-version: [3.9]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'

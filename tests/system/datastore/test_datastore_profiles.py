@@ -30,7 +30,9 @@ class TestDatastoreProfile(TestMLRunSystem):
         pass
 
     def test_datastore_profile_get(self):
-        project = mlrun.get_or_create_project(self.project_name)
+        project = mlrun.get_or_create_project(
+            self.project_name, allow_cross_project=True
+        )
 
         profile1 = DatastoreProfileBasic(name="dsname1", public="http://1.1.1.1:1234")
 
@@ -39,7 +41,9 @@ class TestDatastoreProfile(TestMLRunSystem):
         assert profile == profile1
 
     def test_datastore_profile_list(self):
-        project = mlrun.get_or_create_project(self.project_name)
+        project = mlrun.get_or_create_project(
+            self.project_name, allow_cross_project=True
+        )
 
         profile1 = DatastoreProfileBasic(name="dsname1", public="http://1.1.1.1:1234")
         profile2 = DatastoreProfileBasic(name="dsname2", public="http://2.2.2.2:1234")
@@ -50,7 +54,9 @@ class TestDatastoreProfile(TestMLRunSystem):
         assert profiles == [profile1, profile2]
 
     def test_datastore_profile_delete(self):
-        project = mlrun.get_or_create_project(self.project_name)
+        project = mlrun.get_or_create_project(
+            self.project_name, allow_cross_project=True
+        )
 
         profile1 = DatastoreProfileBasic(name="dsname1", public="http://1.1.1.1:1234")
         profile2 = DatastoreProfileBasic(name="dsname2", public="http://2.2.2.2:1234")

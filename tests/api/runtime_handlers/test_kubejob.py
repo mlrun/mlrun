@@ -21,14 +21,15 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
+from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
-from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
@@ -42,13 +43,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler.wait_for_deletion_interval = 0
 
         self.job_labels = {
-            "mlrun/class": self._get_class_name(),
-            "mlrun/function": "my-trainer",
-            "mlrun/name": "my-training",
-            "mlrun/project": self.project,
-            "mlrun/scrape_metrics": "False",
-            "mlrun/tag": "latest",
-            "mlrun/uid": self.run_uid,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: self._get_class_name(),
+            mlrun_constants.MLRunInternalLabels.function: "my-trainer",
+            mlrun_constants.MLRunInternalLabels.name: "my-training",
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "False",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
+            mlrun_constants.MLRunInternalLabels.uid: self.run_uid,
         }
         job_pod_name = "my-training-j7dtf"
 
@@ -67,8 +68,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         builder_legacy_labels = {
-            "mlrun/class": "build",
-            "mlrun/task-name": "mlrun-build-hedi-simple-func-legacy",
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "build",
+            mlrun_constants.MLRunInternalLabels.task_name: "mlrun-build-hedi-simple-func-legacy",
         }
         builder_legacy_pod_name = "mlrun-build-hedi-simple-legacy-func-8qwrd"
         self.completed_legacy_builder_pod = self._generate_pod(
@@ -124,7 +125,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
-        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_pods(
             [self.completed_job_pod.metadata.name],
@@ -135,13 +135,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
-        )
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_job_pod.metadata.name,
         )
 
     def test_delete_resources_completed_builder_pod(
@@ -328,18 +321,14 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     )
                 get_db().del_run(db, self.run_uid, self.project)
 
-    @pytest.mark.asyncio
-    async def test_delete_resources_with_force(self, db: Session, client: TestClient):
+    def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
-            [self.running_job_pod],
-            # additional time for the get_logger_pods
             [self.running_job_pod],
             # additional time for wait for pods deletion - simulate pod gone
             [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_pods()
-        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
         self._assert_delete_namespaced_pods(
             [self.running_job_pod.metadata.name],
@@ -351,28 +340,17 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.running_job_pod.metadata.name,
-        )
 
-    @pytest.mark.asyncio
-    async def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
+    def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
             [self.completed_job_pod],
-            # additional time for the get_logger_pods
-            [self.completed_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls - 1
+            expected_number_of_list_pods_calls
         )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
@@ -382,13 +360,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_job_pod.metadata.name,
-        )
 
     @pytest.mark.asyncio
     async def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
@@ -396,14 +367,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [self.pending_job_pod],
             [self.running_job_pod],
             [self.failed_job_pod],
-            # additional time for the get_logger_pods
-            [self.failed_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls - 1
+            expected_number_of_list_pods_calls
         )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
@@ -411,13 +379,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.failed_job_pod.metadata.name,
-        )
 
     @pytest.mark.asyncio
     async def test_monitor_run_overriding_terminal_state(
@@ -425,18 +386,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     ):
         list_namespaced_pods_calls = [
             [self.failed_job_pod],
-            # additional time for the get_logger_pods
-            [self.failed_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = self._mock_read_namespaced_pod_log()
         self.run["status"]["state"] = RunStates.completed
         server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
         expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls - 1
+            expected_number_of_list_pods_calls
         )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
@@ -444,13 +402,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_job_pod.metadata.name,
-        )
 
     @pytest.mark.asyncio
     async def test_monitor_run_debouncing_non_terminal_state(
@@ -516,23 +467,12 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             [[self.completed_job_pod], [self.completed_job_pod]]
         )
 
-        # Mocking read log calls
-        log = self._mock_read_namespaced_pod_log()
-
         # Triggering monitor cycle
         self.runtime_handler.monitor_runs(get_db(), db)
 
         # verifying monitoring was not debounced
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
-        )
-
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_job_pod.metadata.name,
         )
 
     @pytest.mark.asyncio
@@ -542,14 +482,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         get_db().del_run(db, self.run_uid, self.project)
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
-            # additional time for the get_logger_pods
-            [self.completed_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls - 1
+            expected_number_of_list_pods_calls
         )
         for _ in range(expected_monitor_cycles_to_reach_expected_state):
             self.runtime_handler.monitor_runs(get_db(), db)
@@ -558,13 +495,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
-        )
-        await self._assert_run_logs(
-            db,
-            self.project,
-            self.run_uid,
-            log,
-            self.completed_job_pod.metadata.name,
         )
 
     @pytest.mark.asyncio
@@ -583,7 +513,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled", job_labels=self.job_labels
         )
         pending_scheduled_pod = self._generate_pod(
-            pending_scheduled_labels["mlrun/name"],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.name],
             pending_scheduled_labels,
             PodPhases.pending,
         )
@@ -599,8 +529,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            pending_scheduled_labels["mlrun/name"],
-            pending_scheduled_labels["mlrun/uid"],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.name],
+            pending_scheduled_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod.status.start_time,
         )
 
@@ -608,7 +538,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
-            pending_scheduled_new_labels["mlrun/name"],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.name],
             pending_scheduled_new_labels,
             PodPhases.pending,
         )
@@ -617,8 +547,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._store_run(
             db,
-            pending_scheduled_new_labels["mlrun/name"],
-            pending_scheduled_new_labels["mlrun/uid"],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.name],
+            pending_scheduled_new_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
@@ -626,7 +556,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "running_overtime", job_labels=self.job_labels
         )
         running_overtime_pod = self._generate_pod(
-            running_overtime_labels["mlrun/name"],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.name],
             running_overtime_labels,
             PodPhases.running,
         )
@@ -637,8 +567,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            running_overtime_labels["mlrun/name"],
-            running_overtime_labels["mlrun/uid"],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.name],
+            running_overtime_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=running_overtime_pod.status.start_time,
         )
 
@@ -646,7 +576,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "image_pull_backoff", job_labels=self.job_labels
         )
         image_pull_backoff_pod = self._generate_pod(
-            image_pull_backoff_labels["mlrun/name"],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.name],
             image_pull_backoff_labels,
             PodPhases.pending,
         )
@@ -673,8 +603,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._store_run(
             db,
-            image_pull_backoff_labels["mlrun/name"],
-            image_pull_backoff_labels["mlrun/uid"],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.name],
+            image_pull_backoff_labels[mlrun_constants.MLRunInternalLabels.uid],
             start_time=image_pull_backoff_pod.status.start_time,
         )
 
@@ -694,9 +624,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_uids = [run["uid"] for run in stale_runs]
         expected_stale_run_uids = [
-            pending_scheduled_pod.metadata.labels["mlrun/uid"],
-            running_overtime_pod.metadata.labels["mlrun/uid"],
-            image_pull_backoff_pod.metadata.labels["mlrun/uid"],
+            pending_scheduled_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
+            running_overtime_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
+            image_pull_backoff_pod.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.uid
+            ],
         ]
         assert stale_run_uids == expected_stale_run_uids
 

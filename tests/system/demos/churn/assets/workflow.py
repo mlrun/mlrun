@@ -13,8 +13,7 @@
 # limitations under the License.
 #
 from kfp import dsl
-
-from mlrun import mount_v3io
+from mlrun_pipelines.mounts import mount_v3io
 
 funcs = {}
 

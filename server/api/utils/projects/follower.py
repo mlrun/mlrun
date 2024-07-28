@@ -21,6 +21,7 @@ import mergedeep
 import pytz
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -48,9 +49,11 @@ class Member(
 ):
     def initialize(self):
         logger.info("Initializing projects follower")
-        self._is_chief = (
+        self._should_sync = (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
+            and mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync
+            == "enabled"
         )
         self._leader_name = mlrun.mlconf.httpdb.projects.leader
         self._sync_session = None
@@ -71,11 +74,12 @@ class Member(
         )
         self._synced_until_datetime = None
         # run one sync to start off on the right foot and fill out the cache but don't fail initialization on it
-        if self._is_chief:
+        if self._should_sync:
             try:
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
-                # chief-worker model.
-                # TODO: remove full_sync=True in 1.7.0 if no issues arise
+                # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
+                # we don't necessarily need to archive projects that are not in the leader.
+                # TODO: Discuss maybe removing full_sync=True in 1.8.0
                 self._sync_projects(full_sync=True)
             except Exception as exc:
                 logger.warning(
@@ -83,11 +87,14 @@ class Member(
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+    def start(self):
+        if self._should_sync:
             self._start_periodic_sync()
 
     def shutdown(self):
         logger.info("Shutting down projects leader")
-        if self._is_chief:
+        if self._should_sync:
             self._stop_periodic_sync()
 
     def create_project(
@@ -150,7 +157,9 @@ class Member(
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)
-                return self.get_project(db_session, name, leader_session), False
+                return server.api.db.session.run_function_with_new_db_session(
+                    self.get_project, name, leader_session
+                ), False
 
     def patch_project(
         self,
@@ -191,19 +200,25 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         if server.api.utils.helpers.is_request_from_leader(
             projects_role, leader_name=self._leader_name
         ):
             server.api.crud.Projects().delete_project(
-                db_session, name, deletion_strategy, auth_info, background_task_name
+                session=db_session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                auth_info=auth_info,
+                background_task_name=background_task_name,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         else:
             return self._leader_client.delete_project(
-                auth_info.session,
-                name,
-                deletion_strategy,
-                wait_for_completion,
+                session=auth_info.session,
+                name=name,
+                deletion_strategy=deletion_strategy,
+                wait_for_completion=wait_for_completion,
             )
         return False
 
@@ -213,10 +228,20 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.Project:
+        # by default, get project will use mlrun db to get/list the project.
+        # from leader is relevant for cases where we want to get the project from the leader
         if from_leader:
             return self._leader_client.get_project(leader_session, name)
-        return server.api.crud.Projects().get_project(db_session, name)
+
+        # format_ is relevant for cases where we want to get the project from mlrun db
+        projects = self.list_projects(
+            db_session, format_=format_, leader_session=leader_session, names=[name]
+        ).projects
+        if not projects:
+            raise mlrun.errors.MLRunNotFoundError(f"Project {name} not found")
+        return projects[0]
 
     def get_project_owner(
         self,
@@ -229,7 +254,7 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
@@ -238,7 +263,7 @@ class Member(
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
-            format_ == mlrun.common.schemas.ProjectsFormat.leader
+            format_ == mlrun.common.formatters.ProjectFormat.leader
             and not server.api.utils.helpers.is_request_from_leader(
                 projects_role, leader_name=self._leader_name
             )
@@ -250,7 +275,7 @@ class Member(
         projects_output = server.api.crud.Projects().list_projects(
             db_session, owner, format_, labels, state, names
         )
-        if format_ == mlrun.common.schemas.ProjectsFormat.leader:
+        if format_ == mlrun.common.formatters.ProjectFormat.leader:
             leader_projects = [
                 self._leader_client.format_as_leader_project(project)
                 for project in projects_output.projects

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -78,9 +79,9 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
-    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
-    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    TIME = "time"
+    TABLE_COLUMN = "table_column"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
@@ -99,14 +100,17 @@ class FeatureSetFeatures(MonitoringStrEnum):
 
 class ApplicationEvent:
     APPLICATION_NAME = "application_name"
-    CURRENT_STATS = "current_stats"
-    FEATURE_STATS = "feature_stats"
-    SAMPLE_PARQUET_PATH = "sample_parquet_path"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
     LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
+    MLRUN_CONTEXT = "mlrun_context"
+
+    # Deprecated fields - TODO : delete in 1.9.0  (V1 app deprecation)
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    CURRENT_STATS = "current_stats"
+    FEATURE_STATS = "feature_stats"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -114,6 +118,21 @@ class WriterEvent(MonitoringStrEnum):
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
+    EVENT_KIND = "event_kind"  # metric or result
+    DATA = "data"
+
+
+class WriterEventKind(MonitoringStrEnum):
+    METRIC = "metric"
+    RESULT = "result"
+
+
+class MetricData(MonitoringStrEnum):
+    METRIC_NAME = "metric_name"
+    METRIC_VALUE = "metric_value"
+
+
+class ResultData(MonitoringStrEnum):
     RESULT_NAME = "result_name"
     RESULT_VALUE = "result_value"
     RESULT_KIND = "result_kind"
@@ -138,21 +157,41 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesTarget:
-    TSDB = "tsdb"
-
-
-class ModelEndpointTarget:
+class ModelEndpointTarget(MonitoringStrEnum):
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
+
+
+class StreamKind(MonitoringStrEnum):
+    V3IO_STREAM = "v3io_stream"
+    KAFKA = "kafka"
+
+
+class TSDBTarget(MonitoringStrEnum):
+    V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
+    PROMETHEUS = "prometheus"
 
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
     STREAM_PATH = "STREAM_PATH"
+    TSDB_CONNECTION = "TSDB_CONNECTION"
+
+    @classmethod
+    def mandatory_secrets(cls):
+        return [
+            cls.ENDPOINT_STORE_CONNECTION,
+            cls.STREAM_PATH,
+            cls.TSDB_CONNECTION,
+        ]
+
+
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
 
 
 class ModelMonitoringStoreKinds:
@@ -170,12 +209,15 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+    PREDICTIONS = "predictions"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
+    APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
+    MONITORING_APPLICATION = "monitoring_application"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -204,18 +246,22 @@ class PrometheusEndpoints(MonitoringStrEnum):
     MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
 
-class MonitoringFunctionNames:
-    WRITER = "model-monitoring-writer"
-    APPLICATION_CONTROLLER = "model-monitoring-controller"
+class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
+    WRITER = "model-monitoring-writer"
 
-    @staticmethod
-    def all():
-        return [
-            MonitoringFunctionNames.WRITER,
-            MonitoringFunctionNames.STREAM,
-            MonitoringFunctionNames.APPLICATION_CONTROLLER,
-        ]
+
+class V3IOTSDBTables(MonitoringStrEnum):
+    APP_RESULTS = "app-results"
+    METRICS = "metrics"
+    EVENTS = "events"
+
+
+class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
 
 
 @dataclass
@@ -294,6 +340,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
+    mm_app_anomaly = 4
 
 
 class ResultStatusApp(IntEnum):
@@ -308,12 +355,29 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
+
+    def __str__(self) -> str:
+        return f"{self.KEY}={self.VAL}"
 
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
 
 
-MLRUN_HISTOGRAM_DATA_DRIFT_APP_NAME = "histogram-data-drift"
+class HistogramDataDriftApplicationConstants:
+    NAME = "histogram-data-drift"
+    GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]

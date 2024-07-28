@@ -19,7 +19,6 @@ __all__ = [
     "get_online_feature_service",
     "ingest",
     "preview",
-    "deploy_ingestion_service",
     "deploy_ingestion_service_v2",
     "delete_feature_set",
     "delete_feature_vector",
@@ -41,7 +40,6 @@ from ..features import Entity, Feature
 from .api import (
     delete_feature_set,
     delete_feature_vector,
-    deploy_ingestion_service,
     deploy_ingestion_service_v2,
     get_feature_set,
     get_feature_vector,

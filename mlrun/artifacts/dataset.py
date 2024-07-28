@@ -13,12 +13,12 @@
 # limitations under the License.
 import os
 import pathlib
+import warnings
 from io import StringIO
 from typing import Optional
 
 import numpy as np
 import pandas as pd
-from deprecated import deprecated
 from pandas.io.json import build_table_schema
 
 import mlrun
@@ -27,7 +27,7 @@ import mlrun.datastore
 import mlrun.utils.helpers
 from mlrun.config import config as mlconf
 
-from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
+from .base import Artifact, ArtifactSpec, StorePrefix
 
 default_preview_rows_length = 20
 max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
@@ -161,6 +161,13 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
+        if key or format or target_path:
+            warnings.warn(
+                "Artifact constructor parameters are deprecated and will be removed in 1.9.0. "
+                "Use the metadata and spec parameters instead.",
+                DeprecationWarning,
+            )
+
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -358,194 +365,6 @@ class DatasetArtifact(Artifact):
     @stats.setter
     def stats(self, stats):
         self.status.stats = stats
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyTableArtifact' will be removed in 1.7.0, use 'TableArtifact' instead",
-    category=FutureWarning,
-)
-class LegacyTableArtifact(LegacyArtifact):
-    _dict_fields = LegacyArtifact._dict_fields + ["schema", "header"]
-    kind = "table"
-
-    def __init__(
-        self,
-        key=None,
-        body=None,
-        df=None,
-        viewer=None,
-        visible=False,
-        inline=False,
-        format=None,
-        header=None,
-        schema=None,
-    ):
-        if key:
-            key_suffix = pathlib.Path(key).suffix
-            if not format and key_suffix:
-                format = key_suffix[1:]
-        super().__init__(key, body, viewer=viewer, is_inline=inline, format=format)
-
-        if df is not None:
-            self._is_df = True
-            self.header = df.reset_index(drop=True).columns.values.tolist()
-            self.format = "csv"  # todo other formats
-            # if visible and not key_suffix:
-            #     key += '.csv'
-            self._body = df
-        else:
-            self._is_df = False
-            self.header = header
-
-        self.schema = schema
-        if not viewer:
-            viewer = "table" if visible else None
-        self.viewer = viewer
-
-    def get_body(self):
-        if not self._is_df:
-            return self._body
-        csv_buffer = StringIO()
-        self._body.to_csv(
-            csv_buffer,
-            encoding="utf-8",
-            **mlrun.utils.line_terminator_kwargs(),
-        )
-        return csv_buffer.getvalue()
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.3.0",
-    reason="'LegacyDatasetArtifact' will be removed in 1.7.0, use 'DatasetArtifact' instead",
-    category=FutureWarning,
-)
-class LegacyDatasetArtifact(LegacyArtifact):
-    # List of all the supported saving formats of a DataFrame:
-    SUPPORTED_FORMATS = ["csv", "parquet", "pq", "tsdb", "kv"]
-
-    _dict_fields = LegacyArtifact._dict_fields + [
-        "schema",
-        "header",
-        "length",
-        "preview",
-        "stats",
-        "extra_data",
-        "column_metadata",
-    ]
-    kind = "dataset"
-
-    def __init__(
-        self,
-        key: str = None,
-        df=None,
-        preview: int = None,
-        format: str = "",  # TODO: should be changed to 'fmt'.
-        stats: bool = None,
-        target_path: str = None,
-        extra_data: dict = None,
-        column_metadata: dict = None,
-        ignore_preview_limits: bool = False,
-        **kwargs,
-    ):
-        format = (format or "").lower()
-        super().__init__(key, None, format=format, target_path=target_path)
-        if format and format not in self.SUPPORTED_FORMATS:
-            raise ValueError(
-                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
-            )
-
-        if format == "pq":
-            format = "parquet"
-        self.format = format
-        self.stats = None
-        self.extra_data = extra_data or {}
-        self.column_metadata = column_metadata or {}
-
-        if df is not None:
-            if hasattr(df, "dask"):
-                # If df is a Dask DataFrame, and it's small in-memory, convert to Pandas
-                if (df.memory_usage(deep=True).sum().compute() / 1e9) < max_ddf_size:
-                    df = df.compute()
-            self.update_preview_fields_from_df(
-                self, df, stats, preview, ignore_preview_limits
-            )
-
-        self._df = df
-        self._kw = kwargs
-
-    def upload(self):
-        suffix = pathlib.Path(self.target_path).suffix
-        format = self.format
-        if not format:
-            if suffix and suffix in [".csv", ".parquet", ".pq"]:
-                format = "csv" if suffix == ".csv" else "parquet"
-            else:
-                format = "parquet"
-        if not suffix and not self.target_path.startswith("memory://"):
-            self.target_path = self.target_path + "." + format
-
-        self.size, self.hash = upload_dataframe(
-            self._df,
-            self.target_path,
-            format=format,
-            src_path=self.src_path,
-            **self._kw,
-        )
-
-    @property
-    def df(self) -> pd.DataFrame:
-        """
-        Get the dataset in this artifact.
-
-        :return: The dataset as a DataFrame.
-        """
-        return self._df
-
-    @staticmethod
-    def is_format_supported(fmt: str) -> bool:
-        """
-        Check whether the given dataset format is supported by the DatasetArtifact.
-
-        :param fmt: The format string to check.
-
-        :return: True if the format is supported and False if not.
-        """
-        return fmt in DatasetArtifact.SUPPORTED_FORMATS
-
-    @staticmethod
-    def update_preview_fields_from_df(
-        artifact, df, stats=None, preview_rows_length=None, ignore_preview_limits=False
-    ):
-        preview_rows_length = preview_rows_length or default_preview_rows_length
-        if hasattr(df, "dask"):
-            artifact.length = df.shape[0].compute()
-            preview_df = df.sample(frac=ddf_sample_pct).compute()
-        else:
-            artifact.length = df.shape[0]
-            preview_df = df
-
-        if artifact.length > preview_rows_length and not ignore_preview_limits:
-            preview_df = df.head(preview_rows_length)
-
-        preview_df = preview_df.reset_index()
-        if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
-            preview_df = preview_df.iloc[:, :max_preview_columns]
-        artifact.header = preview_df.columns.values.tolist()
-        artifact.preview = preview_df.values.tolist()
-        # Table schema parsing doesn't require a column named "index"
-        # to align its output with previously generated header and preview data
-        if "index" in preview_df.columns:
-            preview_df.drop("index", axis=1, inplace=True)
-        artifact.schema = build_table_schema(preview_df)
-        if (
-            stats
-            or (artifact.length < max_csv and len(df.columns) < max_preview_columns)
-            or ignore_preview_limits
-        ):
-            artifact.stats = get_df_stats(df)
 
 
 def get_df_stats(df):

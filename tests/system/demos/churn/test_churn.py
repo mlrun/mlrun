@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import mlrun_pipelines.mounts
 import pytest
 
 import mlrun
@@ -49,7 +50,7 @@ class TestChurn(TestDemo):
             description="clean and encode raw data",
             categories=["data-prep"],
             labels={"author": "yasha", "framework": "xgboost"},
-        ).apply(mlrun.mount_v3io())
+        ).apply(mlrun_pipelines.mounts.mount_v3io())
 
         clean_data_function.spec.remote = True
         clean_data_function.spec.replicas = 1

@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import datetime
+import typing
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 from deprecated import deprecated
 
+import mlrun.alerts
+import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.lists
 import mlrun.model
 
@@ -50,7 +54,7 @@ class DBInterface(ABC):
     def store_run(
         self,
         session,
-        struct,
+        run_data,
         uid,
         project="",
         iter=0,
@@ -108,6 +112,8 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
     ) -> mlrun.lists.RunList:
         pass
 
@@ -188,6 +194,7 @@ class DBInterface(ABC):
         producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         pass
 
@@ -199,21 +206,34 @@ class DBInterface(ABC):
         project="",
         tag="",
         labels=None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid=None,
-        producer_id=None,
+        uid: str = None,
+        producer_id: str = None,
+        producer_uri: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
+    ):
+        pass
+
+    @abstractmethod
+    def list_artifacts_for_producer_id(
+        self,
+        session,
+        producer_id: str,
+        project: str,
+        key_tag_iteration_pairs: list[tuple] = "",
     ):
         pass
 
     @abstractmethod
     def del_artifact(
-        self, session, key, tag="", project="", uid=None, producer_id=None
+        self, session, key, tag="", project="", uid=None, producer_id=None, iter=None
     ):
         pass
 
@@ -286,11 +306,25 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(
+        self,
+        session,
+        name: str = None,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+        format_: str = None,
+    ):
         pass
 
     @abstractmethod
     def delete_function(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def delete_functions(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -302,6 +336,36 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
+        format_: str = None,
+        page: int = None,
+        page_size: int = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function(
+        self,
+        session,
+        name,
+        updates: dict,
+        project: str = None,
+        tag: str = None,
+        hash_key: str = None,
+    ):
+        pass
+
+    @abstractmethod
+    def update_function_external_invocation_url(
+        self,
+        session,
+        name: str,
+        url: str,
+        project: str = "",
+        tag: str = "",
+        hash_key: str = "",
+        operation: mlrun.common.types.Operation = mlrun.common.types.Operation.ADD,
     ):
         pass
 
@@ -372,13 +436,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_schedules(self, session, project: str):
+    def delete_project_schedules(self, session, project: str):
         pass
 
     @abstractmethod
-    def generate_projects_summaries(
-        self, session, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
+    def delete_schedules(
+        self, session, project: str, names: typing.Union[str, list[str]]
+    ) -> None:
         pass
 
     @abstractmethod
@@ -398,7 +462,7 @@ class DBInterface(ABC):
         self,
         session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: Optional[list[str]] = None,
@@ -418,6 +482,9 @@ class DBInterface(ABC):
     async def get_project_resources_counters(
         self,
     ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
         dict[str, int],
         dict[str, int],
         dict[str, int],
@@ -454,6 +521,26 @@ class DBInterface(ABC):
     ):
         pass
 
+    def get_project_summary(
+        self, session, project: str, raise_on_not_found: bool = True
+    ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    def list_project_summaries(
+        self,
+        session,
+        owner: str = None,
+        labels: list[str] = None,
+        state: mlrun.common.schemas.ProjectState = None,
+        names: list[str] = None,
+    ):
+        pass
+
+    def refresh_project_summaries(
+        self, session, project_summaries: list[mlrun.common.schemas.ProjectSummary]
+    ):
+        pass
+
     @abstractmethod
     def create_feature_set(
         self,
@@ -484,6 +571,12 @@ class DBInterface(ABC):
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
     @abstractmethod
     def list_features(
         self,
@@ -497,6 +590,24 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
     def list_entities(
         self,
         session,
@@ -505,6 +616,17 @@ class DBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities_v2(
+        self,
+        session,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     @abstractmethod
@@ -691,6 +813,48 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def store_alert_template(
+        self, session, template: mlrun.common.schemas.AlertTemplate
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def get_alert_template(
+        self, session, name: str
+    ) -> mlrun.common.schemas.AlertTemplate:
+        pass
+
+    @abstractmethod
+    def delete_alert_template(self, session, name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self, session) -> list[mlrun.common.schemas.AlertTemplate]:
+        pass
+
+    @abstractmethod
+    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_num_configured_alerts(self, session) -> int:
+        pass
+
+    @abstractmethod
+    def store_alert_notifications(
+        self,
+        session,
+        notification_objects: list[mlrun.model.Notification],
+        alert_id: str,
+        project: str,
+    ):
+        pass
+
+    @abstractmethod
     def store_run_notifications(
         self,
         session,
@@ -800,3 +964,41 @@ class DBInterface(ABC):
         raise NotImplementedError
 
     # EO Pagination Section
+    def generate_event(
+        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+    ):
+        pass
+
+    def store_alert_config(
+        self,
+        alert_name: str,
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        project="",
+    ):
+        pass
+
+    def get_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def list_alerts_configs(self, project=""):
+        pass
+
+    def delete_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def store_time_window_tracker_record(
+        self,
+        session,
+        key: str,
+        timestamp: typing.Optional[datetime.datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ):
+        pass
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
+        pass

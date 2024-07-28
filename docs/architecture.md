@@ -15,7 +15,7 @@ data movement, scaling, versioning, parameterization, output tracking, CI/CD int
 Those easily developed data or ML "functions" can then be published or loaded from a hub and used later to form offline or real-time 
 production pipelines with minimal engineering efforts.
 
-<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="800"/></p><br>
+<p align="center"><img src="_static/images/genai-flow.png" alt="mlrun-flow" width="800"/></p><br>
 
 
 ## MLRun deployment
@@ -31,14 +31,14 @@ MLRun has two main components, the service and the client (SDK):
 ## MLRun: an integrated and open approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
-they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams 
+they cannot be managed in silos. This is where MLRun AI orchestration comes in. ML, data, and DevOps/MLOps teams 
 collaborate using the same set of tools, practices, APIs, metadata, and version control.
 
 MLRun provides an open architecture that supports your existing development tools, services, and practices through an open API/SDK and pluggable architecture. 
 
 <b>MLRun simplifies & accelerates the time to production !</b>
 
-<img src="_static/images/pipeline.png" alt="pipeline"/>
+<p align="center"><img src="_static/images/pipeline.png" alt="pipeline" width="400"/>
 
 <br><br>
 

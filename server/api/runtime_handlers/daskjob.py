@@ -19,6 +19,7 @@ import semver
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -206,10 +207,14 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/component")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_component)
             )
             cluster_name = (
-                pod_dict["metadata"].get("labels", {}).get("dask.org/cluster-name")
+                pod_dict["metadata"]
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.dask_cluster_name)
             )
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
@@ -320,11 +325,38 @@ def enrich_dask_cluster(
         # TODO: we might never enter here, since running a function requires defining an image
         or "daskdev/dask:latest"
     )
-    env = spec.env
-    env.extend(function.generate_runtime_k8s_env())
+    env = function.generate_runtime_k8s_env()
+
+    # filter any spec.env that already exists in env
+    # in other words, dont let spec.env override env (or not even duplicate it)
+    # we dont want to override env to ensure k8s runtime envs are enforced and correct
+    # leaving no room for human mistakes
+    def get_env_name(env_: Union[client.V1EnvVar, dict]) -> str:
+        if isinstance(env_, client.V1EnvVar):
+            return env_.name
+        return env_.get("name", "")
+
+    env.extend(
+        filter(
+            lambda spec_env: not any(
+                [
+                    True
+                    for _env in env
+                    # spec_env might be V1EnvVar or a dict
+                    # _env is just a dict
+                    if get_env_name(spec_env) == get_env_name(_env)
+                ]
+            ),
+            spec.env,
+        )
+    )
+
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:
         env.append(spec.extra_pip)
+
+    # remove duplicates by name
+    env = list({get_env_name(spec_env): spec_env for spec_env in env}.values())
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
 
@@ -365,11 +397,25 @@ def enrich_dask_cluster(
         resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
 
+    # We query the project to enrich the worker and scheduler pod spec with the project's default node selector.
+    # Since the dask runtime is a local run, and does not run in a dedicated k8s pod, node selectors for that run
+    # are irrelevant, so we do not enrich the run object with the project node selector.
+    # However, the node selector is still relevant for the Dask cluster's workers and scheduler, which do run
+    # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
+    project = function._get_db().get_project(function.metadata.project)
+    logger.debug(
+        "Enriching Dask Cluster node selector from project",
+        project_name=function.metadata.project,
+        project_node_selector=project.spec.default_function_node_selector,
+    )
+    node_selector = mlrun.utils.helpers.merge_with_precedence(
+        project.spec.default_function_node_selector, function.spec.node_selector
+    )
     scheduler_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, scheduler_container
+        spec, scheduler_container, node_selector=node_selector
     )
     worker_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        spec, worker_container
+        spec, worker_container, node_selector=node_selector
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:
         if spec.image_pull_secret:
@@ -411,13 +457,17 @@ def get_obj_status(selector=None, namespace=None):
 
     k8s = server.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace
-    selector = ",".join(["dask.org/component=scheduler"] + selector)
+    selector = ",".join(
+        [f"{mlrun_constants.MLRunInternalLabels.dask_component}=scheduler"] + selector
+    )
     pods = k8s.list_pods(namespace, selector=selector)
     status = ""
     for pod in pods:
         status = pod.status.phase.lower()
         if status == "running":
-            cluster = pod.metadata.labels.get("dask.org/cluster-name")
+            cluster = pod.metadata.labels.get(
+                mlrun_constants.MLRunInternalLabels.dask_cluster_name
+            )
             logger.info(
                 "Found running dask function",
                 pod_name=pod.metadata.name,

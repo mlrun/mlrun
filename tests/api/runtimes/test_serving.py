@@ -73,9 +73,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(
-            func, with_mlrun, builder_env=None, force_build=False
-        ):
+        def _remote_db_mock_function(func, builder_env=None):
             server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(func)
             return {
                 "data": {
@@ -90,10 +88,10 @@ class TestServingRuntime(TestNuclioRuntime):
             }
 
         # Since we're in a test, the RunDB is of type SQLRunDB, not HTTPDB as it would usually be.
-        SQLRunDB.remote_builder = unittest.mock.Mock(
+        SQLRunDB.deploy_nuclio_function = unittest.mock.Mock(
             side_effect=_remote_db_mock_function
         )
-        SQLRunDB.get_builder_status = unittest.mock.Mock(
+        SQLRunDB.get_nuclio_deploy_status = unittest.mock.Mock(
             return_value=("text", "last_log")
         )
 
@@ -170,14 +168,14 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"model-conf-{self.project}-{self.name}"
+                                "name": f"{self.project}-{self.name}"
                                 + (f"-{func_name}" if func_name else "")
                             },
-                            "name": "model-conf",
+                            "name": "serving-conf",
                         },
                         "volumeMount": {
-                            "mountPath": "/tmp/mlrun/model-conf",
-                            "name": "model-conf",
+                            "mountPath": "/tmp/mlrun/serving-conf",
+                            "name": "serving-conf",
                             "readOnly": True,
                         },
                     }
@@ -250,6 +248,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_remote_deploy_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
 
@@ -327,6 +327,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_child_functions_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
         graph = function.spec.graph

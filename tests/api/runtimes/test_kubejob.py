@@ -21,6 +21,7 @@ import unittest.mock
 import deepdiff
 import pytest
 from fastapi.testclient import TestClient
+from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -29,7 +30,6 @@ import mlrun.k8s_utils
 import server.api.utils.builder
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
-from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
@@ -297,7 +297,7 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "true"},
                 {"gpu": "false", "test": "test"},
                 {"test": "", "zone": "us-south"},
-                {"gpu": "false", "test": "", "zone": "us-south"},
+                {"gpu": "false", "zone": "us-south"},
             ),
         ],
     )

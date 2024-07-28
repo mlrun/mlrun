@@ -1,9 +1,5 @@
-# with moving to arm64 for the new M1/M2 macs some packages are not yet compatible via pip and require
-# conda which supports different architecture environments on the same machine
-lightgbm>=3.0
-
 # required for v3io client, see docs/requirements.txt for the constraint
 protobuf>=3.20.3, <4
 
 # see requirements.txt for the constraint
-pyyaml>=5.4.1, <6
+pyyaml>=5.4.1, <7

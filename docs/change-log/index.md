@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+
 - [v1.7.0](#)
 - [v1.6.4](#v1-6-4-30-june-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
@@ -117,6 +118,19 @@
 |ML-7203|Function yaml is no longer created twice during a scheduled workflow trigger.|
 
 
+## v1.6.4 (30 June 2024)
+
+### UI
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-6867|Scalability improvement. The artifacts page (artifacts/datasets/models) now displays a maximum of 1000 items. (Use filters to focus the results.) |
+
+###  Closed issues
+| ID       |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-6770 |Resolved MLRun workers restart when running many workflows that produce artifacts.|
+|ML-6795 |Can now upgrade to v1.6.4 when cluster has artifacts that do not have a `key`.|
+ 
 ## v1.6.4 (30 June 2024)
 
 ### UI

@@ -67,7 +67,6 @@ def test_runtimes_inheritance(method, base_classes):
             mlrun.runtimes.kubejob.KubejobRuntime,
             mlrun.runtimes.daskjob.DaskCluster,
             mlrun.runtimes.mpijob.v1.MpiRuntimeV1,
-            mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
             mlrun.runtimes.databricks_job.databricks_runtime.DatabricksRuntime,

@@ -44,7 +44,7 @@ def sphere_dist(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     Return distance along great radius between pickup and drop-off coordinates.
     """
     # Define earth radius (km)
-    R_earth = 6371
+    r_earth = 6371
     # Convert degrees to radians
     pickup_lat, pickup_lon, dropoff_lat, dropoff_lon = map(
         np.radians, [pickup_lat, pickup_lon, dropoff_lat, dropoff_lon]
@@ -58,7 +58,7 @@ def sphere_dist(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
         np.sin(dlat / 2.0) ** 2
         + np.cos(pickup_lat) * np.cos(dropoff_lat) * np.sin(dlon / 2.0) ** 2
     )
-    return 2 * R_earth * np.arcsin(np.sqrt(a))
+    return 2 * r_earth * np.arcsin(np.sqrt(a))
 
 
 def sphere_dist_bear(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):

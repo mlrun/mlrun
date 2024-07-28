@@ -26,23 +26,26 @@ __all__ = [
     "Spark3Runtime",
     "DatabricksRuntime",
     "KubeResource",
+    "ApplicationRuntime",
+    "MpiRuntimeV1",
 ]
 
 from mlrun.runtimes.utils import resolve_spark_operator_version
 
+from ..common.runtimes.constants import MPIJobCRDVersions
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
-from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
 from .databricks_job.databricks_runtime import DatabricksRuntime
 from .kubejob import KubejobRuntime, KubeResource  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
+from .mpijob import MpiRuntimeV1  # noqa
 from .nuclio import (
     RemoteRuntime,
     ServingRuntime,
     new_v2_model_server,
     nuclio_init_hook,
 )
+from .nuclio.api_gateway import APIGateway
 from .nuclio.application import ApplicationRuntime
 from .nuclio.serving import serving_subkind
 from .remotesparkjob import RemoteSparkRuntime
@@ -155,6 +158,22 @@ class RuntimeKinds:
         ]
 
     @staticmethod
+    def pure_nuclio_deployed_runtimes():
+        return [
+            RuntimeKinds.remote,
+            RuntimeKinds.nuclio,
+            RuntimeKinds.serving,
+        ]
+
+    @staticmethod
+    def handlerless_runtimes():
+        return [
+            RuntimeKinds.serving,
+            # Application runtime handler is internal reverse proxy
+            RuntimeKinds.application,
+        ]
+
+    @staticmethod
     def local_runtimes():
         return [
             RuntimeKinds.local,
@@ -248,7 +267,7 @@ class RuntimeKinds:
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        return MpiRuntimeContainer.selector()
+        return MpiRuntimeV1
 
     if kind == RuntimeKinds.spark:
         return Spark3Runtime

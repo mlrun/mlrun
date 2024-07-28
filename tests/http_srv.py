@@ -67,8 +67,8 @@ def create_function(handler, port):
     def func_wrap(self, context, event):
         return handler(context, event)
 
-    CustomHandler = Handler
-    CustomHandler.handler_function = func_wrap
+    custom_handler = Handler
+    custom_handler.handler_function = func_wrap
 
-    server = ThreadingSimpleServer(("0.0.0.0", port), CustomHandler)
+    server = ThreadingSimpleServer(("0.0.0.0", port), custom_handler)
     server.serve_forever()

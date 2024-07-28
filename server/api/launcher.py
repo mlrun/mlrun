@@ -15,6 +15,7 @@ from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
@@ -77,6 +78,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -162,13 +164,79 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 last_err = err
 
             finally:
-                result = runtime._update_run_state(task=run, err=last_err)
+                result = runtime._update_run_state(
+                    task=run,
+                    err=last_err,
+                    run_format=mlrun.common.formatters.RunFormat.standard,
+                )
 
         self._save_notifications(run)
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
+
+    def _enrich_run(
+        self,
+        runtime,
+        run,
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: list[mlrun.model.Notification] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+    ):
+        run = super()._enrich_run(
+            runtime=runtime,
+            run=run,
+            handler=handler,
+            project_name=project_name,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+            state_thresholds=state_thresholds,
+        )
+
+        return self._pre_run_enrichement(runtime, run)
+
+    def _pre_run_enrichement(self, runtime, run):
+        """
+        Enrich the run object with the project's default node selector.
+        This ensures the node selector is correctly set on the run
+        while maintaining the runtime's integrity from system-specific project settings.
+        """
+        if runtime._get_db():
+            project = runtime._get_db().get_project(run.metadata.project)
+            if project.spec.default_function_node_selector:
+                mlrun.utils.logger.debug(
+                    "Enriching run node selector from project",
+                    project_name=run.metadata.project,
+                    project_node_selector=project.spec.default_function_node_selector,
+                )
+                run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
+                    project.spec.default_function_node_selector,
+                    runtime.spec.node_selector,
+                )
+        return run
 
     def enrich_runtime(
         self,
@@ -200,9 +268,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project_name
-            or runtime.metadata.project
-            or mlrun.config.config.default_project
+            project_name or runtime.metadata.project or mlrun.mlconf.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db
@@ -255,7 +321,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _store_function(
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
@@ -304,10 +370,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
             return
 
         for state, threshold in state_thresholds.items():
-            if state not in mlrun.runtimes.constants.ThresholdStates.all():
+            if state not in mlrun.common.runtimes.constants.ThresholdStates.all():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Invalid state {state} for state threshold, must be one of "
-                    f"{mlrun.runtimes.constants.ThresholdStates.all()}"
+                    f"{mlrun.common.runtimes.constants.ThresholdStates.all()}"
                 )
 
             if threshold is None:

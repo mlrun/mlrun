@@ -20,10 +20,12 @@ from http import HTTPStatus
 from typing import Optional
 
 import fastapi
+import mlrun_pipelines.common.models
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.projects.pipelines
 import server.api.api.deps
@@ -185,18 +187,20 @@ async def submit_workflow(
     workflow_action = "schedule" if workflow_spec.schedule else "run"
     workflow_runner.metadata.labels.update(
         {
-            "job-type": "workflow-runner",
-            "workflow": sanitize_label_value(workflow_request.spec.name),
+            mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
+            mlrun_constants.MLRunInternalLabels.workflow: sanitize_label_value(
+                workflow_request.spec.name
+            ),
         }
     )
     if client_version is not None:
-        workflow_runner.metadata.labels["mlrun/client_version"] = sanitize_label_value(
-            client_version
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_version
+        ] = sanitize_label_value(client_version)
     if client_python_version is not None:
-        workflow_runner.metadata.labels["mlrun/client_python_version"] = (
-            sanitize_label_value(client_python_version)
-        )
+        workflow_runner.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.client_python_version
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -217,7 +221,7 @@ async def submit_workflow(
                 workflow_request=updated_request,
                 auth_info=auth_info,
             )
-            status = mlrun.run.RunStatuses.running
+            status = mlrun_pipelines.common.models.RunStatuses.running
             run_uid = run.uid()
     except Exception as error:
         logger.error(traceback.format_exc())
@@ -231,7 +235,7 @@ async def submit_workflow(
     return mlrun.common.schemas.WorkflowResponse(
         project=project.metadata.name,
         name=workflow_spec.name,
-        status=status,
+        status=str(status),
         run_id=run_uid,
         schedule=workflow_spec.schedule,
     )

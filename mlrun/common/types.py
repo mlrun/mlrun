@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import enum
 
@@ -23,3 +22,16 @@ class StrEnum(str, enum.Enum):
 
     def __repr__(self):
         return self.value
+
+
+# Partial backport from Python 3.11
+# https://docs.python.org/3/library/http.html#http.HTTPMethod
+class HTTPMethod(StrEnum):
+    GET = "GET"
+    POST = "POST"
+    DELETE = "DELETE"
+
+
+class Operation(StrEnum):
+    ADD = "add"
+    REMOVE = "remove"

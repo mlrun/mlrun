@@ -99,7 +99,7 @@ MLRUN_DBPATH=http://localhost:8080
 MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in Example2) <br>
 
 **Example 2**<br>
-**Note:** Only relevant if your remote service is on an instance of the Iguazio MLOps Platform (**not MLRun CE**). <br>
+**Note:** Only relevant if your remote service is on an instance of the Iguazio AI Platform (**not MLRun CE**). <br>
 Run this command in MLRun CLI:
  ```
  mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com -u joe -k mykey -e 
@@ -170,7 +170,7 @@ V3IO_ACCESS_KEY=<platform access key>
 ```
 
 ```{admonition} Note
-If your remote service is on an instance of the Iguazio MLOps Platform, you can get all these parameters from the platform dashboard: select 
+If your remote service is on an instance of the Iguazio AI Platform, you can get all these parameters from the platform dashboard: select 
 the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**. They are copied to the clipboard.
 ```
 
@@ -200,7 +200,7 @@ edit box and expand it to edit the environment variables.
     ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
     
 
-   > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
+   > If the remote service is on an instance of the Iguazio AI Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
 #### Remote environment from VScode
 

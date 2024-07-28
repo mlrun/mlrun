@@ -14,7 +14,7 @@
 #
 from typing import Optional
 
-from pydantic import BaseModel, Extra, Field
+import pydantic
 
 from .auth import AuthorizationResourceTypes, Credentials
 from .object import (
@@ -27,32 +27,42 @@ from .object import (
 )
 
 
-class Feature(BaseModel):
+class FeatureStoreBaseModel(pydantic.BaseModel):
+    """
+    Intermediate base class, in order to override pydantic's configuration, as per
+    https://docs.pydantic.dev/1.10/usage/model_config/#change-behaviour-globally
+    """
+
+    class Config:
+        copy_on_model_validation = "none"
+
+
+class Feature(FeatureStoreBaseModel):
     name: str
     value_type: str
     labels: Optional[dict] = {}
 
     class Config:
-        extra = Extra.allow
+        extra = pydantic.Extra.allow
 
 
-class Entity(BaseModel):
+class Entity(FeatureStoreBaseModel):
     name: str
     value_type: str
     labels: Optional[dict] = {}
 
     class Config:
-        extra = Extra.allow
+        extra = pydantic.Extra.allow
 
 
 class FeatureSetSpec(ObjectSpec):
     entities: list[Entity] = []
     features: list[Feature] = []
-    engine: Optional[str] = Field(default="storey")
+    engine: Optional[str] = pydantic.Field(default="storey")
 
 
-class FeatureSet(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.feature_set, const=True)
+class FeatureSet(FeatureStoreBaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.feature_set, const=True)
     metadata: ObjectMetadata
     spec: FeatureSetSpec
     status: ObjectStatus
@@ -62,7 +72,7 @@ class FeatureSet(BaseModel):
         return AuthorizationResourceTypes.feature_set
 
 
-class EntityRecord(BaseModel):
+class EntityRecord(FeatureStoreBaseModel):
     name: str
     value_type: str
     labels: list[LabelRecord]
@@ -71,7 +81,7 @@ class EntityRecord(BaseModel):
         orm_mode = True
 
 
-class FeatureRecord(BaseModel):
+class FeatureRecord(FeatureStoreBaseModel):
     name: str
     value_type: str
     labels: list[LabelRecord]
@@ -88,44 +98,64 @@ class FeatureSetRecord(ObjectRecord):
         orm_mode = True
 
 
-class FeatureSetsOutput(BaseModel):
+class FeatureSetsOutput(FeatureStoreBaseModel):
     feature_sets: list[FeatureSet]
 
 
-class FeatureSetsTagsOutput(BaseModel):
+class FeatureSetsTagsOutput(FeatureStoreBaseModel):
     tags: list[str] = []
 
 
-class FeatureSetDigestSpec(BaseModel):
+class FeatureSetDigestSpec(FeatureStoreBaseModel):
     entities: list[Entity]
     features: list[Feature]
 
 
-class FeatureSetDigestOutput(BaseModel):
+class FeatureSetDigestOutput(FeatureStoreBaseModel):
     metadata: ObjectMetadata
     spec: FeatureSetDigestSpec
 
 
-class FeatureListOutput(BaseModel):
+class FeatureSetDigestSpecV2(FeatureStoreBaseModel):
+    entities: list[Entity]
+
+
+class FeatureSetDigestOutputV2(FeatureStoreBaseModel):
+    feature_set_index: int
+    metadata: ObjectMetadata
+    spec: FeatureSetDigestSpecV2
+
+
+class FeatureListOutput(FeatureStoreBaseModel):
     feature: Feature
     feature_set_digest: FeatureSetDigestOutput
 
 
-class FeaturesOutput(BaseModel):
+class FeaturesOutput(FeatureStoreBaseModel):
     features: list[FeatureListOutput]
 
 
-class EntityListOutput(BaseModel):
+class FeaturesOutputV2(FeatureStoreBaseModel):
+    features: list[Feature]
+    feature_set_digests: list[FeatureSetDigestOutputV2]
+
+
+class EntityListOutput(FeatureStoreBaseModel):
     entity: Entity
     feature_set_digest: FeatureSetDigestOutput
 
 
-class EntitiesOutput(BaseModel):
+class EntitiesOutputV2(FeatureStoreBaseModel):
+    entities: list[Entity]
+    feature_set_digests: list[FeatureSetDigestOutputV2]
+
+
+class EntitiesOutput(FeatureStoreBaseModel):
     entities: list[EntityListOutput]
 
 
-class FeatureVector(BaseModel):
-    kind: ObjectKind = Field(ObjectKind.feature_vector, const=True)
+class FeatureVector(FeatureStoreBaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.feature_vector, const=True)
     metadata: ObjectMetadata
     spec: ObjectSpec
     status: ObjectStatus
@@ -139,39 +169,39 @@ class FeatureVectorRecord(ObjectRecord):
     pass
 
 
-class FeatureVectorsOutput(BaseModel):
+class FeatureVectorsOutput(FeatureStoreBaseModel):
     feature_vectors: list[FeatureVector]
 
 
-class FeatureVectorsTagsOutput(BaseModel):
+class FeatureVectorsTagsOutput(FeatureStoreBaseModel):
     tags: list[str] = []
 
 
-class DataSource(BaseModel):
+class DataSource(FeatureStoreBaseModel):
     kind: str
     name: str
     path: str
 
     class Config:
-        extra = Extra.allow
+        extra = pydantic.Extra.allow
 
 
-class DataTarget(BaseModel):
+class DataTarget(FeatureStoreBaseModel):
     kind: str
     name: str
     path: Optional[str]
 
     class Config:
-        extra = Extra.allow
+        extra = pydantic.Extra.allow
 
 
-class FeatureSetIngestInput(BaseModel):
+class FeatureSetIngestInput(FeatureStoreBaseModel):
     source: Optional[DataSource]
     targets: Optional[list[DataTarget]]
     infer_options: Optional[int]
     credentials: Credentials = Credentials()
 
 
-class FeatureSetIngestOutput(BaseModel):
+class FeatureSetIngestOutput(FeatureStoreBaseModel):
     feature_set: FeatureSet
     run_object: dict

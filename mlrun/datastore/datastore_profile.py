@@ -16,6 +16,7 @@ import ast
 import base64
 import json
 import typing
+import warnings
 from urllib.parse import ParseResult, urlparse, urlunparse
 
 import pydantic
@@ -36,6 +37,7 @@ class DatastoreProfile(pydantic.BaseModel):
         extra = pydantic.Extra.forbid
 
     @pydantic.validator("name")
+    @classmethod
     def lower_case(cls, v):
         return v.lower()
 
@@ -68,6 +70,9 @@ class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton
     def get(self, key):
         return self._data.get(key, None)
 
+    def remove(self, key):
+        self._data.pop(key, None)
+
 
 class DatastoreProfileBasic(DatastoreProfile):
     type: str = pydantic.Field("basic")
@@ -79,13 +84,37 @@ class DatastoreProfileBasic(DatastoreProfile):
 class DatastoreProfileKafkaTarget(DatastoreProfile):
     type: str = pydantic.Field("kafka_target")
     _private_attributes = "kwargs_private"
-    bootstrap_servers: str
+    bootstrap_servers: typing.Optional[str] = None
+    brokers: typing.Optional[str] = None
     topic: str
     kwargs_public: typing.Optional[dict]
     kwargs_private: typing.Optional[dict]
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        if not self.brokers and not self.bootstrap_servers:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "DatastoreProfileKafkaTarget requires the 'brokers' field to be set"
+            )
+
+        if self.bootstrap_servers:
+            if self.brokers:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "DatastoreProfileKafkaTarget cannot be created with both 'brokers' and 'bootstrap_servers'"
+                )
+            else:
+                self.brokers = self.bootstrap_servers
+                self.bootstrap_servers = None
+            warnings.warn(
+                "'bootstrap_servers' parameter is deprecated in 1.7.0 and will be removed in 1.9.0, "
+                "use 'brokers' instead.",
+                # TODO: Remove this in 1.9.0
+                FutureWarning,
+            )
+
     def attributes(self):
-        attributes = {"bootstrap_servers": self.bootstrap_servers}
+        attributes = {"brokers": self.brokers or self.bootstrap_servers}
         if self.kwargs_public:
             attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:
@@ -157,6 +186,18 @@ class DatastoreProfileS3(DatastoreProfile):
     assume_role_arn: typing.Optional[str] = None
     access_key_id: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
+    bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    @classmethod
+    def check_bucket(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     def secrets(self) -> dict:
         res = {}
@@ -175,7 +216,13 @@ class DatastoreProfileS3(DatastoreProfile):
         return res
 
     def url(self, subpath):
-        return f"s3:/{subpath}"
+        # TODO: There is an inconsistency with DatastoreProfileGCS. In DatastoreProfileGCS,
+        # we assume that the subpath can begin without a '/' character,
+        # while here we assume it always starts with one.
+        if self.bucket:
+            return f"s3://{self.bucket}{subpath}"
+        else:
+            return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -244,18 +291,36 @@ class DatastoreProfileGCS(DatastoreProfile):
     _private_attributes = ("gcp_credentials",)
     credentials_path: typing.Optional[str] = None  # path to file.
     gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
+    bucket: typing.Optional[str] = None
+
+    @pydantic.validator("bucket")
+    @classmethod
+    def check_bucket(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
+    @classmethod
     def convert_dict_to_json(cls, v):
         if isinstance(v, dict):
             return json.dumps(v)
         return v
 
     def url(self, subpath) -> str:
+        # TODO: but there's something wrong with the subpath being assumed to not start with a slash here,
+        # but the opposite assumption is made in S3.
         if subpath.startswith("/"):
             #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"gcs://{subpath}"
+        if self.bucket:
+            return f"gcs://{self.bucket}/{subpath}"
+        else:
+            return f"gcs://{subpath}"
 
     def secrets(self) -> dict:
         res = {}
@@ -283,12 +348,27 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
+    container: typing.Optional[str] = None
+
+    @pydantic.validator("container")
+    @classmethod
+    def check_container(cls, v):
+        if not v:
+            warnings.warn(
+                "The 'container' attribute will be mandatory starting from version 1.9",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return v
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
-            #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
+            #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
-        return f"az://{subpath}"
+        if self.container:
+            return f"az://{self.container}/{subpath}"
+        else:
+            return f"az://{subpath}"
 
     def secrets(self) -> dict:
         res = {}
@@ -332,7 +412,7 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return res or None
 
     def url(self, subpath):
-        return f"hdfs://{self.host}:{self.http_port}{subpath}"
+        return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -460,3 +540,7 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
+
+
+def remove_temporary_client_datastore_profile(profile_name: str):
+    TemporaryClientDatastoreProfiles().remove(profile_name)

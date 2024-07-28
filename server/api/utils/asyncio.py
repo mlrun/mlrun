@@ -16,6 +16,8 @@
 import asyncio
 import typing
 
+from fastapi.concurrency import run_in_threadpool
+
 
 async def maybe_coroutine(function_results: typing.Union[typing.Coroutine, typing.Any]):
     """
@@ -26,3 +28,13 @@ async def maybe_coroutine(function_results: typing.Union[typing.Coroutine, typin
     if asyncio.iscoroutine(function_results):
         return await function_results
     return function_results
+
+
+async def await_or_call_in_threadpool(function: typing.Callable, *args, **kwargs):
+    """
+    If function is a coroutine, await it. Otherwise, call it in a threadpool and return the result.
+    This is useful for when function callee is not sure if the response should be awaited or not.
+    """
+    if asyncio.iscoroutinefunction(function):
+        return await function(*args, **kwargs)
+    return await run_in_threadpool(function, *args, **kwargs)

@@ -10,6 +10,8 @@ MLRun is organized into the following modules. The most common functions are exp
   :glob:
 
   mlrun.frameworks/index
+  mlrun.common/index
+  mlrun.alerts/index
   *
 
 See also the :ref:`index of all functions and classes <genindex>`.

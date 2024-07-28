@@ -31,26 +31,6 @@ from server.api.api.utils import get_obj_path, get_secrets, log_and_raise
 router = fastapi.APIRouter()
 
 
-# TODO: Remove in 1.7.0
-@router.get(
-    "/files",
-    deprecated=True,
-    description="'/files' and '/filestat' will be removed in 1.7.0, "
-    "use /projects/{project}/files instead.",
-)
-def get_files(
-    schema: str = "",
-    objpath: str = fastapi.Query("", alias="path"),
-    user: str = "",
-    size: int = None,
-    offset: int = 0,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        server.api.api.deps.authenticate_request
-    ),
-):
-    return _get_files(schema, objpath, user, size, offset, auth_info)
-
-
 @router.get("/projects/{project}/files")
 async def get_files_with_project_secrets(
     project: str,
@@ -85,24 +65,6 @@ async def get_files_with_project_secrets(
         secrets=secrets,
         project=project,
     )
-
-
-# TODO: Remove in 1.7.0
-@router.get(
-    "/filestat",
-    deprecated=True,
-    description="'/files' and '/filestat' will be removed in 1.7.0, "
-    "use /projects/{project}/filestat instead.",
-)
-def get_filestat(
-    schema: str = "",
-    path: str = "",
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        server.api.api.deps.authenticate_request
-    ),
-    user: str = "",
-):
-    return server.api.crud.Files().get_filestat(auth_info, path, schema, user)
 
 
 @router.get("/projects/{project}/filestat")

@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import json
 import typing
 from abc import ABC, abstractmethod
 
+import mlrun.common.schemas.model_monitoring as mm_schemas
+
 
 class StoreBase(ABC):
+    type: typing.ClassVar[str]
     """
     An abstract class to handle the store object in the DB target.
     """
@@ -62,11 +65,9 @@ class StoreBase(ABC):
         pass
 
     @abstractmethod
-    def delete_model_endpoints_resources(self, endpoints: list[dict[str, typing.Any]]):
+    def delete_model_endpoints_resources(self):
         """
         Delete all model endpoints resources.
-
-        :param endpoints: A list of model endpoints flattened dictionaries.
 
         """
         pass
@@ -93,6 +94,7 @@ class StoreBase(ABC):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
         """
         Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
@@ -106,53 +108,26 @@ class StoreBase(ABC):
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param uids:             List of model endpoint unique ids to include in the result.
+        :param include_stats:   If True, will include model endpoint statistics in the result.
 
         :return: A list of model endpoint dictionaries.
         """
         pass
 
     @abstractmethod
-    def get_endpoint_real_time_metrics(
+    def write_application_event(
         self,
-        endpoint_id: str,
-        metrics: list[str],
-        start: str = "now-1h",
-        end: str = "now",
-        access_key: str = None,
-    ) -> dict[str, list[tuple[str, float]]]:
+        event: dict[str, typing.Any],
+        kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
+    ) -> None:
         """
-        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of real-time metrics to return for the model endpoint.
-        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
-                                 provided, the access key will be retrieved from the environment variables.
-
-        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
-                 includes timestamps and the values.
-        """
-
-        pass
-
-    @abstractmethod
-    def write_application_result(self, event: dict[str, typing.Any]):
-        """
-        Write a new application result event in the target table.
+        Write a new event in the target table.
 
         :param event: An event dictionary that represents the application result, should be corresponded to the
                       schema defined in the :py:class:`~mlrun.common.schemas.model_monitoring.constants.WriterEvent`
                       object.
+        :param kind: The type of the event, can be either "result" or "metric".
         """
-        pass
 
     @abstractmethod
     def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
@@ -183,4 +158,55 @@ class StoreBase(ABC):
                                  application and model endpoint.
 
         """
+        pass
+
+    @abstractmethod
+    def get_model_endpoint_metrics(
+        self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
+    ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:
+        """
+        Get the model monitoring results and metrics of the requested model endpoint.
+
+        :param: endpoint_id: The model endpoint identifier.
+        :param: type:        The type of the requested metrics ("result" or "metric").
+
+        :return:             A list of the available metrics.
+        """
+
+    @staticmethod
+    def _validate_labels(
+        endpoint_dict: dict,
+        labels: list,
+    ) -> bool:
+        """Validate that the model endpoint dictionary has the provided labels. There are 2 possible cases:
+        1 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
+            that each pair exist in the endpoint dictionary.
+        2 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
+            the endpoint labels dictionary.
+
+        :param endpoint_dict: Dictionary of the model endpoint records.
+        :param labels:        List of dictionary of required labels.
+
+        :return: True if the labels exist in the endpoint labels dictionary, otherwise False.
+        """
+
+        # Convert endpoint labels into dictionary
+        endpoint_labels = json.loads(
+            endpoint_dict.get(mm_schemas.EventFieldType.LABELS)
+        )
+
+        for label in labels:
+            # Case 1 - label is a key=value pair
+            if "=" in label:
+                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
+                if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
+                    return False
+            # Case 2 - label is just a key
+            else:
+                if label not in endpoint_labels:
+                    return False
+
+        return True
+
+    def create_tables(self):
         pass

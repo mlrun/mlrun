@@ -26,6 +26,7 @@ from mlrun.utils import logger
 
 
 def paginated_method(
+    session: sqlalchemy.orm.Session,
     total_amount: int,
     page: typing.Optional[int] = None,
     page_size: typing.Optional[int] = None,
@@ -43,13 +44,24 @@ def paginated_method(
 
 @pytest.fixture()
 def mock_paginated_method(monkeypatch):
-    monkeypatch.setattr(
-        server.api.utils.pagination.PaginatedMethods, "_methods", [paginated_method]
-    )
+    class Schema:
+        def __init__(self, **kwargs):
+            self._dict = kwargs
+
+        def dict(self):
+            return self._dict
+
     monkeypatch.setattr(
         server.api.utils.pagination.PaginatedMethods,
         "_method_map",
-        {"paginated_method": paginated_method},
+        {
+            paginated_method.__name__: {
+                "method": paginated_method,
+                "schema": server.api.utils.pagination._generate_pydantic_schema_from_method_signature(
+                    paginated_method
+                ),
+            }
+        },
     )
     yield paginated_method
 
@@ -68,33 +80,34 @@ def test_paginated_method():
     total_amount = 10
     page_size = 3
 
-    items = paginated_method(total_amount, 1, page_size)
+    items = paginated_method(None, total_amount, 1, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item0"
     assert items[1]["name"] == "item1"
     assert items[2]["name"] == "item2"
 
-    items = paginated_method(total_amount, 2, page_size)
+    items = paginated_method(None, total_amount, 2, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item3"
     assert items[1]["name"] == "item4"
     assert items[2]["name"] == "item5"
 
-    items = paginated_method(total_amount, 3, page_size)
+    items = paginated_method(None, total_amount, 3, page_size)
     assert len(items) == page_size
     assert items[0]["name"] == "item6"
     assert items[1]["name"] == "item7"
     assert items[2]["name"] == "item8"
 
-    items = paginated_method(total_amount, 4, page_size)
+    items = paginated_method(None, total_amount, 4, page_size)
     assert len(items) == 1
     assert items[0]["name"] == "item9"
 
     with pytest.raises(StopIteration):
-        paginated_method(total_amount, 5, page_size)
+        paginated_method(None, total_amount, 5, page_size)
 
 
-def test_paginate_request(
+@pytest.mark.asyncio
+async def test_paginate_request(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -114,7 +127,7 @@ def test_paginate_request(
     paginator = server.api.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
-    response, pagination_info = paginator.paginate_request(
+    response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
@@ -123,15 +136,15 @@ def test_paginate_request(
 
     logger.info("Checking db cache record")
     cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info["token"]
+        db, pagination_info.page_token
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 1, page_size
     )
 
     logger.info("Requesting second page")
-    response, pagination_info = paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info["token"]
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
     )
     _assert_paginated_response(
         response, pagination_info, 2, page_size, ["item3", "item4"]
@@ -139,20 +152,20 @@ def test_paginate_request(
 
     logger.info("Checking db cache record")
     cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info["token"]
+        db, pagination_info.page_token
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
 
     logger.info("Saving token for next assert")
-    token = pagination_info["token"]
+    token = pagination_info.page_token
 
     logger.info(
         "Requesting third page, which is the end of the items and should return empty response"
     )
-    response, pagination_info = paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info["token"]
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
     )
     assert len(response) == 0
     assert not pagination_info
@@ -164,7 +177,8 @@ def test_paginate_request(
     assert cache_record is None
 
 
-def test_paginate_other_users_token(
+@pytest.mark.asyncio
+async def test_paginate_other_users_token(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -183,7 +197,7 @@ def test_paginate_other_users_token(
     paginator = server.api.utils.pagination.Paginator()
 
     logger.info("Requesting first page with user1")
-    response, pagination_info = paginator.paginate_request(
+    response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info_1, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
@@ -192,7 +206,7 @@ def test_paginate_other_users_token(
 
     logger.info("Checking db cache record")
     cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info["token"]
+        db, pagination_info.page_token
     )
     _assert_cache_record(
         cache_record, auth_info_1.user_id, paginated_method, 1, page_size
@@ -200,18 +214,21 @@ def test_paginate_other_users_token(
 
     logger.info("Requesting second page with user2, should raise AccessDeniedError")
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        paginator.paginate_request(
-            db, paginated_method, auth_info_2, pagination_info["token"]
+        await paginator.paginate_request(
+            db, paginated_method, auth_info_2, pagination_info.page_token
         )
 
     logger.info(
         "Requesting second page without auth info, should raise AccessDeniedError"
     )
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
-        paginator.paginate_request(db, paginated_method, None, pagination_info["token"])
+        await paginator.paginate_request(
+            db, paginated_method, None, pagination_info.page_token
+        )
 
 
-def test_paginate_no_auth(
+@pytest.mark.asyncio
+async def test_paginate_no_auth(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -228,7 +245,7 @@ def test_paginate_no_auth(
     paginator = server.api.utils.pagination.Paginator()
 
     logger.info("Requesting first page")
-    response, pagination_info = paginator.paginate_request(
+    response, pagination_info = await paginator.paginate_request(
         db, paginated_method, None, None, 1, page_size, **method_kwargs
     )
     _assert_paginated_response(
@@ -237,14 +254,14 @@ def test_paginate_no_auth(
 
     logger.info("Checking db cache record")
     cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info["token"]
+        db, pagination_info.page_token
     )
     _assert_cache_record(cache_record, None, paginated_method, 1, page_size)
 
     logger.info("Requesting second page with auth info of some user")
     auth_info = mlrun.common.schemas.AuthInfo(user_id="any-user")
-    response, pagination_info = paginator.paginate_request(
-        db, paginated_method, auth_info, pagination_info["token"]
+    response, pagination_info = await paginator.paginate_request(
+        db, paginated_method, auth_info, pagination_info.page_token
     )
     _assert_paginated_response(
         response, pagination_info, 2, page_size, ["item3", "item4"]
@@ -252,14 +269,15 @@ def test_paginate_no_auth(
 
     logger.info("Checking db cache record")
     cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, pagination_info["token"]
+        db, pagination_info.page_token
     )
     _assert_cache_record(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
 
 
-def test_no_pagination(
+@pytest.mark.asyncio
+async def test_no_pagination(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -274,7 +292,7 @@ def test_no_pagination(
     paginator = server.api.utils.pagination.Paginator()
 
     logger.info("Requesting all items")
-    response, pagination_info = paginator.paginate_request(
+    response, pagination_info = await paginator.paginate_request(
         db,
         paginated_method,
         auth_info,
@@ -290,7 +308,8 @@ def test_no_pagination(
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 0
 
 
-def test_pagination_not_supported(
+@pytest.mark.asyncio
+async def test_pagination_not_supported(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -306,7 +325,7 @@ def test_pagination_not_supported(
 
     logger.info("Requesting a method that is not supported for pagination")
     with pytest.raises(NotImplementedError):
-        paginator.paginate_request(
+        await paginator.paginate_request(
             db,
             lambda: paginated_method(5, 1, 3),
             auth_info,
@@ -317,7 +336,8 @@ def test_pagination_not_supported(
         )
 
 
-def test_pagination_cache_cleanup(
+@pytest.mark.asyncio
+async def test_pagination_cache_cleanup(
     mock_paginated_method,
     cleanup_pagination_cache_on_teardown,
     db: sqlalchemy.orm.Session,
@@ -335,7 +355,7 @@ def test_pagination_cache_cleanup(
 
     logger.info("Creating paginated cache records")
     for i in range(3):
-        _, pagination_info = paginator.paginate_request(
+        _, pagination_info = await paginator.paginate_request(
             db,
             paginated_method,
             auth_info,
@@ -344,7 +364,7 @@ def test_pagination_cache_cleanup(
             page_size + i,
             **method_kwargs,
         )
-        token = pagination_info["token"]
+        token = pagination_info.page_token
 
     assert len(server.api.crud.PaginationCache().list_pagination_cache_records(db)) == 3
 
@@ -357,7 +377,7 @@ def test_pagination_cache_cleanup(
 
     logger.info("Try to get page with token")
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        paginator.paginate_request(
+        await paginator.paginate_request(
             db,
             paginated_method,
             auth_info,
@@ -368,15 +388,222 @@ def test_pagination_cache_cleanup(
         )
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "permitted_items,target_page",
+    [
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                "item2",
+                "item3",
+            ],
+            1,
+        ),
+        (
+            [
+                # page 1
+                "item2",
+                "item3",
+                # page 2
+                "item4",
+                "item5",
+            ],
+            2,
+        ),
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                # page 2
+                "item4",
+                # page 3
+                "item8",
+            ],
+            3,
+        ),
+        (
+            [
+                # page 1
+                "item0",
+                "item1",
+                # page 2
+                "item7",
+                # page 3
+                "item8",
+                "item9",
+            ],
+            3,
+        ),
+        (
+            ["item0"],
+            5,  # only 1 item, we will go all the way to the end of the pagination adding 0 items each time
+        ),
+    ],
+)
+async def test_paginate_permission_filtered_request(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+    permitted_items,
+    target_page,
+):
+    """
+    Test paginate_permission_filtered_request.
+    Request paginated method with page 1 and page size 4.
+    The filter function will filter out the items that are not permitted. And the result should contain only the
+    permitted items. With a minimum result of page size 4 (unless there are fewer items).
+    """
+
+    async def filter_(items):
+        return [item for item in items if item["name"] in permitted_items]
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 4
+    method_kwargs = {"total_amount": 20}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        1,
+        page_size,
+        **method_kwargs,
+    )
+
+    pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
+    assert len(response) == len(permitted_items)
+    for i, item in enumerate(permitted_items):
+        assert response[i]["name"] == item
+    assert pagination_info.page_token is not None
+    assert pagination_info.page == target_page
+    assert pagination_info.page_size == page_size
+
+
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_no_pagination(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with no pagination.
+    Request paginated method with no page and page size, and verify that all items are returned.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    method_kwargs = {"total_amount": 5}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def filter_(items):
+        return items
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        None,
+        None,
+        **method_kwargs,
+    )
+    assert len(response) == 5
+    assert not pagination_info["page"]
+
+
+@pytest.mark.asyncio
+async def test_paginate_permission_filtered_with_token(
+    mock_paginated_method,
+    cleanup_pagination_cache_on_teardown,
+    db: sqlalchemy.orm.Session,
+):
+    """
+    Test paginate_permission_filtered_request with token.
+    Request paginated method with page 1 and page size 4.
+    Then use the token to request the next filtered page.
+    """
+    permitted_items = [
+        # page 1
+        "item0",
+        "item1",
+        "item2",
+        "item3",
+        # page 2
+        "item4",
+        "item7",
+        # page 3
+        "item8",
+        "item9",
+        "item10",
+        "item11",
+        # page 4
+        "item12",
+    ]
+
+    async def filter_(items):
+        return [item for item in items if item["name"] in permitted_items]
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
+    page_size = 4
+    method_kwargs = {"total_amount": 20}
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db,
+        paginated_method,
+        filter_,
+        auth_info,
+        None,
+        1,
+        page_size,
+        **method_kwargs,
+    )
+
+    pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
+
+    _assert_paginated_response(
+        response, pagination_info, 1, page_size, ["item0", "item1", "item2", "item3"]
+    )
+
+    token = pagination_info.page_token
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
+    _assert_paginated_response(
+        response,
+        pagination_info,
+        3,
+        page_size,
+        ["item4", "item7", "item8", "item9", "item10", "item11"],
+    )
+
+    response, pagination_info = await paginator.paginate_permission_filtered_request(
+        db, paginated_method, filter_, auth_info, token
+    )
+    pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
+    _assert_paginated_response(response, pagination_info, 5, page_size, ["item12"])
+
+
 def _assert_paginated_response(
     response, pagination_info, page, page_size, expected_items
 ):
     assert len(response) == len(expected_items)
     for i, item in enumerate(expected_items):
         assert response[i]["name"] == item
-    assert pagination_info["token"] is not None
-    assert pagination_info["page"] == page
-    assert pagination_info["page_size"] == page_size
+    assert pagination_info.page_token is not None
+    assert pagination_info.page == page
+    assert pagination_info.page_size == page_size
 
 
 def _assert_cache_record(

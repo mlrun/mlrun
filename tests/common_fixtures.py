@@ -32,6 +32,7 @@ import v3io.dataplane.object
 import v3io.dataplane.response
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
@@ -72,7 +73,7 @@ def config_test_base():
     log_level = "DEBUG"
     environ["MLRUN_LOG_LEVEL"] = log_level
     # reload config so that values overridden by tests won't pass to other tests
-    mlrun.config.config.reload()
+    mlrun.mlconf.reload()
 
     # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
@@ -93,7 +94,7 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
 
     # TODO: update this to "sidecar" once the default mode is changed
-    mlrun.config.config.log_collector.mode = "legacy"
+    mlrun.mlconf.log_collector.mode = "legacy"
 
     # revert change of default project after project creation
     mlrun.mlconf.default_project = "default"
@@ -116,7 +117,7 @@ def aioresponses_mock():
 
 @pytest.fixture
 def ensure_default_project() -> mlrun.projects.project.MlrunProject:
-    return mlrun.get_or_create_project("default")
+    return mlrun.get_or_create_project("default", allow_cross_project=True)
 
 
 @pytest.fixture()
@@ -244,6 +245,7 @@ class RunDBMock:
         self._project_name = None
         self._project = None
         self._runs = {}
+        self._api_gateways = {}
 
     def reset(self):
         self._functions = {}
@@ -251,6 +253,8 @@ class RunDBMock:
         self._project_name = None
         self._project = None
         self._artifacts = {}
+        self._runs = {}
+        self._api_gateways = {}
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -280,6 +284,7 @@ class RunDBMock:
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        limit: int = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -299,7 +304,7 @@ class RunDBMock:
 
         self._runs[uid] = struct
 
-    def read_run(self, uid, project, iter=0):
+    def read_run(self, uid, project, iter=0, format_=None):
         return self._runs.get(uid, {})
 
     def list_runs(
@@ -402,12 +407,52 @@ class RunDBMock:
     def get_builder_status(
         self,
         func: BaseRuntime,
-        offset=0,
-        logs=True,
-        last_log_timestamp=0,
-        verbose=False,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0,
+        verbose: bool = False,
     ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp
+
+    def deploy_nuclio_function(
+        self,
+        func,
+        builder_env: Optional[dict] = None,
+    ):
+        return self.remote_builder(func, False)
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+    def store_api_gateway(
+        self,
+        api_gateway: mlrun.common.schemas.APIGateway,
+        project: str,
+    ):
+        key = self._generate_api_gateway_key(api_gateway.metadata.name, project)
+        api_gateway.metadata.labels = {
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name: project
+        }
+        self._api_gateways[key] = api_gateway
+        return api_gateway
+
+    def get_api_gateway(self, name: str, project: str = None):
+        key = self._generate_api_gateway_key(name, project)
+        api_gateway = self._api_gateways.get(key)
+        if api_gateway:
+            if not api_gateway.status:
+                api_gateway.status = mlrun.common.schemas.APIGatewayStatus()
+            api_gateway.spec.host = "my-fake-host.com"
+            api_gateway.status.state = mlrun.common.schemas.APIGatewayState.ready
+            return api_gateway
+        return None
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         for key, value in updates.items():
@@ -561,6 +606,9 @@ class RunDBMock:
             ),
         )
 
+    def _generate_api_gateway_key(self, name: str, project: str) -> str:
+        return f"{project}-{name}"
+
     def assert_runtime_categories(self, expected_categories, function_name=None):
         function = self._get_function_internal(function_name)
         categories = function["metadata"]["categories"]
@@ -584,7 +632,9 @@ def rundb_mock() -> RunDBMock:
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:
-        mlrun.get_or_create_project("default", context=tmp_dir)
+        mlrun.get_or_create_project(
+            "default", context=tmp_dir, allow_cross_project=True
+        )
 
         yield mock_object
 
@@ -593,3 +643,81 @@ def rundb_mock() -> RunDBMock:
         mlrun.get_run_db = orig_get_run_db
         BaseRuntime._get_db = orig_get_db
         config.dbpath = orig_db_path
+
+
+class RemoteBuilderMock(RunDBMock):
+    kind = "http"
+
+    def __init__(self):
+        def _remote_builder_handler(
+            func: mlrun.runtimes.BaseRuntime,
+            *args,
+            **kwargs,
+        ):
+            # Need to fill in clone_target_dir in the response since the code is copying it back to the function, so
+            # it overrides the mock args - this way the value will remain as it was.
+            return {
+                "ready": True,
+                "data": {
+                    "spec": {
+                        "clone_target_dir": func.spec.clone_target_dir,
+                        "build": {
+                            "image": f".mlrun/func-{func.metadata.project}-{func.metadata.name}:latest",
+                        },
+                    },
+                    "status": {
+                        "state": "ready",
+                        "build_pod": "build-pod",
+                    }
+                    | func.status.to_dict(),
+                },
+            }
+
+        super().__init__()
+        self.remote_builder = unittest.mock.Mock(side_effect=_remote_builder_handler)
+        self.deploy_nuclio_function = unittest.mock.Mock(
+            side_effect=_remote_builder_handler
+        )
+
+    def get_build_config_and_target_dir(self):
+        self.remote_builder.assert_called_once()
+        call_args = self.remote_builder.call_args
+
+        build_runtime = call_args.args[0]
+        return build_runtime.spec.build, build_runtime.spec.clone_target_dir
+
+    def get_builder_status(
+        self,
+        func: BaseRuntime,
+        offset: int = 0,
+        logs: bool = True,
+        last_log_timestamp: float = 0,
+        verbose: bool = False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+    def get_nuclio_deploy_status(
+        self,
+        func: mlrun.runtimes.RemoteRuntime,
+        last_log_timestamp: float = 0.0,
+        verbose: bool = False,
+    ):
+        func.status.state = mlrun.common.schemas.FunctionState.ready
+        return "ready", last_log_timestamp
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    builder_mock = RemoteBuilderMock()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    monkeypatch.setattr(
+        mlrun, "get_run_db", unittest.mock.Mock(return_value=builder_mock)
+    )
+    return builder_mock

@@ -20,8 +20,7 @@ In addition it handles automation of various MLOps tasks like scaling runs over 
 `apply_mlrun()` accepts the model object and various optional parameters. For example:
 
 ```python
-apply_mlrun(model=model, model_name="my_model", 
-            x_test=x_test, y_test=y_test)
+apply_mlrun(model=model, model_name="my_model", x_test=x_test, y_test=y_test)
 ```
 
 When specifying the `x_test` and `y_test` data it generates various plots and calculations to evaluate the model.

@@ -16,8 +16,6 @@ import ast
 import inspect
 import re
 
-from deprecated import deprecated
-
 from mlrun.model import FunctionEntrypoint
 
 
@@ -71,32 +69,6 @@ def func_dict(
         "has_varargs": has_varargs,
         "has_kwargs": has_kwargs,
     }
-
-
-# TODO: remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'func_info' is deprecated and will be removed in 1.7.0, use 'ast_func_info' instead",
-    category=FutureWarning,
-)
-def func_info(fn) -> dict:
-    sig = inspect.signature(fn)
-    doc = inspect.getdoc(fn) or ""
-
-    out = func_dict(
-        name=fn.__name__,
-        doc=doc,
-        params=[inspect_param(p) for p in sig.parameters.values()],
-        returns=param_dict(
-            type=type_name(sig.return_annotation, empty_is_none=True), default=None
-        ),
-        lineno=func_lineno(fn),
-    )
-
-    if not fn.__doc__ or not fn.__doc__.strip():
-        return out
-
-    return merge_doc(out, doc)
 
 
 def func_lineno(fn):

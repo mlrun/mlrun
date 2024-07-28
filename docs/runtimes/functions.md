@@ -72,7 +72,6 @@ mlrun_code_annotations
 function-storage
 images
 image-build
-../concepts/node-affinity
 load-from-hub
 git-repo-as-hub
 ```

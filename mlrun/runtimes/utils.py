@@ -20,26 +20,23 @@ from io import StringIO
 from sys import stderr
 
 import pandas as pd
-from kubernetes import client
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
+from mlrun.common.runtimes.constants import RunLabels
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.runtimes.constants import RunLabels
 from mlrun.runtimes.generators import selector
 from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
 
 class RunError(Exception):
     pass
-
-
-mlrun_key = "mlrun/"
 
 
 class _ContextStore:
@@ -280,43 +277,6 @@ def get_item_name(item, attr="name"):
         return getattr(item, attr, None)
 
 
-def apply_kfp(modify, cop, runtime):
-    modify(cop)
-
-    # Have to do it here to avoid circular dependencies
-    from .pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modify):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    for k, v in cop.pod_labels.items():
-        runtime.metadata.labels[k] = v
-    for k, v in cop.pod_annotations.items():
-        runtime.metadata.annotations[k] = v
-    if cop.container.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(cop.container.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-        cop.container.env.clear()
-
-    if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(cop.volumes)
-        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-        cop.volumes.clear()
-        cop.container.volume_mounts.clear()
-
-    return runtime
-
-
 def verify_limits(
     resources_field_name,
     mem=None,
@@ -410,39 +370,11 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
 
 
 def get_func_selector(project, name=None, tag=None):
-    s = [f"{mlrun_key}project={project}"]
+    s = [f"{mlrun_constants.MLRunInternalLabels.project}={project}"]
     if name:
-        s.append(f"{mlrun_key}function={name}")
-        s.append(f"{mlrun_key}tag={tag or 'latest'}")
+        s.append(f"{mlrun_constants.MLRunInternalLabels.function}={name}")
+        s.append(f"{mlrun_constants.MLRunInternalLabels.tag}={tag or 'latest'}")
     return s
-
-
-class k8s_resource:
-    kind = ""
-    per_run = False
-    per_function = False
-    k8client = None
-
-    def deploy_function(self, function):
-        pass
-
-    def release_function(self, function):
-        pass
-
-    def submit_run(self, function, runobj):
-        pass
-
-    def get_object(self, name, namespace=None):
-        return None
-
-    def get_status(self, name, namespace=None):
-        return None
-
-    def del_object(self, name, namespace=None):
-        pass
-
-    def get_pods(self, name, namespace=None, master=False):
-        return {}
 
 
 def enrich_function_from_dict(function, function_dict):
@@ -504,6 +436,7 @@ def enrich_run_labels(
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
+        # TODO: remove this in 1.9.0
         RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
     labels_to_enrich = labels_to_enrich or RunLabels.all()

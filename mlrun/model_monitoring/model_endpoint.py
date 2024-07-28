@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import mlrun.model
+from mlrun.common.model_monitoring.helpers import FeatureStats
 from mlrun.common.schemas.model_monitoring.constants import (
     EndpointType,
     EventKeyMetrics,
@@ -42,8 +43,8 @@ class ModelEndpointSpec(mlrun.model.ModelObj):
 
 @dataclass
 class ModelEndpointStatus(mlrun.model.ModelObj):
-    feature_stats: dict = field(default_factory=dict)
-    current_stats: dict = field(default_factory=dict)
+    feature_stats: FeatureStats = field(default_factory=dict)
+    current_stats: FeatureStats = field(default_factory=dict)
     first_request: str = ""
     last_request: str = ""
     error_count: int = 0

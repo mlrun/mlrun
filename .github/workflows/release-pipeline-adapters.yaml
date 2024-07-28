@@ -1,0 +1,85 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: Release Pipeline Adapters
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Pipeline adapters package to release. Use "*" to release all packages.'
+        default: '*'
+        options:
+          - '*'
+          - 'mlrun-pipelines-kfp-common'
+          - 'mlrun-pipelines-kfp-v1-8'
+          - 'mlrun-pipelines-kfp-v2'
+
+jobs:
+  build-packages-matrix:
+    name: From packages input to matrix
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.packages.outputs.packages }}
+    steps:
+      - name: Install jq
+        run: sudo apt-get install jq
+      - name: resolve packages to release
+        id: packages
+        shell: bash
+        run: |
+          if [[ "$PACKAGES" = "*" ]]; then \
+            export packages=("mlrun-pipelines-kfp-common" "mlrun-pipelines-kfp-v1-8" "mlrun-pipelines-kfp-v2") ;\
+          else \
+            export packages=("${PACKAGES}") ;\
+          fi
+          # "(X Y Z)" -> "{\"include\":[{\"name\":\"X\"},{\"name\":\"Y\"},{\"name\":\"Z\"}]}"
+          export packages=$(jq --null-input --argjson arr "$(printf '%s\n' "${packages[@]}" | jq -R . | jq -s .)" '($arr | map({name: .}))')
+          echo "packages={\"include\":$(echo $packages)}" >> $GITHUB_OUTPUT
+        env:
+          PACKAGES: ${{ github.event.inputs.packages }}
+
+  pypi-publish:
+    needs:
+      - build-packages-matrix
+    name: Release ${{ matrix.name }} to PyPI
+    runs-on: ubuntu-latest
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build-packages-matrix.outputs.packages) }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip build
+      - name: Build package distributions
+        run: |
+          cd pipeline-adapters
+          make build
+        env:
+          PACKAGES: ${{ matrix.name }}
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+          print-hash: true
+          packages-dir: ${{ github.workspace }}/pipeline-adapters/${{ matrix.name }}/dist

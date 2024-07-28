@@ -15,10 +15,17 @@
 import typing
 
 import pydantic
+from deprecated import deprecated
 
 import mlrun.common.types
 
 
+@deprecated(
+    version="1.7.0",
+    reason="mlrun.common.schemas.PipelinesFormat is deprecated and will be removed in 1.9.0. "
+    "Use mlrun.common.formatters.PipelineFormat instead.",
+    category=FutureWarning,
+)
 class PipelinesFormat(mlrun.common.types.StrEnum):
     full = "full"
     metadata_only = "metadata_only"

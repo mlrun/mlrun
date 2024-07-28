@@ -22,11 +22,13 @@ from datetime import datetime
 import fsspec
 import pandas as pd
 import pytest
+import requests
 import v3iofs
 from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
 
 import mlrun
+import mlrun.datastore.utils
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.datastore_profile import (
@@ -53,6 +55,7 @@ from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
+from tests.system.feature_store.utils import sort_df
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -331,6 +334,110 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
+
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_parquet_filters(self, passthrough):
+        parquet_source_path = self.get_pq_source_path()
+        source_file_name = "testdata_with_none.parquet"
+        parquet_source_path = parquet_source_path.replace(
+            self.pq_source, source_file_name
+        )
+        if not self.run_local:
+            df = pd.read_parquet(
+                self.get_local_pq_source_path().replace(
+                    self.pq_source, source_file_name
+                )
+            )
+            df.to_parquet(parquet_source_path)
+
+        filters = [("department", "in", ["01e9fe31-76de-45f0-9aed-0f94cc97bca0", None])]
+        filtered_df = pd.read_parquet(parquet_source_path, filters=filters)
+        base_path = self.get_test_output_subdir_path()
+        parquet_target_path = f"{base_path}_spark"
+        parquet_source = ParquetSource(
+            "parquet_source",
+            path=parquet_source_path,
+            additional_filters=filters,
+        )
+        feature_set = fstore.FeatureSet(
+            "parquet-filters-fs",
+            entities=[fstore.Entity("patient_id")],
+            engine="spark",
+            passthrough=passthrough,
+        )
+
+        target = ParquetTarget(
+            name="department_based_target",
+            path=parquet_target_path,
+        )
+        run_config = fstore.RunConfig(local=self.run_local)
+        feature_set.ingest(
+            source=parquet_source,
+            targets=[target],
+            spark_context=self.spark_service,
+            run_config=run_config,
+        )
+        if not passthrough:
+            result = sort_df(
+                pd.read_parquet(feature_set.get_target_path()), "patient_id"
+            )
+            expected = sort_df(filtered_df, "patient_id")
+            assert_frame_equal(
+                result, expected, check_dtype=False, check_categorical=False
+            )
+
+        vec = fstore.FeatureVector(
+            name="test-fs-vec", features=["parquet-filters-fs.*"]
+        )
+        vec.save()
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
+        kind = None if self.run_local else "remote-spark"
+        resp = fstore.get_offline_features(
+            feature_vector=vec,
+            additional_filters=[
+                ("bad", "not in", [38, 100]),
+                ("movements", "<", 6),
+            ],
+            with_indexes=True,
+            target=target,
+            engine="spark",
+            run_config=fstore.RunConfig(local=self.run_local, kind=kind),
+            spark_service=self.spark_service,
+        )
+
+        result = resp.to_dataframe()
+        result.reset_index(drop=False, inplace=True)
+
+        expected = pd.read_parquet(parquet_source_path) if passthrough else filtered_df
+        expected = sort_df(
+            expected.query("bad not in [38,100] & movements < 6"),
+            ["patient_id"],
+        )
+        result = sort_df(result, ["patient_id"])
+        assert_frame_equal(result, expected, check_dtype=False)
+
+        target = ParquetTarget(
+            "vector_target", path=f"{self.output_dir()}-get_offline_features_by_vector"
+        )
+        #  check get_offline_features vector function:
+        resp = vec.get_offline_features(
+            additional_filters=[
+                ("bad", "not in", [38, 100]),
+                ("movements", "<", 6),
+            ],
+            with_indexes=True,
+            target=target,
+            engine="spark",
+            run_config=fstore.RunConfig(local=self.run_local, kind=kind),
+            spark_service=self.spark_service,
+        )
+
+        result = resp.to_dataframe()
+        result.reset_index(drop=False, inplace=True)
+        result = sort_df(result, ["patient_id"])
+        assert_frame_equal(result, expected, check_dtype=False)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"
@@ -1338,20 +1445,22 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     # ML-5726
     @pytest.mark.skipif(
-        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT"}.issubset(os.environ.keys()),
-        reason="HDFS host and ports are not defined",
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
     )
     def test_ingest_and_get_offline_features_with_hdfs(self):
         key = "patient_id"
 
-        register_temporary_client_datastore_profile(
-            DatastoreProfileHdfs(
-                name="my-hdfs",
-                host=os.getenv("HDFS_HOST"),
-                port=int(os.getenv("HDFS_PORT")),
-                http_port=int(os.getenv("HDFS_HTTP_PORT")),
-            )
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
         )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
 
         measurements = fstore.FeatureSet(
             "measurements",
@@ -1361,10 +1470,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         self.set_targets(measurements)
+        run_config = fstore.RunConfig(
+            local=self.run_local,
+            kind="remote-spark",
+            extra_spec={
+                "spec": {
+                    "env": [
+                        {
+                            "name": "HADOOP_USER_NAME",
+                            "value": os.environ["HADOOP_USER_NAME"],
+                        }
+                    ]
+                }
+            },
+        )
         measurements.ingest(
             source,
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=run_config,
         )
         assert measurements.status.targets[0].run_id is not None
         fv_name = "measurements-fv"
@@ -1386,7 +1509,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+            run_config=run_config,
             spark_service=self.spark_service,
         )
         resp_df = resp.to_dataframe()
@@ -1402,6 +1525,68 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp_df.reset_index(drop=True, inplace=True)
         pd.testing.assert_frame_equal(resp_df[["bad", "department"]], expected_df)
+        target.purge()
+        with pytest.raises(FileNotFoundError):
+            target.as_df()
+        # check that a FileNotFoundError is not raised
+        target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_wrong_credentials(self):
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            user="wrong-user",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(PermissionError):
+            target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_empty_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("HDFS_HOST")
+
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            port=int(os.environ["HDFS_PORT"]),
+            http_port=int(os.environ["HDFS_HTTP_PORT"]),
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(requests.exceptions.ConnectionError):
+            target.purge()
+
+        monkeypatch.delenv("HDFS_PORT")
+        monkeypatch.delenv("HDFS_HTTP_PORT")
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(ValueError):
+            target.purge()
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):

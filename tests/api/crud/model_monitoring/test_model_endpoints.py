@@ -66,7 +66,17 @@ def mock_kv() -> Iterator[None]:
         yield
 
 
-@pytest.mark.usefixtures("_patch_external_resources", "mock_kv")
+@pytest.fixture()
+def mock_get_connection_string() -> Iterator[None]:
+    with patch(
+        "mlrun.model_monitoring.helpers.get_connection_string", return_value="v3io"
+    ):
+        yield
+
+
+@pytest.mark.usefixtures(
+    "_patch_external_resources", "mock_kv", "mock_get_connection_string"
+)
 def test_create_with_empty_feature_stats(
     db_session: DBSession,
     model_endpoint: mlrun.common.schemas.ModelEndpoint,

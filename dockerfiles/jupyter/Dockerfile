@@ -38,7 +38,7 @@ USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
 
-ARG MLRUN_PIP_VERSION=23.2.1
+ARG MLRUN_PIP_VERSION=24.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR $HOME
@@ -60,16 +60,14 @@ RUN python -m pip install \
     -r /tmp/requirements/extras-requirement.txt \
     -r /tmp/requirements/requirement.txt
 
-COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
+COPY --chown=$NB_UID:$NB_GID . $HOME/mlrun
+RUN cd $HOME/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.6.x https://github.com/mlrun/demos.git $HOME/demos && \
-    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
-    cd $HOME/demos && \
-    ./community_edition_align.sh && \
-    cd -
+RUN git clone --branch 1.7.x https://github.com/mlrun/demos.git $HOME/demos && \
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup
+
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \
@@ -83,8 +81,16 @@ RUN tar -cvf /tmp/basehome.tar $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
-# run the mlrun db (api) and the notebook in parallel
-CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
+# use tini as entrypoint to allow signal handling
+# and avoid zombie processes
+ENTRYPOINT ["tini", "--"]
+
+# run the mlrun api and the notebook in parallel
+CMD cd $HOME/mlrun && MLRUN_ARTIFACT_PATH=$HOME/data uvicorn server.api.main:app \
+    --proxy-headers \
+    --host="0.0.0.0" \
+    --log-config=server/api/uvicorn_log_config.yaml & \
+    MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

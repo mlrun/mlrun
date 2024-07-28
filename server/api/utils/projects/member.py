@@ -17,6 +17,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.crud
@@ -26,6 +27,10 @@ import server.api.utils.clients.log_collector
 class Member(abc.ABC):
     @abc.abstractmethod
     def initialize(self):
+        pass
+
+    @abc.abstractmethod
+    def start(self):
         pass
 
     @abc.abstractmethod
@@ -39,12 +44,19 @@ class Member(abc.ABC):
         wait_for_completion: bool = True,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
-        project_names = self.list_projects(
-            db_session,
-            format_=mlrun.common.schemas.ProjectsFormat.name_only,
-            leader_session=auth_info.session,
-        )
-        if name not in project_names.projects:
+        try:
+            project = self.get_project(
+                db_session,
+                format_=mlrun.common.formatters.ProjectFormat.name_only,
+                leader_session=auth_info.session,
+                from_leader=False,
+                name=name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            project = None
+
+        # for custom description and for sanity check
+        if not project:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
 
     @abc.abstractmethod
@@ -94,6 +106,7 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         pass
 
@@ -104,6 +117,7 @@ class Member(abc.ABC):
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -112,7 +126,7 @@ class Member(abc.ABC):
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,

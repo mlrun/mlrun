@@ -12,29 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import json
-from typing import Any, NewType
-
-import pandas as pd
-from v3io.dataplane import Client as V3IOClient
-from v3io_frames.client import ClientBase as V3IOFramesClient
-from v3io_frames.errors import Error as V3IOFramesError
-from v3io_frames.frames_pb2 import IGNORE
+from typing import Any, Callable, NewType
 
 import mlrun.common.model_monitoring
+import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
-import mlrun.model_monitoring.db.stores
-import mlrun.utils.v3io_clients
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
+from mlrun.common.schemas.model_monitoring.constants import (
+    EventFieldType,
+    HistogramDataDriftApplicationConstants,
+    MetricData,
+    ResultData,
+    ResultKindApp,
+    ResultStatusApp,
+    WriterEvent,
+    WriterEventKind,
+)
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
+from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
-_TSDB_BE = "tsdb"
-_TSDB_RATE = "1/s"
-_TSDB_TABLE = "app-results"
 _RawEvent = dict[str, Any]
 _AppResultEvent = NewType("_AppResultEvent", _RawEvent)
 
@@ -69,20 +69,20 @@ class _Notifier:
         self._severity = severity
 
     def _should_send_event(self) -> bool:
-        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected
+        return self._event[ResultData.RESULT_STATUS] >= ResultStatusApp.detected.value
 
     def _generate_message(self) -> str:
         return f"""\
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
-of kind `{self._event[WriterEvent.RESULT_KIND]}` \
+of kind `{self._event[ResultData.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
 at time `{self._event[WriterEvent.START_INFER_TIME]}`.
 
 Result data:
-Name: `{self._event[WriterEvent.RESULT_NAME]}`
-Value: `{self._event[WriterEvent.RESULT_VALUE]}`
-Status: `{self._event[WriterEvent.RESULT_STATUS]}`
-Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
+Name: `{self._event[ResultData.RESULT_NAME]}`
+Value: `{self._event[ResultData.RESULT_VALUE]}`
+Status: `{self._event[ResultData.RESULT_STATUS]}`
+Extra data: `{self._event[ResultData.RESULT_EXTRA_DATA]}`\
 """
 
     def notify(self) -> None:
@@ -97,108 +97,167 @@ Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
 
 class ModelMonitoringWriter(StepToDict):
     """
-    Write monitoring app events to V3IO KV storage
+    Write monitoring application results to the target databases
     """
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, project: str) -> None:
+    def __init__(
+        self,
+        project: str,
+        secret_provider: Callable = None,
+    ) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._v3io_container = self.get_v3io_container(self.name)
-        self._tsdb_client = self._get_v3io_frames_client(self._v3io_container)
+
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
-        self._create_tsdb_table()
+
+        self._app_result_store = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+        self._tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        self._endpoints_records = {}
+
+    def _generate_event_on_drift(
+        self,
+        entity_id: str,
+        result_status: int,
+        event_value: dict,
+        project_name: str,
+        result_kind: int,
+    ) -> None:
+        logger.info("Sending an event")
+        entity = mlrun.common.schemas.alert.EventEntities(
+            kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            project=project_name,
+            ids=[entity_id],
+        )
+
+        event_kind = self._generate_alert_event_kind(
+            result_status=result_status, result_kind=result_kind
+        )
+
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind(value=event_kind),
+            entity=entity,
+            value_dict=event_value,
+        )
+        mlrun.get_run_db().generate_event(event_kind, event_data)
 
     @staticmethod
-    def get_v3io_container(project_name: str) -> str:
-        return f"users/pipelines/{project_name}/monitoring-apps"
+    def _generate_alert_event_kind(
+        result_kind: int, result_status: int
+    ) -> alert_objects.EventKind:
+        """Generate the required Event Kind format for the alerting system"""
+        event_kind = ResultKindApp(value=result_kind).name
+
+        if result_status == ResultStatusApp.detected.value:
+            event_kind = f"{event_kind}_detected"
+        else:
+            event_kind = f"{event_kind}_suspected"
+        return alert_objects.EventKind(value=event_kind)
 
     @staticmethod
-    def _get_v3io_client() -> V3IOClient:
-        return mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-        )
-
-    @staticmethod
-    def _get_v3io_frames_client(v3io_container: str) -> V3IOFramesClient:
-        return mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.mlconf.v3io_framesd,
-            container=v3io_container,
-        )
-
-    def _create_tsdb_table(self) -> None:
-        self._tsdb_client.create(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
-            if_exists=IGNORE,
-            rate=_TSDB_RATE,
-        )
-
-    def _update_kv_db(self, event: _AppResultEvent) -> None:
-        event = _AppResultEvent(event.copy())
-        application_result_store = mlrun.model_monitoring.get_store_object(
-            project=self.project
-        )
-        application_result_store.write_application_result(event=event)
-
-    def _update_tsdb(self, event: _AppResultEvent) -> None:
-        event = _AppResultEvent(event.copy())
-        event[WriterEvent.END_INFER_TIME] = datetime.datetime.fromisoformat(
-            event[WriterEvent.END_INFER_TIME]
-        )
-        del event[WriterEvent.RESULT_EXTRA_DATA]
-        try:
-            self._tsdb_client.write(
-                backend=_TSDB_BE,
-                table=_TSDB_TABLE,
-                dfs=pd.DataFrame.from_records([event]),
-                index_cols=[
-                    WriterEvent.END_INFER_TIME,
-                    WriterEvent.ENDPOINT_ID,
-                    WriterEvent.APPLICATION_NAME,
-                    WriterEvent.RESULT_NAME,
-                ],
-            )
-            logger.info("Updated V3IO TSDB successfully", table=_TSDB_TABLE)
-        except V3IOFramesError as err:
-            logger.warn(
-                "Could not write drift measures to TSDB",
-                err=err,
-                table=_TSDB_TABLE,
-                event=event,
-            )
-
-    @staticmethod
-    def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
+    def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
         """
         Modify the raw event into the expected monitoring application event
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
-        try:
-            result_event = _AppResultEvent(
-                {key: event[key] for key in WriterEvent.list()}
-            )
-            result_event[WriterEvent.CURRENT_STATS] = json.loads(
-                event[WriterEvent.CURRENT_STATS]
-            )
-            return result_event
-        except KeyError as err:
-            raise _WriterEventValueError(
-                "The received event misses some keys compared to the expected "
-                "monitoring application event schema"
-            ) from err
-        except TypeError as err:
+        if not isinstance(event, dict):
             raise _WriterEventTypeError(
                 f"The event is of type: {type(event)}, expected a dictionary"
-            ) from err
+            )
+        kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
+        result_event = _AppResultEvent(json.loads(event.pop(WriterEvent.DATA, "{}")))
+        if not result_event:  # BC for < 1.7.0, can be removed in 1.9.0
+            result_event = _AppResultEvent(event)
+        else:
+            result_event.update(_AppResultEvent(event))
+
+        expected_keys = list(
+            set(WriterEvent.list()).difference(
+                [WriterEvent.EVENT_KIND, WriterEvent.DATA]
+            )
+        )
+        if kind == WriterEventKind.METRIC:
+            expected_keys.extend(MetricData.list())
+        elif kind == WriterEventKind.RESULT:
+            expected_keys.extend(ResultData.list())
+        else:
+            raise _WriterEventValueError(
+                f"Unknown event kind: {kind}, expected one of: {WriterEventKind.list()}"
+            )
+        missing_keys = [key for key in expected_keys if key not in result_event]
+        if missing_keys:
+            raise _WriterEventValueError(
+                f"The received event misses some keys compared to the expected "
+                f"monitoring application event schema: {missing_keys}"
+            )
+
+        return result_event, kind
 
     def do(self, event: _RawEvent) -> None:
-        event = self._reconstruct_event(event)
+        event, kind = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
-        self._update_tsdb(event)
-        self._update_kv_db(event)
-        _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
+        self._tsdb_connector.write_application_event(event=event.copy(), kind=kind)
+        self._app_result_store.write_application_event(event=event.copy(), kind=kind)
+
         logger.info("Completed event DB writes")
+
+        if kind == WriterEventKind.RESULT:
+            _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
+
+        if (
+            mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled
+            and kind == WriterEventKind.RESULT
+            and (
+                event[ResultData.RESULT_STATUS] == ResultStatusApp.detected.value
+                or event[ResultData.RESULT_STATUS]
+                == ResultStatusApp.potential_detection.value
+            )
+        ):
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            endpoint_record = self._endpoints_records.setdefault(
+                endpoint_id,
+                self._app_result_store.get_model_endpoint(endpoint_id=endpoint_id),
+            )
+            event_value = {
+                "app_name": event[WriterEvent.APPLICATION_NAME],
+                "model": endpoint_record.get(EventFieldType.MODEL),
+                "model_endpoint_id": event[WriterEvent.ENDPOINT_ID],
+                "result_name": event[ResultData.RESULT_NAME],
+                "result_value": event[ResultData.RESULT_VALUE],
+            }
+            self._generate_event_on_drift(
+                entity_id=get_result_instance_fqn(
+                    event[WriterEvent.ENDPOINT_ID],
+                    event[WriterEvent.APPLICATION_NAME],
+                    event[ResultData.RESULT_NAME],
+                ),
+                result_status=event[ResultData.RESULT_STATUS],
+                event_value=event_value,
+                project_name=self.project,
+                result_kind=event[ResultData.RESULT_KIND],
+            )
+
+        if (
+            kind == WriterEventKind.RESULT
+            and event[WriterEvent.APPLICATION_NAME]
+            == HistogramDataDriftApplicationConstants.NAME
+            and event[ResultData.RESULT_NAME]
+            == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
+        ):
+            endpoint_id = event[WriterEvent.ENDPOINT_ID]
+            logger.info(
+                "Updating the model endpoint with metadata specific to the histogram "
+                "data drift app",
+                endpoint_id=endpoint_id,
+            )
+            self._app_result_store.update_model_endpoint(
+                endpoint_id=endpoint_id,
+                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
+            )

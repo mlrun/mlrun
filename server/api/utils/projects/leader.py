@@ -19,6 +19,7 @@ import typing
 import humanfriendly
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -46,11 +47,13 @@ class Member(
         logger.info("Initializing projects leader")
         self._initialize_followers()
         self._periodic_sync_interval_seconds = humanfriendly.parse_timespan(
-            mlrun.config.config.httpdb.projects.periodic_sync_interval
+            mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
         # run one sync to start off on the right foot
         self._sync_projects()
+
+    def start(self):
         self._start_periodic_sync()
 
     def shutdown(self):
@@ -110,6 +113,7 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
@@ -126,14 +130,15 @@ class Member(
         name: str,
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
-    ) -> mlrun.common.schemas.Project:
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+    ) -> mlrun.common.schemas.ProjectOut:
         return self._leader_follower.get_project(db_session, name)
 
     def list_projects(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
@@ -395,11 +400,11 @@ class Member(
         return leader_response, follower_responses
 
     def _initialize_followers(self):
-        leader_name = mlrun.config.config.httpdb.projects.leader
+        leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
         followers = (
-            mlrun.config.config.httpdb.projects.followers.split(",")
-            if mlrun.config.config.httpdb.projects.followers
+            mlrun.mlconf.httpdb.projects.followers.split(",")
+            if mlrun.mlconf.httpdb.projects.followers
             else []
         )
         self._followers = {

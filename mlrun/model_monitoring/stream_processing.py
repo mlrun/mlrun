@@ -30,7 +30,6 @@ import mlrun.model_monitoring.db
 import mlrun.model_monitoring.prometheus
 import mlrun.serving.states
 import mlrun.utils
-import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     EventKeyMetrics,
@@ -67,10 +66,6 @@ class EventStreamProcessor:
         self.parquet_batching_max_events = parquet_batching_max_events
         self.parquet_batching_timeout_secs = parquet_batching_timeout_secs
 
-        self.model_endpoint_store_target = (
-            mlrun.mlconf.model_endpoint_monitoring.store_type
-        )
-
         logger.info(
             "Initializing model monitoring event stream processor",
             parquet_path=self.parquet_path,
@@ -78,6 +73,7 @@ class EventStreamProcessor:
         )
 
         self.storage_options = None
+        self.tsdb_configurations = {}
         if not mlrun.mlconf.is_ce_mode():
             self._initialize_v3io_configurations(
                 model_monitoring_access_key=model_monitoring_access_key
@@ -136,33 +132,39 @@ class EventStreamProcessor:
         self.tsdb_batching_max_events = tsdb_batching_max_events
         self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
-    def apply_monitoring_serving_graph(self, fn: mlrun.runtimes.ServingRuntime) -> None:
+    def apply_monitoring_serving_graph(
+        self,
+        fn: mlrun.runtimes.ServingRuntime,
+        secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+    ) -> None:
         """
-        Apply monitoring serving graph to a given serving function. The following serving graph includes about 20 steps
-        of different operations that are executed on the events from the model server. Each event has
-        metadata (function_uri, timestamp, class, etc.) but also inputs and predictions from the model server.
-        Throughout the serving graph, the results are written to 3 different databases:
-        1. KV/SQL (steps 9-11): Stores metadata and stats about the average latency and the amount of predictions over
-           time per endpoint. for example the amount of predictions of endpoint x in the last 5 min. This data is used
-           by the monitoring dashboards in grafana. The model endpoints table also contains data on the model endpoint
-           from other processes, such as current_stats that is being calculated by the monitoring batch job
-           process. If the target is from type KV, then the model endpoints table can be found under
-           v3io:///users/pipelines/project-name/model-endpoints/endpoints/. If the target is SQL, then the table
-           is stored within the database that was defined in the provided connection string and can be found
-           under mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection.
-        2. V3IO TSDB/Prometheus (steps 13-21): Stores live data of different key metric dictionaries in tsdb target.
-           This data is being used by the monitoring dashboards in grafana. If using V3IO TSDB (steps 13-19), results
+        Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
+        parts that each one them includes several steps of different operations that are executed on the events from
+        the model server.
+        Each event has metadata (function_uri, timestamp, class, etc.) but also inputs, predictions and optional
+        metrics from the model server.
+        In ths first part, the serving graph processes the event and splits it into sub-events. This part also includes
+        validation of the event data and adding important details to the event such as endpoint_id.
+        In the next parts, the serving graph stores data to 3 different targets:
+        1. KV/SQL: Metadata and basic stats about the average latency and the amount of predictions over
+           time per endpoint. for example the amount of predictions of endpoint x in the last 5 min. The model
+           endpoints table also contains data on the model endpoint from other processes, such as feature_stats that
+           represents sample statistics from the training data. If the target is from type KV, then the model endpoints
+           table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/. If the target is
+           SQL, then the table is stored within the database that was defined in the provided connection string.
+        2. TSDB: live data of different key metric dictionaries in tsdb target.
+           This data is being used by the monitoring dashboards in grafana. If using V3IO TSDB, results
            can be found under  v3io:///users/pipelines/project-name/model-endpoints/events/. In that case, we generate
            3 different key  metric dictionaries: base_metrics (average latency and predictions over time),
            endpoint_features (Prediction and feature names and values), and custom_metrics (user-defined metrics).
-           If using Prometheus (steps 20-21), we update metrics in the Prometheus registry that is stored in the
-           monitoring stream local memory.
-        3. Parquet (steps 22-23): This Parquet file includes the required data for the model monitoring batch job
-           that run every hour by default. If defined, the parquet target path can be found under
-           mlrun.mlconf.model_endpoint_monitoring.offline. Otherwise, the default parquet path is under
-           mlrun.mlconf.model_endpoint_monitoring.user_space.
+        3. Parquet: This Parquet file includes the required data for the model monitoring applications. If defined,
+           the parquet target path can be found under mlrun.mlconf.model_endpoint_monitoring.offline. Otherwise,
+           the default parquet path is under mlrun.mlconf.model_endpoint_monitoring.user_space. Note that if you are
+           using CE, the parquet target path is based on the defined MLRun artifact path.
 
         :param fn: A serving function.
+        :param secret_provider: An optional callable function that provides the connection string from the project
+                                secret.
         """
 
         graph = typing.cast(
@@ -170,7 +172,7 @@ class EventStreamProcessor:
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
 
-        # Step 1 - Event routing based on the provided path
+        # Event routing based on the provided path
         def apply_event_routing():
             typing.cast(
                 mlrun.serving.TaskStep,
@@ -183,7 +185,7 @@ class EventStreamProcessor:
 
         apply_event_routing()
 
-        # Step 2 - Filter out events with '-' in the path basename from going forward
+        # Filter out events with '-' in the path basename from going forward
         # through the next steps of the stream graph
         def apply_storey_filter_stream_events():
             # Filter events with Prometheus endpoints path
@@ -196,7 +198,7 @@ class EventStreamProcessor:
 
         apply_storey_filter_stream_events()
 
-        # Step 3 - Process endpoint event: splitting into sub-events and validate event data
+        # Process endpoint event: splitting into sub-events and validate event data
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
@@ -207,7 +209,7 @@ class EventStreamProcessor:
 
         apply_process_endpoint_event()
 
-        # Steps 4,5 - Applying Storey operations of filtering and flatten
+        # Applying Storey operations of filtering and flatten
         def apply_storey_filter_and_flatmap():
             # Remove none values from each event
             graph.add_step(
@@ -224,7 +226,7 @@ class EventStreamProcessor:
 
         apply_storey_filter_and_flatmap()
 
-        # Step 6 - Validating feature names and map each feature to its value
+        # Validating feature names and map each feature to its value
         def apply_map_feature_names():
             graph.add_step(
                 "MapFeatureNames",
@@ -236,9 +238,9 @@ class EventStreamProcessor:
 
         apply_map_feature_names()
 
-        # Step 7 - Calculate number of predictions and average latency
+        # Calculate number of predictions and average latency
         def apply_storey_aggregations():
-            # Step 7.1 - Calculate number of predictions for each window (5 min and 1 hour by default)
+            # Calculate number of predictions for each window (5 min and 1 hour by default)
             graph.add_step(
                 class_name="storey.AggregateByKey",
                 aggregates=[
@@ -256,7 +258,7 @@ class EventStreamProcessor:
                 table=".",
                 key_field=EventFieldType.ENDPOINT_ID,
             )
-            # Step 7.2 - Calculate average latency time for each window (5 min and 1 hour by default)
+            # Calculate average latency time for each window (5 min and 1 hour by default)
             graph.add_step(
                 class_name="storey.Rename",
                 mapping={
@@ -269,8 +271,8 @@ class EventStreamProcessor:
 
         apply_storey_aggregations()
 
-        # Steps 8-10 - KV/SQL branch
-        # Step 8 - Filter relevant keys from the event before writing the data into the database table
+        # KV/SQL branch
+        # Filter relevant keys from the event before writing the data into the database table
         def apply_process_before_endpoint_update():
             graph.add_step(
                 "ProcessBeforeEndpointUpdate",
@@ -280,7 +282,7 @@ class EventStreamProcessor:
 
         apply_process_before_endpoint_update()
 
-        # Step 9 - Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
+        # Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
         # about average latency and the amount of predictions over time
         def apply_update_endpoint():
             graph.add_step(
@@ -288,12 +290,11 @@ class EventStreamProcessor:
                 name="UpdateEndpoint",
                 after="ProcessBeforeEndpointUpdate",
                 project=self.project,
-                model_endpoint_store_target=self.model_endpoint_store_target,
             )
 
         apply_update_endpoint()
 
-        # Step 10 (only for KV target) - Apply infer_schema on the model endpoints table for generating schema file
+        # (only for V3IO KV target) - Apply infer_schema on the model endpoints table for generating schema file
         # which will be used by Grafana monitoring dashboards
         def apply_infer_schema():
             graph.add_step(
@@ -305,10 +306,13 @@ class EventStreamProcessor:
                 table=self.kv_path,
             )
 
-        if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+        if store_object.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
-        # Step 11 - Emits the event in window size of events based on sample_window size (10 by default)
+        # Emits the event in window size of events based on sample_window size (10 by default)
         def apply_storey_sample_window():
             graph.add_step(
                 "storey.steps.SampleWindow",
@@ -320,85 +324,16 @@ class EventStreamProcessor:
 
         apply_storey_sample_window()
 
-        # Steps 12-19 - TSDB branch (skip to Prometheus if in CE env)
-        # Steps 20-21 - Prometheus branch
+        # TSDB branch (skip to Prometheus if in CE env)
         if not mlrun.mlconf.is_ce_mode():
-            # TSDB branch
-
-            # Step 12 - Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
-            # stats and details about the events
-            def apply_process_before_tsdb():
-                graph.add_step(
-                    "ProcessBeforeTSDB", name="ProcessBeforeTSDB", after="sample"
-                )
-
-            apply_process_before_tsdb()
-
-            # Steps 13-19: - Unpacked keys from each dictionary and write to TSDB target
-            def apply_filter_and_unpacked_keys(name, keys):
-                graph.add_step(
-                    "FilterAndUnpackKeys",
-                    name=name,
-                    after="ProcessBeforeTSDB",
-                    keys=[keys],
-                )
-
-            def apply_tsdb_target(name, after):
-                graph.add_step(
-                    "storey.TSDBTarget",
-                    name=name,
-                    after=after,
-                    path=self.tsdb_path,
-                    rate="10/m",
-                    time_col=EventFieldType.TIMESTAMP,
-                    container=self.tsdb_container,
-                    access_key=self.v3io_access_key,
-                    v3io_frames=self.v3io_framesd,
-                    infer_columns_from_data=True,
-                    index_cols=[
-                        EventFieldType.ENDPOINT_ID,
-                        EventFieldType.RECORD_TYPE,
-                        EventFieldType.ENDPOINT_TYPE,
-                    ],
-                    max_events=self.tsdb_batching_max_events,
-                    flush_after_seconds=self.tsdb_batching_timeout_secs,
-                    key=EventFieldType.ENDPOINT_ID,
-                )
-
-            # Steps 13-14 - unpacked base_metrics dictionary
-            apply_filter_and_unpacked_keys(
-                name="FilterAndUnpackKeys1",
-                keys=EventKeyMetrics.BASE_METRICS,
+            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                project=self.project, secret_provider=secret_provider
             )
-            apply_tsdb_target(name="tsdb1", after="FilterAndUnpackKeys1")
+            tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
-            # Steps 15-16 - unpacked endpoint_features dictionary
-            apply_filter_and_unpacked_keys(
-                name="FilterAndUnpackKeys2",
-                keys=EventKeyMetrics.ENDPOINT_FEATURES,
-            )
-            apply_tsdb_target(name="tsdb2", after="FilterAndUnpackKeys2")
-
-            # Steps 17-19 - unpacked custom_metrics dictionary. In addition, use storey.Filter remove none values
-            apply_filter_and_unpacked_keys(
-                name="FilterAndUnpackKeys3",
-                keys=EventKeyMetrics.CUSTOM_METRICS,
-            )
-
-            def apply_storey_filter():
-                graph.add_step(
-                    "storey.Filter",
-                    "FilterNotNone",
-                    after="FilterAndUnpackKeys3",
-                    _fn="(event is not None)",
-                )
-
-            apply_storey_filter()
-            apply_tsdb_target(name="tsdb3", after="FilterNotNone")
         else:
-            # Prometheus branch
-
-            # Step 20 - Increase the prediction counter by 1 and update the latency value
+            # Prometheus
+            # Increase the prediction counter by 1 and update the latency value
             graph.add_step(
                 "IncCounter",
                 name="IncCounter",
@@ -406,7 +341,7 @@ class EventStreamProcessor:
                 project=self.project,
             )
 
-            # Step 21 - Record a sample of features and labels
+            # Record a sample of features and labels
             def apply_record_features_to_prometheus():
                 graph.add_step(
                     "RecordFeatures",
@@ -417,8 +352,8 @@ class EventStreamProcessor:
 
             apply_record_features_to_prometheus()
 
-        # Steps 22-23 - Parquet branch
-        # Step 22 - Filter and validate different keys before writing the data to Parquet target
+        # Parquet branch
+        # Filter and validate different keys before writing the data to Parquet target
         def apply_process_before_parquet():
             graph.add_step(
                 "ProcessBeforeParquet",
@@ -429,7 +364,7 @@ class EventStreamProcessor:
 
         apply_process_before_parquet()
 
-        # Step 23 - Write the Parquet target file, partitioned by key (endpoint_id) and time.
+        # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
                 "storey.ParquetTarget",
@@ -501,76 +436,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
 
         return e
-
-
-class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
-        """
-        Process the data before writing to TSDB. This step creates a dictionary that includes 3 different dictionaries
-        that each one of them contains important details and stats about the events:
-        1. base_metrics: stats about the average latency and the amount of predictions over time. It is based on
-           storey.AggregateByKey which was executed in step 5.
-        2. endpoint_features: feature names and values along with the prediction names and value.
-        3. custom_metric (opt): optional metrics provided by the user.
-
-        :returns: Dictionary of 2-3 dictionaries that contains stats and details about the events.
-
-        """
-        super().__init__(**kwargs)
-
-    def do(self, event):
-        # Compute prediction per second
-        event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
-            float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
-        )
-        base_fields = [
-            EventFieldType.TIMESTAMP,
-            EventFieldType.ENDPOINT_ID,
-            EventFieldType.ENDPOINT_TYPE,
-        ]
-
-        # Getting event timestamp and endpoint_id
-        base_event = {k: event[k] for k in base_fields}
-
-        # base_metrics includes the stats about the average latency and the amount of predictions over time
-        base_metrics = {
-            EventFieldType.RECORD_TYPE: EventKeyMetrics.BASE_METRICS,
-            EventLiveStats.PREDICTIONS_PER_SECOND: event[
-                EventLiveStats.PREDICTIONS_PER_SECOND
-            ],
-            EventLiveStats.PREDICTIONS_COUNT_5M: event[
-                EventLiveStats.PREDICTIONS_COUNT_5M
-            ],
-            EventLiveStats.PREDICTIONS_COUNT_1H: event[
-                EventLiveStats.PREDICTIONS_COUNT_1H
-            ],
-            EventLiveStats.LATENCY_AVG_5M: event[EventLiveStats.LATENCY_AVG_5M],
-            EventLiveStats.LATENCY_AVG_1H: event[EventLiveStats.LATENCY_AVG_1H],
-            **base_event,
-        }
-
-        # endpoint_features includes the event values of each feature and prediction
-        endpoint_features = {
-            EventFieldType.RECORD_TYPE: EventKeyMetrics.ENDPOINT_FEATURES,
-            **event[EventFieldType.NAMED_PREDICTIONS],
-            **event[EventFieldType.NAMED_FEATURES],
-            **base_event,
-        }
-        # Create a dictionary that includes both base_metrics and endpoint_features
-        processed = {
-            EventKeyMetrics.BASE_METRICS: base_metrics,
-            EventKeyMetrics.ENDPOINT_FEATURES: endpoint_features,
-        }
-
-        # If metrics provided, add another dictionary if custom_metrics values
-        if event[EventFieldType.METRICS]:
-            processed[EventKeyMetrics.CUSTOM_METRICS] = {
-                EventFieldType.RECORD_TYPE: EventKeyMetrics.CUSTOM_METRICS,
-                **event[EventFieldType.METRICS],
-                **base_event,
-            }
-
-        return processed
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
@@ -807,7 +672,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # left them
         if endpoint_id not in self.endpoints:
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )
@@ -851,36 +716,6 @@ def is_not_none(field: typing.Any, dict_path: list[str]):
         f"Expected event field is missing: {field} [Event -> {','.join(dict_path)}]"
     )
     return False
-
-
-class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
-    def __init__(self, keys, **kwargs):
-        """
-        Create unpacked event dictionary based on provided key metrics (base_metrics, endpoint_features,
-        or custom_metric). Please note that the next step of the TSDB target requires an unpacked dictionary.
-
-        :param keys: list of key metrics.
-
-        :returns: An unpacked dictionary of event filtered by the provided key metrics.
-        """
-        super().__init__(**kwargs)
-        self.keys = keys
-
-    def do(self, event):
-        # Keep only the relevant dictionary based on the provided keys
-        new_event = {}
-        for key in self.keys:
-            if key in event:
-                new_event[key] = event[key]
-
-        # Create unpacked dictionary
-        unpacked = {}
-        for key in new_event.keys():
-            if key in self.keys:
-                unpacked = {**unpacked, **new_event[key]}
-            else:
-                unpacked[key] = new_event[key]
-        return unpacked if unpacked else None
 
 
 class MapFeatureNames(mlrun.feature_store.steps.MapClass):
@@ -938,9 +773,15 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         feature_values = event[EventFieldType.FEATURES]
         label_values = event[EventFieldType.PREDICTION]
+
+        for index in range(len(feature_values)):
+            feature_value = feature_values[index]
+            if isinstance(feature_value, int):
+                feature_values[index] = float(feature_value)
+
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
-            endpoint_record = get_endpoint_record(
+            endpoint_record = mlrun.model_monitoring.helpers.get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
             )
@@ -1068,7 +909,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
 
 class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
-    def __init__(self, project: str, model_endpoint_store_target: str, **kwargs):
+    def __init__(self, project: str, **kwargs):
         """
         Update the model endpoint record in the DB. Note that the event at this point includes metadata and stats about
         the average latency and the amount of predictions over time. This data will be used in the monitoring dashboards
@@ -1078,9 +919,11 @@ class UpdateEndpoint(mlrun.feature_store.steps.MapClass):
         """
         super().__init__(**kwargs)
         self.project = project
-        self.model_endpoint_store_target = model_endpoint_store_target
 
     def do(self, event: dict):
+        # Remove labels from the event
+        event.pop(EventFieldType.LABELS)
+
         update_endpoint_record(
             project=self.project,
             endpoint_id=event.pop(EventFieldType.ENDPOINT_ID),
@@ -1118,6 +961,8 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
     def do(self, event: dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
+            import mlrun.utils.v3io_clients
+
             self.keys.update(key_set)
             # Apply infer_schema on the kv table for generating the schema file
             mlrun.utils.v3io_clients.get_frames_client(
@@ -1232,13 +1077,6 @@ def update_endpoint_record(
     model_endpoint_store.update_model_endpoint(
         endpoint_id=endpoint_id, attributes=attributes
     )
-
-
-def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = mlrun.model_monitoring.get_store_object(
-        project=project,
-    )
-    return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)
 
 
 def update_monitoring_feature_set(

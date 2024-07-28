@@ -15,7 +15,7 @@ scikit-image~=0.16.0
 numexpr~=2.6
 sympy~=1.5
 pymysql~=1.0
-lightgbm~=3.0
+lightgbm~=4.3
 graphviz~=0.20.0
 opencv-python-headless~=4.0
 pyhive @ git+https://github.com/v3io/PyHive.git@v0.6.999

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import tests.integration.sdk_api.base
 
 
@@ -39,14 +40,18 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert runs[0]["status"]["state"] == mlrun.runtimes.constants.RunStates.running
-        ctx.set_state(mlrun.runtimes.constants.RunStates.completed)
+        assert (
+            runs[0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.running
+        )
+        ctx.set_state(mlrun.common.runtimes.constants.RunStates.completed)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
         assert (
-            runs[0]["status"]["state"] == mlrun.runtimes.constants.RunStates.completed
+            runs[0]["status"]["state"]
+            == mlrun.common.runtimes.constants.RunStates.completed
         )
 
     def test_ctx_run_labels(self):
@@ -60,9 +65,8 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
         assert len(runs) == 1
 
-        # remove the host label
-        assert "host" in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"]["host"]
+        _remove_internal_labels(runs)
+
         assert runs[0]["metadata"]["labels"] == {}
 
         ctx.set_label("label-key", "label-value")
@@ -71,12 +75,13 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert "host" in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"]["host"]
+
+        _remove_internal_labels(runs)
+
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
 
         # mock not logging worker
-        ctx.set_label("host", "worker-1")
+        ctx.set_label(mlrun_constants.MLRunInternalLabels.host, "worker-1")
         ctx.set_label("kind", "mpijob")
         assert not ctx.is_logging_worker()
         ctx._update_run(commit=True)
@@ -86,6 +91,14 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
             name=ctx_name, project=mlrun.mlconf.default_project
         )
         assert len(runs) == 1
-        assert "host" in runs[0]["metadata"]["labels"]
-        del runs[0]["metadata"]["labels"]["host"]
+
+        _remove_internal_labels(runs)
+
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
+
+
+def _remove_internal_labels(runs):
+    assert mlrun_constants.MLRunInternalLabels.host in runs[0]["metadata"]["labels"]
+    del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.host]
+    assert mlrun_constants.MLRunInternalLabels.kind in runs[0]["metadata"]["labels"]
+    del runs[0]["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.kind]

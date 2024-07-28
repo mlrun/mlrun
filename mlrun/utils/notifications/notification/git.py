@@ -30,6 +30,27 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
+    @classmethod
+    def validate_params(cls, params):
+        git_repo = params.get("repo", None)
+        git_issue = params.get("issue", None)
+        git_merge_request = params.get("merge_request", None)
+        token = (
+            params.get("token", None)
+            or params.get("GIT_TOKEN", None)
+            or params.get("GITHUB_TOKEN", None)
+        )
+        if not git_repo:
+            raise ValueError("Parameter 'repo' is required for GitNotification")
+
+        if not token:
+            raise ValueError("Parameter 'token' is required for GitNotification")
+
+        if not git_issue and not git_merge_request:
+            raise ValueError(
+                "At least one of 'issue' or 'merge_request' is required for GitNotification"
+            )
+
     async def push(
         self,
         message: str,
@@ -38,6 +59,8 @@ class GitNotification(NotificationBase):
         ] = mlrun.common.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
+        alert: mlrun.common.schemas.AlertConfig = None,
+        event_data: mlrun.common.schemas.Event = None,
     ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
@@ -50,7 +73,7 @@ class GitNotification(NotificationBase):
         server = self.params.get("server", None)
         gitlab = self.params.get("gitlab", False)
         await self._pr_comment(
-            self._get_html(message, severity, runs, custom_html),
+            self._get_html(message, severity, runs, custom_html, alert, event_data),
             git_repo,
             git_issue,
             merge_request=git_merge_request,

@@ -15,21 +15,11 @@
 import warnings
 from collections import Counter
 
-from pyspark.sql.types import (
-    BooleanType,
-    ByteType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    IntegralType,
-    LongType,
-    MapType,
-    ShortType,
-    TimestampType,
-)
+import pandas as pd
+import semver
 
 
-def toPandas(spark_df):
+def _toPandas(spark_df):
     """
     Modified version of spark DataFrame.toPandas() –
     https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py#L35
@@ -40,6 +30,12 @@ def toPandas(spark_df):
     This modification adds the missing unit to the dtype.
     """
     from pyspark.sql.dataframe import DataFrame
+    from pyspark.sql.types import (
+        BooleanType,
+        IntegralType,
+        MapType,
+        TimestampType,
+    )
 
     assert isinstance(spark_df, DataFrame)
 
@@ -48,7 +44,6 @@ def toPandas(spark_df):
     require_minimum_pandas_version()
 
     import numpy as np
-    import pandas as pd
 
     timezone = spark_df.sql_ctx._conf.sessionLocalTimeZone()
 
@@ -65,10 +60,10 @@ def toPandas(spark_df):
                 msg = (
                     "toPandas attempted Arrow optimization because "
                     "'spark.sql.execution.arrow.pyspark.enabled' is set to true; however, "
-                    "failed by the reason below:\n  %s\n"
+                    f"failed by the reason below:\n  {e}\n"
                     "Attempting non-optimization as "
                     "'spark.sql.execution.arrow.pyspark.fallback.enabled' is set to "
-                    "true." % str(e)
+                    "true."
                 )
                 warnings.warn(msg)
                 use_arrow = False
@@ -78,7 +73,7 @@ def toPandas(spark_df):
                     "'spark.sql.execution.arrow.pyspark.enabled' is set to true, but has "
                     "reached the error below and will not continue because automatic fallback "
                     "with 'spark.sql.execution.arrow.pyspark.fallback.enabled' has been set to "
-                    "false.\n  %s" % str(e)
+                    f"false.\n  {e}"
                 )
                 warnings.warn(msg)
                 raise
@@ -144,7 +139,7 @@ def toPandas(spark_df):
                     "reached the error below and can not continue. Note that "
                     "'spark.sql.execution.arrow.pyspark.fallback.enabled' does not have an "
                     "effect on failures in the middle of "
-                    "computation.\n  %s" % str(e)
+                    f"computation.\n  {e}"
                 )
                 warnings.warn(msg)
                 raise
@@ -154,10 +149,10 @@ def toPandas(spark_df):
     column_counter = Counter(spark_df.columns)
 
     dtype = [None] * len(spark_df.schema)
-    for fieldIdx, field in enumerate(spark_df.schema):
+    for field_idx, field in enumerate(spark_df.schema):
         # For duplicate column name, we use `iloc` to access it.
         if column_counter[field.name] > 1:
-            pandas_col = pdf.iloc[:, fieldIdx]
+            pandas_col = pdf.iloc[:, field_idx]
         else:
             pandas_col = pdf[field.name]
 
@@ -171,12 +166,12 @@ def toPandas(spark_df):
             and field.nullable
             and pandas_col.isnull().any()
         ):
-            dtype[fieldIdx] = pandas_type
+            dtype[field_idx] = pandas_type
         # Ensure we fall back to nullable numpy types, even when whole column is null:
         if isinstance(field.dataType, IntegralType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = np.float64
+            dtype[field_idx] = np.float64
         if isinstance(field.dataType, BooleanType) and pandas_col.isnull().any():
-            dtype[fieldIdx] = object
+            dtype[field_idx] = object
 
     df = pd.DataFrame()
     for index, t in enumerate(dtype):
@@ -217,6 +212,16 @@ def toPandas(spark_df):
 
 def _to_corrected_pandas_type(dt):
     import numpy as np
+    from pyspark.sql.types import (
+        BooleanType,
+        ByteType,
+        DoubleType,
+        FloatType,
+        IntegerType,
+        LongType,
+        ShortType,
+        TimestampType,
+    )
 
     if type(dt) == ByteType:
         return np.int8
@@ -236,3 +241,30 @@ def _to_corrected_pandas_type(dt):
         return "datetime64[ns]"
     else:
         return None
+
+
+def spark_df_to_pandas(spark_df):
+    # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
+    # when we upgrade pyspark, we should check whether this workaround is still necessary
+    # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
+    if semver.parse(pd.__version__)["major"] >= 2:
+        import pyspark.sql.functions as pyspark_functions
+
+        type_conversion_dict = {}
+        for field in spark_df.schema.fields:
+            if str(field.dataType) == "TimestampType":
+                spark_df = spark_df.withColumn(
+                    field.name,
+                    pyspark_functions.date_format(
+                        pyspark_functions.to_timestamp(field.name),
+                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
+                    ),
+                )
+                type_conversion_dict[field.name] = "datetime64[ns]"
+
+        df = _toPandas(spark_df)
+        if type_conversion_dict:
+            df = df.astype(type_conversion_dict)
+        return df
+    else:
+        return _toPandas(spark_df)

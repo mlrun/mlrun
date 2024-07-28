@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
+
 import mlrun
+from mlrun import MLRunInvalidArgumentError
 from mlrun.utils import logger
 from tests.conftest import results
 
@@ -31,13 +34,13 @@ def test_async_basic():
         "$queue", "q1", path=""
     )
 
-    s2 = queue.to(name="s2", class_name="ChainWithContext")
+    s2 = queue.to(name="s2", class_name="ChainWithContext", function="some_function")
     s2.to(name="s4", class_name="ChainWithContext")
     s2.to(
         name="s5", class_name="ChainWithContext"
     ).respond()  # this state returns the resp
 
-    queue.to(name="s3", class_name="ChainWithContext")
+    queue.to(name="s3", class_name="ChainWithContext", function="some_other_function")
 
     # plot the graph for test & debug
     flow.plot(f"{results}/serving/async.png")
@@ -56,6 +59,20 @@ def test_async_basic():
         "s3": 1,
         "s5": 1,
     }, "flow didnt visit expected states"
+
+
+def test_async_error_on_missing_function_parameter():
+    function = mlrun.new_function("tests", kind="serving")
+    flow = function.set_topology("flow", engine="async")
+    queue = flow.to(name="s1", class_name="ChainWithContext").to(
+        "$queue", "q1", path=""
+    )
+
+    with pytest.raises(
+        MLRunInvalidArgumentError,
+        match="step 's2' must specify a function, because it follows a queue step",
+    ):
+        queue.to(name="s2", class_name="ChainWithContext")
 
 
 def test_async_nested():

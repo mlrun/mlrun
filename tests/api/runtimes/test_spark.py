@@ -39,6 +39,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
+        self.project_default_function_node_selector = {"test-project": "node-selector"}
 
     def _generate_runtime(
         self, set_resources: bool = True
@@ -67,6 +68,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
         else:
             assert "javaOptions" not in body["spec"]["executor"]
+
+    def _assert_merged_node_selectors(
+        self,
+        body: dict,
+        expected_job_node_selector: dict,
+        expected_driver_node_selector: dict,
+        expected_executor_node_selector: dict,
+    ):
+        if expected_job_node_selector:
+            assert body["spec"]["nodeSelector"] == expected_job_node_selector
+        if expected_driver_node_selector:
+            assert (
+                body["spec"]["driver"]["nodeSelector"] == expected_driver_node_selector
+            )
+        if expected_executor_node_selector:
+            assert (
+                body["spec"]["executor"]["nodeSelector"]
+                == expected_executor_node_selector
+            )
 
     @staticmethod
     def _assert_cores(body: dict, expected_cores: dict):
@@ -232,7 +252,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_deploy_default_image_without_limits(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
-        mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
+        mlrun.mlconf.httpdb.builder.docker_registry = "test_registry"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.spec.image = None
         runtime.spec.use_default_image = True
@@ -421,6 +441,38 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_resources=expected_driver_resources,
             expected_executor_resources=expected_executor_resources,
             expected_cores=expected_cores,
+        )
+
+    def test_with_node_selector(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        node_selector = {
+            "label-1": "val1",
+            "label-2": "val2",
+        }
+        executor_node_selector = {"executor": "node_selector"}
+        driver_node_selector = {"driver": "node_selector"}
+
+        runtime.with_node_selection(node_selector=node_selector)
+        runtime.spec.executor_node_selector = executor_node_selector
+        runtime.spec.driver_node_selector = driver_node_selector
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+
+        self._assert_merged_node_selectors(
+            body,
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, node_selector
+            ),
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, driver_node_selector
+            ),
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, executor_node_selector
+            ),
         )
 
     def test_run_with_host_path_volume(
@@ -621,11 +673,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_image_pull_secret()
 
         # default image pull secret
-        mlrun.config.config.function.spec.image_pull_secret.default = "my_secret"
+        mlrun.mlconf.function.spec.image_pull_secret.default = "my_secret"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_image_pull_secret(
-            mlrun.config.config.function.spec.image_pull_secret.default,
+            mlrun.mlconf.function.spec.image_pull_secret.default,
         )
 
         # override default image pull secret
@@ -656,7 +708,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._reset_mocks()
 
-        mlrun.config.config.artifact_path = "v3io:///mypath"
+        mlrun.mlconf.artifact_path = "v3io:///mypath"
 
         runtime.with_driver_limits(cpu="1")
         runtime.with_driver_requests(cpu="1", mem="1G")
@@ -675,6 +727,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
 
         self.project = "default"
+        self.project_default_function_node_selector = {}
         self._create_project(client)
 
         resp = fstore.get_offline_features(
@@ -706,6 +759,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "end_time": None,
                 "timestamp_for_filtering": "timestamp",
                 "engine_args": None,
+                "additional_filters": None,
             },
             "output_path": "v3io:///mypath",
             "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",

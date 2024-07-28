@@ -18,16 +18,17 @@ import os
 import kfp
 import kfp.compiler
 import pytest
+from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.mounts import mount_v3io
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.utils
 from mlrun import (
     _run_pipeline,
     code_to_function,
-    mount_v3io,
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.run import RunStatuses
 from tests.system.base import TestMLRunSystem
 
 
@@ -62,8 +63,12 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
             },
         )
         self._verify_run_spec(
@@ -113,8 +118,12 @@ class TestDask(TestMLRunSystem):
             name="mydask-main",
             project=self.project_name,
             labels={
-                "v3io_user": self._test_env["V3IO_USERNAME"],
-                "owner": self._test_env["V3IO_USERNAME"],
+                mlrun_constants.MLRunInternalLabels.v3io_user: self._test_env[
+                    "V3IO_USERNAME"
+                ],
+                mlrun_constants.MLRunInternalLabels.owner: self._test_env[
+                    "V3IO_USERNAME"
+                ],
             },
         )
         self._verify_run_spec(

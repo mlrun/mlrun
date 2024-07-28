@@ -22,6 +22,7 @@ import yaml
 from dateutil import parser
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -33,13 +34,13 @@ from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_json,
     dict_to_yaml,
     get_in,
     is_relative_path,
     logger,
     now_date,
-    run_keys,
     to_date_str,
     update_in,
 )
@@ -77,13 +78,13 @@ class MLClientCtx:
         self._tmpfile = tmp
         self._logger = log_stream or logger
         self._log_level = "info"
-        self._matrics_db = None
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
 
         self._labels = {}
         self._annotations = {}
+        self._node_selector = {}
 
         self._function = ""
         self._parameters = {}
@@ -101,8 +102,7 @@ class MLClientCtx:
         self._error = None
         self._commit = ""
         self._host = None
-        self._start_time = now_date()
-        self._last_update = now_date()
+        self._start_time = self._last_update = now_date()
         self._iteration_results = None
         self._children = []
         self._parent = None
@@ -110,6 +110,7 @@ class MLClientCtx:
 
         self._project_object = None
         self._allow_empty_resources = None
+        self._reset_on_run = None
 
     def __enter__(self):
         return self
@@ -129,7 +130,9 @@ class MLClientCtx:
     @property
     def tag(self):
         """Run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow") or self._uid
+        return (
+            self._labels.get(mlrun_constants.MLRunInternalLabels.workflow) or self._uid
+        )
 
     @property
     def state(self):
@@ -204,6 +207,11 @@ class MLClientCtx:
         return deepcopy(self._labels)
 
     @property
+    def node_selector(self):
+        """Dictionary with node selectors (read-only)"""
+        return deepcopy(self._node_selector)
+
+    @property
     def annotations(self):
         """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
@@ -224,12 +232,12 @@ class MLClientCtx:
                     with context.get_child_context(myparam=param) as child:
                         accuracy = child_handler(child, df, **child.parameters)
                         accuracy_sum += accuracy
-                        child.log_result('accuracy', accuracy)
+                        child.log_result("accuracy", accuracy)
                         if accuracy > best_accuracy:
                             child.mark_as_best()
                             best_accuracy = accuracy
 
-                context.log_result('avg_accuracy', accuracy_sum / len(param_list))
+                context.log_result("avg_accuracy", accuracy_sum / len(param_list))
 
         :param params:  Extra (or override) params to parent context
         :param with_parent_params:  Child will copy the parent parameters and add to them
@@ -289,7 +297,9 @@ class MLClientCtx:
 
         Example::
 
-            feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
+            feature_vector = context.get_store_resource(
+                "store://feature-vectors/default/myvec"
+            )
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
         :param url:    Store resource uri/path, store://<type>/<project>/<name>:<version>
@@ -327,8 +337,10 @@ class MLClientCtx:
             "uri": uri,
             "owner": get_in(self._labels, "owner"),
         }
-        if "workflow" in self._labels:
-            resp["workflow"] = self._labels["workflow"]
+        if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
+            resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[
+                mlrun_constants.MLRunInternalLabels.workflow
+            ]
         return resp
 
     @classmethod
@@ -357,7 +369,7 @@ class MLClientCtx:
             self._labels = meta.get("labels", self._labels)
         spec = attrs.get("spec")
         if spec:
-            self._secrets_manager = SecretsStore.from_list(spec.get(run_keys.secrets))
+            self._secrets_manager = SecretsStore.from_list(spec.get(RunKeys.secrets))
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
@@ -375,13 +387,15 @@ class MLClientCtx:
             self._allow_empty_resources = spec.get(
                 "allow_empty_resources", self._allow_empty_resources
             )
-            self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
-            self._in_path = spec.get(run_keys.input_path, self._in_path)
-            inputs = spec.get(run_keys.inputs)
+            self.artifact_path = spec.get(RunKeys.output_path, self.artifact_path)
+            self._in_path = spec.get(RunKeys.input_path, self._in_path)
+            inputs = spec.get(RunKeys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
             self._state_thresholds = spec.get(
                 "state_thresholds", self._state_thresholds
             )
+            self._node_selector = spec.get("node_selector", self._node_selector)
+            self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
 
@@ -394,7 +408,7 @@ class MLClientCtx:
                         self._set_input(k, v)
 
         if host and not is_api:
-            self.set_label("host", host)
+            self.set_label(mlrun_constants.MLRunInternalLabels.host, host)
 
         start = get_in(attrs, "status.start_time")
         if start:
@@ -421,7 +435,7 @@ class MLClientCtx:
 
         Example::
 
-            data_path=context.artifact_subpath('data')
+            data_path = context.artifact_subpath("data")
 
         """
         return os.path.join(self.artifact_path, *subpaths)
@@ -525,7 +539,7 @@ class MLClientCtx:
 
         Example::
 
-            context.log_result('accuracy', 0.85)
+            context.log_result("accuracy", 0.85)
 
         :param key:    Result key
         :param value:  Result value
@@ -539,7 +553,7 @@ class MLClientCtx:
 
         Example::
 
-            context.log_results({'accuracy': 0.85, 'loss': 0.2})
+            context.log_results({"accuracy": 0.85, "loss": 0.2})
 
         :param results:  Key/value dict or results
         :param commit:   Commit (write to DB now vs wait for the end of the run)
@@ -558,7 +572,7 @@ class MLClientCtx:
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+            for artifact in get_in(task, ["status", RunKeys.artifacts], []):
                 self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
                     artifact
                 )
@@ -674,7 +688,9 @@ class MLClientCtx:
                 "age": [42, 52, 36, 24, 73],
                 "testScore": [25, 94, 57, 62, 70],
             }
-            df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
+            df = pd.DataFrame(
+                raw_data, columns=["first_name", "last_name", "age", "testScore"]
+            )
             context.log_dataset("mydf", df=df, stats=True)
 
         :param key:           Artifact key
@@ -752,13 +768,16 @@ class MLClientCtx:
 
         Example::
 
-            context.log_model("model", body=dumps(model),
-                              model_file="model.pkl",
-                              metrics=context.results,
-                              training_set=training_df,
-                              label_column='label',
-                              feature_vector=feature_vector_uri,
-                              labels={"app": "fraud"})
+            context.log_model(
+                "model",
+                body=dumps(model),
+                model_file="model.pkl",
+                metrics=context.results,
+                training_set=training_df,
+                label_column="label",
+                feature_vector=feature_vector_uri,
+                labels={"app": "fraud"},
+            )
 
         :param key:             Artifact key or artifact class ()
         :param body:            Will use the body as the artifact content
@@ -925,10 +944,11 @@ class MLClientCtx:
                 "parameters": self._parameters,
                 "handler": self._handler,
                 "outputs": self._outputs,
-                run_keys.output_path: self.artifact_path,
-                run_keys.inputs: self._inputs,
+                RunKeys.output_path: self.artifact_path,
+                RunKeys.inputs: self._inputs,
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
+                "node_selector": self._node_selector,
             },
             "status": {
                 "results": self._results,
@@ -950,7 +970,7 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][run_keys.artifacts] = self._artifacts_manager.artifact_list()
+        struct["status"][RunKeys.artifacts] = self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -983,10 +1003,15 @@ class MLClientCtx:
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
         labels = self.labels
-        if "host" in labels and labels.get("kind", "job") == "mpijob":
+        if (
+            mlrun_constants.MLRunInternalLabels.host in labels
+            and labels.get(mlrun_constants.MLRunInternalLabels.kind, "job") == "mpijob"
+        ):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(labels["host"].rsplit("-", 1)[1])
+            rank = int(
+                labels[mlrun_constants.MLRunInternalLabels.host].rsplit("-", 1)[1]
+            )
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
@@ -1022,9 +1047,14 @@ class MLClientCtx:
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is not decided by the execution as there may be
-        # multiple executions for a single run (e.g. mpi)
-        if self._state != "completed":
+        # Completion of runs is decided by the API runs monitoring as there may be
+        # multiple executions for a single run (e.g. mpi).
+        # For kinds that are not monitored by the API (local) we allow changing the state.
+        run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
+            or self._state != "completed"
+        ):
             struct["status.state"] = self._state
 
         if self.is_logging_worker():
@@ -1034,7 +1064,7 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
+        struct[f"status.{RunKeys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
     def _init_dbs(self, rundb):

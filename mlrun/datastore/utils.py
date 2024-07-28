@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import math
 import tarfile
 import tempfile
 import typing
+import warnings
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
@@ -23,24 +25,29 @@ import semver
 import mlrun.datastore
 
 
-def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list]:
+def parse_kafka_url(
+    url: str, brokers: typing.Union[list, str] = None
+) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
-    :param bootstrap_servers: List of bootstrap servers for the kafka brokers.
+    :param brokers: List of kafka brokers.
 
     :return: A tuple of:
          [0] = Kafka topic value
          [1] = List of bootstrap servers
     """
-    bootstrap_servers = bootstrap_servers or []
+    brokers = brokers or []
+
+    if isinstance(brokers, str):
+        brokers = brokers.split(",")
 
     # Parse the provided URL into six components according to the general structure of a URL
     url = urlparse(url)
 
     # Add the network location to the bootstrap servers list
     if url.netloc:
-        bootstrap_servers = [url.netloc] + bootstrap_servers
+        brokers = [url.netloc] + brokers
 
     # Get the topic value from the parsed url
     query_dict = parse_qs(url.query)
@@ -49,7 +56,7 @@ def parse_kafka_url(url: str, bootstrap_servers: list = None) -> tuple[str, list
     else:
         topic = url.path
         topic = topic.lstrip("/")
-    return topic, bootstrap_servers
+    return topic, brokers
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -159,3 +166,59 @@ def _generate_sql_query_with_time_filter(
             query = query.filter(getattr(table.c, time_column) <= end_time)
 
     return query, parse_dates
+
+
+def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
+    get_or_pop = options.pop if pop else options.get
+    kafka_brokers = get_or_pop("kafka_brokers", None)
+    if kafka_brokers:
+        return kafka_brokers
+    kafka_bootstrap_servers = get_or_pop("kafka_bootstrap_servers", None)
+    if kafka_bootstrap_servers:
+        warnings.warn(
+            "The 'kafka_bootstrap_servers' parameter is deprecated and will be removed in "
+            "1.9.0. Please pass the 'kafka_brokers' parameter instead.",
+            FutureWarning,
+        )
+    return kafka_bootstrap_servers
+
+
+def transform_list_filters_to_tuple(additional_filters):
+    tuple_filters = []
+    if not additional_filters:
+        return tuple_filters
+    validate_additional_filters(additional_filters)
+    for additional_filter in additional_filters:
+        tuple_filters.append(tuple(additional_filter))
+    return tuple_filters
+
+
+def validate_additional_filters(additional_filters):
+    nan_error_message = "using NaN in additional_filters is not supported"
+    if additional_filters in [None, [], ()]:
+        return
+    for filter_tuple in additional_filters:
+        if filter_tuple == () or filter_tuple == []:
+            continue
+        if not isinstance(filter_tuple, (list, tuple)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"mlrun supports additional_filters only as a list of tuples."
+                f" Current additional_filters: {additional_filters}"
+            )
+        if isinstance(filter_tuple[0], (list, tuple)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"additional_filters does not support nested list inside filter tuples except in -in- logic."
+                f" Current filter_tuple: {filter_tuple}."
+            )
+        if len(filter_tuple) != 3:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal filter tuple length, {filter_tuple} in additional filters:"
+                f" {additional_filters}"
+            )
+        col_name, op, value = filter_tuple
+        if isinstance(value, float) and math.isnan(value):
+            raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)
+        elif isinstance(value, (list, tuple)):
+            for sub_value in value:
+                if isinstance(sub_value, float) and math.isnan(sub_value):
+                    raise mlrun.errors.MLRunInvalidArgumentError(nan_error_message)

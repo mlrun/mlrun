@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import operator
 import os
 import warnings
 from base64 import b64encode
@@ -28,6 +29,8 @@ from nuclio.config import split_path
 
 import mlrun
 from mlrun.config import config
+from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -101,8 +104,12 @@ class BaseSourceDriver(DataSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         """return the source data as dataframe"""
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -113,7 +120,11 @@ class BaseSourceDriver(DataSource):
 
     def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
-            df = load_spark_dataframe_with_options(session, self.get_spark_options())
+            spark_options = self.get_spark_options()
+            spark_format = spark_options.pop("format", None)
+            df = load_spark_dataframe_with_options(
+                session, spark_options, format=spark_format
+            )
             if named_view:
                 df.createOrReplaceTempView(self.name)
             return self._filter_spark_df(df, time_field, columns)
@@ -169,7 +180,7 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, list[int], list[str]] = None,
@@ -240,7 +251,11 @@ class CSVSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
@@ -276,6 +291,12 @@ class ParquetSource(BaseSourceDriver):
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter attributes: additional parameters to pass to storey.
+    :param additional_filters: List of additional_filter conditions as tuples.
+                               Each tuple should be in the format (column_name, operator, value).
+                               Supported operators: "=", ">=", "<=", ">", "<".
+                               Example: [("Product", "=", "Computer")]
+                               For all supported filters, please see:
+                               https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
     """
 
     kind = "parquet"
@@ -286,13 +307,19 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
+        additional_filters: Optional[list[Union[tuple, list]]] = None,
     ):
+        if additional_filters:
+            attributes = copy(attributes) or {}
+            additional_filters = transform_list_filters_to_tuple(additional_filters)
+            attributes["additional_filters"] = additional_filters
+
         super().__init__(
             name,
             path,
@@ -320,6 +347,10 @@ class ParquetSource(BaseSourceDriver):
     def end_time(self, end_time):
         self._end_time = self._convert_to_datetime(end_time)
 
+    @property
+    def additional_filters(self):
+        return self.attributes.get("additional_filters")
+
     @staticmethod
     def _convert_to_datetime(time):
         if time and isinstance(time, str):
@@ -336,16 +367,17 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         context=None,
+        additional_filters=None,
     ):
         import storey
 
-        attributes = self.attributes or {}
+        attributes = copy(self.attributes)
+        attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
-
         return storey.ParquetSource(
             paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
@@ -353,8 +385,19 @@ class ParquetSource(BaseSourceDriver):
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
+            additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(
+            new_obj.additional_filters
+        )
+        return new_obj
 
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
@@ -375,8 +418,10 @@ class ParquetSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -384,8 +429,87 @@ class ParquetSource(BaseSourceDriver):
             end_time=end_time or self.end_time,
             time_column=time_field or self.time_field,
             format="parquet",
+            additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
+
+    def _build_spark_additional_filters(self, column_types: dict):
+        if not self.additional_filters:
+            return None
+        from pyspark.sql.functions import col, isnan, lit
+
+        operators = {
+            "==": operator.eq,
+            "=": operator.eq,
+            ">": operator.gt,
+            "<": operator.lt,
+            ">=": operator.ge,
+            "<=": operator.le,
+            "!=": operator.ne,
+        }
+
+        spark_filter = None
+        new_filter = lit(True)
+        for filter_tuple in self.additional_filters:
+            if not filter_tuple:
+                continue
+            col_name, op, value = filter_tuple
+            if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
+                none_exists = False
+                value = list(value)
+                for sub_value in value:
+                    if sub_value is None:
+                        value.remove(sub_value)
+                        none_exists = True
+                if none_exists:
+                    filter_nan = column_types[col_name] not in ("timestamp", "date")
+                    if value:
+                        if op.lower() == "in":
+                            new_filter = (
+                                col(col_name).isin(value) | col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+
+                        else:
+                            new_filter = (
+                                ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                    else:
+                        if op.lower() == "in":
+                            new_filter = col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+                        else:
+                            new_filter = ~col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                else:
+                    if op.lower() == "in":
+                        new_filter = col(col_name).isin(value)
+                    elif op.lower() == "not in":
+                        new_filter = ~col(col_name).isin(value)
+            elif op in operators:
+                new_filter = operators[op](col(col_name), value)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"unsupported filter operator: {op}"
+                )
+            if spark_filter is not None:
+                spark_filter = spark_filter & new_filter
+            else:
+                spark_filter = new_filter
+        return spark_filter
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+        spark_additional_filters = self._build_spark_additional_filters(
+            column_types=dict(df.dtypes)
+        )
+        if spark_additional_filters is not None:
+            df = df.filter(spark_additional_filters)
+        return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
 
 
 class BigQuerySource(BaseSourceDriver):
@@ -401,12 +525,17 @@ class BigQuerySource(BaseSourceDriver):
 
          # use sql query
          query_string = "SELECT * FROM `the-psf.pypi.downloads20210328` LIMIT 5000"
-         source = BigQuerySource("bq1", query=query_string,
-                                 gcp_project="my_project",
-                                 materialization_dataset="dataviews")
+         source = BigQuerySource(
+             "bq1",
+             query=query_string,
+             gcp_project="my_project",
+             materialization_dataset="dataviews",
+         )
 
          # read a table
-         source = BigQuerySource("bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project")
+         source = BigQuerySource(
+             "bq2", table="the-psf.pypi.downloads20210328", gcp_project="my_project"
+         )
 
 
     :parameter name: source name
@@ -509,9 +638,14 @@ class BigQuerySource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
+
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
 
         def schema_to_dtypes(schema):
             from mlrun.data_types.data_types import gbq_to_pandas_dtype
@@ -552,7 +686,6 @@ class BigQuerySource(BaseSourceDriver):
         else:
             df = rows_iterator.to_dataframe(dtypes=dtypes)
 
-        # TODO : filter as part of the query
         return select_columns_from_df(
             filter_df_start_end_time(
                 df,
@@ -614,7 +747,7 @@ class SnowflakeSource(BaseSourceDriver):
             url="...",
             user="...",
             database="...",
-            schema="...",
+            db_schema="...",
             warehouse="...",
         )
 
@@ -629,7 +762,8 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter url: URL of the snowflake cluster
     :parameter user: snowflake user
     :parameter database: snowflake database
-    :parameter schema: snowflake schema
+    :parameter schema: snowflake schema - deprecated, use db_schema
+    :parameter db_schema: snowflake schema
     :parameter warehouse: snowflake warehouse
     """
 
@@ -641,6 +775,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        attributes: dict[str, object] = None,
         time_field: str = None,
         schedule: str = None,
         start_time=None,
@@ -650,21 +785,34 @@ class SnowflakeSource(BaseSourceDriver):
         user: str = None,
         database: str = None,
         schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
-        attrs = {
-            "query": query,
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": schema,
-            "warehouse": warehouse,
-        }
+        # TODO: Remove in 1.9.0
+        if schema:
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
+        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if query:
+            attributes["query"] = query
 
         super().__init__(
             name,
-            attributes=attrs,
+            attributes=attributes,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -673,32 +821,24 @@ class SnowflakeSource(BaseSourceDriver):
             **kwargs,
         )
 
-    def _get_password(self):
-        key = "SNOWFLAKE_PASSWORD"
-        snowflake_password = os.getenv(key) or os.getenv(
-            SecretsStore.k8s_env_variable_name_for_secret(key)
-        )
-
-        if not snowflake_password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "No password provided. Set password using the SNOWFLAKE_PASSWORD "
-                "project secret or environment variable."
-            )
-
-        return snowflake_password
-
     def get_spark_options(self):
-        return {
-            "format": "net.snowflake.spark.snowflake",
-            "query": self.attributes.get("query"),
-            "sfURL": self.attributes.get("url"),
-            "sfUser": self.attributes.get("user"),
-            "sfPassword": self._get_password(),
-            "sfDatabase": self.attributes.get("database"),
-            "sfSchema": self.attributes.get("schema"),
-            "sfWarehouse": self.attributes.get("warehouse"),
-            "application": "iguazio_platform",
-        }
+        spark_options = get_snowflake_spark_options(self.attributes)
+        spark_options["query"] = self.attributes.get("query")
+        return spark_options
+
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} supports only spark engine"
+        )
 
 
 class CustomSource(BaseSourceDriver):
@@ -752,7 +892,19 @@ class DataFrameSource:
             context=self.context or context,
         )
 
-    def to_dataframe(self, **kwargs):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         return self._df
 
     def is_iterator(self):
@@ -947,6 +1099,7 @@ class KafkaSource(OnlineSource):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
@@ -1087,9 +1240,13 @@ class SQLSource(BaseSourceDriver):
         start_time=None,
         end_time=None,
         time_field=None,
+        additional_filters=None,
     ):
         import sqlalchemy as sqlalchemy
 
+        mlrun.utils.helpers.additional_filters_warning(
+            additional_filters, self.__class__
+        )
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
         parse_dates = self.attributes.get("parse_dates")

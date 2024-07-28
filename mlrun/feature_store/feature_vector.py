@@ -486,6 +486,7 @@ class FeatureVector(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
+
             features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
             vector = fstore.FeatureVector("my-vec", features)
 
@@ -740,6 +741,7 @@ class FeatureVector(ModelObj):
         order_by: Union[str, list[str]] = None,
         spark_service: str = None,
         timestamp_for_filtering: Union[str, dict[str, str]] = None,
+        additional_filters: list = None,
     ):
         """retrieve offline feature vector results
 
@@ -796,6 +798,12 @@ class FeatureVector(ModelObj):
                                         By default, the filter executes on the timestamp_key of each feature set.
                                         Note: the time filtering is performed on each feature set before the
                                         merge process using start_time and end_time params.
+        :param additional_filters: List of additional_filter conditions as tuples.
+                            Each tuple should be in the format (column_name, operator, value).
+                            Supported operators: "=", ">=", "<=", ">", "<".
+                            Example: [("Product", "=", "Computer")]
+                            For all supported filters, please see:
+                            https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetDataset.html
 
         """
 
@@ -816,6 +824,7 @@ class FeatureVector(ModelObj):
             order_by,
             spark_service,
             timestamp_for_filtering,
+            additional_filters,
         )
 
     def get_online_feature_service(
@@ -852,7 +861,7 @@ class FeatureVector(ModelObj):
 
                 Example::
 
-                    svc = vector_uri.get_online_feature_service(entity_keys=['ticker'])
+                    svc = vector_uri.get_online_feature_service(entity_keys=["ticker"])
                     try:
                         resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
                         print(resp)

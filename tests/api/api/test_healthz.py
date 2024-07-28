@@ -29,6 +29,6 @@ def test_health(
     assert response.status_code == http.HTTPStatus.OK.value
 
     # fail
-    mlrun.config.config.httpdb.state = mlrun.common.schemas.APIStates.offline
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.offline
     response = client.get("healthz")
     assert response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value

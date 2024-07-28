@@ -64,7 +64,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
@@ -78,7 +78,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Cleanup disk
         run: |
@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Scan image
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v4
         id: scan
         with:
           image: ${{ steps.resolve_image_name.outputs.image_name }}
@@ -119,7 +119,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: ${{ matrix.image-name }}-${{ matrix.python-version }})
@@ -128,7 +128,7 @@ jobs:
     name: Scan file system
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Define output format
         id: output-format
@@ -145,7 +145,7 @@ jobs:
           fi
 
       - name: Scan fs
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v4
         id: scan
         with:
           path: "."
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
           category: "repository"

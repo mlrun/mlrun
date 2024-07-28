@@ -24,9 +24,9 @@ from deepdiff import DeepDiff
 
 import mlrun.common.schemas
 from mlrun import get_run_db, mlconf
-from mlrun.utils import create_logger
+from mlrun.utils import create_test_logger
 
-logger = create_logger(level="debug", name="test-system")
+logger = create_test_logger(name="test-system")
 
 
 class TestMLRunSystem:
@@ -35,6 +35,8 @@ class TestMLRunSystem:
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
     enterprise_marker_name = "enterprise"
+    model_monitoring_marker_name = "model_monitoring"
+    model_monitoring_marker = False
     mandatory_env_vars = [
         "MLRUN_DBPATH",
     ]
@@ -46,6 +48,13 @@ class TestMLRunSystem:
         "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
+
+    model_monitoring_mandatory_env_vars = [
+        "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION",
+    ]
+
     enterprise_configured = os.getenv("V3IO_API")
 
     _logger = logger
@@ -62,6 +71,7 @@ class TestMLRunSystem:
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
         cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+        cls.uploaded_code = False
 
         if "MLRUN_IGUAZIO_API_URL" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
@@ -85,9 +95,15 @@ class TestMLRunSystem:
 
         self._setup_env(self._get_env_from_file())
         self._run_db = get_run_db()
+        self.remote_code_dir = mlrun.utils.helpers.template_artifact_path(
+            mlrun.mlconf.artifact_path, self.project_name
+        )
+        self._files_to_upload = []
 
         if not self._skip_set_environment():
-            self.project = mlrun.get_or_create_project(self.project_name, "./")
+            self.project = mlrun.get_or_create_project(
+                self.project_name, "./", allow_cross_project=True
+            )
 
         self.custom_setup()
 
@@ -152,6 +168,8 @@ class TestMLRunSystem:
             if cls._has_marker(test, cls.enterprise_marker_name)
             else cls.mandatory_env_vars
         )
+        if cls._has_marker(test, cls.model_monitoring_marker_name):
+            mandatory_env_vars += cls.model_monitoring_mandatory_env_vars
         configured = True
         try:
             env = cls._get_env_from_file()
@@ -214,7 +232,7 @@ class TestMLRunSystem:
                 os.environ[env_var] = value
 
         # reload the config so changes to the env vars will take effect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     @classmethod
     def _teardown_env(cls):
@@ -224,7 +242,7 @@ class TestMLRunSystem:
                 del os.environ[env_var]
         os.environ.update(cls._old_env)
         # reload the config so changes to the env vars will take affect
-        mlrun.config.config.reload()
+        mlrun.mlconf.reload()
 
     def _get_v3io_user_store_path(self, path: pathlib.Path, remote: bool = True) -> str:
         v3io_user = self._test_env["V3IO_USERNAME"]
@@ -302,11 +320,17 @@ class TestMLRunSystem:
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
-        assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf@{uid}"
-        assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model@{uid}"
+        assert (
+            run_outputs["mydf"]
+            == f"store://artifacts/{project}/{name}_mydf:latest@{uid}"
+        )
+        assert (
+            run_outputs["model"]
+            == f"store://artifacts/{project}/{name}_model:latest@{uid}"
+        )
         assert (
             run_outputs["html_result"]
-            == f"store://artifacts/{project}/{name}_html_result@{uid}"
+            == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
         )
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
@@ -332,3 +356,12 @@ class TestMLRunSystem:
             assert DeepDiff(expected, actual, ignore_order=True) == {}
         else:
             assert expected == actual
+
+    def _upload_code_to_cluster(self):
+        if not self.uploaded_code:
+            for file in self._files_to_upload:
+                source_path = str(self.assets_path / file)
+                mlrun.get_dataitem(os.path.join(self.remote_code_dir, file)).upload(
+                    source_path
+                )
+        self.uploaded_code = True

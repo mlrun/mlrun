@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections.abc
 import copy
 import datetime
 import http
@@ -23,7 +24,9 @@ from uuid import uuid4
 
 import deepdiff
 import fastapi.testclient
+import kubernetes.client
 import mergedeep
+import mlrun_pipelines.common.models
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -31,6 +34,9 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
@@ -40,6 +46,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
+import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 import server.api.utils.singletons.scheduler
 import tests.api.conftest
@@ -65,11 +72,11 @@ LIST_FUNCTION_API = "projects/{project}/functions"
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
-        mlrun.config.config.httpdb.projects.leader = "nop"
+        mlrun.mlconf.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
         server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
-        mlrun.config.config.httpdb.projects.leader = "mlrun"
+        mlrun.mlconf.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
@@ -167,6 +174,16 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.fixture()
+def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
+    with unittest.mock.patch(
+        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
+        return_value="some_access_key",
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.parametrize(
     "api_version,successful_delete_response_code",
     [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
@@ -174,6 +191,7 @@ def test_get_non_existing_project(
 def test_delete_project_with_resources(
     db: Session,
     unversioned_client: TestClient,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     api_version: str,
@@ -223,10 +241,31 @@ def test_delete_project_with_resources(
     )
 
     # deletion strategy - cascading - should succeed and remove all related resources
+    # mock project configmaps
+    k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+
+    def _list_configmaps(*args, **kwargs):
+        label_selector = kwargs.get("label_selector")
+        assert project_to_remove in label_selector
+        return kubernetes.client.V1ConfigMapList(
+            items=[
+                kubernetes.client.V1ConfigMap(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=f"{project_to_remove}-configmap",
+                    )
+                )
+            ]
+        )
+
+    k8s_helper.v1api.list_namespaced_config_map = unittest.mock.Mock(
+        side_effect=_list_configmaps
+    )
+    k8s_helper.delete_configmap = unittest.mock.Mock()
     _send_delete_request_and_assert_response_code(
         mlrun.common.schemas.DeletionStrategy.cascading,
         successful_delete_response_code,
     )
+    k8s_helper.delete_configmap.assert_called_once()
 
     (
         project_to_keep_table_name_records_count_map_after_project_removal,
@@ -271,7 +310,8 @@ def test_delete_project_with_resources(
     )
 
 
-def test_list_and_get_project_summaries(
+@pytest.mark.asyncio
+async def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     # create empty project
@@ -293,7 +333,7 @@ def test_list_and_get_project_summaries(
     # create files for the project
     files_count = 5
     _create_artifacts(
-        client, project_name, files_count, mlrun.artifacts.ChartArtifact.kind
+        client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
 
     # create feature sets for the project
@@ -317,11 +357,29 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         running_runs_count,
-        mlrun.runtimes.constants.RunStates.running,
+        mlrun.common.runtimes.constants.RunStates.running,
     )
 
     # create completed runs for the project to make sure we're not mistakenly counting them
-    _create_runs(client, project_name, 2, mlrun.runtimes.constants.RunStates.completed)
+    two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
+    _create_runs(
+        client,
+        project_name,
+        2,
+        mlrun.common.runtimes.constants.RunStates.completed,
+        two_days_ago,
+    )
+
+    # create completed runs for the project for less than 24 hours ago
+    runs_completed_recent_count = 10
+    one_hour_ago = datetime.datetime.now() - datetime.timedelta(hours=1)
+    _create_runs(
+        client,
+        project_name,
+        runs_completed_recent_count,
+        mlrun.common.runtimes.constants.RunStates.completed,
+        one_hour_ago,
+    )
 
     # create failed runs for the project for less than 24 hours ago
     recent_failed_runs_count = 6
@@ -330,7 +388,7 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.error,
+        mlrun.common.runtimes.constants.RunStates.error,
         one_hour_ago,
     )
 
@@ -341,28 +399,37 @@ def test_list_and_get_project_summaries(
         client,
         project_name,
         recent_failed_runs_count,
-        mlrun.runtimes.constants.RunStates.aborted,
+        mlrun.common.runtimes.constants.RunStates.aborted,
         one_hour_ago,
     )
 
     # create failed runs for the project for more than 24 hours ago to make sure we're not mistakenly counting them
     two_days_ago = datetime.datetime.now() - datetime.timedelta(hours=48)
     _create_runs(
-        client, project_name, 3, mlrun.runtimes.constants.RunStates.error, two_days_ago
+        client,
+        project_name,
+        3,
+        mlrun.common.runtimes.constants.RunStates.error,
+        two_days_ago,
     )
 
     # create schedules for the project
-    schedules_count = 3
-    _create_schedules(
+
+    (
+        schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    ) = _create_schedules(
         client,
         project_name,
-        schedules_count,
     )
 
     # mock pipelines for the project
     running_pipelines_count = _mock_pipelines(
         project_name,
     )
+
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
 
     # list project summaries
     response = client.get("project-summaries")
@@ -371,16 +438,19 @@ def test_list_and_get_project_summaries(
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
         if project_summary.name == empty_project_name:
-            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0)
+            _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
                 files_count,
                 feature_sets_count,
                 models_count,
+                runs_completed_recent_count,
                 recent_failed_runs_count + recent_aborted_runs_count,
                 running_runs_count,
                 schedules_count,
+                distinct_scheduled_jobs_pending_count,
+                distinct_scheduled_pipelines_pending_count,
                 running_pipelines_count,
             )
         else:
@@ -394,14 +464,18 @@ def test_list_and_get_project_summaries(
         files_count,
         feature_sets_count,
         models_count,
+        runs_completed_recent_count,
         recent_failed_runs_count + recent_aborted_runs_count,
         running_runs_count,
         schedules_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
         running_pipelines_count,
     )
 
 
-def test_list_project_summaries_different_installation_modes(
+@pytest.mark.asyncio
+async def test_list_project_summaries_different_installation_modes(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
     """
@@ -423,6 +497,8 @@ def test_list_project_summaries_different_installation_modes(
     mlrun.mlconf.kfp_url = "https://somekfp-url.com"
     mlrun.mlconf.namespace = "default-tenant"
 
+    await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
+
     response = client.get("project-summaries")
     assert response.status_code == HTTPStatus.OK.value
     project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
@@ -431,6 +507,9 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -460,6 +539,9 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
     )
 
     # Kubernetes installation configuration (mlrun-kit)
@@ -482,6 +564,9 @@ def test_list_project_summaries_different_installation_modes(
         0,
         0,
         0,
+        0,
+        0,
+        0,
     )
 
     # Docker installation configuration
@@ -497,6 +582,9 @@ def test_list_project_summaries_different_installation_modes(
     _assert_project_summary(
         # accessing the zero index as there's only one project
         project_summaries_output.project_summaries[0],
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -607,7 +695,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_functions = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -619,9 +707,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
-        distinct_function_names
-    )
+    assert len(
+        server.api.utils.singletons.db.get_db().delete_functions.call_args.args[2]
+    ) == len(distinct_function_names)
     assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )
@@ -677,9 +765,7 @@ def test_delete_project_with_stop_logs(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.config.config.log_collector.mode = (
-        mlrun.common.schemas.LogsCollectorMode.sidecar
-    )
+    mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 
     project_name = "project-name"
 
@@ -734,7 +820,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.common.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.common.formatters.ProjectFormat.leader},
         headers={
             mlrun.common.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -835,7 +921,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.common.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.common.formatters.ProjectFormat.full}
     )
     projects_output = mlrun.common.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -1032,6 +1118,7 @@ def test_delete_project_not_found_in_leader(
 
 # Test should not run more than a few seconds because we test that if the background task fails,
 # the wrapper task fails fast
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize(
     "delete_api_version",
@@ -1088,6 +1175,90 @@ def test_delete_project_fail_fast(
                 "Failed to delete project project-name: some error"
                 in background_task.status.error
             )
+
+
+def test_project_image_builder_validation(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # test image builder input is validated though output is not
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            build=mlrun.common.schemas.ImageBuilder()
+        ),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.build.requirements = ["pandas", "numpy"]
+    expected_requirements = ["pandas", "numpy"]
+
+    # store project request to save the requirements
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project and validate the project
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    assert response_body["spec"]["build"]["requirements"] == expected_requirements
+
+    project.spec.build.requirements = {"corrupted": "value"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert (
+        '{"detail":[{"loc":["body","spec","build","requirements"],'
+        '"msg":"value is not a valid list","type":"type_error.list"}]}'
+        in str(response.content.decode())
+    )
+
+    # bypass the validation
+    corrupted_project_name = "corrupted_project"
+    full_object = {
+        "metadata": {"name": corrupted_project_name},
+        "spec": {"build": {"requirements": {"corrupted": "value"}}},
+    }
+
+    project_record = Project(name=corrupted_project_name, full_object=full_object)
+    db.add(project_record)
+    db.commit()
+
+    # get the corrupted project
+    response = client.get(f"projects/{corrupted_project_name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # ensure corrupted requirements passed validation
+    assert (
+        response_body["spec"]["build"]["requirements"]
+        == full_object["spec"]["build"]["requirements"]
+    )
+
+    # ensures list projects
+    response = client.get("projects")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    projects = response_body["projects"]
+
+    # ensure corrupted requirements passed validation
+    assert len(projects) == 2
+    for project in projects:
+        if project["metadata"]["name"] == corrupted_project_name:
+            assert (
+                project["spec"]["build"]["requirements"]
+                == full_object["spec"]["build"]["requirements"]
+            )
+            break
+    else:
+        pytest.fail(f"Project {corrupted_project_name} not found")
 
 
 def _create_resources_of_all_kinds(
@@ -1189,6 +1360,34 @@ def _create_resources_of_all_kinds(
         )
         db.store_run_notifications(db_session, [notification], run_uid, project)
 
+    # Create alert notifications
+    notification = mlrun.model.Notification(
+        kind="slack",
+        when=["completed", "error"],
+        name="test-alert-notification",
+        message="test-message",
+        condition="",
+        severity="info",
+        params={"some-param": "some-value"},
+    )
+
+    alert = mlrun.common.schemas.AlertConfig(
+        project=project,
+        name="test_alert",
+        summary="oops",
+        severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        entities={
+            "kind": mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
+            "project": project,
+            "ids": [1234],
+        },
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
+        notifications=[{"notification": notification.to_dict()}],
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
+    )
+    alert = db.store_alert(db_session, alert)
+    db.store_alert_notifications(db_session, [notification], alert.id, project)
+
     # Create several logs
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
@@ -1216,7 +1415,7 @@ def _create_resources_of_all_kinds(
 
     # Create several feature sets with several tags
     labels = {
-        "owner": "nobody",
+        mlrun_constants.MLRunInternalLabels.owner: "nobody",
     }
     feature_set = mlrun.common.schemas.FeatureSet(
         metadata=mlrun.common.schemas.ObjectMetadata(
@@ -1363,6 +1562,7 @@ def _assert_db_resources_in_project(
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
+        # alert_templates are not tied to project and are pre-populated anyway
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1377,6 +1577,8 @@ def _assert_db_resources_in_project(
                 and project_member_mode == "follower"
             )
             or (cls.__tablename__ == "projects" and project_member_mode == "follower")
+            or cls.__tablename__ == "alert_states"
+            or cls.__tablename__ == "alert_templates"
         ):
             continue
         number_of_cls_records = 0
@@ -1384,11 +1586,24 @@ def _assert_db_resources_in_project(
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
             if (
-                # Artifact table is deprecated, we are using ArtifactV2 instead
-                cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
-            ) or (
-                # PaginationCache is not a project-level table
-                cls.__name__ == "PaginationCache"
+                (
+                    # Artifact table is deprecated, we are using ArtifactV2 instead
+                    cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags"
+                )
+                or (
+                    # PaginationCache is not a project-level table
+                    cls.__name__ == "PaginationCache"
+                )
+                or (
+                    # Although project summaries are related to projects, their lifecycle is related
+                    # to the project summary calculation cycle and not to the creation/deletion of projects
+                    # (In each cycle the table is wiped clean and re-populated with only the existing projects)
+                    cls.__name__ == "ProjectSummary"
+                )
+                or (
+                    # TimeWindowTracker is not a project-level table
+                    cls.__name__ == "TimeWindowTracker"
+                )
             ):
                 continue
 
@@ -1488,7 +1703,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.common.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.common.formatters.ProjectFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",
@@ -1516,17 +1731,29 @@ def _assert_project_summary(
     files_count: int,
     feature_sets_count: int,
     models_count: int,
+    runs_completed_recent_count,
     runs_failed_recent_count: int,
     runs_running_count: int,
     schedules_count: int,
+    distinct_scheduled_jobs_pending_count: int,
+    distinct_scheduled_pipelines_pending_count: int,
     pipelines_running_count: int,
 ):
     assert project_summary.files_count == files_count
     assert project_summary.feature_sets_count == feature_sets_count
     assert project_summary.models_count == models_count
+    assert project_summary.runs_completed_recent_count == runs_completed_recent_count
     assert project_summary.runs_failed_recent_count == runs_failed_recent_count
     assert project_summary.runs_running_count == runs_running_count
-    assert project_summary.schedules_count == schedules_count
+    assert project_summary.distinct_schedules_count == schedules_count
+    assert (
+        project_summary.distinct_scheduled_jobs_pending_count
+        == distinct_scheduled_jobs_pending_count
+    )
+    assert (
+        project_summary.distinct_scheduled_pipelines_pending_count
+        == distinct_scheduled_pipelines_pending_count
+    )
     assert project_summary.pipelines_running_count == pipelines_running_count
 
 
@@ -1627,33 +1854,81 @@ def _create_runs(
             assert response.status_code == HTTPStatus.OK.value, response.json()
 
 
-def _create_schedules(client: TestClient, project_name, schedules_count):
-    for index in range(schedules_count):
-        schedule_name = f"schedule-name-{str(uuid4())}"
-        schedule = mlrun.common.schemas.ScheduleInput(
-            name=schedule_name,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
-            scheduled_object={"metadata": {"name": "something"}},
-            cron_trigger=mlrun.common.schemas.ScheduleCronTrigger(year=1999),
+def _create_schedule(
+    client: TestClient,
+    project_name,
+    cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
+    labels: dict = None,
+):
+    if not labels:
+        labels = {}
+
+    schedule_name = f"schedule-name-{str(uuid4())}"
+    schedule = mlrun.common.schemas.ScheduleInput(
+        name=schedule_name,
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object={"metadata": {"name": "something"}},
+        cron_trigger=cron_trigger,
+        labels=labels,
+    )
+    response = client.post(f"projects/{project_name}/schedules", json=schedule.dict())
+    assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+
+def _create_schedules(client: TestClient, project_name):
+    schedules_count = 3
+    distinct_scheduled_jobs_pending_count = 5
+    distinct_scheduled_pipelines_pending_count = 7
+
+    for _ in range(schedules_count):
+        _create_schedule(
+            client, project_name, mlrun.common.schemas.ScheduleCronTrigger(year=1999)
         )
-        response = client.post(
-            f"projects/{project_name}/schedules", json=schedule.dict()
+
+    for _ in range(distinct_scheduled_jobs_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {"kind": "job"},
         )
-        assert response.status_code == HTTPStatus.CREATED.value, response.json()
+
+    for _ in range(distinct_scheduled_pipelines_pending_count):
+        _create_schedule(
+            client,
+            project_name,
+            mlrun.common.schemas.ScheduleCronTrigger(minute=10),
+            {mlrun_constants.MLRunInternalLabels.workflow: "workflow"},
+        )
+    return (
+        schedules_count
+        + distinct_scheduled_jobs_pending_count
+        + distinct_scheduled_pipelines_pending_count,
+        distinct_scheduled_jobs_pending_count,
+        distinct_scheduled_pipelines_pending_count,
+    )
 
 
 def _mock_pipelines(project_name):
     mlrun.mlconf.kfp_url = "http://some-random-url:8888"
     status_count_map = {
-        mlrun.run.RunStatuses.running: 4,
-        mlrun.run.RunStatuses.succeeded: 3,
-        mlrun.run.RunStatuses.failed: 2,
+        mlrun_pipelines.common.models.RunStatuses.running: 4,
+        mlrun_pipelines.common.models.RunStatuses.succeeded: 3,
+        mlrun_pipelines.common.models.RunStatuses.failed: 2,
     }
     pipelines = []
     for status, count in status_count_map.items():
         for index in range(count):
             pipelines.append({"status": status, "project": project_name})
+
+    def list_pipelines_return_value(*args, **kwargs):
+        next_page_token = "some-token"
+        if kwargs["page_token"] == "":
+            return None, next_page_token, pipelines[: len(pipelines) // 2]
+        elif kwargs["page_token"] == next_page_token:
+            return None, None, pipelines[len(pipelines) // 2 :]
+
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
-        return_value=(None, None, pipelines)
+        side_effect=list_pipelines_return_value
     )
-    return status_count_map[mlrun.run.RunStatuses.running]
+    return status_count_map[mlrun_pipelines.common.models.RunStatuses.running]

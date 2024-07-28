@@ -20,13 +20,16 @@ import unittest.mock
 
 from dask import distributed
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
+from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import server.api.api.endpoints.functions
+import server.api.runtime_handlers.daskjob
 from mlrun import mlconf
-from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
@@ -54,11 +57,11 @@ class TestDaskRuntime(TestRuntimeBase):
     def custom_setup(self):
         self.name = "test-dask-cluster"
         # For dask it is /function instead of /name
-        self.function_name_label = "mlrun/function"
+        self.function_name_label = mlrun_constants.MLRunInternalLabels.function
         self.v3io_access_key = "1111-2222-3333-4444"
         self.v3io_user = "test-user"
         self.scheduler_address = "http://1.2.3.4"
-
+        self.project_default_function_node_selector = {"test-project": "node-selector"}
         self._mock_dask_cluster()
 
     def custom_teardown(self):
@@ -431,6 +434,95 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime.with_security_context(other_security_context)
         _ = runtime.client
         self.assert_security_context(other_security_context)
+
+    def test_enrich_dask_cluster(self):
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function = mlrun.runtimes.DaskCluster(
+            metadata=dict(
+                name="test",
+                project=self.project,
+                labels={"label1": "val1"},
+                annotations={"annotation1": "val1"},
+            ),
+            spec=dict(
+                nthreads=1,
+                worker_resources={"limits": {"memory": "1Gi"}},
+                scheduler_resources={"limits": {"memory": "1Gi"}},
+                env=[
+                    {"name": "MLRUN_NAMESPACE", "value": "other-namespace"},
+                    k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+                    {"name": "TEST_DUP", "value": "A"},
+                    {"name": "TEST_DUP", "value": "B"},
+                ],
+                node_selector={function_label_name: function_label_val},
+            ),
+        )
+
+        function.generate_runtime_k8s_env = unittest.mock.Mock(
+            return_value=[
+                {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
+                {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+            ]
+        )
+
+        # add default envvars that expected to be on enriched pods
+        # do it to verify later on it is not duplicated and appears only once
+        function.spec.env.extend(function.generate_runtime_k8s_env())
+
+        expected_resources = {
+            "limits": {"memory": "1Gi"},
+            "requests": {},
+        }
+        expected_env = [
+            {"name": "MLRUN_DEFAULT_PROJECT", "value": self.project},
+            {"name": "MLRUN_NAMESPACE", "value": "test-namespace"},
+            k8s_client.V1EnvVar(name="MLRUN_TAG", value="latest"),
+            {"name": "TEST_DUP", "value": "A"},
+        ]
+        expected_labels = {
+            mlrun_constants.MLRunInternalLabels.project: self.project,
+            mlrun_constants.MLRunInternalLabels.mlrun_class: "dask",
+            mlrun_constants.MLRunInternalLabels.function: "test",
+            "label1": "val1",
+            mlrun_constants.MLRunInternalLabels.scrape_metrics: "True",
+            mlrun_constants.MLRunInternalLabels.tag: "latest",
+        }
+
+        expected_node_selector = {
+            "test-project": "node-selector",
+            function_label_name: function_label_val,
+        }
+
+        secrets = []
+        client_version = "1.6.0"
+        client_python_version = "3.9"
+        scheduler_pod, worker_pod, function, namespace = (
+            server.api.runtime_handlers.daskjob.enrich_dask_cluster(
+                function, secrets, client_version, client_python_version
+            )
+        )
+
+        assert scheduler_pod.metadata.namespace == namespace
+        assert worker_pod.metadata.namespace == namespace
+        assert scheduler_pod.metadata.labels == expected_labels
+        assert worker_pod.metadata.labels == expected_labels
+        assert scheduler_pod.spec.containers[0].args == ["dask", "scheduler"]
+        assert worker_pod.spec.containers[0].args == [
+            "dask",
+            "worker",
+            "--nthreads",
+            "1",
+            "--memory-limit",
+            "1Gi",
+        ]
+        assert worker_pod.spec.containers[0].resources == expected_resources
+        assert scheduler_pod.spec.containers[0].resources == expected_resources
+        assert worker_pod.spec.containers[0].env == expected_env
+        assert scheduler_pod.spec.containers[0].env == expected_env
+        assert scheduler_pod.spec.node_selector == expected_node_selector
+
+        # used once by test, once by enrich_dask_cluster
+        assert function.generate_runtime_k8s_env.call_count == 2
 
     def test_deploy_dask_function_with_enriched_security_context(
         self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock

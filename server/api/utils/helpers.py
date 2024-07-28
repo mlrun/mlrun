@@ -13,10 +13,14 @@
 # limitations under the License.
 #
 import asyncio
+import datetime
+import functools
 import re
+import time
 from typing import Optional
 
 import semver
+from humanfriendly import InvalidTimespan, parse_timespan
 from timelength import TimeLength
 
 import mlrun
@@ -69,15 +73,6 @@ def ensure_running_on_chief(function):
     return wrapper
 
 
-def minimize_project_schema(
-    project: mlrun.common.schemas.Project,
-) -> mlrun.common.schemas.Project:
-    project.spec.functions = None
-    project.spec.workflows = None
-    project.spec.artifacts = None
-    return project
-
-
 def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
     if not time_str:
         return None
@@ -122,3 +117,49 @@ def is_request_from_leader(
     if projects_role and projects_role.value == leader_name:
         return True
     return False
+
+
+def string_to_timedelta(date_str, raise_on_error=True):
+    date_str = date_str.strip().lower()
+    try:
+        seconds = parse_timespan(date_str)
+    except InvalidTimespan as exc:
+        if raise_on_error:
+            raise exc
+        return None
+
+    return datetime.timedelta(seconds=seconds)
+
+
+def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
+    """
+    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
+    https://stackoverflow.com/a/71634221/5257501
+    """
+
+    class Result:
+        __slots__ = ("value", "death")
+
+        def __init__(self, value, death):
+            self.value = value
+            self.death = death
+
+    def decorator(func):
+        @functools.lru_cache(maxsize=maxsize, typed=typed)
+        def cached_func(*args, **kwargs):
+            value = func(*args, **kwargs)
+            death = time.monotonic() + ttl_seconds
+            return Result(value, death)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = cached_func(*args, **kwargs)
+            if result.death < time.monotonic():
+                result.value = func(*args, **kwargs)
+                result.death = time.monotonic() + ttl_seconds
+            return result.value
+
+        wrapper.cache_clear = cached_func.cache_clear
+        return wrapper
+
+    return decorator

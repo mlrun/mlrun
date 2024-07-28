@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 import unittest.mock
 
@@ -28,13 +28,11 @@ from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def projects_leader() -> (
-    typing.Generator[server.api.utils.projects.leader.Member, None, None]
-):
+def projects_leader() -> typing.Iterator[server.api.utils.projects.leader.Member]:
     logger.info("Creating projects leader")
-    mlrun.config.config.httpdb.projects.leader = "nop-self-leader"
-    mlrun.config.config.httpdb.projects.followers = "nop,nop2"
-    mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
+    mlrun.mlconf.httpdb.projects.leader = "nop-self-leader"
+    mlrun.mlconf.httpdb.projects.followers = "nop,nop2"
+    mlrun.mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
     server.api.utils.singletons.project_member.initialize_project_member()
     projects_leader = server.api.utils.singletons.project_member.get_project_member()
     yield projects_leader
@@ -43,21 +41,21 @@ async def projects_leader() -> (
 
 
 @pytest.fixture()
-async def nop_follower(
+def nop_follower(
     projects_leader: server.api.utils.projects.leader.Member,
 ) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._followers["nop"]
 
 
 @pytest.fixture()
-async def second_nop_follower(
+def second_nop_follower(
     projects_leader: server.api.utils.projects.leader.Member,
 ) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._followers["nop2"]
 
 
 @pytest.fixture()
-async def leader_follower(
+def leader_follower(
     projects_leader: server.api.utils.projects.leader.Member,
 ) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._leader_follower

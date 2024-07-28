@@ -14,7 +14,7 @@
 #
 from dateutil import parser
 
-import mlrun.runtimes.constants
+import mlrun.common.runtimes.constants
 from mlrun.utils import get_in
 from server.api.db.sqldb.models import Base
 
@@ -44,7 +44,9 @@ def run_labels(run) -> dict:
 
 
 def run_state(run):
-    return get_in(run, "status.state", mlrun.runtimes.constants.RunStates.created)
+    return get_in(
+        run, "status.state", mlrun.common.runtimes.constants.RunStates.created
+    )
 
 
 def update_labels(obj, labels: dict):
@@ -88,3 +90,19 @@ def ensure_max_length(string: str):
     if string and len(string) > max_str_length:
         string = string[:max_str_length]
     return string
+
+
+class MemoizationCache:
+    _not_found_object = object()
+
+    def __init__(self, function):
+        self._function = function
+        self._cache = {}
+
+    def memoize(self, *args):
+        memo_key = tuple(id(arg) for arg in args)
+        result = self._cache.get(memo_key, self._not_found_object)
+        if result is self._not_found_object:
+            result = self._function(*args)
+            self._cache[memo_key] = result
+        return result

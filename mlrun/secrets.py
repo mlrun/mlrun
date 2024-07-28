@@ -163,15 +163,19 @@ def get_secret_or_env(
 
     Example::
 
-        secrets = { "KEY1": "VALUE1" }
+        secrets = {"KEY1": "VALUE1"}
         secret = get_secret_or_env("KEY1", secret_provider=secrets)
+
 
         # Using a function to retrieve a secret
         def my_secret_provider(key):
             # some internal logic to retrieve secret
             return value
 
-        secret = get_secret_or_env("KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS")
+
+        secret = get_secret_or_env(
+            "KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS"
+        )
 
     :param key: Secret key to look for
     :param secret_provider: Dictionary, callable or `SecretsStore` to extract the secret value from. If using a

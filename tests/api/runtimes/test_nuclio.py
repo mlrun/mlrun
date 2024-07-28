@@ -28,6 +28,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.nuclio.function
@@ -36,10 +37,10 @@ import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
 from mlrun import code_to_function, mlconf
+from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.platforms.iguazio import split_path
-from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
-from server.api.api.endpoints.functions import _build_function
+from server.api.utils.functions import build_function
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -146,7 +147,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_class="remote",
         call_count=1,
-        expected_params=[],
+        expected_params=None,
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,
@@ -184,7 +185,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
-            labels_for_diff.update({"mlrun/class": expected_class})
+            labels_for_diff.update(
+                {mlrun_constants.MLRunInternalLabels.mlrun_class: expected_class}
+            )
             if parent_function:
                 labels_for_diff.update({"mlrun/parent-function": parent_function})
             assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}
@@ -297,9 +300,29 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
+
+        expected_cm_volume = {
+            "volume": {
+                "name": "serving-conf",
+                "configMap": {"name": "serving-conf-test-project-test-function"},
+            },
+            "volumeMount": {
+                "name": "serving-conf",
+                "mountPath": "/tmp/mlrun/serving-conf",
+                "readOnly": True,
+            },
+        }
+        expected = (
+            [expected_volume, expected_cm_volume]
+            if self.runtime_kind == "serving"
+            else [expected_volume]
+        )
+
         assert (
             deepdiff.DeepDiff(
-                deploy_spec["volumes"], [expected_volume], ignore_order=True
+                deploy_spec["volumes"],
+                expected,
+                ignore_order=True,
             )
             == {}
         )
@@ -534,9 +557,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
         auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
-        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # Need to call build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa1"
         )
@@ -544,12 +567,12 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function.spec.service_account = "bad-sa"
         with pytest.raises(HTTPException):
-            _build_function(db, auth_info, function)
+            build_function(db, auth_info, function)
 
         # verify that project SA overrides the global SA
         mlconf.function.spec.service_account.default = "some-other-sa"
         function.spec.service_account = "sa2"
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa2"
         )
@@ -565,20 +588,37 @@ class TestNuclioRuntime(TestRuntimeBase):
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
         function = self._generate_runtime(self.runtime_kind)
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self.assert_security_context({})
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         function = self._generate_runtime(self.runtime_kind)
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self.assert_security_context(
             self._generate_security_context(
                 run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
                 run_as_user=user_unix_id,
             )
         )
+
+    def test_deploy_mlrun_requirements(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        mlrun.utils.update_in(
+            function.spec.config,
+            "spec.build.baseImage",
+            "mlrun/mlrun:0.6.0",
+        )
+        function.spec.build.requirements = ["some-requirements"]
+        build_function(db, auth_info, function)
+        assert "mlrun[complete]==0.6.0" in function.spec.build.requirements
 
     def test_deploy_with_global_service_account(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
@@ -587,9 +627,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         mlconf.function.spec.service_account.default = service_account_name
         auth_info = mlrun.common.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
-        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # Need to call build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, auth_info, function)
+        build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_service_account=service_account_name,

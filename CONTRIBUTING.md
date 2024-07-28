@@ -36,6 +36,14 @@ python -m venv venv
 source venv/bin/activate
 ```
 
+Using [UV](https://github.com/astral-sh/uv) is also an option, 
+you may need to override current MLRun default packager-installer env var `MLRUN_PYTHON_PACKAGE_INSTALLER` to `uv`
+
+```shell script
+uv venv venv --seed
+source venv/bin/activate
+```
+
 Install MLRun, dependencies and dev dependencies
 ```shell script
 make install-requirements
@@ -44,8 +52,8 @@ pip install -e '.[complete]'
 
 ## Developing with ARM64 machines
 
-Some mlrun dependencies are not yet available for ARM64 machines via pypi, so we need to work with conda to get the packages compiled for ARM64 platform.   
-Install Anaconda from [here](https://docs.anaconda.com/free/anaconda/install/index.html) and then follow the steps below:
+Some MLRun dependencies are not yet available for ARM64 machines via pypi, 
+so we need to work with conda to get the packages compiled for ARM64 platform.   
 
 Fork, clone and cd into the MLRun repository directory
 ```shell script
@@ -53,15 +61,26 @@ git clone git@github.com:<your username>/mlrun.git
 cd mlrun
 ```
 
-Create a conda environment and activate it
+Create a [Conda](https://docs.anaconda.com/free/anaconda/install/index.html) environment and activate it
 ```shell script
 conda create -n mlrun python=3.9
 conda activate mlrun
-``` 
+```
 
 Then, install the dependencies
 ```shell script
 make install-conda-requirements
+```
+
+*Or*, alternatively, you may use native Python atop the ARM64 machine, but you will need to compile some dependencies.
+Execute below script to overcome MLRun current protobuf~3.20 incompatibility.
+
+NOTE: This script will compile and install protobuf 3.20.0 for macOS arm64. At the end of the installation, it will
+ask you to type your password to finish installing the compiled protobuf.
+
+```shell script
+./automation/scripts/compile_protobuf320_for_mac_arm64.sh
+make install-requirements
 ```
 
 Run some unit tests to make sure everything works:
@@ -113,7 +132,11 @@ make fmt
 
 * **Title**
   - Begin the title of the PR with `[<scope>]` , with the first letter of the component name in uppercase, e.g `[API] Add endpoint to list runs`.
-  - If the PR is addressing a bug, include the keywords `fix` or `bug` in the title of the PR, so that it will be added to the `Bugs & Fixes` section in the release notes.
+  - If the PR is addressing a bug, include the keywords `fix` or `bug` in the title of the PR, so that it will be added
+  to the `Bugs & Fixes` section in the release notes.
+  Additionally, the PR title should reflect how the fix was done and not how it was fixed.
+  For example if there was a race condition where an artifact got deleted and created at the same time, instead of
+  writing "Fixed artifact locking mechanism", write "Fixed artifact creation/deletion race condition".
   - Use imperative verbs when describing the changes made in the PR. For example, instead of writing `Adding endpoint to list runs`, write `Add endpoint to list runs`.
   - Start with a verb after the `[<scope>]` prefix, e.g. `[API] Add endpoint to list runs`.
 
@@ -184,6 +207,7 @@ For example:
 import pytest
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestSomeFunctionality(TestMLRunSystem):
@@ -196,9 +220,9 @@ Example of a suite with two tests, one of them meant for enterprise only
 import pytest
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def test_open_source_features(self):
         pass
 
@@ -212,15 +236,15 @@ If some setup or teardown is required for the tests in the suite, add these foll
 ```python
 from tests.system.base import TestMLRunSystem
 
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-    
     def custom_setup(self):
         pass
-    
+
     def custom_teardown(self):
         pass
-    
+
     def test_the_functionality(self):
         pass
 ```
@@ -263,3 +287,93 @@ pyenv virtualenv mlrun
 pyenv shell 3.7
 pyenv virtualenv mlrun37
 ```
+
+### Python Code Conventions:
+
+1. Use snake_case for parameters, functions and module names.
+2. Use CamelCase for Class names.
+3. Style conventions (handled by linter) can be found here: https://pycodestyle.pycqa.org/en/latest/intro.html#error-codes
+4. Functions must be kept short, read like a story and break into smaller functions when needed.
+5. Use meaningful names and avoid abbreviations for variables, functions and modules to enhance readability.
+6. Avoid using hardcoded values, use Enum values, env variables or configuration files instead.
+7. Use typing hints for complex data structures.
+8. Use tmp_path fixture for temporary files/directories in tests.
+9. When using a function in the same file, it should be declared below the calling function as it makes it easier to understand the functionality.
+10. Private methods should be declared below the public ones.
+11. When dealing with numerical values representing sizes or time related variables, add a comment to specify the unit
+(e.g., KB, MB, seconds, hours) for clarity, or alternatively, use variable names like “size_in_KB” for explicit unit indication.
+12. After updating an existing code, ensure that the old documentation is synced with the newly added code or needs
+to be updated accordingly.
+13. When importing from local code, NEVER use: `from X import Y` instead use: `import X` or `import X as Y`.
+For external packages, it's acceptable to use `from X import Y`  since they won't try to import back to our code.
+14. Docstring format, for all public API-level functions:
+Format: Use triple quotes (""" """) for docstrings.
+Description: Provide a brief and informative description of the function's purpose.
+Parameters: List all parameters with their data types and a brief description. Use the :param tag for each parameter.
+Return Value: If the function returns a value, describe it using the :return tag.
+Example:
+
+```
+def function_name(parameter1, parameter2):
+	"""
+	Brief description of the function's purpose.
+	:param parameter1: Description of parameter1.
+	:param parameter2: Description of parameter2.
+	:return: Description of the return value (if applicable).
+	"""
+	# Function implementation
+```
+
+15. When calling functions with multiple parameters, prefer using keyword arguments to improve readability and clarity.
+16. Logging: use structured variable instead of f-strings, for example: `logger.debug("Message", var1=var1, ...)`, and
+try to avoid logging large objects which are hard to decipher.
+17. Use f-strings for string formatting instead of the old `.format(...)` except when dealing with template strings.
+
+### MLRun Coding Conventions:
+
+1. When converting an error object to a string representation, instead of using: `str(error)` use: `mlrun.errors.err_to_str(error)`
+2. Use `mlrun.mlconf` Instead of `mlrun.config.config`.
+3. When deprecating a parameter/method/class we keep backwards compatibility for 2 minor versions.
+For example if we deprecated a parameter in 1.6.0, it will be removed in 1.8.0.
+Always specify what should be used instead. If there is nothing to be used instead, specify why.
+
+* Deprecating a parameter:
+Check if the parameter is given and output a FutureWarning and add a TODO with when this should be removed to
+help developers keep track.
+for example:
+
+```
+if uid:
+	warnings.warn(
+		"'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
+		# TODO: Remove this in 1.8.0
+		FutureWarning,
+	)
+```
+
+* Deprecating a method:
+Use 'deprecated'
+
+```
+# TODO: remove in 1.6.0
+@deprecated(
+	version="1.4.0",
+	reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
+	category=FutureWarning,
+)
+def verify_base_image(self):
+```
+
+* Deprecating a class:
+
+```
+# TODO: Remove in 1.7.0
+@deprecated(
+	version="1.5.0",
+	reason="v1alpha1 mpi will be removed in 1.7.0, use v1 instead",
+	category=FutureWarning,
+)
+class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
+```
+4. Minimize imports and avoid unnecessary dependencies in client code.
+5. Scale performance: be caution when executing large queries in order to prevent overloading the database.

@@ -23,7 +23,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.datastore import parse_kafka_url
+from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
@@ -295,9 +295,7 @@ class ServingRuntime(RemoteRuntime):
                         "provided class is not a router step, must provide a router class in router topology"
                     )
             else:
-                step = RouterStep(
-                    class_name=class_name, class_args=class_args, engine=engine
-                )
+                step = RouterStep(class_name=class_name, class_args=class_args)
             self.spec.graph = step
         elif topology == StepKinds.flow:
             self.spec.graph = RootFlowStep(engine=engine)
@@ -314,26 +312,29 @@ class ServingRuntime(RemoteRuntime):
         sample: Optional[int] = None,
         stream_args: Optional[dict] = None,
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
+        enable_tracking: bool = True,
     ) -> None:
         """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
            and analyze performance.
 
-        :param stream_path:     Path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                                you can use the "dummy://" path for test/simulation.
-        :param batch:           Micro batch size (send micro batches of N records at a time).
-        :param sample:          Sample size (send only one of N records).
-        :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                    you can use the "dummy://" path for test/simulation.
+        :param batch:               Micro batch size (send micro batches of N records at a time).
+        :param sample:              Sample size (send only one of N records).
+        :param stream_args:         Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param enable_tracking:     Enabled/Disable model-monitoring tracking.
+                                    Default True (tracking enabled).
 
-                                example::
+        Example::
 
-                                    # initialize a new serving function
-                                    serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
-                                    # apply model monitoring
-                                    serving_fn.set_tracking()
+            # initialize a new serving function
+            serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+            # apply model monitoring
+            serving_fn.set_tracking()
 
         """
         # Applying model monitoring configurations
-        self.spec.track_models = True
+        self.spec.track_models = enable_tracking
 
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
@@ -367,8 +368,8 @@ class ServingRuntime(RemoteRuntime):
 
         Example, create a function (from the notebook), add a model class, and deploy::
 
-            fn = code_to_function(kind='serving')
-            fn.add_model('boost', model_path, model_class='MyClass', my_arg=5)
+            fn = code_to_function(kind="serving")
+            fn.add_model("boost", model_path, model_class="MyClass", my_arg=5)
             fn.deploy()
 
         only works with router topology, for nested topologies (model under router under flow)
@@ -450,7 +451,7 @@ class ServingRuntime(RemoteRuntime):
 
         example::
 
-            fn.add_child_function('enrich', './enrich.ipynb', 'mlrun/mlrun')
+            fn.add_child_function("enrich", "./enrich.ipynb", "mlrun/mlrun")
 
         :param name:   child function name
         :param url:    function/code url, support .py, .ipynb, .yaml extensions
@@ -489,11 +490,8 @@ class ServingRuntime(RemoteRuntime):
                         "worker_allocation_mode", "static"
                     )
 
-                if (
-                    stream.path.startswith("kafka://")
-                    or "kafka_bootstrap_servers" in stream.options
-                ):
-                    brokers = stream.options.get("kafka_bootstrap_servers")
+                brokers = get_kafka_brokers_from_dict(stream.options)
+                if stream.path.startswith("kafka://") or brokers:
                     if brokers:
                         brokers = brokers.split(",")
                     topic, brokers = parse_kafka_url(stream.path, brokers)
@@ -731,8 +729,11 @@ class ServingRuntime(RemoteRuntime):
         example::
 
             serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
-            serving_fn.add_model('my-classifier',model_path=model_path,
-                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.add_model(
+                "my-classifier",
+                model_path=model_path,
+                class_name="mlrun.frameworks.sklearn.SklearnModelServer",
+            )
             serving_fn.plot(rankdir="LR")
 
         :param filename:  target filepath for the image (None for the notebook)

@@ -32,11 +32,17 @@ def create_project(
     artifact_path=None,
     source="source",
     load_source_on_run=False,
+    endpoint_prefix="",
+    default_function_node_selector=None,
 ):
     project = _create_project_obj(
-        project_name, artifact_path, source, load_source_on_run
+        project_name,
+        artifact_path,
+        source,
+        load_source_on_run,
+        default_function_node_selector,
     )
-    resp = client.post("projects", json=project.dict())
+    resp = client.post(f"{endpoint_prefix}projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
 
@@ -73,7 +79,11 @@ async def create_project_async(
 
 
 def _create_project_obj(
-    project_name, artifact_path, source, load_source_on_run=False
+    project_name,
+    artifact_path,
+    source,
+    load_source_on_run=False,
+    default_function_node_selector=None,
 ) -> mlrun.common.schemas.Project:
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
@@ -83,5 +93,6 @@ def _create_project_obj(
             load_source_on_run=load_source_on_run,
             goals="some goals",
             artifact_path=artifact_path,
+            default_function_node_selector=default_function_node_selector,
         ),
     )

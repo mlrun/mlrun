@@ -1051,7 +1051,9 @@ def _ingest_with_spark(
 
         timestamp_key = featureset.spec.timestamp_key
         if isinstance(source, mlrun.datastore.sources.SnowflakeSource):
-            source.check_upper_case(timestamp_key=timestamp_key, entities=featureset.spec.entities)
+            source.check_upper_case(
+                timestamp_key=timestamp_key, entities=featureset.spec.entities
+            )
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)

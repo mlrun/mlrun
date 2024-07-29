@@ -1722,6 +1722,7 @@ def validate_single_def_handler(function_kind: str, code: str):
         pattern = re.compile(r"^def handler\(", re.MULTILINE)
         matches = pattern.findall(code)
 
+        # Only MLRun's wrapper handler (footer) can be in the code
         if len(matches) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "The code file contains a function named “handler“, which is reserved. "

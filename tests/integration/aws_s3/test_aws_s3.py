@@ -15,6 +15,7 @@
 import os
 import os.path
 import tempfile
+import time
 import uuid
 
 import dask.dataframe as dd
@@ -308,8 +309,6 @@ class TestAwsS3:
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
-        import time
-
         first_start_time = time.monotonic()
 
         with tempfile.NamedTemporaryFile(
@@ -336,14 +335,17 @@ class TestAwsS3:
                 f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
             )
             with tempfile.NamedTemporaryFile(
-                    suffix=".txt", delete=True, mode="wb"
+                suffix=".txt", delete=True, mode="wb"
             ) as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
                 print(
                     f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
                 )
-                with open(temp_file.name, 'rb') as file1, open(temp_file_download.name, 'rb') as file2:
+                with (
+                    open(temp_file.name, "rb") as file1,
+                    open(temp_file_download.name, "rb") as file2,
+                ):
                     while True:
                         chunk1 = file1.read(chunk_size)
                         chunk2 = file2.read(chunk_size)

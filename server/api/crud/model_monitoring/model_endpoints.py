@@ -71,10 +71,10 @@ class ModelEndpoints:
                 )
             )
 
-            mlrun.utils.helpers.verify_field_of_type(
-                field_name="model_endpoint.spec.model_uri",
-                field_value=model_obj,
-                expected_type=mlrun.artifacts.ModelArtifact,
+            # Verify and enrich the model endpoint obj with the updated model uri
+            cls._enrich_model_endpoint_with_model_uri(
+                model_endpoint=model_endpoint,
+                model_obj=model_obj,
             )
 
             # Get stats from model object if not found in model endpoint object
@@ -505,6 +505,7 @@ class ModelEndpoints:
         project_name: str,
         db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete all model endpoints resources, including the store data, time series data, and stream resources.
@@ -513,6 +514,8 @@ class ModelEndpoints:
         :param db_session:                    A session that manages the current dialog with the database.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
         """
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
@@ -559,6 +562,7 @@ class ModelEndpoints:
             db_session=db_session,
             model_monitoring_applications=model_monitoring_applications,
             stream_paths=stream_paths,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
     @staticmethod
@@ -567,6 +571,7 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]],
         stream_paths: typing.Optional[list[str]] = None,
+        model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
@@ -577,11 +582,11 @@ class ModelEndpoints:
                                               be deleted.
         :param stream_paths:                  A list of stream paths to delete. If using Kafka, the stream path
                                               represents the related topic.
+        :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
+                                              V3IO resources.
         """
 
-        model_monitoring_access_key = None
-
-        if stream_paths[0].startswith("v3io"):
+        if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
             model_monitoring_access_key = (
                 server.api.api.endpoints.nuclio.process_model_monitoring_secret(
@@ -789,3 +794,38 @@ class ModelEndpoints:
             else:
                 model_endpoint_store = None
         return model_endpoint_store
+
+    @staticmethod
+    def _enrich_model_endpoint_with_model_uri(
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        model_obj: mlrun.artifacts.ModelArtifact,
+    ):
+        """
+        Enrich the model endpoint object with the model uri from the model object. Instead of using the model uri that
+        includes the model object's version, we will use a unique reference to the model object that includes
+        the project, key, iter, and tree. This will allow us to handle future changes in the model object without
+        updating the model endpoint object.
+        In addition, we verify that the model object is of type `ModelArtifact`.
+
+        :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.
+        :param model_obj:         An object representing the model artifact.
+
+        :raise: `MLRunInvalidArgumentError` if the model object is not of type `ModelArtifact`.
+        """
+        mlrun.utils.helpers.verify_field_of_type(
+            field_name="model_endpoint.spec.model_uri",
+            field_value=model_obj,
+            expected_type=mlrun.artifacts.ModelArtifact,
+        )
+
+        # Update model_uri with a unique reference to handle future changes
+        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+            project=model_endpoint.metadata.project,
+            key=model_obj.key,
+            iter=model_obj.iter,
+            tree=model_obj.tree,
+        )
+        model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+        )
+

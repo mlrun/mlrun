@@ -27,7 +27,7 @@ from mlrun.utils import logger
 class TSDBConnector(ABC):
     type: typing.ClassVar[str]
 
-    def __init__(self, project: str):
+    def __init__(self, project: str) -> None:
         """
         Initialize a new TSDB connector. The connector is used to interact with the TSDB and store monitoring data.
         At the moment we have 3 different types of monitoring data:
@@ -42,10 +42,10 @@ class TSDBConnector(ABC):
         writer.
 
         :param project: the name of the project.
-
         """
         self.project = project
 
+    @abstractmethod
     def apply_monitoring_stream_steps(self, graph):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -58,6 +58,7 @@ class TSDBConnector(ABC):
         """
         pass
 
+    @abstractmethod
     def write_application_event(
         self,
         event: dict,
@@ -69,13 +70,14 @@ class TSDBConnector(ABC):
         :raise mlrun.errors.MLRunRuntimeError: If an error occurred while writing the event.
         """
 
+    @abstractmethod
     def delete_tsdb_resources(self):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
         """
-
         pass
 
+    @abstractmethod
     def get_model_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
@@ -102,6 +104,7 @@ class TSDBConnector(ABC):
         """
         pass
 
+    @abstractmethod
     def create_tables(self) -> None:
         """
         Create the TSDB tables using the TSDB connector. At the moment we support 3 types of tables:

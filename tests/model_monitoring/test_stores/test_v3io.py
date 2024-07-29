@@ -37,6 +37,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
+from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
+    _normalize_dict_for_v3io_frames,
+)
 from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
     V3IOTSDBConnector,
     _is_no_schema_error,
@@ -560,3 +563,19 @@ def test_read_predictions() -> None:
             value=10.0,
         ),
     ]
+
+
+@pytest.mark.parametrize(
+    ("input_event", "expected_output"),
+    [
+        ({}, {}),
+        (
+            {"": 1, "1": 2, "f3": 3, "my--pred": 0.2},
+            {"": 1, "_1": 2, "f3": 3, "my__pred": 0.2},
+        ),
+    ],
+)
+def test_normalize_dict_for_v3io_frames(
+    input_event: dict[str, Any], expected_output: dict[str, Any]
+) -> None:
+    assert _normalize_dict_for_v3io_frames(input_event) == expected_output

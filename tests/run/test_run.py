@@ -342,13 +342,39 @@ def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
     assert context.labels.get("kind") == "spark"
 
 
-def test_verify_tag_exists_in_run_output_uri():
+@pytest.fixture
+def setup_project():
     project = mlrun.get_or_create_project("dummy-project")
-    project.set_function(
-        func=function_path, handler="myhandler", name="test", image="mlrun/mlrun"
-    )
-    run = project.run_function("test", params={"tag": "v1"}, local=True)
-    uri = run.output("file_result")
+    project.set_function(func=function_path, name="test", image="mlrun/mlrun")
+    return project
 
-    # Verify that the tag exists in the URI
-    assert ":v1" in uri
+
+@pytest.mark.parametrize(
+    "params, expected",
+    [
+        ({"tag": "v1"}, ":v1"),
+        ({"tag": "latest"}, ":latest"),
+        ({}, ":latest"),
+    ],
+)
+def test_verify_run_output_uri(setup_project, params, expected):
+    run = setup_project.run_function(
+        "test", handler="myhandler", params=params, local=True
+    )
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    # Verify that the expected tag exists in the URI
+    assert expected in output_uri
+    assert expected in outputs_uri
+
+
+def test_verify_tag_in_output_for_relogged_artifact(setup_project):
+    run = setup_project.run_function(
+        "test", handler="log_artifact_many_tags", local=True
+    )
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    assert "v3" in output_uri, "Expected 'v3' tag in output_uri"
+    assert "v3" in outputs_uri, "Expected 'v3' tag in outputs_uri"

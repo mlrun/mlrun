@@ -52,6 +52,11 @@ default_config = {
     "kubernetes": {
         "kubeconfig_path": "",  # local path to kubeconfig file (for development purposes),
         # empty by default as the API already running inside k8s cluster
+        "pagination": {
+            # pagination config for interacting with k8s API
+            "list_pods_limit": 200,
+            "list_crd_objects_limit": 200,
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -247,7 +252,7 @@ default_config = {
         },
         "application": {
             "default_sidecar_internal_port": 8050,
-            "default_authentication_mode": "accessKey",
+            "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -274,6 +279,16 @@ default_config = {
                 "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
+                "feature_gates": {
+                    "scheduler": "enabled",
+                    "project_sync": "enabled",
+                    "cleanup": "enabled",
+                    "runs_monitoring": "enabled",
+                    "pagination_cache": "enabled",
+                    "project_summaries": "enabled",
+                    "start_logs": "enabled",
+                    "stop_logs": "enabled",
+                },
             },
             "worker": {
                 "sync_with_chief": {
@@ -1039,6 +1054,14 @@ class Config:
         else:
             resource_requirement.pop(gpu)
         return resource_requirement
+
+    def force_api_gateway_ssl_redirect(self):
+        """
+        Get the default value for the ssl_redirect configuration.
+        In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+        :return: True if we should redirect to HTTPS, False otherwise.
+        """
+        return self.is_running_on_iguazio()
 
     def to_dict(self):
         return copy.deepcopy(self._cfg)

@@ -328,7 +328,7 @@ class MonitoringApplicationController:
         logger.info("Start running monitoring controller")
         try:
             applications_names = []
-            endpoints = self.db.list_model_endpoints()
+            endpoints = self.db.list_model_endpoints(include_stats=True)
             if not endpoints:
                 logger.info("No model endpoints found", project=self.project)
                 return

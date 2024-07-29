@@ -510,8 +510,10 @@ class RemoteRuntime(KubeResource):
                 **kwargs,
             ),
         )
-        self.spec.min_replicas = shards
-        self.spec.max_replicas = shards
+        if self.spec.min_replicas != shards or self.spec.max_replicas != shards:
+            logger.warning(f"Setting function replicas to {shards}")
+            self.spec.min_replicas = shards
+            self.spec.max_replicas = shards
 
     def deploy(
         self,
@@ -566,6 +568,9 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then

@@ -256,7 +256,7 @@ async def test_redirection_from_worker_to_chief_delete_schedules(
     expected_body: dict,
 ):
     # so get_scheduler().list_schedules, which is called in the delete_schedules endpoint, will return something
-    await server.api.utils.singletons.scheduler.initialize_scheduler()
+    server.api.utils.singletons.scheduler.ensure_scheduler()
     endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
         project="test-project",
     )

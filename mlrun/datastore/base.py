@@ -215,7 +215,11 @@ class DataStore:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "When providing start_time or end_time, must provide time_column"
                 )
-            if start_time and end_time and start_time.tzinfo != end_time.tzinfo:
+            if (
+                start_time
+                and end_time
+                and start_time.utcoffset() != end_time.utcoffset()
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "start_time and end_time must have the same time zone"
                 )
@@ -391,7 +395,10 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        try:
+            self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def _is_dd(df_module):

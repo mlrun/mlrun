@@ -95,6 +95,7 @@ from server.api.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    TimeWindowTracker,
     User,
     _labeled,
     _tagged,
@@ -662,8 +663,8 @@ class SQLDB(DBInterface):
         project=None,
         tag=None,
         labels=None,
-        since=None,
-        until=None,
+        since: datetime = None,
+        until: datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -1697,7 +1698,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project
@@ -1754,16 +1755,20 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
+        since: datetime = None,
+        until: datetime = None,
     ) -> list[dict]:
         project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
-            session,
-            name,
-            project,
-            labels,
-            tag,
-            hash_key,
+            session=session,
+            name=name,
+            project=project,
+            labels=labels,
+            tag=tag,
+            hash_key=hash_key,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         ):
@@ -2328,7 +2333,7 @@ class SQLDB(DBInterface):
                 cls=cls,
                 project=project,
                 main_table_identifier=main_table_identifier,
-                main_table_identifier_values=main_table_identifier_values,
+                main_table_identifier_values_count=len(main_table_identifier_values),
             )
 
             # The select is mandatory for sqlalchemy 1.4 because
@@ -2483,7 +2488,22 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, [project_record])
+        objects_to_upsert = [project_record]
+
+        project_summary = self.get_project_summary(
+            session, project_record.name, raise_on_not_found=False
+        )
+        if not project_summary:
+            summary = mlrun.common.schemas.ProjectSummary(
+                name=project.metadata.name,
+            )
+            project_summary = ProjectSummary(
+                project=project.metadata.name,
+                summary=summary.dict(),
+                updated=datetime.now(timezone.utc),
+            )
+            objects_to_upsert.append(project_summary)
+        self._upsert(session, objects_to_upsert)
 
     @retry_on_conflict
     def store_project(
@@ -2535,7 +2555,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str = None,
         project_id: int = None,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -2550,6 +2570,7 @@ class SQLDB(DBInterface):
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
         self._delete(session, Project, name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     def list_projects(
         self,
@@ -2593,18 +2614,24 @@ class SQLDB(DBInterface):
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     def get_project_summary(
-        self, session, project: str
-    ) -> mlrun.common.schemas.ProjectSummary:
+        self,
+        session,
+        project: str,
+        raise_on_not_found: bool = True,
+    ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,
             ProjectSummary,
             project=project,
         ).one_or_none()
         if not project_summary_record:
+            if not raise_on_not_found:
+                return None
             raise mlrun.errors.MLRunNotFoundError(
-                f"Project summary not found: project={project}"
+                f"Project summary not found: {project=}"
             )
 
+        project_summary_record.summary["name"] = project_summary_record.project
         project_summary_record.summary["updated"] = project_summary_record.updated
         return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
@@ -4481,9 +4508,25 @@ class SQLDB(DBInterface):
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
+        since: datetime = None,
+        until: datetime = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
+        """
+        Query functions from the DB by the given filters.
+
+        :param session: The DB session.
+        :param name: The name of the function to query.
+        :param project: The project of the function to query.
+        :param labels: The labels of the function to query.
+        :param tag: The tag of the function to query.
+        :param hash_key: The hash key of the function to query.
+        :param since: Filter functions that were updated after this time
+        :param until: Filter functions that were updated before this time
+        :param page: The page number to query.
+        :param page_size: The page size to query.
+        """
         query = session.query(Function, Function.Tag.name)
         query = query.filter(Function.project == project)
 
@@ -4493,13 +4536,22 @@ class SQLDB(DBInterface):
         if hash_key is not None:
             query = query.filter(Function.uid == hash_key)
 
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(
+                and_(Function.updated >= since, Function.updated <= until)
+            )
+
         if not tag:
             # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
             query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
         else:
-            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            # Only get functions that have tags with join (faster than outer join)
             query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
-            query = query.filter(Function.Tag.name == tag)
+            if tag != "*":
+                # Filter on the specific tag
+                query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
@@ -4628,7 +4680,7 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = mlrun.common.schemas.Project(
@@ -4646,9 +4698,9 @@ class SQLDB(DBInterface):
                 ),
             )
             self.store_project(session, project_record.name, project)
-            return project
+            return mlrun.common.schemas.ProjectOut(**project.dict())
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return mlrun.common.schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(
         self,
@@ -5150,6 +5202,11 @@ class SQLDB(DBInterface):
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
         return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
+        state = self.get_alert_state(session, alert_id)
+        if state is not None:
+            return state.to_dict()
 
     def delete_alert_notifications(
         self,
@@ -5739,6 +5796,39 @@ class SQLDB(DBInterface):
         key: str,
     ):
         self._delete(session, PaginationCache, key=key)
+
+    def store_time_window_tracker_record(
+        self,
+        session: Session,
+        key: str,
+        timestamp: typing.Optional[datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self.get_time_window_tracker_record(
+            session, key=key, raise_on_not_found=False
+        )
+        if not time_window_tracker_record:
+            time_window_tracker_record = TimeWindowTracker(key=key)
+
+        if timestamp:
+            time_window_tracker_record.timestamp = timestamp
+        if max_window_size_seconds:
+            time_window_tracker_record.max_window_size_seconds = max_window_size_seconds
+
+        self._upsert(session, [time_window_tracker_record])
+        return time_window_tracker_record
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self._query(
+            session, TimeWindowTracker, key=key
+        ).one_or_none()
+        if not time_window_tracker_record and raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Time window tracker record not found: key={key}"
+            )
+        return time_window_tracker_record
 
     # ---- Utils ----
     def delete_table_records(

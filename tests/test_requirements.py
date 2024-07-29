@@ -113,7 +113,7 @@ def test_requirement_specifiers_convention():
         "mlrun-pipelines-kfp-v1-8": {"~=0.1.2"},
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.7.20"},
+        "storey": {"~=1.7.23"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -144,7 +144,6 @@ def test_requirement_specifiers_convention():
         # used in tests
         "aioresponses": {"~=0.7"},
         "scikit-learn": {"~=1.4.0"},
-        "v3io": {"~=0.6.6, !=0.6.7"},  # A workaround for IG-22956
     }
 
     for (

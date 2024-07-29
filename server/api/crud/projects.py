@@ -15,7 +15,6 @@
 import asyncio
 import collections
 import datetime
-import time
 import typing
 
 import fastapi.concurrency
@@ -101,6 +100,7 @@ class Projects(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -118,7 +118,12 @@ class Projects(
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, auth_info=auth_info)
+            self.delete_project_resources(
+                session,
+                name,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -143,6 +148,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        model_monitoring_access_key: str = None,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -176,7 +182,7 @@ class Projects(
                 project=name,
                 db_session=session,
                 auth_info=auth_info,
-                model_monitoring_access_key=None,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         )
 
@@ -199,6 +205,7 @@ class Projects(
             project_name=name,
             db_session=session,
             model_monitoring_applications=model_monitoring_applications,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
         if mlrun.mlconf.is_api_running_on_k8s():
@@ -207,7 +214,7 @@ class Projects(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return server.api.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(
@@ -298,9 +305,6 @@ class Projects(
     async def refresh_project_resources_counters_cache(
         self, session: sqlalchemy.orm.Session
     ):
-        logger.debug("Recalculating project resources counters cache")
-
-        start_time = time.perf_counter_ns()
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
             session,
@@ -373,10 +377,6 @@ class Projects(
             server.api.utils.singletons.db.get_db().refresh_project_summaries,
             session,
             project_summaries,
-        )
-        logger.debug(
-            "Project resources counters cache refreshed",
-            elapsed_time=time.perf_counter_ns() - start_time,
         )
 
     @staticmethod

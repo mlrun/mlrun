@@ -192,13 +192,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not _continue:
                 break
 
-            logger.debug(
-                "Getting next crds",
-                remaining_item_count=crd_objects["metadata"].get(
-                    "remaining_item_count"
-                ),
-            )
-
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod

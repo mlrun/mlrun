@@ -303,9 +303,9 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    def test_large_upload(self, use_datastore_profile):
+    def test_large_upload(self):
         data_item = mlrun.run.get_dataitem(self._object_url)
-        file_size = 1024 * 1024 * 250
+        file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
         import time
@@ -335,6 +335,22 @@ class TestAwsS3:
             print(
                 f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
             )
+            with tempfile.NamedTemporaryFile(
+                    suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
+                start_time = time.monotonic()
+                data_item.download(temp_file_download.name)
+                print(
+                    f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
+                )
+                with open(temp_file.name, 'rb') as file1, open(temp_file_download.name, 'rb') as file2:
+                    while True:
+                        chunk1 = file1.read(chunk_size)
+                        chunk2 = file2.read(chunk_size)
+                        if chunk1 != chunk2:
+                            assert False
+                        elif not chunk1 and not chunk2:
+                            break
 
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])
     def test_wrong_credential_rm(self, use_datastore_profile, fake_token):

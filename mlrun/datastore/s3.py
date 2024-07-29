@@ -15,10 +15,11 @@
 import time
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
-from boto3.s3.transfer import TransferConfig
+
 from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
 
 
@@ -98,8 +99,10 @@ class S3Store(DataStore):
         self.config = TransferConfig(
             multipart_threshold=1024 * 1024 * 25,  # 25MB threshold for multipart upload
             max_concurrency=10,  # Maximum number of concurrent threads
-            multipart_chunksize=1024 * 1024 * 25,  # Size of each part for multipart upload (25MB)
-            use_threads=True  # Enable threaded transfers
+            multipart_chunksize=1024
+            * 1024
+            * 25,  # Size of each part for multipart upload (25MB)
+            use_threads=True,  # Enable threaded transfers
         )
 
     def get_spark_options(self):
@@ -172,7 +175,7 @@ class S3Store(DataStore):
 
     def upload(self, key, src_path):
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Bucket(bucket).upload_file(src_path,key, Config= self.config)
+        self.s3.Bucket(bucket).upload_file(src_path, key, Config=self.config)
 
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)

@@ -14,6 +14,7 @@
 #
 import os
 import os.path
+import tempfile
 import uuid
 
 import dask.dataframe as dd
@@ -301,6 +302,39 @@ class TestAwsS3:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    def test_large_upload(self, use_datastore_profile):
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        file_size = 1024 * 1024 * 250
+        chunk_size = 1024 * 1024 * 10
+
+        import time
+
+        first_start_time = time.monotonic()
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
+            num_chunks = file_size // chunk_size
+            remainder = file_size % chunk_size
+            for _ in range(num_chunks):
+                chunk = os.urandom(chunk_size)
+                temp_file.write(chunk)
+            if remainder:
+                chunk = os.urandom(remainder)
+                temp_file.write(chunk)
+            temp_file.flush()
+            temp_file.seek(0)
+
+            print(
+                f"s3 test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
+                "seconds"
+            )
+            start_time = time.monotonic()
+            data_item.upload(temp_file.name)
+            print(
+                f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
 
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])
     def test_wrong_credential_rm(self, use_datastore_profile, fake_token):

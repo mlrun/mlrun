@@ -198,7 +198,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     "remaining_item_count"
                 ),
             )
-        logger.debug("Finished listing crds")
+
+        if _continue:
+            # we want to show this message only if we really needed pagination
+            logger.debug("Finished listing crds")
 
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):

@@ -26,6 +26,7 @@ import server.api.api.utils
 import server.api.utils.builder
 import server.api.utils.clients.iguazio
 import server.api.utils.runtimes.nuclio
+from mlrun.config import config as mlconf
 
 
 def test_get_frontend_spec(

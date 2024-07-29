@@ -97,12 +97,10 @@ class S3Store(DataStore):
                 "choose-signer.s3.*", disable_signing
             )
         self.config = TransferConfig(
-            multipart_threshold=1024 * 1024 * 100,  # 100MB threshold for multipart upload
-            max_concurrency=10,  # Maximum number of concurrent threads
-            multipart_chunksize=1024
-            * 1024
-            * 100,  # Size of each part for multipart upload (100MB)
-            use_threads=True,  # Enable threaded transfers
+            multipart_threshold=1024 * 1024 * 25,
+            max_concurrency=10,
+            multipart_chunksize=1024 * 1024 * 25,
+            use_threads=True,
         )
 
     def get_spark_options(self):

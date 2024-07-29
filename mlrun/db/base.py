@@ -242,9 +242,8 @@ class RunDBInterface(ABC):
             )
             artifact_identifiers.append(
                 mlrun.common.schemas.ArtifactIdentifier(
+                    # we pass the db_key and not the key so the API will be able to find the artifact in the db
                     key=mlrun.utils.get_in_artifact(artifact_obj, "db_key"),
-                    # we are passing tree as uid when storing an artifact, so if uid is not defined,
-                    # pass the tree as uid
                     uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
                     producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),

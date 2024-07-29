@@ -991,15 +991,6 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
-        if not artifacts_keys:
-            logger.debug(
-                "No artifacts to tag",
-                project=project,
-                tag=tag_name,
-                artifacts=artifacts,
-            )
-            return
-
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,

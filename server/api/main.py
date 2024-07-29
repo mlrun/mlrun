@@ -185,7 +185,7 @@ async def setup_api():
     initialize_logs_dir()
     initialize_db()
 
-    config.nuclio_version = server.api.utils.runtimes.nuclio.resolve_nuclio_version()
+    server.api.utils.runtimes.nuclio.resolve_nuclio_version()
 
     # chief do stuff
     if (

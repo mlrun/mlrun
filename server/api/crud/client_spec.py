@@ -47,7 +47,7 @@ class ClientSpec(
                 config.dask_kfp_image, client_version, client_python_version
             ),
             api_url=config.httpdb.api_url,
-            nuclio_version=server.api.utils.runtimes.nuclio.resolve_nuclio_version(),
+            nuclio_version=config.nuclio_version,
             spark_operator_version=config.spark_operator_version,
             calculate_artifact_hash=config.artifacts.calculate_hash,
             generate_artifact_target_path_from_artifact_hash=config.artifacts.generate_target_path_from_artifact_hash,

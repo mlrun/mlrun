@@ -410,8 +410,7 @@ class _PipelineRunStatus:
             timeout=timeout,
             expected_statuses=expected_statuses,
         )
-        # wait_for_completion may return None for some runners(like local) so we want to override
-        # the state only if it returns value
+        # TODO: returning a state is optional until all runners implement wait_for_completion
         if returned_state:
             self._state = returned_state
         return self._state
@@ -733,7 +732,9 @@ class _LocalRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
-        # local runner does not have a wait_for_completion method because we already wait in the `run` function
+        # TODO: local runner blocks for the duration of the pipeline.
+        # Therefore usually there will be nothing to wait for.
+        # However, users may run functions with watch=False and then it can be useful to wait for the runs here.
         pass
 
 

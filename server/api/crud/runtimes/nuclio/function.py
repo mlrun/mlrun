@@ -347,13 +347,15 @@ def _compile_function_config(
     _set_function_replicas(function, nuclio_spec)
     _set_misc_specs(function, nuclio_spec)
 
+    is_nuclio_image_set = function.spec.config.get("spec.image") is not None
+
     # if the user code is given explicitly or from a source, we need to set the handler and relevant attributes
     if (
         function.spec.base_spec
         or function.spec.build.functionSourceCode
         or function.spec.build.source
         or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
-    ):
+    ) and not is_nuclio_image_set:
         config = function.spec.base_spec
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code

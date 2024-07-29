@@ -60,7 +60,14 @@ class WebhookNotification(NotificationBase):
             request_body["runs"] = runs
 
         if alert:
-            request_body["alert"] = alert.dict()
+            request_body["name"] = alert.name
+            request_body["project"] = alert.project
+            request_body["severity"] = alert.severity
+            if alert.summary:
+                request_body["summary"] = mlrun.utils.helpers.format_alert_summary(
+                    alert, event_data
+                )
+
             if event_data:
                 request_body["value"] = event_data.value_dict
                 request_body["id"] = event_data.entity.ids[0]

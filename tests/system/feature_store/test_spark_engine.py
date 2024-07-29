@@ -22,6 +22,7 @@ from datetime import datetime
 import fsspec
 import pandas as pd
 import pytest
+import requests
 import v3iofs
 from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
@@ -1524,6 +1525,68 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp_df.reset_index(drop=True, inplace=True)
         pd.testing.assert_frame_equal(resp_df[["bad", "department"]], expected_df)
+        target.purge()
+        with pytest.raises(FileNotFoundError):
+            target.as_df()
+        # check that a FileNotFoundError is not raised
+        target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_wrong_credentials(self):
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            user="wrong-user",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(PermissionError):
+            target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_empty_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("HDFS_HOST")
+
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            port=int(os.environ["HDFS_PORT"]),
+            http_port=int(os.environ["HDFS_HTTP_PORT"]),
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(requests.exceptions.ConnectionError):
+            target.purge()
+
+        monkeypatch.delenv("HDFS_PORT")
+        monkeypatch.delenv("HDFS_HTTP_PORT")
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(ValueError):
+            target.purge()
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):

@@ -103,9 +103,6 @@ fn.add_model(
     model_path="<store_model_file_reference>",
 )
 
-# Enable MLRun's model monitoring
-fn.set_tracking()
-
 # Add the system mount to the function so
 # it will have access to the model files
 fn.apply(mlrun.mount_v3io())

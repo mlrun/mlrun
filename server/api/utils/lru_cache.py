@@ -39,11 +39,20 @@ class LRUCache:
             self.misses = 0
             self.currsize = 0
 
-    def __init__(self, func, maxsize: int = 128):
+    def __init__(
+        self, func, maxsize: int = 128, ignore_args_for_hash: list[int] = None
+    ):
+        """
+        Initialize an lru cache instance
+        :param func: The function that gets the actual value
+        :param maxsize: Maximum size of the cache
+        :param ignore_args_for_hash: List of argument indexes to ignore when computing the hash for the cache
+        """
         self.cache = collections.OrderedDict()
         self.func = func
         self.maxsize = maxsize
         self._cache_info = self.CacheInfo(maxsize)
+        self.ignored_args = ignore_args_for_hash or []
 
     def __call__(self, *args, **kwargs):
         cache = self.cache
@@ -100,6 +109,10 @@ class LRUCache:
         key = self._gen_key(args, kwargs)
         return key in self.cache
 
-    @staticmethod
-    def _gen_key(args, kwargs) -> str:
-        return hashlib.sha256(f"{args}/{sorted(kwargs.items())}".encode()).hexdigest()
+    def _gen_key(self, args, kwargs) -> str:
+        args_for_hash = [
+            arg for idx, arg in enumerate(args) if idx not in self.ignored_args
+        ]
+        return hashlib.sha256(
+            f"{args_for_hash}/{sorted(kwargs.items())}".encode()
+        ).hexdigest()

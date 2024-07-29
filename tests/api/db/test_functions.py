@@ -406,7 +406,7 @@ def test_list_function_with_tag_and_uid(db: DBInterface, db_session: Session):
     )
 
 
-def test_list_artifacts_with_time_filters(db: DBInterface, db_session: Session):
+def test_list_functions_with_time_filters(db: DBInterface, db_session: Session):
     function_1 = _generate_function("function-name-1")
     function_2 = _generate_function("function-name-2")
     function_3 = _generate_function("function-name-3")

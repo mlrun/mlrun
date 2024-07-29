@@ -1698,7 +1698,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project

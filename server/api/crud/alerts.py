@@ -208,13 +208,6 @@ class Alerts(
 
             self._states[alert.id] = state_obj
 
-        else:
-            logger.debug(
-                "The entity of the alert does not match the one in event",
-                name=alert.name,
-                event=event_data.entity.ids[0],
-            )
-
     def populate_event_cache(self, session: sqlalchemy.orm.Session):
         try:
             self._try_populate_event_cache(session)

@@ -381,3 +381,6 @@ class SpecialApps:
 
 
 _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
+
+
+V3IO_MODEL_MONITORING_DB = "v3io"

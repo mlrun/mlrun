@@ -794,13 +794,10 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
-        # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
-        # it would override MLRun's wrapper
-        if sub_kind == "mlrun" and code.count("def handler(") > 1:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "The code file contains a function named “handler“, which is reserved. "
-                + "Use a different name for your function."
-            )
+        mlrun.utils.helpers.validate_single_def_handler(
+            function_kind=sub_kind, code=code
+        )
+
         runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
         # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
         runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""

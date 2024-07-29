@@ -550,7 +550,7 @@ class ModelEndpoints:
                 if not mlrun.mlconf.is_ce_mode():
                     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
                         project=project_name,
-                        tsdb_connection_string="v3io",
+                        tsdb_connection_string=mlrun.common.schemas.model_monitoring.V3IO_MODEL_MONITORING_DB,
                     )
                 else:
                     tsdb_connector = None
@@ -779,20 +779,19 @@ class ModelEndpoints:
             # TODO: delete in 1.9.0 - for BC trying to create default/v3io store
             store_connection_string = (
                 mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-                or "v3io"
-                if mlrun.mlconf.is_ce_mode()
+                or mlrun.common.schemas.model_monitoring.V3IO_MODEL_MONITORING_DB
+                if not mlrun.mlconf.is_ce_mode()
                 else None
             )
             logger.debug(
                 "Failed to create model endpoint store connector because store connection is not defined."
                 " Trying use default/v3io."
             )
+            model_endpoint_store = None
             if store_connection_string:
                 model_endpoint_store = mlrun.model_monitoring.get_store_object(
                     project=project, store_connection_string=store_connection_string
                 )
-            else:
-                model_endpoint_store = None
         return model_endpoint_store
 
     @staticmethod
@@ -828,4 +827,3 @@ class ModelEndpoints:
         model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
             kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
         )
-

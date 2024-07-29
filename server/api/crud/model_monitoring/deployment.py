@@ -1042,7 +1042,7 @@ class MonitoringDeployment:
             credentials_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             )
-            or "v3io"
+            or mm_constants.V3IO_MODEL_MONITORING_DB
             if not mlrun.mlconf.is_ce_mode()
             else None
         )  # in case the user use the default v3io
@@ -1080,7 +1080,9 @@ class MonitoringDeployment:
 
         if mm_enabled and None in credentials_dict.values():
             self.set_credentials(
-                _default_secrets_v3io="v3io" if not mlrun.mlconf.is_ce_mode() else None,
+                _default_secrets_v3io=mm_constants.V3IO_MODEL_MONITORING_DB
+                if not mlrun.mlconf.is_ce_mode()
+                else None,
                 replace_creds=True,
             )
         return mm_enabled
@@ -1209,11 +1211,14 @@ class MonitoringDeployment:
                 )  # TODO: Delete in 1.9.0
             )
         if stream_path or stream_path == "":
-            if stream_path == "v3io" and mlrun.mlconf.is_ce_mode():
+            if (
+                stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "In CE mode, only kafka stream are supported for stream path"
                 )
-            elif stream_path == "v3io":
+            elif stream_path == mm_constants.V3IO_MODEL_MONITORING_DB:
                 # TODO: Delete in 1.9.0 (for BC)
                 stream_path = ""
             elif stream_path:
@@ -1222,7 +1227,8 @@ class MonitoringDeployment:
                         "Custom kafka topic is not allowed"
                     )
                 elif not stream_path.startswith("kafka://") and (
-                    stream_path != "v3io" or stream_path != ""
+                    stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
+                    or stream_path != ""
                 ):
                     raise mlrun.errors.MLRunInvalidMMStoreType(
                         "Currently only Kafka connection is supported for non-v3io stream,"
@@ -1246,14 +1252,18 @@ class MonitoringDeployment:
                 or _default_secrets_v3io
             )
         if tsdb_connection:
-            if tsdb_connection != "v3io" and not tsdb_connection.startswith(
-                "taosws://"
+            if (
+                tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
+                and not tsdb_connection.startswith("taosws://")
             ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
                 )
-            elif tsdb_connection == "v3io" and mlrun.mlconf.is_ce_mode():
+            elif (
+                tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "In CE mode, only TDEngine websocket connection is supported for TSDB"
                 )
@@ -1293,7 +1303,7 @@ class MonitoringDeployment:
             stream_path=secrets_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             )
-            or "v3io"
+            or mm_constants.V3IO_MODEL_MONITORING_DB
             if not mlrun.mlconf.is_ce_mode()
             else None  # TODO: del in 1.9.0
         )
@@ -1331,7 +1341,9 @@ class MonitoringDeployment:
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
         old_stream = (
-            old_stream or "v3io" if not mlrun.mlconf.is_ce_mode() else None
+            old_stream or mm_constants.V3IO_MODEL_MONITORING_DB
+            if not mlrun.mlconf.is_ce_mode()
+            else None
         )  # TODO: del in 1.9.0
         if stream_path and old_stream != stream_path:
             logger.debug(

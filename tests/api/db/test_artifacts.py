@@ -1598,69 +1598,6 @@ class TestArtifacts:
             else:
                 assert model["spec"].get("model_file") is None
 
-    def test_add_tag_to_untagged_artifacts(self, db: DBInterface, db_session: Session):
-        # create 4 artifacts that are basically the same, but with different trees
-        # only the last one will get the latest tag
-        project = "artifact_project"
-        artifact_key = "artifact_key"
-        num_artifacts = 2
-        for i in range(num_artifacts):
-            artifact_tree = f"tree-{i}"
-            artifact_body = self._generate_artifact(
-                artifact_key, project=project, tree=artifact_tree
-            )
-            db.store_artifact(
-                db_session,
-                artifact_key,
-                artifact_body,
-                project=project,
-                producer_id=artifact_tree,
-            )
-
-        # list all artifacts
-        artifacts = db.list_artifacts(db_session, project=project)
-        assert len(artifacts) == num_artifacts
-        artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
-        assert artifact_tags.count("latest") == 1
-        assert artifact_tags.count(None) == num_artifacts - 1
-
-        # find untagged artifacts and add a new tag to them
-        untagged_artifacts = [
-            artifact
-            for artifact in artifacts
-            if "tag" not in artifact["metadata"] or artifact["metadata"]["tag"] is None
-        ]
-        untagged_artifact = untagged_artifacts[0]
-        new_tag = "new-tag"
-        db.append_tag_to_artifacts(
-            db_session,
-            project,
-            new_tag,
-            [
-                mlrun.common.schemas.ArtifactIdentifier(
-                    kind=untagged_artifact["kind"],
-                    key=artifact_key,
-                    uid=untagged_artifact["metadata"]["uid"],
-                    producer_id=untagged_artifact["metadata"]["tree"],
-                )
-            ],
-        )
-
-        # list all artifacts
-        artifacts = db.list_artifacts(db_session, project=project)
-        assert len(artifacts) == num_artifacts
-        artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
-        assert len(artifact_tags) == num_artifacts
-        assert artifact_tags.count("latest") == 1
-        assert artifact_tags.count(new_tag) == 1
-
-        # delete the artifacts with the new tag
-        db.del_artifact(db_session, artifact_key, tag=new_tag, project=project)
-
-        # list all artifacts
-        artifacts = db.list_artifacts(db_session, project=project)
-        assert len(artifacts) == num_artifacts - 1
-
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""
     ):

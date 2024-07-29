@@ -30,3 +30,5 @@ def resolve_nuclio_version():
             config.nuclio_version = nuclio_client.get_dashboard_version()
         except Exception as exc:
             logger.warning("Failed to resolve nuclio version", exc=err_to_str(exc))
+
+    return config.nuclio_version

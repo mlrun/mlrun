@@ -21,7 +21,6 @@ import mlrun.runtimes
 import server.api.utils.clients.nuclio
 import server.api.utils.runtimes.nuclio
 import server.api.utils.singletons.k8s
-from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -200,7 +199,7 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = config.nuclio_version
+        nuclio_version = server.api.utils.runtimes.nuclio.resolve_nuclio_version()
         parsed_current_version = semver.VersionInfo.parse(nuclio_version)
     except ValueError:
         logger.warning(

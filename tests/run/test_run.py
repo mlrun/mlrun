@@ -48,6 +48,10 @@ assets_path = str(pathlib.Path(__file__).parent / "assets")
 ERROR_MSG_INVALID_HANDLER_NAME = (
     "The name “handler“ is reserved. Use a different name for your function."
 )
+ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE = (
+    "The code file contains a function named “handler“, which is reserved. "
+    + "Use a different name for your function."
+)
 
 
 @contextlib.contextmanager
@@ -398,34 +402,14 @@ def test_code_to_function_invalid_handler_name_for_nuclio_mlrun_run_kind():
         )
 
 
-def test_nuclio_mlrun_invalid_handler_name():
-    function = mlrun.code_to_function(
-        filename=f"{assets_path}/fail.py",
-        name="nuclio-mlrun",
-        image="mlrun/mlrun",
-        kind="nuclio:mlrun",
-    )
-
+def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run_kind():
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match=ERROR_MSG_INVALID_HANDLER_NAME,
+        match=ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE,
     ):
-        function.run(handler="handler")
-
-
-def test_nuclio_mlrun_invalid_handler_signature():
-    def handler(context):
-        context.log_result("accuracy", 16)
-
-    function = mlrun.code_to_function(
-        filename=f"{assets_path}/fail.py",
-        name="nuclio-mlrun",
-        image="mlrun/mlrun",
-        kind="nuclio:mlrun",
-    )
-
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match=ERROR_MSG_INVALID_HANDLER_NAME,
-    ):
-        function.run(handler=handler)
+        mlrun.code_to_function(
+            filename=f"{assets_path}/fail.py",
+            name="nuclio-mlrun",
+            image="mlrun/mlrun",
+            kind="nuclio:mlrun",
+        )

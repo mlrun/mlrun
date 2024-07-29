@@ -718,7 +718,7 @@ with ctx:
                 job,
                 "spec.driver.nodeSelector",
                 mlrun.utils.helpers.to_non_empty_values_dict(
-                    mlrun.utils.helpers.merge_with_precedence(
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
                         config_node_selector,
                         project_node_selector,
                         runtime.spec.driver_node_selector,
@@ -729,7 +729,7 @@ with ctx:
                 job,
                 "spec.executor.nodeSelector",
                 mlrun.utils.helpers.to_non_empty_values_dict(
-                    mlrun.utils.helpers.merge_with_precedence(
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
                         config_node_selector,
                         project_node_selector,
                         runtime.spec.executor_node_selector,

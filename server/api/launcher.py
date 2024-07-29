@@ -235,10 +235,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     project_node_selector=project_node_selector,
                     config_node_selector=config_node_selector,
                 )
-                run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
-                    config_node_selector,
-                    project.spec.default_function_node_selector,
-                    runtime.spec.node_selector,
+                run.spec.node_selector = (
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
+                        config_node_selector,
+                        project.spec.default_function_node_selector,
+                        runtime.spec.node_selector,
+                    )
                 )
         return run
 

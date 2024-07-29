@@ -184,7 +184,7 @@ def make_kaniko_pod(
 
         if attribute == "node_selector":
             attr_value = mlrun.utils.to_non_empty_values_dict(
-                mlrun.utils.helpers.merge_with_precedence(
+                mlrun.utils.helpers.merge_dicts_with_precedence(
                     mlrun.mlconf.get_default_function_node_selector(),
                     project_default_fucntion_node_selector,
                     attr_value,

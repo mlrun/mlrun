@@ -409,7 +409,7 @@ def enrich_dask_cluster(
         project_node_selector=project.spec.default_function_node_selector,
         mlconf_node_selector=mlrun.mlconf.get_default_function_node_selector(),
     )
-    node_selector = mlrun.utils.helpers.merge_with_precedence(
+    node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
         mlrun.mlconf.get_default_function_node_selector(),
         project.spec.default_function_node_selector,
         function.spec.node_selector,

@@ -263,7 +263,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             ({}, {}, {}, {}),
             # Only common node selector provided
             ({"zone": "us-east"}, {}, {}, {}),
-            # # Only project node selector provided
+            # Only project node selector provided
             ({}, {"gpu": "false"}, {}, {"gpu": "false"}),
             # Only function node selector provided
             ({}, {}, {"test": "user"}, {"test": "user"}),

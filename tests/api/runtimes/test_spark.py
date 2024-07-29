@@ -470,17 +470,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._assert_merged_node_selectors(
             body,
-            mlrun.utils.helpers.merge_with_precedence(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
                 self.project_default_function_node_selector,
                 node_selector,
             ),
-            mlrun.utils.helpers.merge_with_precedence(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
                 self.project_default_function_node_selector,
                 driver_node_selector,
             ),
-            mlrun.utils.helpers.merge_with_precedence(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
                 self.project_default_function_node_selector,
                 executor_node_selector,

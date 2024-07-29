@@ -678,9 +678,10 @@ def _enrich_node_selector(function):
         logger.debug(
             "Enriching node selector from project and mlrun config",
             project_node_selector=project.spec.default_function_node_selector,
+            config_node_selector=config_node_selector,
         )
         return mlrun.utils.helpers.to_non_empty_values_dict(
-            mlrun.utils.helpers.merge_with_precedence(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
                 project.spec.default_function_node_selector,
                 function_node_selector,

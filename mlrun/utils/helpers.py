@@ -1620,7 +1620,7 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
-def merge_with_precedence(*dicts: dict) -> dict:
+def merge_dicts_with_precedence(*dicts: dict) -> dict:
     """
     Merge multiple dictionaries with precedence given to keys from later dictionaries.
 
@@ -1633,7 +1633,7 @@ def merge_with_precedence(*dicts: dict) -> dict:
         >>> first_dict = {"key1": "value1", "key2": "value2"}
         >>> second_dict = {"key2": "new_value2", "key3": "value3"}
         >>> third_dict = {"key3": "new_value3", "key4": "value4"}
-        >>> merge_with_precedence(first_dict, second_dict, third_dict)
+        >>> merge_dicts_with_precedence(first_dict, second_dict, third_dict)
         {'key1': 'value1', 'key2': 'new_value2', 'key3': 'new_value3', 'key4': 'value4'}
 
     - If no dictionaries are provided, the function returns an empty dictionary.

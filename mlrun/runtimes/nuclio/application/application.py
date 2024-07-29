@@ -368,7 +368,8 @@ class ApplicationRuntime(RemoteRuntime):
 
     def from_image(self, image):
         """
-        Deploy the function from an existing image
+        Deploy the function with an existing nuclio processor image.
+        This applies only for the reverse proxy and not the application image.
 
         :param image: image name
         """

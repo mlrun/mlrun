@@ -355,7 +355,8 @@ def _compile_function_config(
         or function.spec.build.functionSourceCode
         or function.spec.build.source
         or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
-    ) and not is_nuclio_image_set:
+        or is_nuclio_image_set
+    ):
         config = function.spec.base_spec
         if not config:
             # if base_spec was not set (when not using code_to_function) and we have base64 code
@@ -370,6 +371,7 @@ def _compile_function_config(
         if (
             function.kind == mlrun.runtimes.RuntimeKinds.serving
             and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
+            and not is_nuclio_image_set
         ):
             _set_source_code_and_handler(function, config)
     else:

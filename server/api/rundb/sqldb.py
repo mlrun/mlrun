@@ -878,11 +878,11 @@ class SQLRunDB(RunDBInterface):
 
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: Union[
             mlrun.common.schemas.APIGateway,
             mlrun.runtimes.nuclio.api_gateway.APIGateway,
         ],
+        project: Optional[str] = None,
     ):
         raise NotImplementedError()
 

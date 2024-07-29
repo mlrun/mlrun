@@ -1015,7 +1015,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object_uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1051,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object_uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
@@ -1686,7 +1686,7 @@ class HTTPRunDB(RunDBInterface):
             last_log_timestamp = float(
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
-            if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+            if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
                 mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
                     func, resp.headers
                 )

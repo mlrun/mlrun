@@ -78,7 +78,6 @@ class MLClientCtx:
         self._tmpfile = tmp
         self._logger = log_stream or logger
         self._log_level = "info"
-        self._matrics_db = None
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
@@ -103,8 +102,7 @@ class MLClientCtx:
         self._error = None
         self._commit = ""
         self._host = None
-        self._start_time = now_date()
-        self._last_update = now_date()
+        self._start_time = self._last_update = now_date()
         self._iteration_results = None
         self._children = []
         self._parent = None

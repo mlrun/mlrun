@@ -318,10 +318,8 @@ class TestArtifacts:
         self, db: DBInterface, db_session: Session
     ):
         project = "artifact_project"
-        artifact_1_key = "artifact_key_1"
-        artifact_1_tag = "v1"
-        artifact_2_key = "artifact_key_2"
-        artifact_2_tag = "v2"
+        artifact_1_key, artifact_1_tag = "artifact_key_1", "v1"
+        artifact_2_key, artifact_2_tag = "artifact_key_2", "v2"
         artifact_tree = "artifact_tree"
         artifact_1_body = self._generate_artifact(
             artifact_1_key,

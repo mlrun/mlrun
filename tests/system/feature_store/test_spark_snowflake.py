@@ -259,7 +259,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         with pytest.raises(
             error_type,
-            match="timestamp_key is missing from dataframe during ingestion:",
+            match="timestamp_key is missing from dataframe during ingestion.",
         ):
             timestamp_key_feature_store.ingest(
                 source,
@@ -270,7 +270,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         with pytest.raises(
             error_type,
-            match="There are missing entities from dataframe during ingestion:",
+            match="There are missing entities from dataframe during ingestion.",
         ):
             entity_feature_store.ingest(
                 source,
@@ -281,7 +281,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         with pytest.raises(
             error_type,
-            match="label_column is missing from dataframe during ingestion:",
+            match="label_column is missing from dataframe during ingestion.",
         ):
             label_feature_store.ingest(
                 source,

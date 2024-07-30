@@ -23,7 +23,7 @@ import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
 from mlrun.errors import MLRunIncompatibleVersionError
 
-SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.32")
 
 
 def _check_evidently_version(*, cur: semver.Version, ref: semver.Version) -> None:
@@ -57,12 +57,11 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.renderers.notebook_utils import determine_template
     from evidently.report.report import Report
     from evidently.suite.base_suite import Suite
     from evidently.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
-    from evidently.utils.dashboard import TemplateParams
+    from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
 class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplicationBase):
@@ -123,7 +122,7 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
             additional_graphs={},
         )
 
-        dashboard_html = self._render(determine_template("inline"), template_params)
+        dashboard_html = self._render(file_html_template, template_params)
         self.context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
@@ -201,7 +200,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
             additional_graphs={},
         )
 
-        dashboard_html = self._render(determine_template("inline"), template_params)
+        dashboard_html = self._render(file_html_template, template_params)
         monitoring_context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )

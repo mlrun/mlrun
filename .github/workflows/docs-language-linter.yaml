@@ -35,6 +35,7 @@ jobs:
     name: Lint docs
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Lint
         run: SKIP_VALE_CHECK=true make lint-docs
 

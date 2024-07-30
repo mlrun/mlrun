@@ -64,6 +64,7 @@ class LangChainModelServer(V2ModelServer):
         :param generation_kwargs: The generation arguments to use while generating text.
         :param name:              The name of this server to be initialized.
         :param model_path:        Not in use. When adding a model pass any string value
+                #TODO support loading a chain as pickle, then path is to pickle file or artifact
         """
         super().__init__(name=name, context=context, model_path=model_path)
         self.llm = llm

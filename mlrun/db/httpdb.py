@@ -1008,7 +1008,6 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or mlrun.mlconf.default_project
-        tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
         params = {

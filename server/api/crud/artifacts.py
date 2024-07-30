@@ -118,7 +118,7 @@ class Artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
         key: str,
-        tag: str = "latest",
+        tag: str = None,
         iter: int = None,
         project: str = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,

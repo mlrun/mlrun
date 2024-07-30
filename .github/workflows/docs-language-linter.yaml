@@ -36,5 +36,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Lint
-        run: SKIP_VALE_CHECK=true make lint-doc
+        run: SKIP_VALE_CHECK=true make lint-docs
 

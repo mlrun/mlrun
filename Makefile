@@ -649,6 +649,11 @@ fmt-go:
 	cd server/log-collector && \
 		make fmt
 
+.PHONY: vale-docs
+vale-docs: ## Run vale check for docs and sorts ignore.txt file
+	vale docs
+	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
+
 .PHONY: release
 release: ## Release a version
 ifndef MLRUN_VERSION

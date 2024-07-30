@@ -114,6 +114,10 @@ class Projects(
                 session, name
             ):
                 return
+            # although we verify the project is empty before spawning the delete project background task, we still
+            # need to verify it here, if someone used this method directly with the restricted strategy.
+            # if the flow arrived here via the delete project background task, the project is already verified to be
+            # empty and the strategy was switched to 'cascading' so we won't arrive at this decision tree.
             self.verify_project_is_empty(session, name, auth_info)
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return

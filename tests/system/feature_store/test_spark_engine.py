@@ -1758,6 +1758,40 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fstore.RunConfig(local=self.run_local),
             )
 
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            label_column="bad",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop label_column: bad$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["timestamp"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop timestamp_key: timestamp$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
         base_path = self.get_test_output_subdir_path()

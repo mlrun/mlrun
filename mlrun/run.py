@@ -751,7 +751,6 @@ def code_to_function(
         filename, handler = ApplicationRuntime.get_filename_and_handler()
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
-
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = nuclio.build_file(

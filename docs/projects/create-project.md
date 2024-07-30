@@ -284,5 +284,5 @@ project.run("main", arguments={"data": data_url})  # run the workflow "main"
 
 See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project` 
 also deletes the project's objects (artifact metadata, runs, etc.), 
-but not the artifact data. (When deleting a project that has resources, you must use `deletion_strategy=cascade`, which deletes the objects.)
+but not the artifact data. (When deleting a project that has resources, you must use `deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade`, which deletes the objects.)
 After you delete a project, the only way to delete its artifact files is by browsing the storage where they are located and deleting the files. 

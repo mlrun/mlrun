@@ -45,6 +45,11 @@ s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
+ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE = (
+    "The code file contains a function named “handler“, which is reserved. "
+    + "Use a different name for your function."
+)
+
 
 @contextlib.contextmanager
 def captured_output():
@@ -378,3 +383,16 @@ def test_verify_tag_in_output_for_relogged_artifact(setup_project):
 
     assert "v3" in output_uri, "Expected 'v3' tag in output_uri"
     assert "v3" in outputs_uri, "Expected 'v3' tag in outputs_uri"
+
+
+def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run_kind():
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE,
+    ):
+        mlrun.code_to_function(
+            filename=f"{assets_path}/fail.py",
+            name="nuclio-mlrun",
+            image="mlrun/mlrun",
+            kind="nuclio:mlrun",
+        )

@@ -259,7 +259,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         with pytest.raises(
             error_type,
-            match="Snowflake supports timestamp_key as uppercase only during ingestion",
+            match="timestamp_key is missing from df_to_write during ingestion:",
         ):
             timestamp_key_feature_store.ingest(
                 source,
@@ -270,7 +270,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         with pytest.raises(
             error_type,
-            match="Snowflake supports entity as uppercase only during ingestion",
+            match="There are missing entities from df_to_write during ingestion:",
         ):
             entity_feature_store.ingest(
                 source,
@@ -281,7 +281,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         with pytest.raises(
             error_type,
-            match="Snowflake supports label_column as uppercase only during ingestion",
+            match="label_column is missing from df_to_write during ingestion:",
         ):
             label_feature_store.ingest(
                 source,

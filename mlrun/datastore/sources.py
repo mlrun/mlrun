@@ -31,7 +31,6 @@ import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.datastore.utils import transform_list_filters_to_tuple
-from mlrun.features import Entity
 from mlrun.secrets import SecretsStore
 
 from ..model import DataSource
@@ -821,36 +820,6 @@ class SnowflakeSource(BaseSourceDriver):
             end_time=end_time,
             **kwargs,
         )
-
-    @classmethod
-    def check_upper_case(
-        cls, timestamp_key: str, entities: list[Union[Entity, str]], label_column: str
-    ):
-        if timestamp_key:
-            if not timestamp_key.isupper():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Snowflake supports timestamp_key as uppercase only during ingestion."
-                    f" timestamp_key: {timestamp_key}"
-                )
-        entity_error = (
-            "Snowflake supports entity as uppercase only during ingestion. entity:"
-        )
-        for entity in entities:
-            if isinstance(entity, str) and not entity.isupper():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    entity_error + f" {entity}"
-                )
-            elif isinstance(entity, Entity) and not entity.name.isupper():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    entity_error + f" {entity.name}"
-                )
-            raise mlrun.errors.MLRunInvalidArgumentError()
-
-        if label_column:
-            if not label_column.isupper():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Snowflake supports label_column as uppercase only during ingestion. label_column: {label_column}"
-                )
 
     def get_spark_options(self):
         spark_options = get_snowflake_spark_options(self.attributes)

@@ -752,8 +752,6 @@ def code_to_function(
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
 
-    mlrun.utils.helpers.validate_handler_name(function_kind=sub_kind, handler=handler)
-
     code_origin = add_name(add_code_metadata(filename), name)
 
     name, spec, code = nuclio.build_file(

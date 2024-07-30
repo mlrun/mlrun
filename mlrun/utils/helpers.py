@@ -1705,15 +1705,6 @@ def is_parquet_file(file_path, format_=None):
     )
 
 
-def validate_handler_name(function_kind: str, handler: str):
-    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
-    # it would override MLRun's wrapper
-    if function_kind == "mlrun" and handler == "handler":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "The name “handler“ is reserved. Use a different name for your function."
-        )
-
-
 def validate_single_def_handler(function_kind: str, code: str):
     # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
     # it would override MLRun's wrapper

@@ -248,10 +248,6 @@ class BaseLauncher(abc.ABC):
         # for other runtimes we need to convert the handler to a string
         if run.spec.handler and runtime.kind not in ["handler", "dask"]:
             run.spec.handler = run.spec.handler_name
-            function_kind = getattr(runtime.spec, "function_kind", None)
-            mlrun.utils.helpers.validate_handler_name(
-                function_kind=function_kind, handler=run.spec.handler
-            )
 
         def_name = runtime.metadata.name
         if run.spec.handler_name:

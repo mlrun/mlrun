@@ -1078,6 +1078,12 @@ def dummy_handler():
         pass
     handler()
 """,
+        """
+# def handler():
+#     pass
+def handler():
+    pass
+""",
     ],
 )
 def test_validate_single_def_handler_valid_handler(code):

@@ -1015,7 +1015,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1051,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }

@@ -622,7 +622,10 @@ fmt: ## Format the code using Ruff and blacken-docs
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
 	@echo "Checking the code blocks with blacken-docs"
-	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
+	    make vale-docs; \
+	fi
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -630,7 +633,7 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports lint-docs ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

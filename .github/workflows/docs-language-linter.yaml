@@ -31,3 +31,10 @@ jobs:
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-check
+  lint:
+    name: Lint docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint
+        run: SKIP_VALE_CHECK=true make lint-doc
+

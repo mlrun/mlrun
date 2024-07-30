@@ -663,8 +663,8 @@ class SQLDB(DBInterface):
         project=None,
         tag=None,
         labels=None,
-        since=None,
-        until=None,
+        since: datetime = None,
+        until: datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -991,6 +991,15 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
+        if not artifacts_keys:
+            logger.debug(
+                "No artifacts to tag",
+                project=project,
+                tag=tag_name,
+                artifacts=artifacts,
+            )
+            return
+
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,
@@ -1698,7 +1707,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project
@@ -2555,7 +2564,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str = None,
         project_id: int = None,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -4680,7 +4689,7 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = mlrun.common.schemas.Project(
@@ -4698,9 +4707,9 @@ class SQLDB(DBInterface):
                 ),
             )
             self.store_project(session, project_record.name, project)
-            return project
+            return mlrun.common.schemas.ProjectOut(**project.dict())
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return mlrun.common.schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(
         self,
@@ -5202,6 +5211,11 @@ class SQLDB(DBInterface):
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
         return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
+        state = self.get_alert_state(session, alert_id)
+        if state is not None:
+            return state.to_dict()
 
     def delete_alert_notifications(
         self,

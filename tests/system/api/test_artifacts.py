@@ -91,3 +91,38 @@ class TestAPIArtifacts(TestMLRunSystem):
         assert "v2" in outputs_uri, "Expected 'v2' tag in outputs_uri"
 
         mlrun.get_dataitem(output_uri)
+
+    def test_get_artifact_without_tag(self):
+        # Check the user flow of storing the same artifact twice without a tag and retrieving the artifact
+        key = "dummy-key"
+        self.project.log_artifact(key, body="123")
+        self.project.log_artifact(key, body="123")
+
+        artifacts = self.project.list_artifacts()
+        assert len(artifacts) == 2
+
+        non_latest_artifacts = [
+            artifact
+            for artifact in artifacts
+            if artifact["metadata"].get("tag") != "latest"
+        ]
+        assert (
+            len(non_latest_artifacts) == 1
+        ), "There should be exactly 1 non-latest artifact"
+
+        artifact = non_latest_artifacts[0]
+        key = artifact["metadata"]["key"]
+        tree = artifact["metadata"]["tree"]
+        iter = artifact["metadata"]["iter"]
+
+        retrieved_artifact = self.project.get_artifact(key, tree=tree, iter=iter)
+        assert (
+            retrieved_artifact is not None
+        ), "Artifact should be retrieved successfully"
+
+        uri = self.project.get_artifact_uri(key, iter=iter)
+        uri = uri + f"@{tree}"
+        store_resource = self.project.get_store_resource(uri)
+        assert (
+            store_resource is not None
+        ), "Store resource should be retrieved successfully"

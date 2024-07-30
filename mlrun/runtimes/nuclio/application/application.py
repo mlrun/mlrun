@@ -367,12 +367,21 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
     def from_image(self, image):
+        """
+        Deploy the function with an existing nuclio processor image.
+        This applies only for the reverse proxy and not the application image.
+
+        :param image: image name
+        """
         super().from_image(image)
         # nuclio implementation detail - when providing the image and emptying out the source code and build source,
         # nuclio skips rebuilding the image and simply takes the prebuilt image
         self.spec.build.functionSourceCode = ""
         self.status.application_source = self.spec.build.source
         self.spec.build.source = ""
+
+        # save the image in the status, so we won't repopulate the function source code
+        self.status.container_image = image
 
     @classmethod
     def get_filename_and_handler(cls) -> (str, str):

@@ -51,13 +51,13 @@ def check_special_columns_exists(
     missing_entities = [entity for entity in entities if entity not in columns]
     if missing_entities:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"There are missing entities from df_to_write during ingestion: {missing_entities}"
+            f"There are missing entities from dataframe during ingestion: {missing_entities}"
         )
     if timestamp_key and timestamp_key not in columns:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"timestamp_key is missing from df_to_write during ingestion: {timestamp_key}"
+            f"timestamp_key is missing from dataframe during ingestion: {timestamp_key}"
         )
     if label_column and label_column not in columns:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"label_column is missing from df_to_write during ingestion: {label_column}"
+            f"label_column is missing from dataframe during ingestion: {label_column}"
         )

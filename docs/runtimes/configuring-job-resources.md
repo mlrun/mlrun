@@ -217,7 +217,7 @@ Preemption mode has these values:
 - none: No preemptible configuration is applied to the function
 
 To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environmental variable to either one of the above modes).
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
 
 ### SDK configuration
 

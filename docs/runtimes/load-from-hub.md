@@ -129,7 +129,7 @@ Partial list of parameters:
 
 - **func** &mdash; function object or spec/code url.
 - **name** &mdash; name of the function (under the project).
-- **kind** &mdash; runtime kind e.g. job, Nuclio, Spark, dask, mpijob. Default: job.
+- **kind** &mdash; runtime kind e.g. `job`, `nuclio`, `spark`, `dask`, `mpijob`. Default: `job`.
 - **image** &mdash; docker image to be used, can also be specified in the function object/yaml.
 - **with_repo** &mdash; add (clone) the current repo to the build source.
 

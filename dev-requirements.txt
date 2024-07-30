@@ -7,6 +7,7 @@ ruff==0.5.0
 import-linter~=2.0
 blacken-docs~=1.18
 black~=24.4  # only used by by blacken-docs
+vale~=3.7.0
 
 # testing
 pytest~=8.2

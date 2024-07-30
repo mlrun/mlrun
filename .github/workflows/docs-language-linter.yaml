@@ -19,6 +19,8 @@ on:
       - "docs/**"
       - '**.md'
       - ".github/workflows/docs-language-linter.yaml"
+      - ".vale.ini"
+      - ".github/styles/**"
 
 jobs:
   vale:

@@ -15,6 +15,12 @@ The configuration is at: `docs/conf.py`.
 
 To build the doc, run `make html-docs`, then open `docs/_build/html/index.html`
 
+### Documentation linter
+
+In order to check that documentation doesn't contain any typos and correctly formatted run `make lint-docs`.
+This command runs `vale` and `blacken-docs`.
+Configuration file for `vale` can be found in `.vale.ini` file.
+
 ## "External" Documentation
 In order to avoid duplication, the `setup` function in `docs/conf.py` copies
 over some markdown files into `docs/external/`. It also generates HTML from a

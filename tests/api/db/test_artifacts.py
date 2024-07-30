@@ -193,8 +193,8 @@ class TestArtifacts:
             db_session, category=mlrun.common.schemas.ArtifactCategories.other
         )
         assert len(artifacts) == 2
-        assert artifacts[0]["metadata"]["key"] == artifact_name_1
-        assert artifacts[1]["metadata"]["key"] == artifact_name_2
+        assert artifacts[1]["metadata"]["key"] == artifact_name_1
+        assert artifacts[0]["metadata"]["key"] == artifact_name_2
 
     def test_list_artifact_label_filter(self, db: DBInterface, db_session: Session):
         total_artifacts = 5

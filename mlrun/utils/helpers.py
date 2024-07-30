@@ -111,13 +111,11 @@ def get_artifact_target(item: dict, project=None):
     tree = item["metadata"].get("tree")
     tag = item["metadata"].get("tag")
 
-    kind = item.get("kind")
-    if kind in ["dataset", "model", "artifact"] and db_key:
+    if item.get("kind") in {"dataset", "model", "artifact"} and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
-        if tag:
-            target = f"{target}:{tag}"
+        target += f":{tag}" if tag else ":latest"
         if tree:
-            target = f"{target}@{tree}"
+            target += f"@{tree}"
         return target
 
     return item["spec"].get("target_path")
@@ -1705,6 +1703,22 @@ def is_parquet_file(file_path, format_=None):
     return (file_path and file_path.endswith((".parquet", ".pq"))) or (
         format_ == "parquet"
     )
+
+
+def validate_single_def_handler(function_kind: str, code: str):
+    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+    # it would override MLRun's wrapper
+    if function_kind == "mlrun":
+        # Find all lines that start with "def handler("
+        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        matches = pattern.findall(code)
+
+        # Only MLRun's wrapper handler (footer) can be in the code
+        if len(matches) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The code file contains a function named “handler“, which is reserved. "
+                + "Use a different name for your function."
+            )
 
 
 def _reload(module, max_recursion_depth):

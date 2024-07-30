@@ -100,10 +100,42 @@ class ProjectSpec(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
+class ProjectSpecOut(pydantic.BaseModel):
+    description: typing.Optional[str] = None
+    owner: typing.Optional[str] = None
+    goals: typing.Optional[str] = None
+    params: typing.Optional[dict] = {}
+    functions: typing.Optional[list] = []
+    workflows: typing.Optional[list] = []
+    artifacts: typing.Optional[list] = []
+    artifact_path: typing.Optional[str] = None
+    conda: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    subpath: typing.Optional[str] = None
+    origin_url: typing.Optional[str] = None
+    desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
+    custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
+    default_image: typing.Optional[str] = None
+    build: typing.Any = None
+    default_function_node_selector: typing.Optional[dict] = {}
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
 class Project(pydantic.BaseModel):
     kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
+    status: ObjectStatus = ObjectStatus()
+
+
+# The reason we have a different schema for the response model is that we don't want to validate project.spec.build in
+# the response as the validation was added late and there may be corrupted values in the DB.
+class ProjectOut(pydantic.BaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.project, const=True)
+    metadata: ProjectMetadata
+    spec: ProjectSpecOut = ProjectSpecOut()
     status: ObjectStatus = ObjectStatus()
 
 
@@ -134,16 +166,16 @@ class IguazioProject(pydantic.BaseModel):
 
 
 # The format query param controls the project type used:
-# full - Project
+# full - ProjectOut
 # name_only - str
 # summary - ProjectSummary
 # leader - currently only IguazioProject supported
 # The way pydantic handles typing.Union is that it takes the object and tries to coerce it to be the types of the
-# union by the definition order. Therefore we can't currently add generic dict for all leader formats, but we need
+# union by the definition order. Therefore, we can't currently add generic dict for all leader formats, but we need
 # to add a specific classes for them. it's frustrating but couldn't find other workaround, see:
 # https://github.com/samuelcolvin/pydantic/issues/1423, https://github.com/samuelcolvin/pydantic/issues/619
 ProjectOutput = typing.TypeVar(
-    "ProjectOutput", Project, str, ProjectSummary, IguazioProject
+    "ProjectOutput", ProjectOut, str, ProjectSummary, IguazioProject
 )
 
 

@@ -325,12 +325,12 @@ class ServingRuntime(RemoteRuntime):
         :param enable_tracking:     Enabled/Disable model-monitoring tracking.
                                     Default True (tracking enabled).
 
-                                example::
+        Example::
 
-                                    # initialize a new serving function
-                                    serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
-                                    # apply model monitoring
-                                    serving_fn.set_tracking()
+            # initialize a new serving function
+            serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+            # apply model monitoring
+            serving_fn.set_tracking()
 
         """
         # Applying model monitoring configurations

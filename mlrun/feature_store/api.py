@@ -1081,6 +1081,12 @@ def _ingest_with_spark(
                 target = get_target_driver(target, featureset)
             target.set_resource(featureset)
             if featureset.spec.passthrough and target.is_offline:
+                check_special_columns_exists(
+                    spark_df=df,
+                    entities=featureset.spec.entities,
+                    timestamp_key=timestamp_key,
+                    label_column=featureset.spec.label_column,
+                )
                 continue
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite

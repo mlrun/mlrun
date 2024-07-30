@@ -314,6 +314,63 @@ class TestArtifacts:
             else:
                 assert artifact["spec"]["something"] == "same"
 
+    def test_list_artifact_tags_with_category(
+        self, db: DBInterface, db_session: Session
+    ):
+        project = "artifact_project"
+        artifact_1_key = "artifact_key_1"
+        artifact_1_tag = "v1"
+        artifact_2_key = "artifact_key_2"
+        artifact_2_tag = "v2"
+        artifact_tree = "artifact_tree"
+        artifact_1_body = self._generate_artifact(
+            artifact_1_key,
+            tree=artifact_tree,
+            project=project,
+            kind=mlrun.common.schemas.ArtifactCategories.dataset,
+            tag=artifact_1_tag,
+        )
+        artifact_2_body = self._generate_artifact(
+            artifact_2_key,
+            tree=artifact_tree,
+            project=project,
+            kind=mlrun.common.schemas.ArtifactCategories.dataset.model,
+            tag=artifact_2_tag,
+        )
+
+        db.store_artifact(
+            db_session,
+            artifact_1_key,
+            artifact_1_body,
+            project=project,
+            tag=artifact_1_tag,
+        )
+        db.store_artifact(
+            db_session,
+            artifact_2_key,
+            artifact_2_body,
+            project=project,
+            tag=artifact_2_tag,
+        )
+
+        artifact_tags = db.list_artifact_tags(db_session, project)
+        # latest, v1, v2
+        assert len(artifact_tags) == 3
+        artifact_tags = db.list_artifact_tags(
+            db_session,
+            project,
+            category=mlrun.common.schemas.ArtifactCategories.dataset,
+        )
+        assert len(artifact_tags) == 2
+        assert artifact_1_tag in artifact_tags
+        assert "latest" in artifact_tags
+        artifact_tags = db.list_artifact_tags(
+            db_session, project, category=mlrun.common.schemas.ArtifactCategories.model
+        )
+        assert len(artifact_tags) == 2
+        assert artifact_2_tag in artifact_tags
+        assert "latest" in artifact_tags
+
     def test_store_artifact_restoring_multiple_tags(
         self, db: DBInterface, db_session: Session
     ):
@@ -1621,7 +1678,13 @@ class TestArtifacts:
 
     @staticmethod
     def _generate_artifact(
-        key, uid=None, kind="artifact", tree=None, project=None, labels=None
+        key,
+        uid=None,
+        kind="artifact",
+        tree=None,
+        project=None,
+        labels=None,
+        tag=None,
     ):
         artifact = {
             "metadata": {"key": key},
@@ -1639,6 +1702,8 @@ class TestArtifacts:
             artifact["metadata"]["project"] = project
         if labels:
             artifact["metadata"]["labels"] = labels
+        if tag:
+            artifact["metadata"]["tag"] = tag
 
         return artifact
 

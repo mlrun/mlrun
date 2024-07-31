@@ -128,7 +128,7 @@ async def enable_model_monitoring(
     )
 
 
-@router.post("/model-monitoring-controller")
+@router.patch("/model-monitoring-controller")
 async def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,

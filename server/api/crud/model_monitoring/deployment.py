@@ -260,15 +260,14 @@ class MonitoringDeployment:
         self, function: mlrun.runtimes.ServingRuntime, function_name: str
     ) -> mlrun.runtimes.ServingRuntime:
         """
-        Add stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
-        with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema
-        that is defined by `project.set_model_monitoring_credentials(..., stream_path="...")`.
-        Note that if no valid stream path has been provided then the function will have a single HTTP stream source.
+        Add stream source for the nuclio serving function. The function's stream trigger can be either Kafka or V3IO,
+        depends on the stream path schema that is defined by
+        `project.set_model_monitoring_credentials(..., stream_path="...")`.
 
-        :param function:                    The serving function object that will be applied with the stream trigger.
-        :param function_name:               The name of the function that be applied with the stream trigger.
+        :param function:      The serving function object that will be applied with the stream trigger.
+        :param function_name: The name of the function that be applied with the stream trigger.
 
-        :return: ServingRuntime object with stream trigger.
+        :return: `ServingRuntime` object with stream trigger.
         """
 
         # Get the stream path from the configuration
@@ -317,9 +316,8 @@ class MonitoringDeployment:
                 function = self._apply_access_key_and_mount_function(
                     function=function, function_name=function_name
                 )
-        # Add the default HTTP source
-        http_source = mlrun.datastore.sources.HttpSource()
-        function = http_source.add_nuclio_trigger(function)
+
+        function.spec.disable_default_http_trigger = True
 
         return function
 

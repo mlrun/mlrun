@@ -707,12 +707,8 @@ with ctx:
         project_node_selector = {}
         config_node_selector = mlrun.mlconf.get_default_function_node_selector()
         if project_name:
-            project = runtime._get_db().get_project(project_name)
-            project_node_selector = (
-                project.spec.default_function_node_selector
-                if project
-                else project_node_selector
-            )
+            if project := runtime._get_db().get_project(project_name):
+                project_node_selector = project.spec.default_function_node_selector
         if project_node_selector or config_node_selector:
             update_in(
                 job,

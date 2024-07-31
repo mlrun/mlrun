@@ -168,33 +168,14 @@ def make_kaniko_pod(
         registry = dest.partition("/")[0]
 
     # set kaniko's spec attributes from the runtime spec
-    for attribute in get_kaniko_spec_attributes_from_runtime():
+    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
+        project,
+        runtime_spec,
+        project_default_fucntion_node_selector,
+    ).items():
         attr_value = getattr(runtime_spec, attribute, None)
-        if attribute == "service_account":
-            from server.api.api.utils import resolve_project_default_service_account
-
-            (
-                allowed_service_accounts,
-                default_service_account,
-            ) = resolve_project_default_service_account(project)
-            if attr_value:
-                runtime_spec.validate_service_account(allowed_service_accounts)
-            else:
-                attr_value = default_service_account
-
-        if attribute == "node_selector":
-            attr_value = mlrun.utils.to_non_empty_values_dict(
-                mlrun.utils.helpers.merge_dicts_with_precedence(
-                    mlrun.mlconf.get_default_function_node_selector(),
-                    project_default_fucntion_node_selector,
-                    attr_value,
-                )
-            )
-
-        if not attr_value:
-            continue
-
-        extra_runtime_spec[attribute] = attr_value
+        if attr_value:
+            extra_runtime_spec[attribute] = handler(attr_value)
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -576,16 +557,44 @@ def build_image(
         return f"build:{pod}"
 
 
-def get_kaniko_spec_attributes_from_runtime():
+def get_kaniko_spec_attributes_from_runtime(
+    project, runtime_spec, project_default_fucntion_node_selector
+):
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
-    return [
-        "node_name",
-        "node_selector",
-        "affinity",
-        "tolerations",
-        "priority_class_name",
-        "service_account",
-    ]
+
+    def handle_service_account(attr_value):
+        from server.api.api.utils import resolve_project_default_service_account
+        (
+            allowed_service_accounts,
+            default_service_account,
+        ) = resolve_project_default_service_account(project)
+        if attr_value:
+            runtime_spec.validate_service_account(allowed_service_accounts)
+        else:
+            attr_value = default_service_account
+        return attr_value
+
+    def handle_node_selector(attr_value):
+        attr_value = mlrun.utils.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
+                project_default_fucntion_node_selector,
+                attr_value,
+            )
+        )
+        return attr_value
+
+    def default_handler(attr_value):
+        return attr_value
+
+    return {
+        "node_name": default_handler,
+        "node_selector": handle_node_selector,
+        "affinity": default_handler,
+        "tolerations": default_handler,
+        "priority_class_name": default_handler,
+        "service_account": handle_service_account,
+    }
 
 
 def resolve_mlrun_install_command_version(

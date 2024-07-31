@@ -682,7 +682,7 @@ def _enrich_node_selector(function):
         )
         return mlrun.utils.helpers.to_non_empty_values_dict(
             mlrun.utils.helpers.merge_dicts_with_precedence(
-                mlrun.mlconf.get_default_function_node_selector(),
+                config_node_selector,
                 project.spec.default_function_node_selector,
                 function_node_selector,
             )

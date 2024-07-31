@@ -326,6 +326,11 @@ class APIGatewaySpec(ModelObj):
         return function_names
 
 
+class APIGatewayStatus(ModelObj):
+    def __init__(self, state: Optional[schemas.APIGatewayState] = None):
+        self.state = state or schemas.APIGatewayState.none
+
+
 class APIGateway(ModelObj):
     _dict_fields = [
         "metadata",
@@ -338,16 +343,18 @@ class APIGateway(ModelObj):
         self,
         metadata: APIGatewayMetadata,
         spec: APIGatewaySpec,
+        status: Optional[APIGatewayStatus] = None,
     ):
         """
         Initialize the APIGateway instance.
 
         :param metadata: (APIGatewayMetadata) The metadata of the API gateway.
         :param spec: (APIGatewaySpec) The spec of the API gateway.
+        :param status: (APIGatewayStatus) The status of the API gateway.
         """
         self.metadata = metadata
         self.spec = spec
-        self.state = ""
+        self.status = status
 
     @property
     def metadata(self) -> APIGatewayMetadata:
@@ -364,6 +371,14 @@ class APIGateway(ModelObj):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", APIGatewaySpec)
+
+    @property
+    def status(self) -> APIGatewayStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, "status", APIGatewayStatus)
 
     def invoke(
         self,
@@ -394,7 +409,7 @@ class APIGateway(ModelObj):
                 )
         if not self.is_ready():
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"API gateway is not ready. " f"Current state: {self.state}"
+                f"API gateway is not ready. " f"Current state: {self.status.state}"
             )
 
         auth = None
@@ -459,10 +474,10 @@ class APIGateway(ModelObj):
         )
 
     def is_ready(self):
-        if self.state is not schemas.api_gateway.APIGatewayState.ready:
+        if self.status.state is not schemas.api_gateway.APIGatewayState.ready:
             # try to sync the state
             self.sync()
-        return self.state == schemas.api_gateway.APIGatewayState.ready
+        return self.status.state == schemas.api_gateway.APIGatewayState.ready
 
     def sync(self):
         """
@@ -479,7 +494,7 @@ class APIGateway(ModelObj):
         self.spec.functions = synced_gateway.spec.functions
         self.spec.canary = synced_gateway.spec.canary
         self.spec.description = synced_gateway.spec.description
-        self.state = synced_gateway.state
+        self.status.state = synced_gateway.status.state
 
     def with_basic_auth(self, username: str, password: str):
         """
@@ -546,6 +561,14 @@ class APIGateway(ModelObj):
             project=self.spec.project, functions=self.spec.functions, ports=ports
         )
 
+    def with_force_ssl_redirect(self):
+        """
+        Set SSL redirect annotation for the API gateway.
+        """
+        self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
+            "true"
+        )
+
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(
@@ -560,6 +583,8 @@ class APIGateway(ModelObj):
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
                 name=api_gateway.spec.name,
+                annotations=api_gateway.metadata.annotations,
+                labels=api_gateway.metadata.labels,
             ),
             spec=APIGatewaySpec(
                 project=project,
@@ -570,8 +595,8 @@ class APIGateway(ModelObj):
                 functions=functions,
                 canary=canary,
             ),
+            status=APIGatewayStatus(state=state),
         )
-        new_api_gateway.state = state
         return new_api_gateway
 
     def to_scheme(self) -> schemas.APIGateway:
@@ -600,7 +625,11 @@ class APIGateway(ModelObj):
                 upstreams[i].port = port
 
         api_gateway = schemas.APIGateway(
-            metadata=schemas.APIGatewayMetadata(name=self.metadata.name, labels={}),
+            metadata=schemas.APIGatewayMetadata(
+                name=self.metadata.name,
+                labels=self.metadata.labels,
+                annotations=self.metadata.annotations,
+            ),
             spec=schemas.APIGatewaySpec(
                 name=self.metadata.name,
                 description=self.spec.description,
@@ -611,6 +640,7 @@ class APIGateway(ModelObj):
                 ),
                 upstreams=upstreams,
             ),
+            status=schemas.APIGatewayStatus(state=self.status.state),
         )
         api_gateway.spec.authentication = self.spec.authentication.to_scheme()
         return api_gateway

@@ -35,6 +35,8 @@ class TestMLRunSystem:
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
     enterprise_marker_name = "enterprise"
+    model_monitoring_marker_name = "model_monitoring"
+    model_monitoring_marker = False
     mandatory_env_vars = [
         "MLRUN_DBPATH",
     ]
@@ -46,6 +48,13 @@ class TestMLRunSystem:
         "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
+
+    model_monitoring_mandatory_env_vars = [
+        "MLRUN_MODEL_ENDPOINT_MONITORING__ENDPOINT_STORE_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION",
+        "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION",
+    ]
+
     enterprise_configured = os.getenv("V3IO_API")
 
     _logger = logger
@@ -159,6 +168,8 @@ class TestMLRunSystem:
             if cls._has_marker(test, cls.enterprise_marker_name)
             else cls.mandatory_env_vars
         )
+        if cls._has_marker(test, cls.model_monitoring_marker_name):
+            mandatory_env_vars += cls.model_monitoring_mandatory_env_vars
         configured = True
         try:
             env = cls._get_env_from_file()
@@ -309,11 +320,17 @@ class TestMLRunSystem:
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
-        assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf@{uid}"
-        assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model@{uid}"
+        assert (
+            run_outputs["mydf"]
+            == f"store://artifacts/{project}/{name}_mydf:latest@{uid}"
+        )
+        assert (
+            run_outputs["model"]
+            == f"store://artifacts/{project}/{name}_model:latest@{uid}"
+        )
         assert (
             run_outputs["html_result"]
-            == f"store://artifacts/{project}/{name}_html_result@{uid}"
+            == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
         )
         if accuracy:
             assert run_outputs["accuracy"] == accuracy

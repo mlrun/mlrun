@@ -14,6 +14,7 @@
 #
 from sqlalchemy.orm import Session
 
+import mlrun.utils.helpers
 from mlrun.common.db.sql_session import create_session as sqldb_create_session
 
 
@@ -37,3 +38,17 @@ def run_function_with_new_db_session(func, *args, **kwargs):
         return result
     finally:
         close_session(session)
+
+
+async def run_async_function_with_new_db_session(func, *args, **kwargs):
+    """
+    Run an async function with a new db session, useful for concurrent requests where we can't share a single session.
+    However, any changes made by the new session will not be visible to old sessions until the old sessions commit
+    due to isolation level.
+    """
+    session = await mlrun.utils.helpers.run_in_threadpool(create_session)
+    try:
+        result = await func(session, *args, **kwargs)
+        return result
+    finally:
+        await mlrun.utils.helpers.run_in_threadpool(close_session, session)

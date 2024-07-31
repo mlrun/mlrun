@@ -302,20 +302,7 @@ def make_kaniko_pod(
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
 
-        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
-        assume_instance_role = not config.httpdb.builder.docker_registry_secret
-        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
-
-        # project secret might conflict with the attached instance role
-        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
-        # due to credentials conflict / lack of permission on given credentials
-        if assume_instance_role:
-            kpod.pod.spec.containers[0].env.extend(
-                [
-                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
-                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
-                ]
-            )
+        configure_kaniko_ecr_env_and_init_container(kpod, registry, repo)
 
     # mount regular docker config secret
     elif secret_name:
@@ -325,9 +312,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(
-    kpod, registry, repo, assume_instance_role=True
-):
+def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
+    # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+    assume_instance_role = not config.httpdb.builder.docker_registry_secret
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -339,6 +326,15 @@ def configure_kaniko_ecr_init_container(
     init_container_env = {}
 
     kpod.env = kpod.env or []
+
+    # project secret might conflict with the attached instance role/docker registry secret
+    # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+    # due to credentials conflict / lack of permission on given credentials
+    kpod.env = kpod.env = [
+        env_var
+        for env_var in kpod.env
+        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    ]
 
     if assume_instance_role:
         # assume instance role has permissions to register and store a container image
@@ -640,20 +636,15 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    is_mlrun_image = False
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    if base_image:
-        mlrun_images = [
-            "mlrun/mlrun",
-            "mlrun/mlrun-gpu",
-            "mlrun/ml-base",
-        ]
-        if any([image in base_image for image in mlrun_images]):
-            # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
-            with_mlrun = False
-            is_mlrun_image = True
+
+    mlrun_image = False
+    # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
+    if base_image and is_mlrun_image(base_image):
+        mlrun_image = True
+        with_mlrun = False
 
     if force_build:
         mlrun.utils.logger.info("Forcefully building image")
@@ -699,23 +690,8 @@ def build_runtime(
         base_image, client_version, client_python_version
     )
 
-    # Add mlrun to the requirements even though it is already installed because
-    # we want pip to include mlrun constraints when installing other packages
-    if is_mlrun_image and build.requirements:
-        image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
-            enriched_base_image
-        )
-        if has_py_package or mlrun_version_specifier:
-            installed_mlrun_version_command = resolve_mlrun_install_command_version(
-                mlrun_version_specifier, client_version=image_tag
-            )
-            build.requirements.insert(0, installed_mlrun_version_command)
-
-        else:
-            mlrun.utils.logger.warning(
-                "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
-                base_image=enriched_base_image,
-            )
+    if mlrun_image and build.requirements:
+        add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
 
     mlrun.utils.logger.info(
         "Building runtime image",
@@ -773,6 +749,34 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier=None):
+    # Add mlrun to the requirements even though it is already installed because
+    # we want pip to include mlrun constraints when installing other packages
+    image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
+        enriched_base_image
+    )
+    if has_py_package or mlrun_version_specifier:
+        installed_mlrun_version_command = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version=image_tag
+        )
+        build.requirements.insert(0, installed_mlrun_version_command)
+
+    else:
+        mlrun.utils.logger.warning(
+            "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
+            base_image=enriched_base_image,
+        )
+
+
+def is_mlrun_image(base_image):
+    mlrun_images = [
+        "mlrun/mlrun",
+        "mlrun/mlrun-gpu",
+        "mlrun/ml-base",
+    ]
+    return any([image in base_image for image in mlrun_images])
 
 
 def resolve_and_enrich_image_target(

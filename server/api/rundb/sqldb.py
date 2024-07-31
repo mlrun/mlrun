@@ -272,6 +272,7 @@ class SQLRunDB(RunDBInterface):
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
         secrets: dict = None,
+        iter=None,
     ):
         return self._transform_db_error(
             server.api.crud.Artifacts().delete_artifact,
@@ -281,6 +282,7 @@ class SQLRunDB(RunDBInterface):
             project,
             deletion_strategy=deletion_strategy,
             secrets=secrets,
+            iteration=iter,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -322,7 +324,9 @@ class SQLRunDB(RunDBInterface):
             name,
         )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         return self._transform_db_error(
             server.api.crud.Functions().list_functions,
             db_session=self.session,
@@ -330,6 +334,8 @@ class SQLRunDB(RunDBInterface):
             name=name,
             tag=tag,
             labels=labels,
+            since=since,
+            until=until,
         )
 
     def list_artifact_tags(
@@ -775,6 +781,7 @@ class SQLRunDB(RunDBInterface):
 
     def store_alert_notifications(
         self,
+        session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
         project: str = None,
@@ -871,11 +878,11 @@ class SQLRunDB(RunDBInterface):
 
     def store_api_gateway(
         self,
-        project: str,
         api_gateway: Union[
             mlrun.common.schemas.APIGateway,
             mlrun.runtimes.nuclio.api_gateway.APIGateway,
         ],
+        project: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -1119,7 +1126,7 @@ class SQLRunDB(RunDBInterface):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
     ):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def enable_model_monitoring(
         self,
@@ -1128,6 +1135,7 @@ class SQLRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -1149,6 +1157,14 @@ class SQLRunDB(RunDBInterface):
 
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        raise NotImplementedError
+
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool = False,
     ) -> None:
         raise NotImplementedError
 

@@ -46,7 +46,6 @@ import os
 
 
 class ClassifierModel(mlrun.serving.V2ModelServer):
-
     def load(self):
         """load and initialize the model and/or other elements"""
         model_file, extra_data = self.get_model(".pkl")
@@ -103,9 +102,6 @@ fn.add_model(
     class_name="ClassifierModel",
     model_path="<store_model_file_reference>",
 )
-
-# Enable MLRun's model monitoring
-fn.set_tracking()
 
 # Add the system mount to the function so
 # it will have access to the model files

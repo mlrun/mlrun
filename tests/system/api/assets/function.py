@@ -43,5 +43,16 @@ def log_artifact_test_function(context, body_size: int = 1000, inline: bool = Tr
     return True
 
 
+def log_artifact_many_tags(context):
+    body = b"abc123"
+    context.log_artifact("file_result", body=body, tag="v1")
+    context.log_artifact("file_result", body=body, tag="v2")
+    context.log_artifact("file_result", body=body, tag="v3")
+
+
+def log_artifact_with_tag(context, tag):
+    context.log_artifact("file_result", body=b"abc123", tag=tag)
+
+
 def access_key_verifier(context, v3io_access_key: str):
     assert os.environ.get("V3IO_ACCESS_KEY") == v3io_access_key

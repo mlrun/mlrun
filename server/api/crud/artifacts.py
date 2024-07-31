@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 
 import sqlalchemy.orm
@@ -22,11 +23,11 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 import mlrun.config
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
-from mlrun.utils.helpers import validate_inline_artifact_body_size
 
 
 class Artifacts(
@@ -57,6 +58,12 @@ class Artifacts(
 
         # calculate the size of the artifact
         self._resolve_artifact_size(artifact, auth_info)
+
+        # TODO: remove this in 1.8.0
+        if mlrun.utils.helpers.is_legacy_artifact(artifact):
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
 
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -140,8 +147,8 @@ class Artifacts(
         name: str = "",
         tag: str = "",
         labels: list[str] = None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind: typing.Optional[str] = None,
         category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
@@ -206,6 +213,7 @@ class Artifacts(
         project: str = None,
         object_uid: str = None,
         producer_id: str = None,
+        iteration: int = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
@@ -220,19 +228,26 @@ class Artifacts(
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force,
         ]:
             self._delete_artifact_data(
-                db_session,
-                key,
-                tag,
-                project,
-                object_uid,
-                producer_id,
-                deletion_strategy,
-                secrets,
-                auth_info,
+                db_session=db_session,
+                key=key,
+                tag=tag,
+                project=project,
+                object_uid=object_uid,
+                producer_id=producer_id,
+                iteration=iteration,
+                deletion_strategy=deletion_strategy,
+                secrets=secrets,
+                auth_info=auth_info,
             )
 
         return server.api.utils.singletons.db.get_db().del_artifact(
-            db_session, key, tag, project, object_uid, producer_id=producer_id
+            session=db_session,
+            key=key,
+            tag=tag,
+            project=project,
+            uid=object_uid,
+            producer_id=producer_id,
+            iter=iteration,
         )
 
     def delete_artifacts(
@@ -267,7 +282,9 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            validate_inline_artifact_body_size(artifact["spec"]["inline"])
+            mlrun.utils.helpers.validate_inline_artifact_body_size(
+                artifact["spec"]["inline"]
+            )
 
     def _delete_artifact_data(
         self,
@@ -277,6 +294,7 @@ class Artifacts(
         project: str = None,
         object_uid: str = None,
         producer_id: str = None,
+        iteration: int = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
@@ -293,17 +311,27 @@ class Artifacts(
                 project=project,
                 producer_id=producer_id,
                 object_uid=object_uid,
+                iter=iteration,
             )
 
-            # Data artifacts that are ModelArtifact, DirArtifact, or DatasetArtifact
-            # must not be removed because we do not yet support the deletion of artifacts that contain multiple files
+            path = artifact["spec"]["target_path"]
+
+            # Data artifacts that are ModelArtifact, DirArtifact must not be removed because we do not yet
+            # support the deletion of artifacts that contain multiple files
+            # We support deleting DatasetArtifact data that contains one file
             # TODO: must be removed once it is supported
             artifact_kind = artifact["kind"]
-            if artifact_kind in ["model", "dataset", "dir"]:
+            if artifact_kind in ["model", "dir"]:
                 raise mlrun.errors.MLRunNotImplementedServerError(
                     f"Deleting artifact data kind: {artifact_kind} is currently not supported"
                 )
-            path = artifact["spec"]["target_path"]
+            if artifact_kind == "dataset" and not mlrun.utils.helpers.is_parquet_file(
+                path
+            ):
+                raise mlrun.errors.MLRunNotImplementedServerError(
+                    "Deleting artifact data of kind 'dataset' is currently supported for a single file only"
+                )
+
             server.api.crud.Files().delete_artifact_data(
                 auth_info, project, path, secrets=secrets
             )

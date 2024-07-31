@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import io
 import os
+import sys
 
 import tests.system.base
 
@@ -45,8 +47,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             "debug",
         ]
 
+        source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
         function.with_source_archive(
-            os.path.join(self.remote_code_dir, self._vizro_app_code_filename),
+            source=source,
             pull_at_runtime=False,
         )
 
@@ -54,3 +57,36 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.deploy(with_mlrun=False)
 
         assert function.invoke("/", verify=False)
+
+        # Application runtime function is created without external url
+        # check that empty string is not added to func.status.external_invocation_urls
+        assert "" not in function.status.external_invocation_urls
+
+        assert function.spec.build.source == source
+        assert (
+            function.status.application_image
+            == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
+        )
+
+        self._logger.debug("Redeploying vizro application with capturing stdout")
+
+        # Create a StringIO object to capture stdout
+        old_stdout = sys.stdout
+        new_stdout = io.StringIO()
+        sys.stdout = new_stdout
+        try:
+            function.deploy(with_mlrun=False)
+        finally:
+            sys.stdout = old_stdout
+        output = new_stdout.getvalue()
+        new_stdout.close()
+
+        # Assert nuclio image build was skipped
+        assert "(info) Skipping build" in output
+
+        assert function.invoke("/", verify=False)
+        assert function.spec.build.source == source
+        assert (
+            function.status.application_image
+            == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
+        )

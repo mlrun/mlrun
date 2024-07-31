@@ -510,8 +510,10 @@ class RemoteRuntime(KubeResource):
                 **kwargs,
             ),
         )
-        self.spec.min_replicas = shards
-        self.spec.max_replicas = shards
+        if self.spec.min_replicas != shards or self.spec.max_replicas != shards:
+            logger.warning(f"Setting function replicas to {shards}")
+            self.spec.min_replicas = shards
+            self.spec.max_replicas = shards
 
     def deploy(
         self,
@@ -566,6 +568,9 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
@@ -1327,3 +1332,23 @@ def get_nuclio_deploy_status(
     else:
         text = "\n".join(outputs) if outputs else ""
         return state, address, name, last_log_timestamp, text, function_status
+
+
+def enrich_nuclio_function_from_headers(
+    func: RemoteRuntime,
+    headers: dict,
+):
+    func.status.state = headers.get("x-mlrun-function-status", "")
+    func.status.address = headers.get("x-mlrun-address", "")
+    func.status.nuclio_name = headers.get("x-mlrun-name", "")
+    func.status.internal_invocation_urls = (
+        headers.get("x-mlrun-internal-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-internal-invocation-urls")
+        else []
+    )
+    func.status.external_invocation_urls = (
+        headers.get("x-mlrun-external-invocation-urls", "").split(",")
+        if headers.get("x-mlrun-external-invocation-urls")
+        else []
+    )
+    func.status.container_image = headers.get("x-mlrun-container-image", "")

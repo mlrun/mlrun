@@ -1739,6 +1739,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
+    def test_drop_features_validators(self):
+        key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],

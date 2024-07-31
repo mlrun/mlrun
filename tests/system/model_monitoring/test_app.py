@@ -1038,14 +1038,14 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "name": "serving_3",
                 "model_name": "str_one_to_one",
                 "class_name": "OneToOne",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["f0", "p0"],
             },
             "str_one_to_one_with_train": {
                 "name": "serving_4",
                 "model_name": "str_one_to_one_with_train",
                 "class_name": "OneToOne",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["str_in", "str_out"],
                 "training_set": pd.DataFrame(
                     data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
@@ -1056,7 +1056,7 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "name": "serving_5",
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
@@ -1124,7 +1124,7 @@ class TestAllKindOfServing(TestMLRunSystem):
         serving_fn.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps(
-                {"inputs": [data_point]},
+                {"inputs": data_point},
             ),
         )
         serving_fn.invoke(

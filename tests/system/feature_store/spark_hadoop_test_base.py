@@ -70,7 +70,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
 
     @classmethod
     def configure_namespace(cls, test_suite_name="hadoop"):
-        cls.project_name = "fs-system-spark-engine-" + test_suite_name
+        cls.project_name = "fs-system-spark-engineaaaa-" + test_suite_name
         cls.ds_profile_name = "ds_profile_spark_" + test_suite_name
         cls.remote_function_name = (
             "remote-spark-default-image-deploy-temp-" + test_suite_name

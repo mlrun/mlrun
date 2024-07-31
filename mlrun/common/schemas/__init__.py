@@ -151,7 +151,6 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
-    PrometheusEndpoints,
     TSDBTarget,
     V3IOTSDBTables,
 )

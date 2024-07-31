@@ -170,7 +170,6 @@ class StreamKind(MonitoringStrEnum):
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
-    PROMETHEUS = "prometheus"
 
 
 class ProjectSecretKeys:
@@ -229,12 +228,6 @@ class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
-
-
-class PrometheusEndpoints(MonitoringStrEnum):
-    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
-    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
-    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

@@ -32,7 +32,6 @@ from .constants import (
     MonitoringFunctionNames,
     PredictionsQueryConstants,
     ProjectSecretKeys,
-    PrometheusEndpoints,
     ResultData,
     ResultKindApp,
     SchedulingKeys,

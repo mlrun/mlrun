@@ -49,15 +49,19 @@ def check_special_columns_exists(
         entity.name if isinstance(entity, Entity) else entity for entity in entities
     ]
     missing_entities = [entity for entity in entities if entity not in columns]
+    cases_message = "Please check the letter cases (uppercase or lowercase)"
     if missing_entities:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"There are missing entities from dataframe during ingestion. missing_entities: {missing_entities}"
+            f"There are missing entities from dataframe during ingestion. missing_entities: {missing_entities}."
+            f" {cases_message}"
         )
     if timestamp_key and timestamp_key not in columns:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"timestamp_key is missing from dataframe during ingestion. timestamp_key: {timestamp_key}"
+            f"timestamp_key is missing from dataframe during ingestion. timestamp_key: {timestamp_key}."
+            f" {cases_message}"
         )
     if label_column and label_column not in columns:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"label_column is missing from dataframe during ingestion. label_column: {label_column}"
+            f"label_column is missing from dataframe during ingestion. label_column: {label_column}. "
+            f"{cases_message}"
         )

@@ -3648,7 +3648,8 @@ class MlrunProject(ModelObj):
         """Return an artifact object
 
         :param key: artifact key
-        :param tag: version tag
+        :param tag: version tag.
+        To get an untagged artifact, use the enum: `mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged`
         :param iter: iteration number (for hyper-param tasks)
         :param tree: the producer id (tree)
         :return: Artifact object

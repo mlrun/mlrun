@@ -1000,6 +1000,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param key: Identifying key of the artifact.
         :param tag: Tag of the artifact.
+        To get an untagged artifact, use the enum: `mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged`
         :param iter: The iteration which generated this artifact (where ``iter=0`` means the root iteration).
         :param project: Project that the artifact belongs to.
         :param tree: The tree which generated this artifact.

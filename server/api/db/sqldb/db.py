@@ -772,6 +772,9 @@ class SQLDB(DBInterface):
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
+        if tag is None:
+            tag = mlrun.common.schemas.artifact.ArtifactTagsTypes.latest
+
         enrich_tag = False
 
         if tag and not uid:

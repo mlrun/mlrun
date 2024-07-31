@@ -114,3 +114,13 @@ class ArtifactsDeletionStrategies(mlrun.common.types.StrEnum):
     data_force = "data-force"
     """Delete the artifact data, and if cannot delete it fail the deletion
     and don’t delete the artifact db record"""
+
+
+class ArtifactTagsTypes(mlrun.common.types.StrEnum):
+    """Representing different types of artifact tags."""
+
+    untagged = ""
+    """Represents artifacts where no specific tag is assigned."""
+
+    latest = "latest"
+    """Represents the tag for the most recent version of the artifact."""

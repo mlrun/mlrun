@@ -20,6 +20,7 @@ import uuid
 import pytest
 
 import mlrun
+import mlrun.common.schemas.artifact
 from tests.system.base import TestMLRunSystem
 
 function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
@@ -115,12 +116,19 @@ class TestAPIArtifacts(TestMLRunSystem):
         tree = artifact["metadata"]["tree"]
         iter = artifact["metadata"]["iter"]
 
-        retrieved_artifact = self.project.get_artifact(key, tree=tree, iter=iter)
+        retrieved_artifact = self.project.get_artifact(
+            key,
+            tree=tree,
+            iter=iter,
+            tag=mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged,
+        )
         assert (
             retrieved_artifact is not None
         ), "Artifact should be retrieved successfully"
 
-        uri = self.project.get_artifact_uri(key, iter=iter)
+        uri = self.project.get_artifact_uri(
+            key, iter=iter, tag=mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged
+        )
         uri = uri + f"@{tree}"
         store_resource = self.project.get_store_resource(uri)
         assert (

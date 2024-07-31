@@ -32,7 +32,10 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._upload_code_to_cluster()
 
         self._logger.debug("Creating application")
-        function, source = self._deploy_vizro_application()
+        function, source = self._create_vizro_application()
+
+        self._logger.debug("Deploying vizro application")
+        function.deploy(with_mlrun=False)
 
         assert function.invoke("/", verify=False)
 
@@ -60,8 +63,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         )
 
     def test_deploy_application_from_image(self):
-        self._logger.debug("Creating application")
-        function, source = self._deploy_vizro_application()
+        self._logger.debug("Creating first application")
+        function, source = self._create_vizro_application(name="first-app")
+
+        self._logger.debug("Deploying first application")
+        function.deploy(with_mlrun=False)
 
         assert function.invoke("/", verify=False)
 
@@ -69,26 +75,23 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         application_image = function.status.application_image
         container_image = function.status.container_image
 
-        function = self.project.set_function(
-            name="new-app",
-            kind="application",
-            image=application_image,
-        )
-        function.set_internal_application_port(8050)
+        function, source = self._create_vizro_application(name="second-app")
         function.from_image(container_image)
 
-        self._logger.debug("Deploying a new vizro application")
+        self._logger.debug("Deploying a second application")
         output = self._deploy_application_with_stdout_capture(function)
 
         # make sure the build was skipped
         assert "(info) Skipping build" in output
 
-    def _deploy_vizro_application(self):
+    def _create_vizro_application(self, name="vizro-app", app_image=None):
         function = self.project.set_function(
-            name="vizro-app",
+            name=name,
             kind="application",
             requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
         )
+        if app_image:
+            function.spec.image = app_image
         function.set_internal_application_port(8050)
         function.spec.command = "gunicorn"
         function.spec.args = [
@@ -103,8 +106,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             source=source,
             pull_at_runtime=False,
         )
-        self._logger.debug("Deploying vizro application")
-        function.deploy(with_mlrun=False)
         return function, source
 
     @staticmethod

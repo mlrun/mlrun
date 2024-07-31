@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -78,8 +79,6 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
-    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
-    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
     TIME = "time"
     TABLE_COLUMN = "table_column"
@@ -158,18 +157,41 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class ModelEndpointTarget:
+class ModelEndpointTarget(MonitoringStrEnum):
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
+
+
+class StreamKind(MonitoringStrEnum):
+    V3IO_STREAM = "v3io_stream"
+    KAFKA = "kafka"
+
+
+class TSDBTarget(MonitoringStrEnum):
+    V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
+    PROMETHEUS = "prometheus"
 
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
     TSDB_CONNECTION = "TSDB_CONNECTION"
+
+    @classmethod
+    def mandatory_secrets(cls):
+        return [
+            cls.ENDPOINT_STORE_CONNECTION,
+            cls.STREAM_PATH,
+            cls.TSDB_CONNECTION,
+        ]
+
+
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
 
 
 class ModelMonitoringStoreKinds:
@@ -318,7 +340,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
-    custom = 4
+    mm_app_anomaly = 4
 
 
 class ResultStatusApp(IntEnum):
@@ -333,7 +355,7 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
 
     def __str__(self) -> str:
@@ -342,12 +364,6 @@ class ModelMonitoringAppLabel:
 
 class ControllerPolicy:
     BASE_PERIOD = "base_period"
-
-
-class TSDBTarget:
-    V3IO_TSDB = "v3io-tsdb"
-    TDEngine = "tdengine"
-    PROMETHEUS = "prometheus"
 
 
 class HistogramDataDriftApplicationConstants:
@@ -362,3 +378,9 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
+
+
+V3IO_MODEL_MONITORING_DB = "v3io"

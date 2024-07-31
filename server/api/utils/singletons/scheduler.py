@@ -19,13 +19,16 @@ from server.api.utils.scheduler import Scheduler
 scheduler: Scheduler = None
 
 
-async def initialize_scheduler():
+def ensure_scheduler():
     global scheduler
     scheduler = Scheduler()
+
+
+async def start_scheduler():
     db_session = None
     try:
         db_session = create_session()
-        await scheduler.start(
+        await get_scheduler().start(
             db_session,
         )
     finally:

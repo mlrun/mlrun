@@ -153,8 +153,12 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         if runtime.spec.image_pull_secret:
             update_in(job, "spec.imagePullSecrets", [runtime.spec.image_pull_secret])
 
-        if runtime.spec.node_selector:
-            update_in(job, "spec.nodeSelector", runtime.spec.node_selector)
+        if run.spec.node_selector:
+            update_in(
+                job,
+                "spec.nodeSelector",
+                mlrun.utils.helpers.to_non_empty_values_dict(run.spec.node_selector),
+            )
 
         if not runtime.spec.image:
             if runtime.spec.use_default_image:
@@ -322,6 +326,8 @@ with ctx:
                     )
 
         self._enrich_job(runtime, job)
+
+        self._enrich_node_selectors_from_project(runtime, job, run.metadata.project)
 
         if runtime.spec.command:
             if "://" not in runtime.spec.command:
@@ -693,6 +699,34 @@ with ctx:
                 runtime.spec.executor_java_options,
             )
         return
+
+    def _enrich_node_selectors_from_project(self, runtime, job, project_name):
+        # After adding the runtime executor and driver node selectors to the job object,
+        # we enrich the node selectors with any additional selectors from the project-level configuration, if exists.
+        if project_name:
+            project = runtime._get_db().get_project(project_name)
+            if project.spec.default_function_node_selector:
+                update_in(
+                    job,
+                    "spec.driver.nodeSelector",
+                    mlrun.utils.helpers.to_non_empty_values_dict(
+                        mlrun.utils.helpers.merge_with_precedence(
+                            project.spec.default_function_node_selector,
+                            runtime.spec.driver_node_selector,
+                        )
+                    ),
+                )
+                update_in(
+                    job,
+                    "spec.executor.nodeSelector",
+                    mlrun.utils.helpers.to_non_empty_values_dict(
+                        mlrun.utils.helpers.merge_with_precedence(
+                            project.spec.default_function_node_selector,
+                            runtime.spec.executor_node_selector,
+                        )
+                    ),
+                )
+            return job
 
     def _get_spark_version(self):
         return "3.2.3"

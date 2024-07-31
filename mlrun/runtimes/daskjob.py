@@ -548,7 +548,13 @@ class DaskCluster(KubejobRuntime):
                     "specified handler (string) without command "
                     "(py file path), specify command or use handler pointer"
                 )
-            handler = load_module(self.spec.command, handler, context=context)
+            # Do not embed the module in system as it is not persistent with the dask cluster
+            handler = load_module(
+                self.spec.command,
+                handler,
+                context=context,
+                embed_in_sys=False,
+            )
         client = self.client
         setattr(context, "dask_client", client)
         sout, serr = exec_from_params(handler, runobj, context)

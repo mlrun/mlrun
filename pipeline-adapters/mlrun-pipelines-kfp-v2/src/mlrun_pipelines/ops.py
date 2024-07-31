@@ -15,6 +15,7 @@
 
 import os
 
+import mlrun_pipelines.common.ops
 from kfp import dsl
 from kfp import kubernetes as kfp_k8s
 from mlrun_pipelines.common.helpers import (
@@ -27,6 +28,7 @@ from mlrun_pipelines.common.ops import PipelineRunType
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
+import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.utils import get_in, logger
 
@@ -109,8 +111,11 @@ def add_function_node_selection_attributes(
     function, task: dsl.PipelineTask
 ) -> dsl.PipelineTask:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        if getattr(function.spec, "node_selector"):
-            for k, v in function.spec.node_selector.items():
+        enriched_node_selector = (
+            mlrun_pipelines.common.ops._enrich_node_selector_from_project(function)
+        )
+        if enriched_node_selector:
+            for k, v in enriched_node_selector.items():
                 task = kfp_k8s.add_node_selector(task, k, v)
 
     if getattr(function.spec, "tolerations"):

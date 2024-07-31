@@ -13,44 +13,16 @@
 # limitations under the License.
 #
 
-import pandas as pd
-import semver
 
 import mlrun
+from mlrun.data_types.to_pandas import spark_df_to_pandas
 from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import get_offline_target
+from mlrun.runtimes import RemoteSparkRuntime
+from mlrun.runtimes.sparkjob import Spark3Runtime
 from mlrun.utils.helpers import additional_filters_warning
 
-from ...runtimes import RemoteSparkRuntime
-from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
-from .conversion import PandasConversionMixin
-
-
-def spark_df_to_pandas(spark_df):
-    # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
-    # when we upgrade pyspark, we should check whether this workaround is still necessary
-    # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
-    if semver.parse(pd.__version__)["major"] >= 2:
-        import pyspark.sql.functions as pyspark_functions
-
-        type_conversion_dict = {}
-        for field in spark_df.schema.fields:
-            if str(field.dataType) == "TimestampType":
-                spark_df = spark_df.withColumn(
-                    field.name,
-                    pyspark_functions.date_format(
-                        pyspark_functions.to_timestamp(field.name),
-                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
-                    ),
-                )
-                type_conversion_dict[field.name] = "datetime64[ns]"
-        df = PandasConversionMixin.toPandas(spark_df)
-        if type_conversion_dict:
-            df = df.astype(type_conversion_dict)
-        return df
-    else:
-        return PandasConversionMixin.toPandas(spark_df)
 
 
 class SparkFeatureMerger(BaseMerger):
@@ -252,7 +224,7 @@ class SparkFeatureMerger(BaseMerger):
                 )
             source_kind = target.kind
             source_path = target.get_target_path()
-
+            source_kwargs = target.source_spark_attributes
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]

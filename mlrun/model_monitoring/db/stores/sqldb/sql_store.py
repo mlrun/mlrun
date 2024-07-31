@@ -20,6 +20,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
+from sqlalchemy.engine import make_url
 from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
@@ -61,6 +62,10 @@ class SQLStoreBase(StoreBase):
 
         self._sql_connection_string = kwargs.get("store_connection_string")
         self._engine = get_engine(dsn=self._sql_connection_string)
+        self._init_tables()
+
+    def create_tables(self):
+        self._create_tables_if_not_exist()
 
     def _init_tables(self):
         self._init_model_endpoints_table()
@@ -69,13 +74,13 @@ class SQLStoreBase(StoreBase):
         self._init_monitoring_schedules_table()
 
     def _init_model_endpoints_table(self):
-        self.ModelEndpointsTable = (
+        self.model_endpoints_table = (
             mlrun.model_monitoring.db.stores.sqldb.models._get_model_endpoints_table(
                 connection_string=self._sql_connection_string
             )
         )
         self._tables[mm_schemas.EventFieldType.MODEL_ENDPOINTS] = (
-            self.ModelEndpointsTable
+            self.model_endpoints_table
         )
 
     def _init_application_results_table(self):
@@ -149,22 +154,17 @@ class SQLStoreBase(StoreBase):
         :param criteria: A list of binary expressions that filter the query.
         """
         with create_session(dsn=self._sql_connection_string) as session:
-            try:
-                logger.debug(
-                    "Querying the DB",
-                    table=table.__name__,
-                    criteria=[str(criterion) for criterion in criteria],
-                )
-                # Generate the get query
-                return (
-                    session.query(table)  # pyright: ignore[reportOptionalCall]
-                    .filter(*criteria)
-                    .one_or_none()
-                )
-            except sqlalchemy.exc.ProgrammingError:
-                # Probably table doesn't exist, try to create tables
-                self._create_tables_if_not_exist()
-                return
+            logger.debug(
+                "Querying the DB",
+                table=table.__name__,
+                criteria=[str(criterion) for criterion in criteria],
+            )
+            # Generate the get query
+            return (
+                session.query(table)  # pyright: ignore[reportOptionalCall]
+                .filter(*criteria)
+                .one_or_none()
+            )
 
     def _delete(
         self,
@@ -177,6 +177,11 @@ class SQLStoreBase(StoreBase):
         param table:     SQLAlchemy declarative table.
         :param criteria: A list of binary expressions that filter the query.
         """
+        if not self._engine.has_table(table.__tablename__):
+            logger.debug(
+                f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
+            )
+            return
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
             session.query(
@@ -212,14 +217,13 @@ class SQLStoreBase(StoreBase):
                            of the attributes dictionary should exist in the SQL table.
 
         """
-        self._init_model_endpoints_table()
 
         attributes.pop(mm_schemas.EventFieldType.ENDPOINT_ID, None)
 
         self._update(
             attributes=attributes,
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
     def delete_model_endpoint(self, endpoint_id: str) -> None:
@@ -228,11 +232,10 @@ class SQLStoreBase(StoreBase):
 
         :param endpoint_id: The unique id of the model endpoint.
         """
-        self._init_model_endpoints_table()
         # Delete the model endpoint record using sqlalchemy ORM
         self._delete(
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
     def get_model_endpoint(
@@ -248,12 +251,11 @@ class SQLStoreBase(StoreBase):
 
         :raise MLRunNotFoundError: If the model endpoints table was not found or the model endpoint id was not found.
         """
-        self._init_model_endpoints_table()
 
         # Get the model endpoint record
         endpoint_record = self._get(
-            table=self.ModelEndpointsTable,
-            criteria=[self.ModelEndpointsTable.uid == endpoint_id],
+            table=self.model_endpoints_table,
+            criteria=[self.model_endpoints_table.uid == endpoint_id],
         )
 
         if not endpoint_record:
@@ -269,34 +271,18 @@ class SQLStoreBase(StoreBase):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
-        """
-        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available model endpoints for the given project will
-        be listed.
-
-        :param model:           The name of the model to filter by.
-        :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                                key (i.e. "key").
-        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param uids:             List of model endpoint unique ids to include in the result.
-
-        :return: A list of model endpoint dictionaries.
-        """
-        self._init_model_endpoints_table()
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []
 
         model_endpoints_table = (
-            self.ModelEndpointsTable.__table__  # pyright: ignore[reportAttributeAccessIssue]
+            self.model_endpoints_table.__table__  # pyright: ignore[reportAttributeAccessIssue]
         )
-
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate the list query
-            query = session.query(self.ModelEndpointsTable).filter_by(
+            query = session.query(self.model_endpoints_table).filter_by(
                 project=self.project
             )
 
@@ -346,6 +332,12 @@ class SQLStoreBase(StoreBase):
                 ):
                     continue
 
+                if not include_stats:
+                    # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                    # TODO: Remove stats from table schema (ML-7196)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
+
                 endpoint_list.append(endpoint_dict)
 
         return endpoint_list
@@ -365,11 +357,9 @@ class SQLStoreBase(StoreBase):
         """
 
         if kind == mm_schemas.WriterEventKind.METRIC:
-            self._init_application_metrics_table()
             table = self.application_metrics_table
             table_name = mm_schemas.FileTargetKind.APP_METRICS
         elif kind == mm_schemas.WriterEventKind.RESULT:
-            self._init_application_results_table()
             table = self.application_results_table
             table_name = mm_schemas.FileTargetKind.APP_RESULTS
         else:
@@ -443,7 +433,6 @@ class SQLStoreBase(StoreBase):
         :return: Timestamp as a Unix time.
         :raise:  MLRunNotFoundError if last analyzed value is not found.
         """
-        self._init_monitoring_schedules_table()
         monitoring_schedule_record = self._get(
             table=self.MonitoringSchedulesTable,
             criteria=self._get_filter_criteria(
@@ -470,8 +459,6 @@ class SQLStoreBase(StoreBase):
         :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
                                  application and model endpoint.
         """
-        self._init_monitoring_schedules_table()
-
         criteria = self._get_filter_criteria(
             table=self.MonitoringSchedulesTable,
             endpoint_id=endpoint_id,
@@ -501,7 +488,6 @@ class SQLStoreBase(StoreBase):
     def _delete_last_analyzed(
         self, endpoint_id: str, application_name: typing.Optional[str] = None
     ) -> None:
-        self._init_monitoring_schedules_table()
         criteria = self._get_filter_criteria(
             table=self.MonitoringSchedulesTable,
             endpoint_id=endpoint_id,
@@ -513,7 +499,6 @@ class SQLStoreBase(StoreBase):
     def _delete_application_result(
         self, endpoint_id: str, application_name: typing.Optional[str] = None
     ) -> None:
-        self._init_application_results_table()
         criteria = self._get_filter_criteria(
             table=self.application_results_table,
             endpoint_id=endpoint_id,
@@ -525,7 +510,6 @@ class SQLStoreBase(StoreBase):
     def _delete_application_metrics(
         self, endpoint_id: str, application_name: typing.Optional[str] = None
     ) -> None:
-        self._init_application_metrics_table()
         criteria = self._get_filter_criteria(
             table=self.application_metrics_table,
             endpoint_id=endpoint_id,
@@ -539,8 +523,12 @@ class SQLStoreBase(StoreBase):
 
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
+            db_name = make_url(self._sql_connection_string).database
             if not self._engine.has_table(table):
+                logger.info(f"Creating table {table} on {db_name} db.")
                 self._tables[table].metadata.create_all(bind=self._engine)
+            else:
+                logger.info(f"Table {table} already exists on {db_name} db.")
 
     @staticmethod
     def _filter_values(
@@ -616,11 +604,9 @@ class SQLStoreBase(StoreBase):
             type=type,
         )
         if type == mm_schemas.ModelEndpointMonitoringMetricType.METRIC:
-            self._init_application_metrics_table()
             table = self.application_metrics_table
             name_col = mm_schemas.MetricData.METRIC_NAME
         else:
-            self._init_application_results_table()
             table = self.application_results_table
             name_col = mm_schemas.ResultData.RESULT_NAME
 

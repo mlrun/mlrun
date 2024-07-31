@@ -72,7 +72,7 @@ class InMemoryStore(DataStore):
             if columns:
                 kwargs["usecols"] = columns
             reader = df_module.read_csv
-        elif url.endswith(".parquet") or url.endswith(".pq") or format == "parquet":
+        elif mlrun.utils.helpers.is_parquet_file(url, format):
             if columns:
                 kwargs["columns"] = columns
             reader = df_module.read_parquet
@@ -85,3 +85,6 @@ class InMemoryStore(DataStore):
             kwargs.pop(field, None)
 
         return reader(item, **kwargs)
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        self._items.pop(path, None)

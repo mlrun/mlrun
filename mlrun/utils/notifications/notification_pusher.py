@@ -397,7 +397,7 @@ class NotificationPusher(_NotificationPusherBase):
             try:
                 _run = db.list_runs(
                     project=run.metadata.project,
-                    labels=f"mlrun_constants.MLRunInternalLabels.runner_pod={_step.node_name}",
+                    labels=f"{mlrun_constants.MLRunInternalLabels.runner_pod}={_step.node_name}",
                 )[0]
             except IndexError:
                 _run = {
@@ -484,7 +484,7 @@ class NotificationPusher(_NotificationPusherBase):
     def _get_workflow_manifest(
         workflow_id: str,
     ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
-        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf)
+        kfp_client = mlrun_pipelines.utils.get_client(mlrun.mlconf.kfp_url)
 
         # arbitrary timeout of 5 seconds, the workflow should be done by now
         kfp_run = kfp_client.wait_for_run_completion(workflow_id, 5)

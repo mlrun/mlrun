@@ -94,6 +94,7 @@ class StoreBase(ABC):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
         """
         Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
@@ -107,6 +108,7 @@ class StoreBase(ABC):
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param uids:             List of model endpoint unique ids to include in the result.
+        :param include_stats:   If True, will include model endpoint statistics in the result.
 
         :return: A list of model endpoint dictionaries.
         """
@@ -205,3 +207,6 @@ class StoreBase(ABC):
                     return False
 
         return True
+
+    def create_tables(self):
+        pass

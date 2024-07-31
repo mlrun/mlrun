@@ -283,9 +283,14 @@ function copyToClipboard(fld) {
 }
 function expandPanel(el) {
   const panelName = "#" + el.getAttribute('paneName');
-  console.log(el.title);
 
-  document.querySelector(panelName + "-title").innerHTML = el.title
+  // Get the base URL of the current notebook
+  var baseUrl = window.location.origin;
+
+  // Construct the full URL
+  var fullUrl = new URL(el.title, baseUrl).href;
+
+  document.querySelector(panelName + "-title").innerHTML = fullUrl
   iframe = document.querySelector(panelName + "-body");
 
   const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
@@ -299,7 +304,7 @@ function expandPanel(el) {
   }
 
   function reqListener () {
-    if (el.title.endsWith(".csv")) {
+    if (fullUrl.endsWith(".csv")) {
       iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
     } else {
       iframe.setAttribute("srcdoc", this.responseText);
@@ -309,11 +314,11 @@ function expandPanel(el) {
 
   const oReq = new XMLHttpRequest();
   oReq.addEventListener("load", reqListener);
-  oReq.open("GET", el.title);
+  oReq.open("GET", fullUrl);
   oReq.send();
 
 
-  //iframe.src = el.title;
+  //iframe.src = fullUrl;
   const resultPane = document.querySelector(panelName + "-pane");
   if (resultPane.classList.contains("hidden")) {
     resultPane.classList.remove("hidden");

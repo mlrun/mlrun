@@ -38,7 +38,10 @@ def _is_no_schema_error(exc: v3io_frames.ReadError) -> bool:
     In case of a nonexistent TSDB table - a `v3io_frames.ReadError` error is raised.
     Check if the error message contains the relevant string to verify the cause.
     """
-    return "No TSDB schema file found" in str(exc)
+    msg = str(exc)
+    # https://github.com/v3io/v3io-tsdb/blob/v0.14.1/pkg/tsdb/v3iotsdb.go#L205
+    # https://github.com/v3io/v3io-tsdb/blob/v0.14.1/pkg/partmgr/partmgr.go#L238
+    return "No TSDB schema file found" in msg or "Failed to read schema at path" in msg
 
 
 class V3IOTSDBConnector(TSDBConnector):
@@ -596,7 +599,6 @@ class V3IOTSDBConnector(TSDBConnector):
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY],
             filter_query=f"endpoint_id=='{endpoint_id}'",
-            interval=aggregation_window,
             agg_funcs=agg_funcs,
             sliding_window_step=aggregation_window,
         )

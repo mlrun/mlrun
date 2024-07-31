@@ -433,17 +433,17 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     def _create(self, schema, collection_name, metadata, engine, key):
         columns = []
         for col, col_type in schema.items():
-            if col_type == int:
+            if col_type is int:
                 col_type = db.Integer
-            elif col_type == str:
+            elif col_type is str:
                 col_type = db.String(50)
-            elif col_type == datetime.timedelta or col_type == pd.Timedelta:
+            elif col_type is datetime.timedelta or col_type is pd.Timedelta:
                 col_type = db.Interval
-            elif col_type == datetime.datetime or col_type == pd.Timestamp:
+            elif col_type is datetime.datetime or col_type is pd.Timestamp:
                 col_type = db.dialects.mysql.DATETIME(fsp=6)
-            elif col_type == bool:
+            elif col_type is bool:
                 col_type = db.Boolean
-            elif col_type == float:
+            elif col_type is float:
                 col_type = db.Float
             else:
                 raise TypeError(f"{col_type} unsupported type")

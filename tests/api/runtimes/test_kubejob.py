@@ -297,7 +297,7 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "true"},
                 {"gpu": "false", "test": "test"},
                 {"test": "", "zone": "us-south"},
-                {"gpu": "false", "test": "", "zone": "us-south"},
+                {"gpu": "false", "zone": "us-south"},
             ),
         ],
     )

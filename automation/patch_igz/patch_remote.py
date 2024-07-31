@@ -208,6 +208,9 @@ class MLRunPatcher:
                                 live=True,
                             )
                             resolve_built_images.append(replaced_built_image)
+
+                    # Once we found the node configured in the built_image we can stop because it is only possible
+                    # to specify one node when building the image
                     break
 
         return resolve_built_images or built_images

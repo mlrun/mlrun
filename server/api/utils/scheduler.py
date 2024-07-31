@@ -301,12 +301,14 @@ class Scheduler:
         schedules = self.list_schedules(
             db_session,
             project,
-            skip_notification_secrets=skip_notification_secrets,
         )
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
             self._remove_schedule_scheduler_resources(
-                db_session, schedule.project, schedule.name
+                db_session,
+                schedule.project,
+                schedule.name,
+                skip_notification_secrets=skip_notification_secrets,
             )
         get_db().delete_project_schedules(db_session, project)
 

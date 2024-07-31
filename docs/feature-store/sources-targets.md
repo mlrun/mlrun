@@ -45,7 +45,7 @@ source = SnowflakeSource(
  
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')], engine="spark")
 df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
-  run_config=run_config, spark_context=spark_service)
+  run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
 
 #  will raise an error: MLRunInvalidArgumentError("There are missing entities from dataframe during ingestion.")
 ```

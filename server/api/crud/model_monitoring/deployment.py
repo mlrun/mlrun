@@ -108,7 +108,7 @@ class MonitoringDeployment:
         :param base_period:                       The time period in minutes in which the model monitoring controller
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
-                                                  stream functions, which are real time nuclio functino.
+                                                  stream functions, which are real time nuclio function.
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
@@ -257,16 +257,16 @@ class MonitoringDeployment:
             )
 
     def apply_and_create_stream_trigger(
-        self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
+        self, function: mlrun.runtimes.ServingRuntime, function_name: str
     ) -> mlrun.runtimes.ServingRuntime:
-        """Adding stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
-        with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema that is
-        defined under mlrun.mlconf.model_endpoint_monitoring.store_prefixes. Note that if no valid stream path has been
-        provided then the function will have a single HTTP stream source.
+        """
+        Add stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
+        with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema
+        that is defined by `project.set_model_monitoring_credentials(..., stream_path="...")`.
+        Note that if no valid stream path has been provided then the function will have a single HTTP stream source.
 
         :param function:                    The serving function object that will be applied with the stream trigger.
-        :param function_name:               The name of the function that be applied with the stream trigger,
-                                            None for model_monitoring_stream
+        :param function_name:               The name of the function that be applied with the stream trigger.
 
         :return: ServingRuntime object with stream trigger.
         """

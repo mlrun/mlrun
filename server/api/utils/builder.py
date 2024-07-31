@@ -562,8 +562,9 @@ def get_kaniko_spec_attributes_from_runtime(
 ):
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
 
-    def handle_service_account(attr_value):
+    def service_account_handler(attr_value):
         from server.api.api.utils import resolve_project_default_service_account
+
         (
             allowed_service_accounts,
             default_service_account,
@@ -574,7 +575,7 @@ def get_kaniko_spec_attributes_from_runtime(
             attr_value = default_service_account
         return attr_value
 
-    def handle_node_selector(attr_value):
+    def node_selector_handler(attr_value):
         attr_value = mlrun.utils.to_non_empty_values_dict(
             mlrun.utils.helpers.merge_dicts_with_precedence(
                 mlrun.mlconf.get_default_function_node_selector(),
@@ -584,16 +585,16 @@ def get_kaniko_spec_attributes_from_runtime(
         )
         return attr_value
 
-    def default_handler(attr_value):
+    def identity_handler(attr_value):
         return attr_value
 
     return {
-        "node_name": default_handler,
-        "node_selector": handle_node_selector,
-        "affinity": default_handler,
-        "tolerations": default_handler,
-        "priority_class_name": default_handler,
-        "service_account": handle_service_account,
+        "node_name": identity_handler,
+        "node_selector": node_selector_handler,
+        "affinity": identity_handler,
+        "tolerations": identity_handler,
+        "priority_class_name": identity_handler,
+        "service_account": service_account_handler,
     }
 
 
@@ -847,6 +848,17 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
 
     image_target = remove_image_protocol_prefix(image_target)
     return image_target
+
+
+def _resolve_project_default_service_account(runtime):
+    project_default_function_node_selector = {}
+    if runtime and runtime._get_db():
+        project_obj = runtime._get_db().get_project(runtime.metadata.project)
+        if project_obj:
+            project_default_function_node_selector = (
+                project_obj.spec.default_function_node_selector
+            )
+    return project_default_function_node_selector
 
 
 def _generate_builder_env(

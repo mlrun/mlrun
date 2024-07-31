@@ -32,33 +32,39 @@ Alert templates simplify the creation of alerts by providing a predefined set of
 predefined templates that can be used with MLRun applications. 
 If you use non-MLRun applications (for example, with model monitoring), you must configure an application-specific alert. 
 The templates are cross-project objects. When generating an alert, the user must assign the project to it. The predefined alerts are:
-- data_drift_detected &mdash; A detected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
-- data_drift_suspected &mdash; A suspected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
-- concept_drift_detected &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
-- concept_drift_suspected &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
-- model_performance_detected &mdash; A detected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
-- model_performance_suspected &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
-- model_serving_performance_detected &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units)
-- model_serving_performance_suspected &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units)
-- mm_app_anomaly_detected &mdash; 
-- mm_app_anomaly_suspected &mdash; 
-- failed &mdash; The job failed.
+- DATA_DRIFT_DETECTED &mdash; A detected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
+- DATA_DRIFT_SUSPECTED &mdash; A suspected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
+- CONCEPT_DRIFT_DETECTED &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
+- CONCEPT_DRIFT_SUSPECTED &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
+- MODEL_PERFORMANCE_DETECTED &mdash; A detected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
+- MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
+- MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units)
+- MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units)
+- MM_APP_ANOMALY_DETECTED &mdash; 
+- MM_APP_ANOMALY_SUSPECTED &mdash; 
+- FAILED &mdash; The job failed.
 
 
 ## Creating an alert with a template
 
+When you use a template, you only need to supply:
+- name: str
+- project: str
+- entity: EventEntity from the list in [Alert templates](#alert-templates)
+- {py:meth}`~mlrun.common.schemas.notification.NotificationKind`
+
 ```python
 job_fail_template = project.get_alert_template("JobFailed")
 alert_from_template = mlrun.alerts.alert.AlertConfig(
-project=project_name,
-name="failure",
-template=job_fail_template,
-)
+            project=project_name,
+            name="failure",
+            template=job_fail_template,
+		)
 entities = alert_objects.EventEntities(
-kind=alert_objects.EventEntityKind.JOB,
-project=project_name,
-ids=[run_id],
-)
+			kind=alert_objects.EventEntityKind.JOB,
+			project=project_name,
+			ids=[run_id],
+		)
 alert_from_template.with_entities(entities=entities)
 alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
@@ -69,33 +75,38 @@ the frequency of alerts, and the criteria for alerts (how many times in what tim
 You can also configure email/Slack details to send notifications.
 
 ```python
-import mlrun.common.schemas.alert as alert_objects
 notification = mlrun.model.Notification(
-kind="slack",
-name="slack_notification",
-message="Running a job has failed",
-severity="warning",
-when=["now"],
-condition="failed",
-secret_params={
-"webhook": "https://hooks.slack.com/services/",
-},
-).to_dict()
+            kind="slack",
+            name="slack_notification",
+            message="A drift was detected",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            secret_params={
+                "webhook": "https://hooks.slack.com/",
+            },
+        ).to_dict()
 
+endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
+endpoint_id = endpoints[0].metadata.uid
+result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
 notifications = [alert_objects.AlertNotification(notification=notification)]
-entity_kind = alert_objects.EventEntityKind.JOB
-event_name = alert_objects.EventKind.FAILED
-run_id="test-func-handler"
+alert_name="drift_alert"
+alert_summary="A drift was detected"
+entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
 alert_data = mlrun.alerts.alert.AlertConfig(
-project=project_name,
-name="failure",
-summary="Running a job has failed",
-severity=alert_objects.AlertSeverity.LOW,
-entities=alert_objects.EventEntities(
-kind=entity_kind, project=project_name, ids=[run_id]
-),
-trigger=alert_objects.AlertTrigger(events=[event_name]),
-criteria=None,
-notifications=notifications,
-)
+            project=project_name,
+            name=alert_name,
+            summary=alert_summary,
+            severity=alert_objects.AlertSeverity.LOW,
+            entities=alert_objects.EventEntities(
+                kind=entity_kind, project=project_name, ids=[result_endpoint]
+            ),
+            trigger=alert_objects.AlertTrigger(events=[event_name]),
+            criteria=None,
+            notifications=notifications,
+        )
+
+project.store_alert_config(alert_data)
 ```

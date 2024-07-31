@@ -446,6 +446,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def from_image(self, image):
+        """
+        Deploy the function with an existing nuclio processor image.
+
+        :param image: image name
+        """
         config = nuclio.config.new_config()
         update_in(
             config,

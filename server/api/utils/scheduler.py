@@ -391,10 +391,6 @@ class Scheduler:
 
     def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
         self._remove_schedule_from_scheduler(project, name)
-        # This is kept for backwards compatibility - if schedule was using the "old" format of storing secrets, then
-        # this is a good opportunity to remove them. Using the new method we don't remove secrets since they are per
-        # access-key and there may be other entities (runtimes, for example) using the same secret.
-        self._remove_schedule_secrets(project, name)
         self._remove_schedule_notification_secrets(db_session, project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
@@ -563,50 +559,6 @@ class Scheduler:
                     provider=self._secrets_provider,
                     secrets=secrets,
                 ),
-                allow_internal_secrets=True,
-                key_map_secret_key=secret_key_map,
-            )
-
-    def _remove_schedule_secrets(
-        self,
-        project: str,
-        name: str,
-    ):
-        if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-            access_key_secret_key = (
-                server.api.crud.Secrets().generate_client_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_access_key_subtype,
-                )
-            )
-
-            username_secret_key = (
-                server.api.crud.Secrets().generate_client_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_username_subtype,
-                )
-            )
-            secret_key_map = (
-                server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules
-                )
-            )
-            # TODO: support delete secrets (plural and not only singular) using key map
-            server.api.crud.Secrets().delete_project_secret(
-                project,
-                self._secrets_provider,
-                access_key_secret_key,
-                allow_secrets_from_k8s=True,
-                allow_internal_secrets=True,
-                key_map_secret_key=secret_key_map,
-            )
-            server.api.crud.Secrets().delete_project_secret(
-                project,
-                self._secrets_provider,
-                username_secret_key,
-                allow_secrets_from_k8s=True,
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
@@ -796,7 +748,6 @@ class Scheduler:
             try:
                 access_key = None
                 username = None
-                need_to_update_credentials = False
                 if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
@@ -808,11 +759,9 @@ class Scheduler:
                         username = secret.username
                         access_key = secret.access_key
                     else:
-                        username, access_key = self._get_schedule_secrets(
-                            db_schedule.project, db_schedule.name
+                        raise mlrun.errors.MLRunNotFoundError(
+                            f"Access key secret name not found for schedule {db_schedule.project}/{db_schedule.name}"
                         )
-                        if access_key:
-                            need_to_update_credentials = True
 
                 auth_info = mlrun.common.schemas.AuthInfo(
                     username=username,
@@ -820,26 +769,6 @@ class Scheduler:
                     # enriching with control plane tag because scheduling a function requires control plane
                     planes=[server.api.utils.clients.iguazio.SessionPlanes.control],
                 )
-
-                # Schedule was created using the old method. Transform schedule secrets to using auth secrets
-                # and remove the old secrets.
-                if need_to_update_credentials:
-                    secret_name = self._store_schedule_secrets_using_auth_secret(
-                        auth_info
-                    )
-
-                    # Append the auth key label to the schedule labels in the DB.
-                    labels = {label.name: label.value for label in db_schedule.labels}
-                    labels = self._append_access_key_secret_to_labels(
-                        labels, secret_name
-                    )
-                    get_db().update_schedule(
-                        db_session,
-                        db_schedule.project,
-                        db_schedule.name,
-                        labels=labels,
-                    )
-                    self._remove_schedule_secrets(db_schedule.project, db_schedule.name)
 
                 self._create_schedule_in_scheduler(
                     db_schedule.project,

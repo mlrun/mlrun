@@ -56,7 +56,7 @@
 ### Infrastructure
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-3432|When deleting a remote function, both in the UI and SDK, the Nuclio function (pod) is also deleted.|
+|ML-3143/3432|When deleting a remote function, both in the UI and SDK, the Nuclio function (pod) is also deleted.|
 
 ### UI
 | ID    |Description                                                                 |
@@ -99,7 +99,7 @@
 |ML-3143/ML-3432|Can now delete remote functions from the DB with both the SDK and the UI.|
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-4248|You can now run a serving function with a large number of models.|
-|ML-4346||
+|ML-4346|A local run that was created via get_or_create_ctx can be marked as complete using commit() method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5774|UI: Improved speed of Querying for pipelines of specific projects in the Pipelines page.|
@@ -117,7 +117,7 @@
 |ML-7103||
 |ML-7135|Fixed Upgrading to mlrun if the `spec.build` was saved incorrectly.|
 |ML-7203|Function yaml is no longer created twice during a scheduled workflow trigger.|
-
+|ML-7270||
 
 ## v1.6.4 (2 July 2024)
 
@@ -1033,7 +1033,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.|NA|v1.0.0|
 |ML-2030|Need a way to move artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. |NA|v1.0.0|
-|ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |
@@ -1041,7 +1040,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3294|Dask coredump during project deletion.|Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 |NA |v1.2.1    |
 |ML-3386|Documentation is missing full details on the feature store sources and targets.| NA|v1.2.1    |
-|ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
 |ML-3526|Aggregation column order is not always respected (storey engine).| NA | v1.3.0|
@@ -1050,7 +1048,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA | v1.3.0|
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
-|ML-3680|The function spec does not get updated after running a workflow. |NA  | v1.3.0|
 |ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source. | v1.4.0 |	
 |ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
@@ -1068,7 +1065,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
 |ML-4810|Cannot rerun a job when the "mlrun/client_version" label has "+" in its value. | Ensure the "mlrun/client_version" label does not include "+". | v1.6.0 |
 |ML-4821|In some cases, deleting a very big project fails with a timeout due to the time required to delete the project resources.|Delete the project again  | NA | v1.5.0 | 
-|ML-4846|With Docker Compose the V3IO_ACCESS_KEY is required for Parquet target. |replace this line: `feature_set.set_targets(targets=[mlrun.datastore.ParquetTarget()], with_defaults=False)` with a command that specifies the target path for the Parquet target. For example: `feature_set.set_targets(targets=[mlrun.datastore.ParquetTarget(path="/some/path/to/parquet/file")], with_defaults=False)`  | v1.5.0 |
 |ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
@@ -1077,7 +1073,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
 |ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 |ML-5175|For Nuclio runtimes, MLRun must be installed together with user requirements, to account for MLRun dependencies. | Include MLRun in the requirements, for example <img src="../_static/images/ml-5175.png" width="700" >| v1.6.0|
-|ML-5204|The **Projects>Settings** does not validate label names. Errors are generated from the back end. |Use [Kubernetes limitations](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).  | v1.6.0 |
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
@@ -1087,7 +1082,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
 |ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
 |ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
-|ML-3206|When `get_or_create_project` is called, and there is a project.yaml in the dir, no new project is created (even of the project name is new). The existing project.yaml is loaded instead.|v1.2.1                                                                                                                                                                                                                                                                                                                           |
 |ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
 |ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                                                                                        |
 |ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|

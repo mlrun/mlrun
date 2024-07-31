@@ -1498,7 +1498,7 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     )
     with unittest.mock.patch(
         "server.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
-        return_value=[],
+        return_value={},
     ):
         kpod = server.api.utils.builder.make_kaniko_pod(
             project="test",

@@ -297,7 +297,9 @@ def test_read_untagged_artifact(db: SQLDB, db_session: Session):
     )
 
     # Verify that we retrieved the correct artifact by checking its body
-    assert retrieved_artifact["a"] == 1, "The retrieved artifact should have the body {'a': 1}"
+    assert (
+        retrieved_artifact["a"] == 1
+    ), "The retrieved artifact should have the body {'a': 1}"
 
 
 def test_projects_crud(db: SQLDB, db_session: Session):

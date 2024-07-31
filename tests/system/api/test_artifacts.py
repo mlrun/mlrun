@@ -20,7 +20,6 @@ import uuid
 import pytest
 
 import mlrun
-import mlrun.common.schemas.artifact
 from tests.system.base import TestMLRunSystem
 
 function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")

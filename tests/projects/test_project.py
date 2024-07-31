@@ -237,7 +237,7 @@ def test_build_project_from_minimal_dict():
             True,
             "",
             True,
-            "project name mismatch",
+            "Project name mismatch",
         ),
         (
             pathlib.Path(tests.conftest.tests_root_directory)
@@ -1259,7 +1259,7 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
-def test_function_receives_project_default_function_node_selector():
+def test_function_not_enriched_with_project_default_function_node_selector():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)
@@ -1276,7 +1276,10 @@ def test_function_receives_project_default_function_node_selector():
 
     proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
-    assert enriched_function.spec.node_selector == default_function_node_selector
+    # Check that function is not affected by project
+    assert (
+        enriched_function.spec.node_selector == non_enriched_function.spec.node_selector
+    )
 
     # Same check - with a function object
     func1 = mlrun.code_to_function(
@@ -1292,15 +1295,15 @@ def test_function_receives_project_default_function_node_selector():
     assert non_enriched_function.spec.node_selector == {}
 
     enriched_function = proj1.get_function("func2", enrich=True)
-    assert enriched_function.spec.node_selector == default_function_node_selector
+    assert enriched_function.spec.node_selector == {}
 
     # If a function already has a node selector defined, the project-level node selector should merge with it,
-    # giving precedence to the function's node selector.
+    # but only apply the merged node selector to the job object. The function itself should remain unaffected.
     func1.spec.node_selector = {"zone": "us-west"}
     proj1.set_function(func1, name="func3")
 
     enriched_function = proj1.get_function("func3", enrich=True)
-    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+    assert enriched_function.spec.node_selector == {"zone": "us-west"}
 
 
 def test_project_exports_default_image():

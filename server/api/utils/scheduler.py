@@ -75,11 +75,9 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            if (
-                mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.common.schemas.ClusterizationRole.chief
-            ):
-                self._reload_schedules(db_session)
+            await fastapi.concurrency.run_in_threadpool(
+                self._reload_schedules, db_session
+            )
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 
@@ -207,6 +205,12 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
+
+        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
+        # if labels are {} then we do want to overwrite them
+        if labels is None:
+            labels = {label.name: label.value for label in db_schedule.labels}
+
         labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
         )

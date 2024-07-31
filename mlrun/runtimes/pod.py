@@ -532,7 +532,9 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = {**node_selector, **self.node_selector}
+        self.node_selector = mlrun.utils.helpers.merge_with_precedence(
+            node_selector, self.node_selector
+        )
 
     def _merge_tolerations(
         self,
@@ -1038,32 +1040,6 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 return True
         return False
 
-    def enrich_runtime_spec(
-        self,
-        project_node_selector: dict[str, str],
-    ):
-        """
-        Enriches the runtime spec with the project-level node selector.
-
-        This method merges the project-level node selector with the existing function node_selector.
-        The merge logic used here combines the two dictionaries, giving precedence to
-        the keys in the runtime node_selector. If there are conflicting keys between the
-        two dictionaries, the values from self.spec.node_selector will overwrite the
-        values from project_node_selector.
-
-        Example:
-        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
-        and project_node_selector = {"type": "cpu", "environment": "production"}.
-        After the merge, the resulting node_selector will be:
-        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
-
-        Note:
-        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
-          combining key-value pairs from each dictionary. Later dictionaries take precedence
-          when there are conflicting keys.
-        """
-        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
-
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
 
@@ -1542,7 +1518,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
 
     # check if attribute of type dict, and then check if type is sanitized
     if isinstance(attribute, dict):
-        if attribute_config["not_sanitized_class"] != dict:
+        if not isinstance(attribute_config["not_sanitized_class"], dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
@@ -1552,7 +1528,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     elif isinstance(attribute, list) and not isinstance(
         attribute[0], attribute_config["sub_attribute_type"]
     ):
-        if attribute_config["not_sanitized_class"] != list:
+        if not isinstance(attribute_config["not_sanitized_class"], list):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )

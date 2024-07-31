@@ -207,6 +207,8 @@ async def list_functions(
     tag: str = None,
     labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
+    since: str = None,
+    until: str = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
@@ -216,6 +218,7 @@ async def list_functions(
 ):
     if project is None:
         project = config.default_project
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -251,6 +254,8 @@ async def list_functions(
         labels=labels,
         hash_key=hash_key,
         format_=format_,
+        since=mlrun.utils.datetime_from_iso(since),
+        until=mlrun.utils.datetime_from_iso(until),
     )
 
     return {

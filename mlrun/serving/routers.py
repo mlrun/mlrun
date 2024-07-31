@@ -1030,74 +1030,90 @@ def _init_endpoint_record(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
-    # If model endpoint object was found in DB, skip the creation process.
     try:
-        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=endpoint_uid)
-
+        model_ep = mlrun.get_run_db().get_model_endpoint(
+            project=project, endpoint_id=endpoint_uid
+        )
     except mlrun.errors.MLRunNotFoundError:
+        model_ep = None
+    except mlrun.errors.MLRunBadRequestError as err:
+        logger.debug(
+            f"Cant reach to model endpoints store, due to  : {err}",
+        )
+        return
+
+    if voting_ensemble.context.server.track_models and not model_ep:
         logger.info("Creating a new model endpoint record", endpoint_id=endpoint_uid)
+        # Get the children model endpoints ids
+        children_uids = []
+        for _, c in voting_ensemble.routes.items():
+            if hasattr(c, "endpoint_uid"):
+                children_uids.append(c.endpoint_uid)
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project, uid=endpoint_uid
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=voting_ensemble.__class__.__name__,
+                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                    project=project, kind="stream"
+                ),
+                active=True,
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                children=list(voting_ensemble.routes.keys()),
+                endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.ROUTER,
+                children_uids=children_uids,
+            ),
+        )
 
-        try:
-            # Get the children model endpoints ids
-            children_uids = []
-            for _, c in voting_ensemble.routes.items():
-                if hasattr(c, "endpoint_uid"):
-                    children_uids.append(c.endpoint_uid)
+        db = mlrun.get_run_db()
 
-            model_endpoint = mlrun.common.schemas.ModelEndpoint(
-                metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                    project=project, uid=endpoint_uid
-                ),
-                spec=mlrun.common.schemas.ModelEndpointSpec(
-                    function_uri=graph_server.function_uri,
-                    model=versioned_model_name,
-                    model_class=voting_ensemble.__class__.__name__,
-                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project, kind="stream"
-                    ),
-                    active=True,
-                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                    if voting_ensemble.context.server.track_models
-                    else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
-                ),
-                status=mlrun.common.schemas.ModelEndpointStatus(
-                    children=list(voting_ensemble.routes.keys()),
-                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.ROUTER,
-                    children_uids=children_uids,
-                ),
+        db.create_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint.dict(),
+        )
+
+        # Update model endpoint children type
+        for model_endpoint in children_uids:
+            current_endpoint = db.get_model_endpoint(
+                project=project, endpoint_id=model_endpoint
             )
-
-            db = mlrun.get_run_db()
-
+            current_endpoint.status.endpoint_type = (
+                mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            )
             db.create_model_endpoint(
                 project=project,
-                endpoint_id=model_endpoint.metadata.uid,
-                model_endpoint=model_endpoint.dict(),
+                endpoint_id=model_endpoint,
+                model_endpoint=current_endpoint,
             )
-
-            # Update model endpoint children type
-            for model_endpoint in children_uids:
-                current_endpoint = db.get_model_endpoint(
-                    project=project, endpoint_id=model_endpoint
-                )
-                current_endpoint.status.endpoint_type = (
-                    mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
-                )
-                db.create_model_endpoint(
-                    project=project,
-                    endpoint_id=model_endpoint,
-                    model_endpoint=current_endpoint,
-                )
-
-        except Exception as exc:
-            logger.warning(
-                "Failed creating model endpoint record",
-                exc=err_to_str(exc),
-                traceback=traceback.format_exc(),
-            )
-
-    except Exception as e:
-        logger.error("Failed to retrieve model endpoint object", exc=err_to_str(e))
+    elif (
+        model_ep
+        and (
+            model_ep.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        )
+        != voting_ensemble.context.server.track_models
+    ):
+        monitoring_mode = (
+            mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+            if voting_ensemble.context.server.track_models
+            else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+        )
+        db = mlrun.get_run_db()
+        db.patch_model_endpoint(
+            project=project,
+            endpoint_id=endpoint_uid,
+            attributes={"monitoring_mode": monitoring_mode},
+        )
+        logger.debug(
+            f"Updating model endpoint monitoring_mode to {monitoring_mode}",
+            endpoint_id=endpoint_uid,
+        )
 
     return endpoint_uid
 

@@ -137,7 +137,7 @@ class TestAlerts(TestMLRunSystem):
             mm_constants.WriterEvent.DATA: json.dumps(
                 {
                     mm_constants.ResultData.RESULT_NAME: result_name,
-                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.custom.value,
+                    mm_constants.ResultData.RESULT_KIND: mm_constants.ResultKindApp.mm_app_anomaly.value,
                     mm_constants.ResultData.RESULT_VALUE: 0.9,
                     mm_constants.ResultData.RESULT_STATUS: mm_constants.ResultStatusApp.detected.value,
                     mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(
@@ -209,11 +209,17 @@ class TestAlerts(TestMLRunSystem):
             )
         return expected_notifications
 
+    @pytest.mark.model_monitoring
     def test_drift_detection_alert(self):
         """
         validate that an alert is sent with different result kind and different detection result
         """
         # enable model monitoring - deploy writer function
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
         # deploy nuclio func for storing notifications, to validate an alert notifications were sent on drift detection
         nuclio_function_url = notification_helpers.deploy_notification_nuclio(

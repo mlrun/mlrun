@@ -49,10 +49,20 @@ _MLRUN_MODEL_MONITORING_DB = "mysql+pymysql://root@mlrun-db:3306/mlrun_model_mon
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "pr-endpoints-operations"
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
     def test_clear_endpoint(self):
         """Validates the process of create and delete a basic model endpoint"""
@@ -96,25 +106,9 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert endpoint_before_update.status.state == "null"
 
-        # Check default drift thresholds
-        assert endpoint_before_update.spec.monitor_configuration == {
-            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
-            ),
-            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
-                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
-            ),
-        }
-
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
         current_stats = {
-            "tvd_sum": 2.2,
-            "tvd_mean": 0.5,
-            "hellinger_sum": 3.6,
-            "hellinger_mean": 0.9,
-            "kld_sum": 24.2,
-            "kld_mean": 6.0,
             "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
             "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
         }
@@ -174,7 +168,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
             endpoint_details = self._mock_random_endpoint()
 
             if i < 1:
-                endpoint_details.spec.model = "filterme"
+                endpoint_details.spec.model = "filterme:latest"
 
             if i < 2:
                 endpoint_details.spec.function_uri = "test/filterme"
@@ -241,6 +235,7 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBasicModelMonitoring(TestMLRunSystem):
     """Deploy and apply monitoring on a basic pre-trained model"""
 
@@ -252,9 +247,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     @pytest.mark.parametrize(
         "with_sql_target",
         [
-            pytest.param(
-                True, marks=pytest.mark.skip(reason="Chronically fails, see ML-5820")
-            ),
+            True,
             False,
         ],
     )
@@ -268,10 +261,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # Deploy Model Servers
         project = self.project
 
-        if with_sql_target:
-            project.set_model_monitoring_credentials(
-                endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
-            )
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            if with_sql_target
+            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
         iris = load_iris()
         train_set = pd.DataFrame(
@@ -300,7 +296,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         labels = {"framework": "sklearn", "mylabel": "l1"}
 
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model_obj = project.log_model(
             model_name,
             model_dir=str(self.assets_path),
             model_file="model.pkl",
@@ -340,12 +336,26 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
+        assert not endpoint.status.feature_stats
+
         self._assert_model_endpoint_tags_and_labels(
             endpoint=endpoint, model_name=model_name, tag=tag, labels=labels
         )
 
         # Test metrics
         self._assert_model_endpoint_metrics(endpoint=endpoint)
+
+        self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+
+    def _assert_model_uri(
+        self,
+        model_obj: mlrun.artifacts.ModelArtifact,
+        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+    ) -> None:
+        assert (
+            endpoint.spec.model_uri
+            == f"store://models/{model_obj.metadata.project}/{model_obj.key}#{model_obj.iter}@{model_obj.tree}"
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -381,6 +391,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
     # TODO: Temporary skip this test on open source until fixed
     @pytest.mark.enterprise
+    @pytest.mark.model_monitoring
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # Main validations:
@@ -527,6 +538,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 @pytest.mark.skip(reason="Chronically fails, see ML-5820")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestVotingModelMonitoring(TestMLRunSystem):
     """Train, deploy and apply monitoring on a voting ensemble router with 3 models"""
 
@@ -804,6 +816,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestBatchDrift(TestMLRunSystem):
     """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
     the monitoring process of the batch infer job function that can be imported from the functions hub.
@@ -853,6 +866,11 @@ class TestBatchDrift(TestMLRunSystem):
         )
 
         # Deploy model monitoring infra
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,
@@ -918,6 +936,7 @@ class TestBatchDrift(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelMonitoringKafka(TestMLRunSystem):
     """Deploy a basic iris model configured with kafka stream"""
 
@@ -973,10 +992,15 @@ class TestModelMonitoringKafka(TestMLRunSystem):
             ),
         )
 
-        project.set_model_monitoring_credentials(stream_path=f"kafka://{self.brokers}")
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=f"kafka://{self.brokers}",
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
         # enable model monitoring
         serving_fn.set_tracking()
+
         project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             **({} if self.image is None else {"image": self.image}),
@@ -1029,6 +1053,7 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
@@ -1126,6 +1151,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+@pytest.mark.model_monitoring
 class TestModelInferenceTSDBRecord(TestMLRunSystem):
     """
     Test that batch inference records results to V3IO TSDB when tracking is
@@ -1169,7 +1195,8 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
-            project=cls.project_name
+            project=cls.project_name,
+            tsdb_connection_string=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
         )
 
         df: pd.DataFrame = tsdb_client._get_records(
@@ -1191,6 +1218,11 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         }, "The result is different than expected"
 
     def test_record(self) -> None:
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
         self.project.enable_model_monitoring(
             base_period=1,
             deploy_histogram_data_drift_app=True,

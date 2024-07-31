@@ -39,6 +39,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
+        self.project_default_function_node_selector = {"test-project": "node-selector"}
 
     def _generate_runtime(
         self, set_resources: bool = True
@@ -67,6 +68,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
         else:
             assert "javaOptions" not in body["spec"]["executor"]
+
+    def _assert_merged_node_selectors(
+        self,
+        body: dict,
+        expected_job_node_selector: dict,
+        expected_driver_node_selector: dict,
+        expected_executor_node_selector: dict,
+    ):
+        if expected_job_node_selector:
+            assert body["spec"]["nodeSelector"] == expected_job_node_selector
+        if expected_driver_node_selector:
+            assert (
+                body["spec"]["driver"]["nodeSelector"] == expected_driver_node_selector
+            )
+        if expected_executor_node_selector:
+            assert (
+                body["spec"]["executor"]["nodeSelector"]
+                == expected_executor_node_selector
+            )
 
     @staticmethod
     def _assert_cores(body: dict, expected_cores: dict):
@@ -423,6 +443,38 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
+    def test_with_node_selector(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        node_selector = {
+            "label-1": "val1",
+            "label-2": "val2",
+        }
+        executor_node_selector = {"executor": "node_selector"}
+        driver_node_selector = {"driver": "node_selector"}
+
+        runtime.with_node_selection(node_selector=node_selector)
+        runtime.spec.executor_node_selector = executor_node_selector
+        runtime.spec.driver_node_selector = driver_node_selector
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+
+        self._assert_merged_node_selectors(
+            body,
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, node_selector
+            ),
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, driver_node_selector
+            ),
+            mlrun.utils.helpers.merge_with_precedence(
+                self.project_default_function_node_selector, executor_node_selector
+            ),
+        )
+
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
@@ -675,6 +727,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
 
         self.project = "default"
+        self.project_default_function_node_selector = {}
         self._create_project(client)
 
         resp = fstore.get_offline_features(

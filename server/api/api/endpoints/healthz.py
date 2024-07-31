@@ -26,7 +26,7 @@ router = APIRouter()
     "/healthz",
     status_code=http.HTTPStatus.OK.value,
 )
-def health():
+async def health():
     # offline is the initial state
     # waiting for chief is set for workers waiting for chief to be ready and then clusterize against it
     if mlconfig.httpdb.state in [

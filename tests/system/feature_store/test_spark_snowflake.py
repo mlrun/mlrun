@@ -20,32 +20,19 @@ import pandas as pd
 import pytest
 import snowflake.connector
 
+import mlrun.errors
 import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SnowflakeSource
-from mlrun.datastore.targets import SnowflakeTarget
-from mlrun.feature_store.retrieval.spark_merger import spark_df_to_pandas
+from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
     SparkHadoopTestBase,
 )
-
-SNOWFLAKE_ENV_PARAMETERS = [
-    "SNOWFLAKE_URL",
-    "SNOWFLAKE_USER",
-    "SNOWFLAKE_PASSWORD",
-    "SNOWFLAKE_DATABASE",
-    "SNOWFLAKE_SCHEMA",
-    "SNOWFLAKE_WAREHOUSE",
-    "SNOWFLAKE_TABLE_NAME",
-]
-
-
-def get_missing_snowflake_spark_parameters():
-    snowflake_missing_keys = [
-        key for key in SNOWFLAKE_ENV_PARAMETERS if key not in os.environ
-    ]
-    return snowflake_missing_keys
+from tests.system.feature_store.utils import (
+    get_missing_snowflake_spark_parameters,
+    get_snowflake_spark_parameters,
+)
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -60,26 +47,22 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
     def custom_setup_class(cls):
         cls.configure_namespace("snowflake")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Local)
+        cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
-        url = cls.env.get("SNOWFLAKE_URL")
-        user = cls.env.get("SNOWFLAKE_USER")
-        cls.database = cls.env.get("SNOWFLAKE_DATABASE")
-        warehouse = cls.env.get("SNOWFLAKE_WAREHOUSE")
-        account = url.replace(".snowflakecomputing.com", "")
-        password = cls.env["SNOWFLAKE_PASSWORD"]
-        cls.snowflake_spark_parameters = dict(
-            url=url, user=user, database=cls.database, warehouse=warehouse
+        cls.snowflake_spark_parameters = get_snowflake_spark_parameters()
+        cls.database = cls.snowflake_spark_parameters["database"]
+        account = cls.snowflake_spark_parameters["url"].replace(
+            ".snowflakecomputing.com", ""
         )
         cls.snowflake_connector = snowflake.connector.connect(
             account=account,
-            user=user,
-            password=password,
-            warehouse=warehouse,
+            user=cls.snowflake_spark_parameters["user"],
+            password=cls.env["SNOWFLAKE_PASSWORD"],
+            warehouse=cls.snowflake_spark_parameters["warehouse"],
         )
         cls.schema = cls.env.get("SNOWFLAKE_SCHEMA")
         if cls.deployment_type == Deployment.Remote:
@@ -95,6 +78,10 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.source_table = f"source_{self.current_time}"
         self.tables_to_drop = [self.source_table]
+        if self.deployment_type == Deployment.Remote:
+            self.project.set_secrets(
+                {"SNOWFLAKE_PASSWORD": os.environ["SNOWFLAKE_PASSWORD"]}
+            )
 
     def teardown_method(self, method):
         super().teardown_method(method)
@@ -110,7 +97,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
         data_values = [
             (
-                i + 1,
+                (i + 1) * 10,
                 f"Name{i + 1}",
                 random.randint(23, 60),
                 datetime.utcnow().replace(tzinfo=utc_timezone)
@@ -134,13 +121,15 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         self.cursor.executemany(insert_query, data_values)
         return pd.DataFrame(data_values, columns=["ID", "NAME", "AGE", "LICENSE_DATE"])
 
-    def test_snowflake_source_and_target(self):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_snowflake_source_and_target(self, passthrough):
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
         feature_set = fstore.FeatureSet(
             name="snowflake_feature_set",
-            entities=[fstore.Entity("C_CUSTKEY")],
+            entities=[fstore.Entity("ID")],
             engine="spark",
+            passthrough=passthrough,
         )
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
@@ -160,40 +149,62 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             source,
             targets=[target],
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(local=self.run_local),
+            run_config=fstore.RunConfig(
+                local=self.run_local,
+            ),
         )
-        result_data = self.cursor.execute(
-            f"select * from {self.database}.{self.schema}.{result_table}"
-        ).fetchall()
-        column_names = [desc[0] for desc in self.cursor.description]
-        result_df = pd.DataFrame(result_data, columns=column_names)
-        result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
-        pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
+        if not passthrough:
+            result_data = self.cursor.execute(
+                f"select * from {self.database}.{self.schema}.{result_table}"
+            ).fetchall()
+            column_names = [desc[0] for desc in self.cursor.description]
+            result_df = pd.DataFrame(result_data, columns=column_names)
+            result_df["LICENSE_DATE"] = result_df["LICENSE_DATE"].dt.tz_convert("UTC")
 
-    def test_source(self):
-        from pyspark.sql import SparkSession
-
-        spark = (
-            SparkSession.builder.appName("snowflake_spark")
-            .config("spark.sql.session.timeZone", "UTC")
-            .getOrCreate()
+            pd.testing.assert_frame_equal(expected_df, result_df.sort_values(by="ID"))
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
-        number_of_rows = 10
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
+        result = vector.get_offline_features(
+            engine="spark",
+            with_indexes=True,
+            spark_service=self.spark_service,
+            run_config=run_config,
+            target=None if self.run_local else ParquetTarget(),
+        ).to_dataframe()
+        result = result.reset_index(drop=False)
+        pd.testing.assert_frame_equal(
+            expected_df, result.sort_values(by="ID"), check_dtype=False
+        )
 
-        source = SnowflakeSource(
-            "snowflake_source",
-            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
-            schema=self.schema,
-            time_field="LICENSE_DATE",
+    def test_purge_snowflake_target(self):
+        self.generate_snowflake_source_table()
+        target = SnowflakeTarget(
+            "snowflake_target",
+            table_name=self.source_table,
+            db_schema=self.schema,
             **self.snowflake_spark_parameters,
         )
-        source_df = self.generate_snowflake_source_table()
-        result_spark_df = source.to_spark_df(session=spark)
-        result_df = spark_df_to_pandas(spark_df=result_spark_df)
-        sorted_source_df = source_df.sort_values(by="ID").head(number_of_rows)
-        pd.testing.assert_frame_equal(
-            sorted_source_df,
-            result_df,
-            check_dtype=False,
+        table_path = f"{self.database}.{self.schema}.{self.source_table}"
+        self.cursor.execute(f"select * from {table_path}").fetchall()
+        target.purge()
+        with pytest.raises(
+            snowflake.connector.errors.ProgrammingError,
+            match=f".*Object '{table_path.upper()}' does not exist or not authorized.",
+        ):
+            self.cursor.execute(f"select * from {table_path}").fetchall()
+
+    def test_purge_with_missing_attribute(self):
+        fake_target = SnowflakeTarget(
+            "fake_snowflake_target",
+            **self.snowflake_spark_parameters,
         )
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError,
+            match=".*some attributes are missing.*",
+        ):
+            fake_target.purge()

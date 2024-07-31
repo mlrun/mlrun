@@ -85,7 +85,8 @@ class BaseSourceDriver(DataSource):
             )
 
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         return storey.SyncEmitSource(
             context=context,
@@ -747,7 +748,7 @@ class SnowflakeSource(BaseSourceDriver):
             url="...",
             user="...",
             database="...",
-            schema="...",
+            db_schema="...",
             warehouse="...",
         )
 
@@ -762,7 +763,8 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter url: URL of the snowflake cluster
     :parameter user: snowflake user
     :parameter database: snowflake database
-    :parameter schema: snowflake schema
+    :parameter schema: snowflake schema - deprecated, use db_schema
+    :parameter db_schema: snowflake schema
     :parameter warehouse: snowflake warehouse
     """
 
@@ -774,6 +776,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        attributes: dict[str, object] = None,
         time_field: str = None,
         schedule: str = None,
         start_time=None,
@@ -783,21 +786,34 @@ class SnowflakeSource(BaseSourceDriver):
         user: str = None,
         database: str = None,
         schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
-        attrs = {
-            "query": query,
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": schema,
-            "warehouse": warehouse,
-        }
+        # TODO: Remove in 1.9.0
+        if schema:
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
+        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if query:
+            attributes["query"] = query
 
         super().__init__(
             name,
-            attributes=attrs,
+            attributes=attributes,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -810,6 +826,20 @@ class SnowflakeSource(BaseSourceDriver):
         spark_options = get_snowflake_spark_options(self.attributes)
         spark_options["query"] = self.attributes.get("query")
         return spark_options
+
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} supports only spark engine"
+        )
 
 
 class CustomSource(BaseSourceDriver):
@@ -915,7 +945,8 @@ class OnlineSource(BaseSourceDriver):
 
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
         src_class = storey.SyncEmitSource(
@@ -1000,7 +1031,8 @@ class StreamSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
             kwargs["worker_allocation_mode"] = "static"
 
@@ -1087,7 +1119,8 @@ class KafkaSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"

@@ -231,15 +231,6 @@ class EndpointType(IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
-class PrometheusMetric:
-    PREDICTIONS_TOTAL = "predictions_total"
-    MODEL_LATENCY_SECONDS = "model_latency_seconds"
-    INCOME_FEATURES = "income_features"
-    ERRORS_TOTAL = "errors_total"
-    DRIFT_METRICS = "drift_metrics"
-    DRIFT_STATUS = "drift_status"
-
-
 class PrometheusEndpoints(MonitoringStrEnum):
     MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
     MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"

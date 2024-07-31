@@ -51,7 +51,7 @@ When you use a template, you only need to supply:
 - name: str
 - project: str
 - entity: EventEntity from the list in [Alert templates](#alert-templates)
-- {py:meth}`~mlrun.common.schemas.notification.NotificationKind`
+- {py:func}`~mlrun.common.schemas.notification.NotificationKind`
 
 ```python
 job_fail_template = project.get_alert_template("JobFailed")
@@ -69,6 +69,7 @@ alert_from_template.with_entities(entities=entities)
 alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
 ```
+
 ## Creating an alert without a template
 You can select an alert type for a specific model, for example "drift detection" for a given model. You must specify 
 the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). 

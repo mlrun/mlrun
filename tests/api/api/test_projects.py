@@ -191,8 +191,8 @@ def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
 def test_delete_project_with_resources(
     db: Session,
     unversioned_client: TestClient,
-    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     mocked_k8s_helper,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,
     api_version: str,
     successful_delete_response_code: int,
@@ -723,8 +723,8 @@ def test_delete_project_deletion_strategy_check_external_resource(
     db: Session,
     client: TestClient,
     project_member_mode: str,
-    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     mocked_k8s_helper,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     mlrun.mlconf.namespace = "test-namespace"
     project = mlrun.common.schemas.Project(
@@ -764,8 +764,8 @@ def test_delete_project_with_stop_logs(
     db: Session,
     client: TestClient,
     project_member_mode: str,
-    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     mocked_k8s_helper,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
 

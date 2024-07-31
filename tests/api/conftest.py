@@ -239,6 +239,11 @@ def _mocked_k8s_helper():
     server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
         return_value=config_map
     )
+    pods_list = unittest.mock.Mock()
+    pods_list.items = []
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
+        unittest.mock.Mock(return_value=pods_list)
+    )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):

@@ -138,6 +138,7 @@ source = SQLSource(
 )
  
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+feature_set.set_targets([])
 df = fs.ingest(feature_set, source=source)
 ```
 

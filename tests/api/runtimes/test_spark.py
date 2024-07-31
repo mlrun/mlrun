@@ -458,10 +458,14 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         project_name = "test-spark"
         default_project_name = self.project
         self.project = project_name
-
-        project = mlrun.get_or_create_project(project_name)
-        project.spec.default_function_node_selector = project_node_selector
-        project.save()
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.common.schemas.ProjectSpec(
+                default_function_node_selector=project_node_selector
+            ),
+        )
+        run_db = mlrun.get_run_db()
+        run_db.store_project(project_name, project)
 
         node_selector = {
             "label-1": "val1",

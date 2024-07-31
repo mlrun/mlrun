@@ -53,7 +53,7 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
-- MLRun < 1.2: The allowed paths include only v3io paths
+- MLRun < 1.2: The allowed paths include only V3IO paths
 - MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
   `http://` paths are not visible due to security reasons.
 - MLRun 1.5 adds support for  dbfs (Databricks file system): `dbfs://`
@@ -137,7 +137,7 @@ Example artifact URLs:
 
 Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You delete artifacts from a specific project 
 and choose what you want to delete. You cannot delete artifacts of type: ModelArtifact, DirArtifact, and DatasetArtifact that has more than one file. 
-Deleting artifact data is supported for v3IO, Google, Azure, DBFS, Filestore, and S3. 
+Deleting artifact data is supported for V3IO, Google, Azure, DBFS, Filestore, and S3. 
 
 
 The options for {py:meth}`~mlrun.projects.MlrunProject.delete_artifact`:

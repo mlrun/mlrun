@@ -43,7 +43,6 @@ import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
 import server.api.utils.notification_pusher
-import server.api.utils.runtimes.nuclio
 import server.api.utils.time_window_tracker
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -184,8 +183,6 @@ async def setup_api():
 
     initialize_logs_dir()
     initialize_db()
-
-    server.api.utils.runtimes.nuclio.resolve_nuclio_version()
 
     # chief do stuff
     if (

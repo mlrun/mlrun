@@ -3379,7 +3379,7 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
+            method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/model-monitoring-controller",
             params={
                 "base_period": base_period,

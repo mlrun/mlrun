@@ -26,6 +26,7 @@ import server.api.api.utils
 import server.api.utils.builder
 import server.api.utils.clients.iguazio
 import server.api.utils.runtimes.nuclio
+from mlrun.config import config as mlconf
 
 
 def test_get_frontend_spec(
@@ -200,7 +201,7 @@ def test_get_frontend_spec_nuclio_streams(
         },
     ]:
         # init cached value to None in the beginning of each test case
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = None
+        mlconf.nuclio_version = ""
         mlrun.mlconf.igz_version = test_case.get("iguazio_version")
         mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 

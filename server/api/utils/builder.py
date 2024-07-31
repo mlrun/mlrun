@@ -850,17 +850,6 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
     return image_target
 
 
-def _resolve_project_default_service_account(runtime):
-    project_default_function_node_selector = {}
-    if runtime and runtime._get_db():
-        project_obj = runtime._get_db().get_project(runtime.metadata.project)
-        if project_obj:
-            project_default_function_node_selector = (
-                project_obj.spec.default_function_node_selector
-            )
-    return project_default_function_node_selector
-
-
 def _generate_builder_env(
     project: str, builder_env: dict
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):

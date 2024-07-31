@@ -85,7 +85,8 @@ class BaseSourceDriver(DataSource):
             )
 
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         return storey.SyncEmitSource(
             context=context,
@@ -944,7 +945,8 @@ class OnlineSource(BaseSourceDriver):
 
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
         src_class = storey.SyncEmitSource(
@@ -1029,7 +1031,8 @@ class StreamSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
             kwargs["worker_allocation_mode"] = "static"
 
@@ -1116,7 +1119,8 @@ class KafkaSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"

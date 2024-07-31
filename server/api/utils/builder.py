@@ -173,7 +173,7 @@ def make_kaniko_pod(
         runtime_spec,
         project_default_fucntion_node_selector,
     ).items():
-        attr_value = getattr(runtime_spec, attribute, None)
+        attr_value = handler(getattr(runtime_spec, attribute, None))
         if attr_value:
             extra_runtime_spec[attribute] = handler(attr_value)
 

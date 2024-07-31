@@ -772,6 +772,8 @@ class SQLDB(DBInterface):
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
+        # This allows retrieving untagged artifacts and maintains backward compatibility with previous versions.
+        # An untagged artifact is represented by an empty string as the tag.
         if tag is None:
             tag = mlrun.common.schemas.artifact.ArtifactTagsTypes.latest
 

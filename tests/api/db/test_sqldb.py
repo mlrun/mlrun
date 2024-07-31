@@ -169,7 +169,13 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     assert result["metadata"]["tag"] == "tag1"
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
     assert result["metadata"]["tag"] == "tag2"
-    result = db.read_artifact(db_session, k1, iter=1, project=prj)
+    result = db.read_artifact(
+        db_session,
+        k1,
+        iter=1,
+        project=prj,
+        tag=mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged,
+    )
     # When doing get without a tag, the returned object must not contain a tag.
     assert "tag" not in result["metadata"]
 
@@ -251,6 +257,47 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
         )
         == {}
     )
+
+
+def test_read_untagged_artifact(db: SQLDB, db_session: Session):
+    project = "dummy-project"
+    key = "dummy-key"
+
+    for index in range(1, 5):
+        db.store_artifact(
+            db_session,
+            key,
+            artifact={"a": index},
+            iter=index,
+            project=project,
+            producer_id=f"dummy-id-{index}",
+        )
+
+    artifacts = db.list_artifacts(db_session, project=project)
+    assert len(artifacts) == 4
+
+    non_latest_artifacts = [
+        artifact
+        for artifact in artifacts
+        if artifact["metadata"].get("tag") != "latest"
+    ]
+
+    assert (
+        len(non_latest_artifacts) == 3
+    ), "There should be exactly 3 non-latest artifact"
+
+    #  Retrieve the oldest artifact (the first one) by using the 'untagged' tag
+    retrieved_artifact = db.read_artifact(
+        db_session,
+        key,
+        iter=1,
+        project=project,
+        producer_id="dummy-id-1",
+        tag=mlrun.common.schemas.artifact.ArtifactTagsTypes.untagged,
+    )
+
+    # Verify that we retrieved the correct artifact by checking its body
+    assert retrieved_artifact["a"] == 1, "The retrieved artifact should have the body {'a': 1}"
 
 
 def test_projects_crud(db: SQLDB, db_session: Session):

@@ -56,15 +56,15 @@ When you use a template, you only need to supply:
 ```python
 job_fail_template = project.get_alert_template("JobFailed")
 alert_from_template = mlrun.alerts.alert.AlertConfig(
-            project=project_name,
-            name="failure",
-            template=job_fail_template,
-		)
+    project=project_name,
+    name="failure",
+    template=job_fail_template,
+)
 entities = alert_objects.EventEntities(
-			kind=alert_objects.EventEntityKind.JOB,
-			project=project_name,
-			ids=[run_id],
-		)
+    kind=alert_objects.EventEntityKind.JOB,
+    project=project_name,
+    ids=[run_id],
+)
 alert_from_template.with_entities(entities=entities)
 alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
@@ -77,37 +77,37 @@ You can also configure email/Slack details to send notifications.
 
 ```python
 notification = mlrun.model.Notification(
-            kind="slack",
-            name="slack_notification",
-            message="A drift was detected",
-            severity="warning",
-            when=["now"],
-            condition="failed",
-            secret_params={
-                "webhook": "https://hooks.slack.com/",
-            },
-        ).to_dict()
+    kind="slack",
+    name="slack_notification",
+    message="A drift was detected",
+    severity="warning",
+    when=["now"],
+    condition="failed",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
+).to_dict()
 
 endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
 endpoint_id = endpoints[0].metadata.uid
 result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
 notifications = [alert_objects.AlertNotification(notification=notification)]
-alert_name="drift_alert"
-alert_summary="A drift was detected"
+alert_name = "drift_alert"
+alert_summary = "A drift was detected"
 entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
 event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
 alert_data = mlrun.alerts.alert.AlertConfig(
-            project=project_name,
-            name=alert_name,
-            summary=alert_summary,
-            severity=alert_objects.AlertSeverity.LOW,
-            entities=alert_objects.EventEntities(
-                kind=entity_kind, project=project_name, ids=[result_endpoint]
-            ),
-            trigger=alert_objects.AlertTrigger(events=[event_name]),
-            criteria=None,
-            notifications=notifications,
-        )
+    project=project_name,
+    name=alert_name,
+    summary=alert_summary,
+    severity=alert_objects.AlertSeverity.LOW,
+    entities=alert_objects.EventEntities(
+        kind=entity_kind, project=project_name, ids=[result_endpoint]
+    ),
+    trigger=alert_objects.AlertTrigger(events=[event_name]),
+    criteria=None,
+    notifications=notifications,
+)
 
 project.store_alert_config(alert_data)
 ```

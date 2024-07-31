@@ -280,9 +280,15 @@ class Scheduler:
         db_session: Session,
         project: str,
         name: str,
+        skip_notification_secrets=False,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_scheduler_resources(db_session, project, name)
+        self._remove_schedule_scheduler_resources(
+            db_session,
+            project,
+            name,
+            skip_notification_secrets=skip_notification_secrets,
+        )
         get_db().delete_schedule(db_session, project, name)
 
     @server.api.utils.helpers.ensure_running_on_chief
@@ -290,10 +296,12 @@ class Scheduler:
         self,
         db_session: Session,
         project: str,
+        skip_notification_secrets=False,
     ):
         schedules = self.list_schedules(
             db_session,
             project,
+            skip_notification_secrets=skip_notification_secrets,
         )
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
@@ -389,9 +397,12 @@ class Scheduler:
         self.update_schedule_next_run_time(db_session, name, project, job)
         return is_update
 
-    def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
+    def _remove_schedule_scheduler_resources(
+        self, db_session: Session, project, name, skip_notification_secrets=False
+    ):
         self._remove_schedule_from_scheduler(project, name)
-        self._remove_schedule_notification_secrets(db_session, project, name)
+        if not skip_notification_secrets:
+            self._remove_schedule_notification_secrets(db_session, project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)

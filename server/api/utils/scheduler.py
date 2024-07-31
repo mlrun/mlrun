@@ -771,10 +771,6 @@ class Scheduler:
                         )
                         username = secret.username
                         access_key = secret.access_key
-                    else:
-                        raise mlrun.errors.MLRunNotFoundError(
-                            f"Access key secret name not found for schedule {db_schedule.project}/{db_schedule.name}"
-                        )
 
                 auth_info = mlrun.common.schemas.AuthInfo(
                     username=username,

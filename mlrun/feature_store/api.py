@@ -1097,6 +1097,8 @@ def _ingest_with_spark(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
             write_format = spark_options.pop("format", None)
+            # We can get to this point if the column exists in different letter cases,
+            # so PySpark will be able to read it, but we still have to raise an exception for it.
             check_special_columns_exists(
                 spark_df=df_to_write,
                 entities=featureset.spec.entities,

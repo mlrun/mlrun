@@ -8,7 +8,7 @@ There are several types of Artifacts. The type of the Artifact is reflected in t
 used for grouping the [artifacts in the UI](#viewing-artifacts). 
 The main kinds of artifacts are:
 
-- Files — Files, directories, images, figures, and plotlines
+- Files — Files, directories, images, figures, and plot lines
 - Datasets — Any data, such as tables and DataFrames
 - Models — All trained models
 - Feature Store Objects — Feature sets and feature vectors
@@ -56,7 +56,7 @@ system-configured as "allowed" in the MLRun service are visible in the UI. These
 - MLRun < 1.2: The allowed paths include only V3IO paths
 - MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
   `http://` paths are not visible due to security reasons.
-- MLRun 1.5 adds support for  dbfs (Databricks file system): `dbfs://`
+- MLRun 1.5 adds support for DBFS (Databricks file system): `dbfs://`
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 

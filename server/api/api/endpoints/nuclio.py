@@ -517,8 +517,7 @@ def _deploy_nuclio_runtime(
         except mlrun.errors.MLRunBadRequestError as exc:
             raise_error = True
             if (
-                fn.spec.image.startswith("mlrun/")
-                and client_version
+                client_version
                 and (
                     semver.Version.parse(client_version) < semver.Version.parse("1.7.0")
                     or "unstable" in client_version

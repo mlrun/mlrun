@@ -27,7 +27,6 @@ import mlrun.datastore.targets
 import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.db
-import mlrun.model_monitoring.prometheus
 import mlrun.serving.states
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -37,7 +36,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
     FileTargetKind,
     ModelEndpointTarget,
     ProjectSecretKeys,
-    PrometheusEndpoints,
 )
 from mlrun.utils import logger
 
@@ -172,39 +170,12 @@ class EventStreamProcessor:
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
 
-        # Event routing based on the provided path
-        def apply_event_routing():
-            typing.cast(
-                mlrun.serving.TaskStep,
-                graph.add_step(
-                    "EventRouting",
-                    full_event=True,
-                    project=self.project,
-                ),
-            ).respond()
-
-        apply_event_routing()
-
-        # Filter out events with '-' in the path basename from going forward
-        # through the next steps of the stream graph
-        def apply_storey_filter_stream_events():
-            # Filter events with Prometheus endpoints path
-            graph.add_step(
-                "storey.Filter",
-                "filter_stream_event",
-                _fn=f"(event.path not in {PrometheusEndpoints.list()})",
-                full_event=True,
-            )
-
-        apply_storey_filter_stream_events()
-
         # Process endpoint event: splitting into sub-events and validate event data
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
                 full_event=True,
                 project=self.project,
-                after="filter_stream_event",
             )
 
         apply_process_endpoint_event()
@@ -324,33 +295,10 @@ class EventStreamProcessor:
 
         apply_storey_sample_window()
 
-        # TSDB branch (skip to Prometheus if in CE env)
-        if not mlrun.mlconf.is_ce_mode():
-            tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-                project=self.project, secret_provider=secret_provider
-            )
-            tsdb_connector.apply_monitoring_stream_steps(graph=graph)
-
-        else:
-            # Prometheus
-            # Increase the prediction counter by 1 and update the latency value
-            graph.add_step(
-                "IncCounter",
-                name="IncCounter",
-                after="MapFeatureNames",
-                project=self.project,
-            )
-
-            # Record a sample of features and labels
-            def apply_record_features_to_prometheus():
-                graph.add_step(
-                    "RecordFeatures",
-                    name="RecordFeaturesToPrometheus",
-                    after="sample",
-                    project=self.project,
-                )
-
-            apply_record_features_to_prometheus()
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         # Parquet branch
         # Filter and validate different keys before writing the data to Parquet target
@@ -542,11 +490,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         error = event.get("error")
         if error:
             self.error_count[endpoint_id] += 1
-            mlrun.model_monitoring.prometheus.write_errors(
-                project=self.project,
-                endpoint_id=event["endpoint_id"],
-                model_name=event["model"],
-            )
+            # TODO: write to tsdb / kv once in a while
             raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields
@@ -969,98 +913,6 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
                 container=self.container,
                 address=self.v3io_framesd,
             ).execute(backend="kv", table=self.table, command="infer_schema")
-
-        return event
-
-
-class EventRouting(mlrun.feature_store.steps.MapClass):
-    """
-    Router the event according to the configured path under event.path. Please note that this step returns the result
-    to the caller. At the moment there are several paths:
-
-    - /model-monitoring-metrics (GET): return Prometheus registry results as a text. Will be used by Prometheus client
-    to scrape the results from the monitoring stream memory.
-
-    - /monitoring-batch-metrics (POST): update the Prometheus registry with the provided statistical metrics such as the
-     statistical metrics from the monitoring batch job. Note that the event body is a list of dictionaries of different
-     metrics.
-
-    - /monitoring-drift-status (POST): update the Prometheus registry with the provided model drift status.
-
-    """
-
-    def __init__(
-        self,
-        project: str,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.project: str = project
-
-    def do(self, event):
-        if event.path == PrometheusEndpoints.MODEL_MONITORING_METRICS:
-            # Return a parsed Prometheus registry file
-            event.body = mlrun.model_monitoring.prometheus.get_registry()
-        elif event.path == PrometheusEndpoints.MONITORING_BATCH_METRICS:
-            # Update statistical metrics
-            for event_metric in event.body:
-                mlrun.model_monitoring.prometheus.write_drift_metrics(
-                    project=self.project,
-                    endpoint_id=event_metric[EventFieldType.ENDPOINT_ID],
-                    metric=event_metric[EventFieldType.METRIC],
-                    value=event_metric[EventFieldType.VALUE],
-                )
-        elif event.path == PrometheusEndpoints.MONITORING_DRIFT_STATUS:
-            # Update drift status
-            mlrun.model_monitoring.prometheus.write_drift_status(
-                project=self.project,
-                endpoint_id=event.body[EventFieldType.ENDPOINT_ID],
-                drift_status=event.body[EventFieldType.DRIFT_STATUS],
-            )
-
-        return event
-
-
-class IncCounter(mlrun.feature_store.steps.MapClass):
-    """Increase prediction counter by 1 and update the total latency value"""
-
-    def __init__(self, project: str, **kwargs):
-        super().__init__(**kwargs)
-        self.project: str = project
-
-    def do(self, event):
-        # Compute prediction per second
-
-        mlrun.model_monitoring.prometheus.write_predictions_and_latency_metrics(
-            project=self.project,
-            endpoint_id=event[EventFieldType.ENDPOINT_ID],
-            latency=event[EventFieldType.LATENCY],
-            model_name=event[EventFieldType.MODEL],
-            endpoint_type=event[EventFieldType.ENDPOINT_TYPE],
-        )
-
-        return event
-
-
-class RecordFeatures(mlrun.feature_store.steps.MapClass):
-    """Record a sample of features and labels in Prometheus registry"""
-
-    def __init__(self, project: str, **kwargs):
-        super().__init__(**kwargs)
-        self.project: str = project
-
-    def do(self, event):
-        # Generate a dictionary of features and predictions
-        features = {
-            **event[EventFieldType.NAMED_PREDICTIONS],
-            **event[EventFieldType.NAMED_FEATURES],
-        }
-
-        mlrun.model_monitoring.prometheus.write_income_features(
-            project=self.project,
-            endpoint_id=event[EventFieldType.ENDPOINT_ID],
-            features=features,
-        )
 
         return event
 

@@ -122,14 +122,10 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
             additional_graphs={},
         )
 
-        dashboard_html = self._render(file_html_template, template_params)
+        dashboard_html = file_html_template(params=template_params)
         self.context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
-
-    @staticmethod
-    def _render(temple_func, template_params: "TemplateParams"):
-        return temple_func(params=template_params)
 
 
 class EvidentlyModelMonitoringApplicationBaseV2(
@@ -200,11 +196,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
             additional_graphs={},
         )
 
-        dashboard_html = self._render(file_html_template, template_params)
+        dashboard_html = file_html_template(params=template_params)
         monitoring_context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
-
-    @staticmethod
-    def _render(temple_func, template_params: "TemplateParams"):
-        return temple_func(params=template_params)

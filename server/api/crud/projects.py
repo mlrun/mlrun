@@ -151,8 +151,12 @@ class Projects(
         model_monitoring_access_key: str = None,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
+        # We skip notification secrets because, the entire project secret will be deleted later
+        # so there's no need to delete individual entries from the secret.
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
-            session, name
+            session,
+            name,
+            skip_notification_secrets=True,
         )
 
         # delete runtime resources

@@ -291,10 +291,18 @@ class CustomEvidentlyMonitoringAppV2(EvidentlyModelMonitoringApplicationBaseV2):
         self.log_evidently_object(
             monitoring_context, data_drift_test_suite, "evidently_suite"
         )
+
+        window_start = monitoring_context.start_infer_time
+        window_end = monitoring_context.end_infer_time
+
+        # Note: the times for evidently are those of the next monitoring window.
+        evidently_start = window_end
+        evidently_end = window_end + (window_end - window_start)
+
         self.log_project_dashboard(
             monitoring_context,
-            monitoring_context.start_infer_time,
-            monitoring_context.end_infer_time,
+            timestamp_start=evidently_start,
+            timestamp_end=evidently_end,
         )
 
         monitoring_context.logger.info("Logged evidently objects")

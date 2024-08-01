@@ -378,6 +378,16 @@ def _generate_list_runs_mocks():
                 workflow_manifest=workflow_manifest,
             ),
         ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id5",
+            name="run5",
+            description="desc5",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id5",
+                workflow_manifest=workflow_manifest,
+            ),
+            error="error",
+        ),
     ]
 
 

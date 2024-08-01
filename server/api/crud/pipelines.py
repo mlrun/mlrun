@@ -14,10 +14,12 @@
 #
 import ast
 import http
+import json
 import tempfile
 import traceback
 import typing
 
+import kfp
 import kfp_server_api
 import mlrun_pipelines.utils
 import sqlalchemy.orm
@@ -85,6 +87,7 @@ class Pipelines(
                 if run_project == project:
                     project_runs.append(run)
             runs = self._filter_runs_by_name(project_runs, name_contains)
+
             total_size = len(runs)
             next_page_token = None
         else:
@@ -113,7 +116,7 @@ class Pipelines(
                 total_size = -1
             else:
                 total_size = len(runs)
-        runs = self._format_runs(runs, format_)
+        runs = self._format_runs(runs, format_, kfp_client)
 
         return total_size, next_page_token, runs
 
@@ -293,18 +296,24 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        kfp_client: kfp.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
-            formatted_runs.append(self._format_run(run, format_))
+            formatted_runs.append(self._format_run(run, format_, kfp_client))
         return formatted_runs
 
     def _format_run(
         self,
         run: PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        kfp_client: kfp.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
+        if kfp_client:
+            error = self.get_error_from_pipeline(kfp_client, run)
+            if error:
+                run.error = error
         return mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
 
     def _resolve_project_from_command(
@@ -362,6 +371,18 @@ class Pipelines(
 
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
+
+    def get_error_from_pipeline(self, kfp_client: kfp.Client, run: PipelineRun):
+        detail = kfp_client._run_api.get_run(run.id)
+        if detail.run.status == "Error":
+            workflow_status = json.loads(detail.pipeline_runtime.workflow_manifest)[
+                "status"
+            ]
+            for node in workflow_status["nodes"].values():
+                # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
+                if node["type"] != "DAG":
+                    if node["message"]:
+                        return node["message"]
 
     def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
         """Filter runs by their name while ignoring the project string on them

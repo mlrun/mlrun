@@ -223,6 +223,13 @@ async def delete_project(
         if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
             # if the strategy is check, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+        elif deletion_strategy.is_restricted():
+            # if the deletion strategy is restricted, and we passed validation, we want to go through the deletion
+            # process even if resources are created in the project after this point (for example in
+            # process_model_monitoring_secret).
+            # therefore, we change the deletion strategy to cascading to both ensure we won't fail later, and that we
+            # will delete the project and all its resources.
+            deletion_strategy = mlrun.common.schemas.DeletionStrategy.cascading
 
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if (

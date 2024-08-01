@@ -253,13 +253,18 @@ def test_build_runtime_use_default_node_selector(monkeypatch):
         kind=RuntimeKinds.job,
         requirements=["some-package"],
     )
+    func_node_selector, func_val = "label-3", "val3"
+    function.spec.node_selector = {func_node_selector: func_val}
+
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
     assert (
         deepdiff.DeepDiff(
-            _create_pod_mock_pod_spec().node_selector, node_selector, ignore_order=True
+            _create_pod_mock_pod_spec().node_selector,
+            {**node_selector, func_node_selector: func_val},
+            ignore_order=True,
         )
         == {}
     )
@@ -1493,7 +1498,7 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     )
     with unittest.mock.patch(
         "server.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
-        return_value=[],
+        return_value={},
     ):
         kpod = server.api.utils.builder.make_kaniko_pod(
             project="test",

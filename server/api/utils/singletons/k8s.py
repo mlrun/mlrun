@@ -192,14 +192,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             if not _continue:
                 break
 
-            logger.debug(
-                "Getting next crds",
-                remaining_item_count=crd_objects["metadata"].get(
-                    "remaining_item_count"
-                ),
-            )
-        logger.debug("Finished listing crds")
-
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod
@@ -608,6 +600,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             secret_data = k8s_secret.data.copy()
             for secret in secrets:
                 secret_data.pop(secret, None)
+
+        if len(secret_data) == len(k8s_secret.data):
+            # No secrets were deleted
+            return None
 
         if secret_data:
             k8s_secret.data = secret_data

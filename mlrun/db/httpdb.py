@@ -1015,7 +1015,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1051,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
@@ -3380,7 +3380,7 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
+            method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/model-monitoring-controller",
             params={
                 "base_period": base_period,

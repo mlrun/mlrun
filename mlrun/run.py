@@ -791,6 +791,10 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
+        mlrun.utils.helpers.validate_single_def_handler(
+            function_kind=sub_kind, code=code
+        )
+
         runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
         # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
         runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""

@@ -49,7 +49,6 @@ from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
-from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -300,7 +299,7 @@ class MonitoringDeployment:
                         )
                         access_key = os.getenv("V3IO_ACCESS_KEY")
                         kwargs = {}
-                    if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
+                    if mlrun.mlconf.is_explicit_ack_enabled():
                         kwargs["explicit_ack_mode"] = "explicitOnly"
                         kwargs["worker_allocation_mode"] = "static"
                     server.api.api.endpoints.nuclio.create_model_monitoring_stream(
@@ -1038,15 +1037,22 @@ class MonitoringDeployment:
         """
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
         mm_enabled = False
-        store_connector: mlrun.model_monitoring.db.StoreBase = mlrun.model_monitoring.get_store_object(
-            project=self.project,
-            store_connection_string=credentials_dict.get(
+        store_connection_string = (
+            credentials_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             )
-            or "v3io",  # in case the user use the default v3io
-        )
+            or mm_constants.V3IO_MODEL_MONITORING_DB
+            if not mlrun.mlconf.is_ce_mode()
+            else None
+        )  # in case the user use the default v3io
+        if store_connection_string:
+            store_connector = mlrun.model_monitoring.get_store_object(
+                project=self.project, store_connection_string=store_connection_string
+            )
+        else:
+            store_connector = None
 
-        if store_connector.list_model_endpoints():
+        if store_connector and store_connector.list_model_endpoints():
             # if there are model endpoints, the project has monitoring
             mm_enabled = True
         else:
@@ -1073,7 +1079,9 @@ class MonitoringDeployment:
 
         if mm_enabled and None in credentials_dict.values():
             self.set_credentials(
-                _default_secrets_v3io="v3io",
+                _default_secrets_v3io=mm_constants.V3IO_MODEL_MONITORING_DB
+                if not mlrun.mlconf.is_ce_mode()
+                else None,
                 replace_creds=True,
             )
         return mm_enabled
@@ -1173,6 +1181,12 @@ class MonitoringDeployment:
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
                 )
+            if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith(
+                "v3io"
+            ):
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only MySQL/SQLite connections are supported for endpoint store"
+                )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
@@ -1196,7 +1210,14 @@ class MonitoringDeployment:
                 )  # TODO: Delete in 1.9.0
             )
         if stream_path or stream_path == "":
-            if stream_path == "v3io":
+            if (
+                stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only kafka stream are supported for stream path"
+                )
+            elif stream_path == mm_constants.V3IO_MODEL_MONITORING_DB:
                 # TODO: Delete in 1.9.0 (for BC)
                 stream_path = ""
             elif stream_path:
@@ -1205,7 +1226,8 @@ class MonitoringDeployment:
                         "Custom kafka topic is not allowed"
                     )
                 elif not stream_path.startswith("kafka://") and (
-                    stream_path != "v3io" or stream_path != ""
+                    stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
+                    or stream_path != ""
                 ):
                     raise mlrun.errors.MLRunInvalidMMStoreType(
                         "Currently only Kafka connection is supported for non-v3io stream,"
@@ -1229,12 +1251,20 @@ class MonitoringDeployment:
                 or _default_secrets_v3io
             )
         if tsdb_connection:
-            if tsdb_connection != "v3io" and not tsdb_connection.startswith(
-                "taosws://"
+            if (
+                tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
+                and not tsdb_connection.startswith("taosws://")
             ):
                 raise mlrun.errors.MLRunInvalidMMStoreType(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
+                )
+            elif (
+                tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB
+                and mlrun.mlconf.is_ce_mode()
+            ):
+                raise mlrun.errors.MLRunInvalidMMStoreType(
+                    "In CE mode, only TDEngine websocket connection is supported for TSDB"
                 )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
@@ -1272,7 +1302,9 @@ class MonitoringDeployment:
             stream_path=secrets_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             )
-            or "v3io"  # TODO: del in 1.9.0
+            or mm_constants.V3IO_MODEL_MONITORING_DB
+            if not mlrun.mlconf.is_ce_mode()
+            else None  # TODO: del in 1.9.0
         )
 
         server.api.crud.Secrets().store_project_secrets(
@@ -1307,7 +1339,11 @@ class MonitoringDeployment:
         old_stream = credentials_dict[
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         ]
-        old_stream = old_stream or "v3io"  # TODO: del in 1.9.0
+        old_stream = (
+            old_stream or mm_constants.V3IO_MODEL_MONITORING_DB
+            if not mlrun.mlconf.is_ce_mode()
+            else None
+        )  # TODO: del in 1.9.0
         if stream_path and old_stream != stream_path:
             logger.debug(
                 "User provided different stream path",
@@ -1327,14 +1363,14 @@ class MonitoringDeployment:
         stream_path_list = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, stream_uri=stream_path
         )
-        access_keys = [
-            os.getenv("V3IO_ACCESS_KEY"),
-            access_key or self.model_monitoring_access_key,
-        ]
+        if not mlrun.mlconf.is_ce_mode():
+            access_keys = [
+                os.getenv("V3IO_ACCESS_KEY"),
+                access_key or self.model_monitoring_access_key,
+            ]
+        else:
+            access_keys = [None] * 2
         for i in range(len(stream_path_list)):
-            logger.info(
-                "[DAVID] Creating stream output", stream_path=stream_path_list[i]
-            )
             output_stream = mlrun.datastore.get_stream_pusher(
                 stream_path=stream_path_list[i],
                 endpoint=mlrun.mlconf.v3io_api,

@@ -917,7 +917,9 @@ class SQLDB(DBInterface):
             .group_by(ArtifactV2.Tag.name)
         )
         if category:
-            query = self._add_artifact_category_query(category, query)
+            query = self._add_artifact_category_query(category, query).with_hint(
+                ArtifactV2, "USE INDEX (idx_project_kind)"
+            )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
@@ -991,6 +993,15 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
+        if not artifacts_keys:
+            logger.debug(
+                "No artifacts to tag",
+                project=project,
+                tag=tag_name,
+                artifacts=artifacts,
+            )
+            return
+
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,

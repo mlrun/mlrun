@@ -601,6 +601,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             for secret in secrets:
                 secret_data.pop(secret, None)
 
+        if len(secret_data) == len(k8s_secret.data):
+            # No secrets were deleted
+            return None
+
         if secret_data:
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)

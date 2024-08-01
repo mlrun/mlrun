@@ -480,7 +480,7 @@ class ServingRuntime(RemoteRuntime):
                 trigger_args = stream.trigger_args or {}
 
                 engine = self.spec.graph.engine or "async"
-                if mlrun.mlconf.is_explicit_ack() and engine == "async":
+                if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )

@@ -1705,6 +1705,22 @@ def is_parquet_file(file_path, format_=None):
     )
 
 
+def validate_single_def_handler(function_kind: str, code: str):
+    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+    # it would override MLRun's wrapper
+    if function_kind == "mlrun":
+        # Find all lines that start with "def handler("
+        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        matches = pattern.findall(code)
+
+        # Only MLRun's wrapper handler (footer) can be in the code
+        if len(matches) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The code file contains a function named “handler“, which is reserved. "
+                + "Use a different name for your function."
+            )
+
+
 def _reload(module, max_recursion_depth):
     """Recursively reload modules."""
     if max_recursion_depth <= 0:

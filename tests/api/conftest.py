@@ -241,8 +241,18 @@ def _mocked_k8s_helper():
     )
     pods_list = unittest.mock.Mock()
     pods_list.items = []
+    pods_list.metadata._continue = None
     server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
         unittest.mock.Mock(return_value=pods_list)
+    )
+    service_list = unittest.mock.Mock()
+    service_list.items = []
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = (
+        unittest.mock.Mock(return_value=service_list)
+    )
+    custom_object_list = {"items": []}
+    server.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+        return_value=custom_object_list
     )
 
 

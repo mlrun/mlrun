@@ -1,7 +1,7 @@
 (images-usage)=
 # Images and their usage in MLRun
 
-Every release of MLRun includes several images for different usages. The build and the infrastructure images are described, and located, in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
+Every release of MLRun includes several images for different usages. The build and the infrastructure images are described, and located, in the [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.md). They are also published to [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
 This release of MLRun supports only Python 3.9.
 
@@ -9,7 +9,7 @@ This release of MLRun supports only Python 3.9.
 - [Using images](#using-images)
 - [MLRun images](#mlrun-images)
 - [Building MLRun images](#building-mlrun-images)
-- [Building a docker image using a dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-using-it)
+- [Building a docker image using a Dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-using-it)
 - [MLRun images and external docker images](#mlrun-images-and-external-docker-images)
 
 ## Using images
@@ -19,13 +19,13 @@ See {ref}`build-function-image`.
 ## MLRun runtime images  
 
 All images are published to 
-[dockerhub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
+[DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
 The images are:
 
 - `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Useful as a base image for simple jobs. 
 - `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
-- `mlrun/ml-base`: Image for file acquisition, compression, dask jobs, simple training jobs and other utilities.
+- `mlrun/ml-base`: Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
 - `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
 
 ```{admonition} Note
@@ -62,7 +62,7 @@ The possible commands are:
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`
 
-## Building a docker image using a dockerfile and using it
+## Building a docker image using a Dockerfile and using it
 
 This flow describes how to build the image externally, put it your private repo, and use it in MLRun.
 
@@ -101,7 +101,7 @@ This flow describes how to build the image externally, put it your private repo,
 
 There is no difference in the usage between the MLRun images and external docker images. However:
 - MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.6.4`. So, if the client gets upgraded you'll automatically get a new image tag. 
-- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the datanode registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.6.4`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.6.4`.
+- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the data node registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.6.4`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.6.4`.
 
 These characteristics are great when you’re working in a POC or development environment. But MLRun typically upgrades packages as part of the image, and therefore the default MLRun images can break your product flow. 
 

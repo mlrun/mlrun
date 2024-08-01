@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
 from typing import Optional, Union
 
 from dependency_injector import containers, providers
@@ -216,25 +217,32 @@ class ServerSideLauncher(launcher.BaseLauncher):
             state_thresholds=state_thresholds,
         )
 
-        return self._pre_run_enrichement(runtime, run)
+        return self._pre_run_node_selector_enrichement(runtime, run)
 
-    def _pre_run_enrichement(self, runtime, run):
+    def _pre_run_node_selector_enrichement(self, runtime, run):
         """
         Enrich the run object with the project's default node selector.
         This ensures the node selector is correctly set on the run
         while maintaining the runtime's integrity from system-specific project settings.
         """
+        run.spec.node_selector = deepcopy(runtime.spec.node_selector)
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
-            if project.spec.default_function_node_selector:
+            project_node_selector = project.spec.default_function_node_selector
+            config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+            if project_node_selector or config_node_selector:
                 mlrun.utils.logger.debug(
-                    "Enriching run node selector from project",
+                    "Enriching run node selector from project and mlrun config",
                     project_name=run.metadata.project,
-                    project_node_selector=project.spec.default_function_node_selector,
+                    project_node_selector=project_node_selector,
+                    config_node_selector=config_node_selector,
                 )
-                run.spec.node_selector = mlrun.utils.helpers.merge_with_precedence(
-                    project.spec.default_function_node_selector,
-                    runtime.spec.node_selector,
+                run.spec.node_selector = (
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
+                        config_node_selector,
+                        project.spec.default_function_node_selector,
+                        runtime.spec.node_selector,
+                    )
                 )
         return run
 

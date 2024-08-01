@@ -9,7 +9,7 @@ implement the `load()` (download the model file(s) and load the model into memor
 and `predict()` (accept request payload and return prediction/inference results) methods.  
 
 The class is initialized automatically by the model server and can run locally
-as part of a nuclio serverless function, or as part of a real-time pipeline.
+as part of a Nuclio serverless function, or as part of a real-time pipeline.
 
 You need to implement two mandatory methods:
   * **`load()`** &mdash; download the model file(s) and load the model into memory, 
@@ -81,7 +81,7 @@ function `spec.readiness_timeout`, or alternatively choose async loading (where 
 runs in the background) by setting the function `spec.load_mode = "async"`.  
 
 The function `self.get_model()` downloads the model metadata object and main file (into `model_file` path).
-Additional files can be accessed using the returned `extra_data` (dict of dataitem objects).
+Additional files can be accessed using the returned `extra_data` (dict of data-item objects).
 
 The model metadata object is stored in `self.model_spec` and provides model parameters, metrics, schema, etc.
 Parameters can be accessed using `self.get_param(key)`. The parameters can be specified in the model or during 
@@ -128,7 +128,7 @@ and aggregate the result), multi-armed-bandit, etc.
 You can use a pre-defined Router class, or write your own custom router. 
 Routers can route to models on the same function or access models on a separate function.
 
-To specify the topology, router class and class args use `.set_topology()` with your function.
+To specify the topology, router class and class arguments use `.set_topology()` with your function.
 
 ## Creating a model serving function (service)
 
@@ -156,8 +156,8 @@ You should specify the `model_path` (URL of the model artifact/dir) and the `cla
 (or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 
-The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
-volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or fn methods.
+The function object(`fn`) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared 
+volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or function methods.
 
 For example, `fn.gpu(1)` means each replica uses one GPU. 
 

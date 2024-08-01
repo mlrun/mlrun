@@ -437,6 +437,11 @@ class TestDaskRuntime(TestRuntimeBase):
 
     def test_enrich_dask_cluster(self):
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        config_label_name, config_label_val = "kubernetes.io/hostname", "k8s-node1"
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps({config_label_name: config_label_val}).encode("utf-8")
+        )
+
         function = mlrun.runtimes.DaskCluster(
             metadata=dict(
                 name="test",
@@ -491,6 +496,7 @@ class TestDaskRuntime(TestRuntimeBase):
         expected_node_selector = {
             "test-project": "node-selector",
             function_label_name: function_label_val,
+            config_label_name: config_label_val,
         }
 
         secrets = []

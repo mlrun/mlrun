@@ -49,7 +49,6 @@ from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
-from server.api.utils.runtimes.nuclio import resolve_nuclio_version
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
 _MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
@@ -300,7 +299,7 @@ class MonitoringDeployment:
                         )
                         access_key = os.getenv("V3IO_ACCESS_KEY")
                         kwargs = {}
-                    if mlrun.mlconf.is_explicit_ack(version=resolve_nuclio_version()):
+                    if mlrun.mlconf.is_explicit_ack_enabled():
                         kwargs["explicit_ack_mode"] = "explicitOnly"
                         kwargs["worker_allocation_mode"] = "static"
                     server.api.api.endpoints.nuclio.create_model_monitoring_stream(

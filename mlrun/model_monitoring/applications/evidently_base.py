@@ -17,6 +17,7 @@ import warnings
 
 import pandas as pd
 import semver
+from deprecated import deprecated
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -62,6 +63,12 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
+@deprecated(
+    version="1.7.0",
+    reason="The `EvidentlyModelMonitoringApplicationBase` class is deprecated from "
+    "version 1.7.0 and will be removed in version 1.9.0. "
+    "Use `EvidentlyModelMonitoringApplicationBaseV2` as your application's base class.",
+)
 class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplicationBase):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"

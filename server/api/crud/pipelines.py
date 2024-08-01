@@ -19,7 +19,6 @@ import tempfile
 import traceback
 import typing
 
-import kfp
 import kfp_server_api
 import mlrun_pipelines.utils
 import sqlalchemy.orm
@@ -296,7 +295,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: kfp.Client = None,
+        kfp_client: mlrun_pipelines.utils.client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
@@ -307,7 +306,7 @@ class Pipelines(
         self,
         run: PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: kfp.Client = None,
+        kfp_client=None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:
@@ -372,7 +371,7 @@ class Pipelines(
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
-    def get_error_from_pipeline(self, kfp_client: kfp.Client, run: PipelineRun):
+    def get_error_from_pipeline(self, kfp_client, run: PipelineRun):
         detail = kfp_client._run_api.get_run(run.id)
         if detail.run.status == "Error":
             workflow_status = json.loads(detail.pipeline_runtime.workflow_manifest)[

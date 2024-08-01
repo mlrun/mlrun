@@ -60,7 +60,7 @@ def api_config_test():
     server.api.utils.singletons.k8s._k8s = None
     server.api.utils.singletons.logs_dir.logs_dir = None
 
-    server.api.utils.runtimes.nuclio.cached_nuclio_version = None
+    mlconf.nuclio_version = ""
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
@@ -130,7 +130,7 @@ def client(db) -> Generator:
         mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
+        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client

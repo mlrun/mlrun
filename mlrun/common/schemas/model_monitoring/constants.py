@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -169,7 +170,6 @@ class StreamKind(MonitoringStrEnum):
 class TSDBTarget(MonitoringStrEnum):
     V3IO_TSDB = "v3io-tsdb"
     TDEngine = "tdengine"
-    PROMETHEUS = "prometheus"
 
 
 class ProjectSecretKeys:
@@ -228,21 +228,6 @@ class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
-
-
-class PrometheusMetric:
-    PREDICTIONS_TOTAL = "predictions_total"
-    MODEL_LATENCY_SECONDS = "model_latency_seconds"
-    INCOME_FEATURES = "income_features"
-    ERRORS_TOTAL = "errors_total"
-    DRIFT_METRICS = "drift_metrics"
-    DRIFT_STATUS = "drift_status"
-
-
-class PrometheusEndpoints(MonitoringStrEnum):
-    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
-    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
-    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):
@@ -354,7 +339,7 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
 
     def __str__(self) -> str:
@@ -377,3 +362,9 @@ class PredictionsQueryConstants:
 
 class SpecialApps:
     MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
+
+
+V3IO_MODEL_MONITORING_DB = "v3io"

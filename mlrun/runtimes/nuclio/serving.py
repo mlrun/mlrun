@@ -325,12 +325,12 @@ class ServingRuntime(RemoteRuntime):
         :param enable_tracking:     Enabled/Disable model-monitoring tracking.
                                     Default True (tracking enabled).
 
-                                example::
+        Example::
 
-                                    # initialize a new serving function
-                                    serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
-                                    # apply model monitoring
-                                    serving_fn.set_tracking()
+            # initialize a new serving function
+            serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+            # apply model monitoring
+            serving_fn.set_tracking()
 
         """
         # Applying model monitoring configurations
@@ -480,7 +480,7 @@ class ServingRuntime(RemoteRuntime):
                 trigger_args = stream.trigger_args or {}
 
                 engine = self.spec.graph.engine or "async"
-                if mlrun.mlconf.is_explicit_ack() and engine == "async":
+                if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )

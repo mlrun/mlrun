@@ -44,12 +44,6 @@ class Projects(
     project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def __init__(self) -> None:
-        super().__init__()
-        self._cache = {
-            "project_resources_counters": {"value": None, "ttl": datetime.datetime.min}
-        }
-
     def create_project(
         self, session: sqlalchemy.orm.Session, project: mlrun.common.schemas.Project
     ):
@@ -106,6 +100,7 @@ class Projects(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -123,7 +118,12 @@ class Projects(
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, auth_info=auth_info)
+            self.delete_project_resources(
+                session,
+                name,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -148,10 +148,15 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        model_monitoring_access_key: str = None,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
+        # We skip notification secrets because, the entire project secret will be deleted later
+        # so there's no need to delete individual entries from the secret.
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
-            session, name
+            session,
+            name,
+            skip_notification_secrets=True,
         )
 
         # delete runtime resources
@@ -181,7 +186,7 @@ class Projects(
                 project=name,
                 db_session=session,
                 auth_info=auth_info,
-                model_monitoring_access_key=None,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         )
 
@@ -204,6 +209,7 @@ class Projects(
             project_name=name,
             db_session=session,
             model_monitoring_applications=model_monitoring_applications,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
         if mlrun.mlconf.is_api_running_on_k8s():
@@ -212,7 +218,7 @@ class Projects(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return server.api.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(
@@ -236,18 +242,15 @@ class Projects(
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
-        projects_output = await fastapi.concurrency.run_in_threadpool(
-            self.list_projects,
+        project_summaries = await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().list_project_summaries,
             session,
             owner,
-            mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
             names,
         )
-        project_summaries = await self.generate_projects_summaries(
-            projects_output.projects
-        )
+
         return mlrun.common.schemas.ProjectSummariesOutput(
             project_summaries=project_summaries
         )
@@ -257,60 +260,11 @@ class Projects(
     ) -> mlrun.common.schemas.ProjectSummary:
         # Call get project so we'll explode if project doesn't exists
         await fastapi.concurrency.run_in_threadpool(self.get_project, session, name)
-        project_summaries = await self.generate_projects_summaries([name])
-        return project_summaries[0]
-
-    async def generate_projects_summaries(
-        self, projects: list[str]
-    ) -> list[mlrun.common.schemas.ProjectSummary]:
-        (
-            project_to_files_count,
-            project_to_schedule_count,
-            project_to_schedule_pending_jobs_count,
-            project_to_schedule_pending_workflows_count,
-            project_to_feature_set_count,
-            project_to_models_count,
-            project_to_recent_completed_runs_count,
-            project_to_recent_failed_runs_count,
-            project_to_running_runs_count,
-            project_to_recent_completed_pipelines_count,
-            project_to_recent_failed_pipelines_count,
-            project_to_running_pipelines_count,
-        ) = await self._get_project_resources_counters()
-        project_summaries = []
-        for project in projects:
-            project_summaries.append(
-                mlrun.common.schemas.ProjectSummary(
-                    name=project,
-                    files_count=project_to_files_count.get(project, 0),
-                    distinct_schedules_count=project_to_schedule_count.get(project, 0),
-                    feature_sets_count=project_to_feature_set_count.get(project, 0),
-                    models_count=project_to_models_count.get(project, 0),
-                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
-                        project, 0
-                    ),
-                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
-                        project, 0
-                    ),
-                    runs_running_count=project_to_running_runs_count.get(project, 0),
-                    # the following are defaultdict so it will return None if using dict.get()
-                    # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
-                    pipelines_completed_recent_count=project_to_recent_completed_pipelines_count[
-                        project
-                    ],
-                    pipelines_failed_recent_count=project_to_recent_failed_pipelines_count[
-                        project
-                    ],
-                    pipelines_running_count=project_to_running_pipelines_count[project],
-                    distinct_scheduled_jobs_pending_count=project_to_schedule_pending_jobs_count[
-                        project
-                    ],
-                    distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
-                        project
-                    ],
-                )
-            )
-        return project_summaries
+        return await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().get_project_summary,
+            session,
+            project=name,
+        )
 
     def _verify_project_has_no_external_resources(
         self,
@@ -352,73 +306,82 @@ class Projects(
             mlrun.run.RunStatuses.canceled,
         ]
 
-    async def _get_project_resources_counters(
-        self,
-    ) -> tuple[
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, int],
-        dict[str, typing.Union[int, None]],
-        dict[str, typing.Union[int, None]],
-        dict[str, typing.Union[int, None]],
-    ]:
-        now = datetime.datetime.now()
-        if (
-            not self._cache["project_resources_counters"]["ttl"]
-            or self._cache["project_resources_counters"]["ttl"] < now
-        ):
-            logger.debug(
-                "Project resources counter cache expired. Calculating",
-                ttl=self._cache["project_resources_counters"]["ttl"],
-            )
+    async def refresh_project_resources_counters_cache(
+        self, session: sqlalchemy.orm.Session
+    ):
+        projects_output = await fastapi.concurrency.run_in_threadpool(
+            self.list_projects,
+            session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
 
-            results = await asyncio.gather(
-                server.api.utils.singletons.db.get_db().get_project_resources_counters(),
-                self._calculate_pipelines_counters(),
-            )
-            (
-                project_to_files_count,
-                project_to_schedule_count,
-                project_to_schedule_pending_jobs_count,
-                project_to_schedule_pending_workflows_count,
-                project_to_feature_set_count,
-                project_to_models_count,
-                project_to_recent_completed_runs_count,
-                project_to_recent_failed_runs_count,
-                project_to_running_runs_count,
-            ) = results[0]
-            (
-                project_to_recent_completed_pipelines_count,
-                project_to_recent_failed_pipelines_count,
-                project_to_running_pipelines_count,
-            ) = results[1]
-            self._cache["project_resources_counters"]["result"] = (
-                project_to_files_count,
-                project_to_schedule_count,
-                project_to_schedule_pending_jobs_count,
-                project_to_schedule_pending_workflows_count,
-                project_to_feature_set_count,
-                project_to_models_count,
-                project_to_recent_completed_runs_count,
-                project_to_recent_failed_runs_count,
-                project_to_running_runs_count,
-                project_to_recent_completed_pipelines_count,
-                project_to_recent_failed_pipelines_count,
-                project_to_running_pipelines_count,
-            )
-            ttl_time = datetime.datetime.now() + datetime.timedelta(
-                seconds=humanfriendly.parse_timespan(
-                    mlrun.mlconf.httpdb.projects.counters_cache_ttl
+        results = await asyncio.gather(
+            server.api.utils.singletons.db.get_db().get_project_resources_counters(),
+            self._calculate_pipelines_counters(),
+        )
+        (
+            project_to_files_count,
+            project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_completed_runs_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+        ) = results[0]
+        (
+            project_to_recent_completed_pipelines_count,
+            project_to_recent_failed_pipelines_count,
+            project_to_running_pipelines_count,
+        ) = results[1]
+
+        project_summaries = []
+        for project_name in projects_output.projects:
+            project_summaries.append(
+                mlrun.common.schemas.ProjectSummary(
+                    name=project_name,
+                    files_count=project_to_files_count.get(project_name, 0),
+                    distinct_schedules_count=project_to_schedule_count.get(
+                        project_name, 0
+                    ),
+                    feature_sets_count=project_to_feature_set_count.get(
+                        project_name, 0
+                    ),
+                    models_count=project_to_models_count.get(project_name, 0),
+                    runs_completed_recent_count=project_to_recent_completed_runs_count.get(
+                        project_name, 0
+                    ),
+                    runs_failed_recent_count=project_to_recent_failed_runs_count.get(
+                        project_name, 0
+                    ),
+                    runs_running_count=project_to_running_runs_count.get(
+                        project_name, 0
+                    ),
+                    # the following are defaultdict so it will return None if using dict.get()
+                    # and the key wasn't set yet, so we need to use the [] operator to get the default value of the dict
+                    pipelines_completed_recent_count=project_to_recent_completed_pipelines_count[
+                        project_name
+                    ],
+                    pipelines_failed_recent_count=project_to_recent_failed_pipelines_count[
+                        project_name
+                    ],
+                    pipelines_running_count=project_to_running_pipelines_count[
+                        project_name
+                    ],
+                    distinct_scheduled_jobs_pending_count=project_to_schedule_pending_jobs_count[
+                        project_name
+                    ],
+                    distinct_scheduled_pipelines_pending_count=project_to_schedule_pending_workflows_count[
+                        project_name
+                    ],
                 )
             )
-            self._cache["project_resources_counters"]["ttl"] = ttl_time
-        return self._cache["project_resources_counters"]["result"]
+        await fastapi.concurrency.run_in_threadpool(
+            server.api.utils.singletons.db.get_db().refresh_project_summaries,
+            session,
+            project_summaries,
+        )
 
     @staticmethod
     def _list_pipelines(

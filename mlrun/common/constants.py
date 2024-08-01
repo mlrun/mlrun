@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."  # prefix for image name to enrich with registry
 MLRUN_SERVING_CONF = "serving-conf"
@@ -70,6 +69,7 @@ class MLRunInternalLabels:
     job_type = "job-type"
     kind = "kind"
     component = "component"
+    mlrun_type = "mlrun__type"
 
     owner = "owner"
     v3io_user = "v3io_user"

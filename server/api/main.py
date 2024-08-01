@@ -43,6 +43,7 @@ import server.api.runtime_handlers
 import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
 import server.api.utils.notification_pusher
+import server.api.utils.time_window_tracker
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
@@ -62,19 +63,15 @@ from server.api.utils.singletons.project_member import (
     get_project_member,
     initialize_project_member,
 )
-from server.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
+from server.api.utils.singletons.scheduler import (
+    ensure_scheduler,
+    get_scheduler,
+    start_scheduler,
+)
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 V2_API_PREFIX = f"{API_PREFIX}/v2"
-
-# When pushing notifications, push notifications only for runs that entered a terminal state
-# since the last time we pushed notifications.
-# On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
-# and their notifications haven't been sent yet.
-# TODO: find better solution than a global variable for chunking the list of runs
-#      for which to push notifications
-_last_update_time: typing.Optional[datetime.datetime] = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -218,12 +215,23 @@ async def teardown_api():
 
 async def move_api_to_online():
     logger.info("Moving api to online")
-    await initialize_scheduler()
+
+    # scheduler is needed on both workers and chief
+    # on workers - it allows to us to list/get scheduler(s)
+    # on chief - it allows to us to create/update/delete schedule(s)
+    ensure_scheduler()
+    if (
+        config.httpdb.clusterization.role
+        == mlrun.common.schemas.ClusterizationRole.chief
+        and config.httpdb.clusterization.chief.feature_gates.scheduler == "enabled"
+    ):
+        await start_scheduler()
 
     # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
-    initialize_project_member()
+    await fastapi.concurrency.run_in_threadpool(initialize_project_member)
+    get_project_member().start()
 
     # maintenance periodic functions should only run on the chief instance
     if (
@@ -233,11 +241,27 @@ async def move_api_to_online():
         server.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-            _start_periodic_cleanup()
-            _start_periodic_runs_monitoring()
-            _start_periodic_pagination_cache_monitoring()
-            await _start_periodic_logs_collection()
-            await _start_periodic_stop_logs()
+            if config.httpdb.clusterization.chief.feature_gates.cleanup == "enabled":
+                _start_periodic_cleanup()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.runs_monitoring
+                == "enabled"
+            ):
+                _start_periodic_runs_monitoring()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.pagination_cache
+                == "enabled"
+            ):
+                _start_periodic_pagination_cache_monitoring()
+            if (
+                config.httpdb.clusterization.chief.feature_gates.project_summaries
+                == "enabled"
+            ):
+                _start_periodic_project_summaries_calculation()
+            if config.httpdb.clusterization.chief.feature_gates.start_logs == "enabled":
+                await _start_periodic_logs_collection()
+            if config.httpdb.clusterization.chief.feature_gates.stop_logs == "enabled":
+                await _start_periodic_stop_logs()
 
 
 async def _start_periodic_logs_collection():
@@ -281,6 +305,22 @@ async def _verify_log_collection_started_on_startup(
     :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
     """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    log_collection_cycle_tracker = server.api.utils.time_window_tracker.TimeWindowTracker(
+        key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.log_collection,
+        # If the API was down for more than the grace period, we will only collect logs for runs which reached
+        # terminal state within the grace period and not since the API actually went down.
+        max_window_size_seconds=min(
+            int(config.log_collector.api_downtime_grace_period),
+            int(config.runtime_resources_deletion_grace_period),
+        ),
+    )
+    await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.initialize, db_session
+    )
+    last_update_time = await fastapi.concurrency.run_in_threadpool(
+        log_collection_cycle_tracker.get_window, db_session
+    )
+    now = datetime.datetime.now(datetime.timezone.utc)
     try:
         logger.debug(
             "Getting all runs which are in non terminal state and require logs collection"
@@ -304,16 +344,7 @@ async def _verify_log_collection_started_on_startup(
                 # get only uids as there might be many runs which reached terminal state while the API was down, the
                 # run objects will be fetched in the next step
                 only_uids=True,
-                # We take the minimum between the api_downtime_grace_period and the
-                # runtime_resources_deletion_grace_period because we want to make sure that we don't miss any runs which
-                # might have reached terminal state while the API was down, and their runtime resources are not deleted
-                last_update_time_from=datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(
-                    seconds=min(
-                        int(config.log_collector.api_downtime_grace_period),
-                        int(config.runtime_resources_deletion_grace_period),
-                    )
-                ),
+                last_update_time_from=last_update_time,
                 states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
             )
         )
@@ -358,6 +389,9 @@ async def _verify_log_collection_started_on_startup(
                     requested_logs=True,
                 )
     finally:
+        await fastapi.concurrency.run_in_threadpool(
+            log_collection_cycle_tracker.update_window, db_session, now
+        )
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
@@ -384,7 +418,7 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         if runs_uids:
             logger.debug(
                 "Found runs which require logs collection",
-                runs_uids=runs_uids,
+                runs_uids=len(runs_uids),
             )
             await _start_log_and_update_runs(
                 start_logs_limit=start_logs_limit,
@@ -410,6 +444,7 @@ async def _start_log_and_update_runs(
         get_db().list_runs,
         db_session,
         uid=runs_uids,
+        project="*",
     )
 
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection
@@ -572,6 +607,21 @@ def _start_periodic_pagination_cache_monitoring():
             False,
             server.api.db.session.run_function_with_new_db_session,
             server.api.crud.pagination_cache.PaginationCache().monitor_pagination_cache,
+        )
+
+
+def _start_periodic_project_summaries_calculation():
+    interval = int(config.monitoring.projects.summaries.cache_interval)
+    if interval > 0:
+        logger.info(
+            "Starting periodic project summaries calculation", interval=interval
+        )
+        run_function_periodically(
+            interval,
+            server.api.crud.projects.Projects().refresh_project_resources_counters_cache.__name__,
+            False,
+            server.api.db.session.run_async_function_with_new_db_session,
+            server.api.crud.projects.Projects().refresh_project_resources_counters_cache,
         )
 
 
@@ -746,14 +796,19 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        global _last_update_time
+        runs_monitoring_cycle_tracker = server.api.utils.time_window_tracker.TimeWindowTracker(
+            key=server.api.utils.time_window_tracker.TimeWindowTrackerKeys.run_monitoring,
+            max_window_size_seconds=int(config.runtime_resources_deletion_grace_period),
+        )
+        runs_monitoring_cycle_tracker.initialize(db_session)
+        last_update_time = runs_monitoring_cycle_tracker.get_window(db_session)
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
-            _generate_event_on_failed_runs(db, db_session, _last_update_time)
-        _push_terminal_run_notifications(db, db_session, _last_update_time)
+            _generate_event_on_failed_runs(db, db_session, last_update_time)
+        _push_terminal_run_notifications(db, db_session, last_update_time)
 
-        _last_update_time = now
+        runs_monitoring_cycle_tracker.update_window(db_session, now)
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",
@@ -842,7 +897,7 @@ def _generate_event_on_failed_runs(
             project=project,
             ids=[run_name],
         )
-        event_value = {"uid": run_uid}
+        event_value = {"uid": run_uid, "error": run["status"].get("error", None)}
         event_data = mlrun.common.schemas.Event(
             kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
         )

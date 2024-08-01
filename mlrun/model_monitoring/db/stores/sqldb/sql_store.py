@@ -177,6 +177,11 @@ class SQLStoreBase(StoreBase):
         param table:     SQLAlchemy declarative table.
         :param criteria: A list of binary expressions that filter the query.
         """
+        if not self._engine.has_table(table.__tablename__):
+            logger.debug(
+                f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
+            )
+            return
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
             session.query(
@@ -266,22 +271,8 @@ class SQLStoreBase(StoreBase):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
-        """
-        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available model endpoints for the given project will
-        be listed.
-
-        :param model:           The name of the model to filter by.
-        :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                                key (i.e. "key").
-        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param uids:             List of model endpoint unique ids to include in the result.
-
-        :return: A list of model endpoint dictionaries.
-        """
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []
 
@@ -340,6 +331,12 @@ class SQLStoreBase(StoreBase):
                     endpoint_dict=endpoint_dict, labels=labels
                 ):
                     continue
+
+                if not include_stats:
+                    # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                    # TODO: Remove stats from table schema (ML-7196)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
                 endpoint_list.append(endpoint_dict)
 

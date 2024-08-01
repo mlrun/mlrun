@@ -201,6 +201,8 @@ class S3Store(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         bucket, key = self.get_bucket_and_key(path)
         path = f"{bucket}/{key}"
+        #  In order to raise an error if there is connection error, ML-7056.
+        self.filesystem.exists(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 

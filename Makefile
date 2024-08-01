@@ -33,7 +33,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 23.2.1
+MLRUN_PIP_VERSION ?= 24.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -453,15 +453,16 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	python -m pytest -v \
+	python \
+		-X faulthandler \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/unit_test_report.html \
-		--self-contained-html \
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--forked \
 		-rf \
 		tests
 
@@ -482,8 +483,6 @@ test-integration: clean ## Run mlrun integration tests
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/integration_test_report.html \
-		--self-contained-html \
 		-rf \
 		tests/integration \
 		tests/rundb/test_httpdb.py
@@ -515,27 +514,21 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
-	@timestamp=$(shell date +'%Y%m%d%H%M%S'); \
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 	MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL=$(MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL) \
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_report.html \
-		--self-contained-html \
 		-rf \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
-	@timestamp=$(shell date +'%Y%m%d%H%M%S'); \
 	MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
-		--html=/tmp/$${timestamp}_system_tests_opensource_report.html \
-		--self-contained-html \
 		-rf \
 		-m "not enterprise" \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
@@ -709,9 +702,9 @@ ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 endif
 	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/backword_compatibility_report.html --self-contained-html $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
-	python -m pytest -v --capture=no --disable-warnings --durations=100 --html=/tmp/backword_compatibility_report.html --self-contained-html tests/api/api/test_docs.py::test_save_openapi_json && \
+	python -m pytest -v --capture=no --disable-warnings --durations=100 tests/api/api/test_docs.py::test_save_openapi_json && \
 	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 

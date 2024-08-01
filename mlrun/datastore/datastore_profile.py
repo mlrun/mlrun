@@ -412,7 +412,7 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return res or None
 
     def url(self, subpath):
-        return f"hdfs://{self.host}:{self.http_port}{subpath}"
+        return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):

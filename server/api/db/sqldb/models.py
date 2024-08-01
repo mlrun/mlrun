@@ -729,6 +729,26 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class ProjectSummary(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "project_summaries"
+        __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        updated = Column(SQLTypesUtil.datetime())
+        summary = Column(JSON)
+
+    class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "time_window_trackers"
+
+        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
+        timestamp = Column(
+            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+        )
+        max_window_size_seconds = Column(Integer)
+
 
 # Must be after all table definitions
 post_table_definitions(base_cls=Base)

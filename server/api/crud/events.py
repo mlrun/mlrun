@@ -78,9 +78,7 @@ class Events(
 
         try:
             for alert_id in self._cache[(project, event_name)]:
-                server.api.crud.Alerts().process_event(
-                    session, project, alert_id, event_data
-                )
+                server.api.crud.Alerts().process_event(session, alert_id, event_data)
         except KeyError:
             logger.debug(
                 "Received event has no associated alert",

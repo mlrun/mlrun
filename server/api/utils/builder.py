@@ -175,7 +175,7 @@ def make_kaniko_pod(
     ).items():
         attr_value = handler(getattr(runtime_spec, attribute, None))
         if attr_value:
-            extra_runtime_spec[attribute] = handler(attr_value)
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")

@@ -98,7 +98,7 @@ class S3Store(DataStore):
             )
         self.config = TransferConfig(
             multipart_threshold=1024 * 1024 * 25,
-            max_concurrency=80,
+            max_concurrency=10,
             multipart_chunksize=1024 * 1024 * 25,
             use_threads=True,
         )

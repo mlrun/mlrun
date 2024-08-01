@@ -111,8 +111,8 @@ def add_function_node_selection_attributes(
     function, task: dsl.PipelineTask
 ) -> dsl.PipelineTask:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        enriched_node_selector = (
-            mlrun_pipelines.common.ops._enrich_node_selector_from_project(function)
+        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
+            function
         )
         if enriched_node_selector:
             for k, v in enriched_node_selector.items():

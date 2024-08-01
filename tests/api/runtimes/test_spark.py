@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import base64
+import json
 import os
 import typing
 import unittest
@@ -464,6 +465,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "label-1": "val1",
             "label-2": "val2",
         }
+
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps({"label-3": "val3"}).encode("utf-8")
+        )
+        config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+
         executor_node_selector = {"executor": "node_selector"}
         driver_node_selector = {"driver": "node_selector"}
 
@@ -476,14 +483,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._assert_merged_node_selectors(
             body,
-            mlrun.utils.helpers.merge_with_precedence(
-                project_node_selector, node_selector
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                config_node_selector,
+                project_node_selector,
+                node_selector,
             ),
-            mlrun.utils.helpers.merge_with_precedence(
-                project_node_selector, driver_node_selector
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                config_node_selector,
+                project_node_selector,
+                driver_node_selector,
             ),
-            mlrun.utils.helpers.merge_with_precedence(
-                project_node_selector, executor_node_selector
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                config_node_selector,
+                project_node_selector,
+                executor_node_selector,
             ),
         )
 

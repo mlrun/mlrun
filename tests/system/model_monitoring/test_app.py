@@ -1088,29 +1088,32 @@ class TestAllKindOfServing(TestMLRunSystem):
             label_column=label_column,
         )
 
-    @classmethod
-    def _deploy_model_serving(
-        cls,
+    def _deploy_model_router(
+        self,
         name: str,
-        model_name: str,
-        class_name: str,
         enable_tracking: bool = True,
-        **kwargs,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.code_to_function(
-            project=cls.project_name,
+            project=self.project_name,
             name=name,
             filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
             kind="serving",
         )
-        serving_fn.add_model(
-            model_name,
-            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
-            class_name=class_name,
-        )
+        serving_fn.set_topology("router")
+        for model_name, model_dict in self.models.items():
+            self._log_model(
+                model_name=model_name,
+                training_set=model_dict.get("training_set"),
+                label_column=model_dict.get("label_column"),
+            )
+            serving_fn.add_model(
+                model_name,
+                model_path=f"store://models/{self.project_name}/{model_name}:latest",
+                class_name=model_dict.get("class_name"),
+            )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
-        if cls.image is not None:
-            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
 
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
@@ -1161,21 +1164,9 @@ class TestAllKindOfServing(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
+        self._deploy_model_router("serv-router")
+
         futures = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            for model_name, model_dict in self.models.items():
-                self._log_model(
-                    model_name,
-                    training_set=model_dict.get("training_set"),
-                    label_column=model_dict.get("label_column"),
-                )
-                future = executor.submit(self._deploy_model_serving, **model_dict)
-                futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
-
-        futures_2 = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             self.db = mlrun.model_monitoring.get_store_object(
                 project=self.project_name,
@@ -1183,6 +1174,11 @@ class TestAllKindOfServing(TestMLRunSystem):
             )
             endpoints = self.db.list_model_endpoints()
             for endpoint in endpoints:
+                if (
+                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                    == mm_constants.EndpointType.ROUTER
+                ):
+                    continue
                 future = executor.submit(
                     self._test_endpoint,
                     model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[
@@ -1192,9 +1188,9 @@ class TestAllKindOfServing(TestMLRunSystem):
                         mm_constants.EventFieldType.FEATURE_SET_URI
                     ],
                 )
-                futures_2.append(future)
+                futures.append(future)
 
-        for future in concurrent.futures.as_completed(futures_2):
+        for future in concurrent.futures.as_completed(futures):
             res_dict = future.result()
             assert res_dict[
                 "is_schema_saved"
@@ -1221,6 +1217,33 @@ class TestTracking(TestAllKindOfServing):
                 "schema": ["f0", "f1", "f2", "p0"],
             },
         }
+
+    @classmethod
+    def _deploy_model_serving(
+        cls,
+        name: str,
+        model_name: str,
+        class_name: str,
+        enable_tracking: bool = True,
+        **kwargs,
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.code_to_function(
+            project=cls.project_name,
+            name=name,
+            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
+            kind="serving",
+        )
+        serving_fn.add_model(
+            model_name,
+            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
+            class_name=class_name,
+        )
+        serving_fn.set_tracking(enable_tracking=enable_tracking)
+        if cls.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
     def test_tracking(self) -> None:
         self.project.set_model_monitoring_credentials(

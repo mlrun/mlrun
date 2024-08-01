@@ -33,7 +33,6 @@ class AzureBlobStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.transport = AioHttpTransport(connection_pool_max_size=2)
 
     @property
     def filesystem(self):
@@ -85,7 +84,7 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self.filesystem.put_file(src_path, remote_path, overwrite=True, transport=self.transport)
+        self.filesystem.put_file(src_path, remote_path, overwrite=True)
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)

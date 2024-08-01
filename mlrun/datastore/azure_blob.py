@@ -33,7 +33,7 @@ class AzureBlobStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.transport = AioHttpTransport(connection_pool_max_size=5)
+        self.transport = AioHttpTransport(connection_pool_max_size=2)
 
     @property
     def filesystem(self):

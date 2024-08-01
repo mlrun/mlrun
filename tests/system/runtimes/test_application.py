@@ -75,7 +75,9 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         application_image = function.status.application_image
         container_image = function.status.container_image
 
-        function, source = self._create_vizro_application(name="second-app")
+        function, _ = self._create_vizro_application(
+            name="second-app", app_image=application_image
+        )
         function.from_image(container_image)
 
         self._logger.debug("Deploying a second application")
@@ -90,8 +92,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             kind="application",
             requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
         )
-        if app_image:
-            function.spec.image = app_image
         function.set_internal_application_port(8050)
         function.spec.command = "gunicorn"
         function.spec.args = [
@@ -102,10 +102,13 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             "debug",
         ]
         source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
-        function.with_source_archive(
-            source=source,
-            pull_at_runtime=False,
-        )
+        if app_image:
+            function.spec.image = app_image
+        else:
+            function.with_source_archive(
+                source=source,
+                pull_at_runtime=False,
+            )
         return function, source
 
     @staticmethod

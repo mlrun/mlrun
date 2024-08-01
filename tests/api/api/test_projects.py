@@ -723,6 +723,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     db: Session,
     client: TestClient,
     project_member_mode: str,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     mlrun.mlconf.namespace = "test-namespace"
@@ -763,6 +764,7 @@ def test_delete_project_with_stop_logs(
     db: Session,
     client: TestClient,
     project_member_mode: str,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
@@ -1051,6 +1053,7 @@ def test_project_with_parameters(
 def test_delete_project_not_found_in_leader(
     unversioned_client: TestClient,
     mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
     delete_api_version: str,
 ) -> None:
     archived_project = mlrun.common.schemas.Project(

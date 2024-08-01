@@ -84,7 +84,7 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self.filesystem.put_file(src_path, remote_path, overwrite=True)
+        self.filesystem.upload(src_path, remote_path, overwrite=True)
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)

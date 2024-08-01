@@ -188,8 +188,8 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
             self.evidently_project_id, data_drift_test_suite
         )
 
-        self.log_evidently_object(data_drift_report, f"report_{str(end_infer_time)}")
-        self.log_evidently_object(data_drift_test_suite, f"suite_{str(end_infer_time)}")
+        self.log_evidently_object(data_drift_report, "evidently_report")
+        self.log_evidently_object(data_drift_test_suite, "evidently_suite")
         self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
 
         self.context.logger.info("Logged evidently objects")
@@ -286,19 +286,15 @@ class CustomEvidentlyMonitoringAppV2(EvidentlyModelMonitoringApplicationBaseV2):
         )
 
         self.log_evidently_object(
-            monitoring_context,
-            data_drift_report,
-            f"report_{str(monitoring_context.end_infer_time)}",
+            monitoring_context, data_drift_report, "evidently_report"
         )
         self.log_evidently_object(
-            monitoring_context,
-            data_drift_test_suite,
-            f"suite_{str(monitoring_context.end_infer_time)}",
+            monitoring_context, data_drift_test_suite, "evidently_suite"
         )
         self.log_project_dashboard(
             monitoring_context,
-            None,
-            monitoring_context.end_infer_time + datetime.timedelta(minutes=1),
+            monitoring_context.start_infer_time,
+            monitoring_context.end_infer_time,
         )
 
         monitoring_context.logger.info("Logged evidently objects")

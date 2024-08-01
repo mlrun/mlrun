@@ -49,7 +49,7 @@ class AzureBlobStore(DataStore):
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
-            max_concurrency=5,
+            max_concurrency=2,
             **self.get_storage_options(),
         )
         return self._filesystem

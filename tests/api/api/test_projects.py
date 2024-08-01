@@ -1053,6 +1053,7 @@ def test_project_with_parameters(
 def test_delete_project_not_found_in_leader(
     unversioned_client: TestClient,
     mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
     delete_api_version: str,
 ) -> None:
     archived_project = mlrun.common.schemas.Project(

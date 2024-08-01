@@ -254,6 +254,11 @@ def _mocked_k8s_helper():
     server.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
         return_value=custom_object_list
     )
+    secret_data = unittest.mock.Mock()
+    secret_data.data = {}
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = (
+        unittest.mock.Mock(return_value=secret_data)
+    )
 
 
 class K8sSecretsMock(mlrun.common.secrets.InMemorySecretProvider):

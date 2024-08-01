@@ -1618,28 +1618,25 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
-def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
+def merge_dicts_with_precedence(*dicts: dict) -> dict:
     """
-    Merge two dictionaries with precedence given to keys from the second dictionary.
+    Merge multiple dictionaries with precedence given to keys from later dictionaries.
 
-    This function merges two dictionaries, `first_dict` and `second_dict`, where keys from `second_dict`
-    take precedence in case of conflicts. If both dictionaries contain the same key,
-    the value from `second_dict` will overwrite the value from `first_dict`.
+    This function merges an arbitrary number of dictionaries, where keys from dictionaries later
+    in the argument list take precedence over keys from dictionaries earlier in the list. If all
+    dictionaries contain the same key, the value from the last dictionary with that key will
+    overwrite the values from earlier dictionaries.
 
     Example:
         >>> first_dict = {"key1": "value1", "key2": "value2"}
         >>> second_dict = {"key2": "new_value2", "key3": "value3"}
-        >>> merge_with_precedence(first_dict, second_dict)
-        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'value3'}
+        >>> third_dict = {"key3": "new_value3", "key4": "value4"}
+        >>> merge_dicts_with_precedence(first_dict, second_dict, third_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'new_value3', 'key4': 'value4'}
 
-    Note:
-    - The merge operation uses the ** operator in Python, which combines key-value pairs
-      from each dictionary. Later dictionaries take precedence when there are conflicting keys.
+    - If no dictionaries are provided, the function returns an empty dictionary.
     """
-    return {
-        **(first_dict or {}),
-        **(second_dict or {}),
-    }
+    return {k: v for d in dicts if d for k, v in d.items()}
 
 
 def validate_component_version_compatibility(

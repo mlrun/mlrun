@@ -61,7 +61,7 @@ The {py:class}`~mlrun.datastore.DataItem` supports multiple convenience methods 
 * **local** - to get a local file link to the data (that is downloaded locally if needed)
 * **listdir()**, **stat** - file system like methods
 * **meta** - access to the artifact metadata (in case of an artifact uri)
-* **show()** - visualizes the data in Jupyter (as image, html, etc.)
+* **show()** - visualizes the data in Jupyter (as image, HTML, etc.)
 
 See the **{py:class}`~mlrun.datastore.DataItem`** class documentation for details.
 

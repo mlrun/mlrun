@@ -322,7 +322,9 @@ async def deploy_status(
     )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(
+    db_session, project_name: str, secret_key: str, store: bool = True
+):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
@@ -368,16 +370,18 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
                 project_name=project_name,
                 project_owner=project_owner.username,
             )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
+    if store:
+        secrets = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_key_name: secret_value}
         )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
+        Secrets().store_project_secrets(
+            project_name, secrets, allow_internal_secrets=True
+        )
+        if user_provided_key:
+            logger.info(
+                "Deleting user-provided access-key - replaced with an internal secret"
+            )
+            Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
 

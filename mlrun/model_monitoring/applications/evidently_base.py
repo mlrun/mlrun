@@ -14,7 +14,6 @@
 
 import uuid
 import warnings
-from typing import Union
 
 import pandas as pd
 import semver
@@ -57,8 +56,7 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.report.report import Report
-    from evidently.suite.base_suite import Suite
+    from evidently.suite.base_suite import Display
     from evidently.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
     from evidently.utils.dashboard import TemplateParams, file_html_template
@@ -86,12 +84,12 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
         )
 
     def log_evidently_object(
-        self, evidently_object: Union["Report", "Suite"], artifact_name: str
-    ):
+        self, evidently_object: "Display", artifact_name: str
+    ) -> None:
         """
          Logs an Evidently report or suite as an artifact.
 
-        :param evidently_object:    (Union[Report, Suite]) The Evidently report or suite object.
+        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
@@ -156,14 +154,14 @@ class EvidentlyModelMonitoringApplicationBaseV2(
     @staticmethod
     def log_evidently_object(
         monitoring_context: mm_context.MonitoringApplicationContext,
-        evidently_object: Union["Report", "Suite"],
+        evidently_object: "Display",
         artifact_name: str,
-    ):
+    ) -> None:
         """
          Logs an Evidently report or suite as an artifact.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param evidently_object:    (Union[Report, Suite]) The Evidently report or suite object.
+        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
@@ -177,7 +175,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
         timestamp_start: pd.Timestamp,
         timestamp_end: pd.Timestamp,
         artifact_name: str = "dashboard",
-    ):
+    ) -> None:
         """
         Logs an Evidently project dashboard.
 

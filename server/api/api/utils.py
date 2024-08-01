@@ -1121,12 +1121,11 @@ def get_or_create_project_deletion_background_task(
             # Due to backwards compatibility reasons, the model monitoring access key should be retrieved before the
             # project deletion. his key will be used to delete the model monitoring resources associated with the
             # project.
-            model_monitoring_access_key = (
-                server.api.api.endpoints.nuclio.process_model_monitoring_secret(
-                    db_session,
-                    project.metadata.name,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-                )
+            model_monitoring_access_key = server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+                db_session=db_session,
+                project_name=project.metadata.name,
+                secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                store=False,
             )
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion

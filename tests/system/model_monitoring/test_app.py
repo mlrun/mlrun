@@ -1014,11 +1014,10 @@ class TestAllKindOfServing(TestMLRunSystem):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        random_rgb_image_list = (
-            np.random.randint(0, 256, (20, 30, 3), dtype=np.uint8)
-            .reshape(-1, 3)
-            .tolist()
-        )
+        random_rgb_image = np.random.randint(0, 256, (20, 30, 3), dtype=np.uint8)
+        random_rgb_image_list = [
+            tuple(pixel) for pixel in random_rgb_image.reshape(-1, 3)
+        ]
         cls.models = {
             "int_one_to_one": {
                 "name": "serving_1",

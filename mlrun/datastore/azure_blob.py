@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from azure.storage.blob._shared.base_client import parse_connection_str
+from azure.core.pipeline.transport import AioHttpTransport
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
@@ -32,6 +33,7 @@ class AzureBlobStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        self.transport = AioHttpTransport(connection_pool_max_size=5)
 
     @property
     def filesystem(self):
@@ -82,7 +84,7 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self.filesystem.put_file(src_path, remote_path, overwrite=True)
+        self.filesystem.put_file(src_path, remote_path, overwrite=True, transport=self.transport)
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)

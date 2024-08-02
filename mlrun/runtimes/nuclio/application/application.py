@@ -566,6 +566,12 @@ class ApplicationRuntime(RemoteRuntime):
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
 
+        # configure the sidecar container as the default container for logging purposes
+        self.set_config(
+            "metadata.annotations",
+            {"kubectl.kubernetes.io/default-container": self.status.sidecar_name},
+        )
+
     def _sync_api_gateway(self):
         if not self.status.api_gateway_name:
             return

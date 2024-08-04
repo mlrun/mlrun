@@ -926,10 +926,15 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_compile_function_config_node_selector_enriched_from_project(
         self, db: Session, client: TestClient
     ):
-        config_node_selector, config_val = "kubernetes.io/arch", "amd64"
+        config_node_selector = {"kubernetes.io/arch": "amd64"}
         mlconf.default_function_node_selector = base64.b64encode(
-            json.dumps({config_node_selector: config_val}).encode("utf-8")
+            json.dumps(config_node_selector).encode("utf-8")
         )
+
+        run_db = mlrun.get_run_db()
+        project = run_db.get_project(self.project)
+        project.spec.default_function_node_selector = {"kubernetes.io/os": "linux"}
+        run_db.store_project(self.project, project)
 
         function = self._generate_runtime(self.runtime_kind)
         function_node_selector = {"kubernetes.io/hostname": "k8s-node1"}
@@ -940,12 +945,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             _,
             config,
         ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
-        assert config["spec"][
-            "nodeSelector"
-        ] == mlrun.utils.helpers.merge_dicts_with_precedence(
-            {config_node_selector: config_val},
-            function_node_selector,
-        )
+        assert config["spec"]["nodeSelector"] == {
+            **config_node_selector,
+            **project.spec.default_function_node_selector,
+            **function_node_selector,
+        }
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.5.20"

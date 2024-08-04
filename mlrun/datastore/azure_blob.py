@@ -17,7 +17,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from azure.storage.blob._shared.base_client import parse_connection_str
-from azure.core.pipeline.transport import AioHttpTransport
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors

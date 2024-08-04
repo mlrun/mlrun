@@ -206,7 +206,6 @@ async def grafana_individual_feature_analysis(
 
     endpoint = await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         feature_analysis=True,

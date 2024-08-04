@@ -29,8 +29,7 @@ You can also create a custom `source` to access various databases or data source
 
 ## Snowflake source
 ```{admonition} Note
-# Snowflake SQL columns are always set to uppercase letters.
-# This code will fail because timestamp_key is in lowercase:
+# An example of SnowflakeSource ingest:
 
 os.environ["SNOWFLAKE_PASSWORD"] = "*****"
 source = SnowflakeSource(
@@ -43,11 +42,13 @@ source = SnowflakeSource(
     warehouse="warehouse",
 )
  
-feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')], engine="spark")
+feature_set = mlrun.feature_store.FeatureSet("my_fs", entities=[fs.Entity('KEY')], engine="spark")
 df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
   run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
 
-#  will raise an error: MLRunInvalidArgumentError("There are missing entities from dataframe during ingestion.")
+# Pay attention!
+# Snowflake SQL columns are always set to uppercase letters.
+# If we replace 'KEY' with the lowercase 'key', this code will fail and raise an MLRunInvalidArgumentError.
 ```
 ## Kafka source
 

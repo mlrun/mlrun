@@ -27,7 +27,7 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
 
-MAX_CONCURRENCY = 100
+MAX_CONCURRENCY = 10
 MAX_BLOCKSIZE = 1024 * 1024 * 4
 MAX_SINGLE_PUT_SIZE = 1024 * 1024 * 8  # for BlobServiceClient only.
 

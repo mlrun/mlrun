@@ -745,6 +745,9 @@ with warnings.catch_warnings():
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}"
+
     class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "time_window_trackers"
 

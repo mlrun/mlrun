@@ -2692,6 +2692,7 @@ class SQLDB(DBInterface):
     ):
         # Do the whole operation in a single transaction
         with session.no_autoflush:
+            project_summaries_to_update = []
             for project_summary_schema in project_summaries:
                 query = self._query(
                     session, ProjectSummary, project=project_summary_schema.name
@@ -2700,9 +2701,9 @@ class SQLDB(DBInterface):
                 if project_summary:
                     project_summary.summary = project_summary_schema.dict()
                     project_summary.updated = datetime.now(timezone.utc)
-                    session.add(project_summary)
+                    project_summaries_to_update.append(project_summary)
 
-            session.commit()
+            self._upsert(session, project_summaries_to_update)
 
     async def get_project_resources_counters(
         self,

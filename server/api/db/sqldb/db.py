@@ -2695,9 +2695,11 @@ class SQLDB(DBInterface):
                     session, ProjectSummary, project=project_summary_schema.name
                 )
                 project_summary = query.one_or_none()
-                project_summary.summary = project_summary_schema.dict()
-                project_summary.updated = datetime.now(timezone.utc)
-                session.add(project_summary)
+                if project_summary:
+                    project_summary.summary = project_summary_schema.dict()
+                    project_summary.updated = datetime.now(timezone.utc)
+                    session.add(project_summary)
+
             session.commit()
 
     async def get_project_resources_counters(

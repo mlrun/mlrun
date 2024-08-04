@@ -923,17 +923,25 @@ class TestNuclioRuntime(TestRuntimeBase):
             tolerations=tolerations,
         )
 
+    @pytest.mark.parametrize(
+        "config_node_selector, project_node_selector",
+        [({}, {}), ({"kubernetes.io/arch": "amd64"}, {"kubernetes.io/os": "linux"})],
+    )
     def test_compile_function_config_node_selector_enriched_from_project(
-        self, db: Session, client: TestClient
+        self,
+        db: Session,
+        client: TestClient,
+        project_node_selector,
+        config_node_selector,
     ):
-        config_node_selector = {"kubernetes.io/arch": "amd64"}
+        config_node_selector = config_node_selector
         mlconf.default_function_node_selector = base64.b64encode(
             json.dumps(config_node_selector).encode("utf-8")
         )
 
         run_db = mlrun.get_run_db()
         project = run_db.get_project(self.project)
-        project.spec.default_function_node_selector = {"kubernetes.io/os": "linux"}
+        project.spec.default_function_node_selector = project_node_selector
         run_db.store_project(self.project, project)
 
         function = self._generate_runtime(self.runtime_kind)

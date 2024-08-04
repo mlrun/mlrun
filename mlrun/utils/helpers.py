@@ -1687,6 +1687,24 @@ def validate_component_version_compatibility(
     return True
 
 
+def enrich_node_selectors(
+    project_node_selector: dict, runtime_node_selector: dict
+) -> dict:
+    config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+    if project_node_selector or config_node_selector:
+        mlrun.utils.logger.debug(
+            "Enriching run node selector from project and mlrun config",
+            project_node_selector=project_node_selector,
+            config_node_selector=config_node_selector,
+        )
+        return mlrun.utils.helpers.merge_dicts_with_precedence(
+            config_node_selector,
+            project_node_selector,
+            runtime_node_selector,
+        )
+    return runtime_node_selector
+
+
 def format_alert_summary(
     alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
 ) -> str:

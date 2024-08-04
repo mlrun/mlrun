@@ -107,4 +107,3 @@ class PipelineProviderMixin:
                 if node["type"] != "DAG":
                     if node["message"]:
                         return node["message"]
-

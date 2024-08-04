@@ -1,6 +1,6 @@
 (genai-flow)=
 
-# GenAI development workflow
+# Gen AI development workflow
 
 MLRun automates the flow of tuning, validation, and optimizing LLMs to specific data - efficiently over elastic resources. 
 It rapidly deploys scalable real-time serving and application pipelines that host the LLM as well as the data integration and business logic.

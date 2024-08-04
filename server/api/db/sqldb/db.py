@@ -1922,29 +1922,42 @@ class SQLDB(DBInterface):
             )
             return
 
+        # remove trailing slashes from the URL
+        url = url.rstrip("/")
+
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == mlrun.common.types.Operation.ADD:
+        updated = False
+        if (
+            operation == mlrun.common.types.Operation.ADD
+            and url not in existing_invocation_urls
+        ):
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url not in existing_invocation_urls:
-                existing_invocation_urls.append(url)
+            updated = True
+            existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        elif operation == mlrun.common.types.Operation.REMOVE:
+        elif (
+            operation == mlrun.common.types.Operation.REMOVE
+            and url in existing_invocation_urls
+        ):
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url in existing_invocation_urls:
-                struct["status"]["external_invocation_urls"].remove(url)
-        function.struct = struct
-        self._upsert(session, [function])
+            updated = True
+            struct["status"]["external_invocation_urls"].remove(url)
+
+        # update the function record only if the external invocation URLs were updated
+        if updated:
+            function.struct = struct
+            self._upsert(session, [function])
 
     def _get_function(
         self,

@@ -14,6 +14,7 @@
 
 import uuid
 import warnings
+from abc import ABC
 
 import pandas as pd
 import semver
@@ -70,7 +71,9 @@ if _HAS_EVIDENTLY:
     "version 1.7.0 and will be removed in version 1.9.0. "
     "Use `EvidentlyModelMonitoringApplicationBaseV2` as your application's base class.",
 )
-class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplicationBase):
+class EvidentlyModelMonitoringApplicationBase(
+    mm_base.ModelMonitoringApplicationBase, ABC
+):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
     ) -> None:
@@ -135,7 +138,7 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
 
 
 class EvidentlyModelMonitoringApplicationBaseV2(
-    mm_base.ModelMonitoringApplicationBaseV2
+    mm_base.ModelMonitoringApplicationBaseV2, ABC
 ):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"

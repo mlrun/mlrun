@@ -1011,37 +1011,39 @@ class TestAllKindOfServing(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
+    function_name = "serving-router"
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        random_rgb_image = np.random.randint(0, 256, (20, 30, 3), dtype=np.uint8)
-        random_rgb_image_list = [
-            tuple(pixel) for pixel in random_rgb_image.reshape(-1, 3)
-        ]
+        random_rgb_image_list = (
+            np.random.randint(0, 256, (20, 30, 3), dtype=np.uint8)
+            .reshape(-1, 3)
+            .tolist()
+        )
         cls.models = {
             "int_one_to_one": {
-                "name": "serving_1",
+                "name": cls.function_name,
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0"],
             },
             "int_one_to_many": {
-                "name": "serving_2",
+                "name": cls.function_name,
                 "model_name": "int_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0", "p1", "p2", "p3", "p4"],
             },
             "str_one_to_one": {
-                "name": "serving_3",
+                "name": cls.function_name,
                 "model_name": "str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": ["input_str"],
                 "schema": ["f0", "p0"],
             },
             "str_one_to_one_with_train": {
-                "name": "serving_4",
+                "name": cls.function_name,
                 "model_name": "str_one_to_one_with_train",
                 "class_name": "OneToOne",
                 "data_point": ["input_str"],
@@ -1052,21 +1054,21 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "label_column": "str_out",
             },
             "str_one_to_many": {
-                "name": "serving_5",
+                "name": cls.function_name,
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": ["input_str"],
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
-                "name": "serving_6",
+                "name": cls.function_name,
                 "model_name": "img_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": random_rgb_image_list,
                 "schema": [f"f{i}" for i in range(600)] + ["p0"],
             },
             "int_and_str_one_to_one": {
-                "name": "serving_7",
+                "name": cls.function_name,
                 "model_name": "int_and_str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, "a", 3],
@@ -1122,13 +1124,16 @@ class TestAllKindOfServing(TestMLRunSystem):
         model_dict = self.models[model_name]
         serving_fn = self.project.get_function(model_dict.get("name"))
         data_point = model_dict.get("data_point")
-
+        if model_name == "img_one_to_one":
+            data_point = [data_point]
         serving_fn.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps(
                 {"inputs": data_point},
             ),
         )
+        if model_name == "img_one_to_one":
+            data_point = data_point[0]
         serving_fn.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
@@ -1151,6 +1156,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             "model_name": model_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
+            "df": offline_response_df,
         }
 
     def test_all(self) -> None:
@@ -1164,7 +1170,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
-        self._deploy_model_router("serv-router")
+        self._deploy_model_router(self.function_name)
 
         futures = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -1173,12 +1179,8 @@ class TestAllKindOfServing(TestMLRunSystem):
                 store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             )
             endpoints = self.db.list_model_endpoints()
+            assert len(endpoints) == 7
             for endpoint in endpoints:
-                if (
-                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                    == mm_constants.EndpointType.ROUTER
-                ):
-                    continue
                 future = executor.submit(
                     self._test_endpoint,
                     model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[

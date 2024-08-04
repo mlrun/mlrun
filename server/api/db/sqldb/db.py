@@ -2678,20 +2678,18 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        # Do the whole operation in a single transaction
-        with session.no_autoflush:
-            project_summaries_to_update = []
-            for project_summary_schema in project_summaries:
-                query = self._query(
-                    session, ProjectSummary, project=project_summary_schema.name
-                )
-                project_summary = query.one_or_none()
-                if project_summary:
-                    project_summary.summary = project_summary_schema.dict()
-                    project_summary.updated = datetime.now(timezone.utc)
-                    project_summaries_to_update.append(project_summary)
+        project_summaries_to_update = []
+        for project_summary_schema in project_summaries:
+            query = self._query(
+                session, ProjectSummary, project=project_summary_schema.name
+            )
+            project_summary = query.one_or_none()
+            if project_summary:
+                project_summary.summary = project_summary_schema.dict()
+                project_summary.updated = datetime.now(timezone.utc)
+                project_summaries_to_update.append(project_summary)
 
-            self._upsert(session, project_summaries_to_update)
+        self._upsert(session, project_summaries_to_update)
 
     async def get_project_resources_counters(
         self,

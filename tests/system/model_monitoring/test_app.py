@@ -1022,28 +1022,24 @@ class TestAllKindOfServing(TestMLRunSystem):
         )
         cls.models = {
             "int_one_to_one": {
-                "name": cls.function_name,
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0"],
             },
             "int_one_to_many": {
-                "name": cls.function_name,
                 "model_name": "int_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0", "p1", "p2", "p3", "p4"],
             },
             "str_one_to_one": {
-                "name": cls.function_name,
                 "model_name": "str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": ["input_str"],
                 "schema": ["f0", "p0"],
             },
             "str_one_to_one_with_train": {
-                "name": cls.function_name,
                 "model_name": "str_one_to_one_with_train",
                 "class_name": "OneToOne",
                 "data_point": ["input_str"],
@@ -1054,21 +1050,18 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "label_column": "str_out",
             },
             "str_one_to_many": {
-                "name": cls.function_name,
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": ["input_str"],
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
-                "name": cls.function_name,
                 "model_name": "img_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": random_rgb_image_list,
                 "schema": [f"f{i}" for i in range(600)] + ["p0"],
             },
             "int_and_str_one_to_one": {
-                "name": cls.function_name,
                 "model_name": "int_and_str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, "a", 3],
@@ -1122,7 +1115,7 @@ class TestAllKindOfServing(TestMLRunSystem):
 
     def _test_endpoint(self, model_name, feature_set_uri) -> dict[str, typing.Any]:
         model_dict = self.models[model_name]
-        serving_fn = self.project.get_function(model_dict.get("name"))
+        serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
         if model_name == "img_one_to_one":
             data_point = [data_point]
@@ -1159,7 +1152,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             "df": offline_response_df,
         }
 
-    def test_all(self) -> None:
+    def test(self) -> None:
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
@@ -1207,12 +1200,12 @@ class TestTracking(TestAllKindOfServing):
     project_name = "test-tracking"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
+    function_name = "serving-1"
 
     @classmethod
     def custom_setup_class(cls) -> None:
         cls.models = {
             "int_one_to_one": {
-                "name": "serving_1",
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
@@ -1220,34 +1213,32 @@ class TestTracking(TestAllKindOfServing):
             },
         }
 
-    @classmethod
     def _deploy_model_serving(
-        cls,
-        name: str,
+        self,
         model_name: str,
         class_name: str,
         enable_tracking: bool = True,
         **kwargs,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.code_to_function(
-            project=cls.project_name,
-            name=name,
+            project=self.project_name,
+            name=self.function_name,
             filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
             kind="serving",
         )
         serving_fn.add_model(
             model_name,
-            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
+            model_path=f"store://models/{self.project_name}/{model_name}:latest",
             class_name=class_name,
         )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
-        if cls.image is not None:
-            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
 
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
-    def test_tracking(self) -> None:
+    def test(self) -> None:
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,

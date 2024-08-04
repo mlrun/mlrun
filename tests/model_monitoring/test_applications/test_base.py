@@ -22,7 +22,7 @@ from mlrun.model_monitoring.applications import (
 
 def test_deprecation_v1_instantiation() -> None:
     class DeprecatedApp(ModelMonitoringApplicationBase):
-        def do_tracking(self):
+        def do_tracking(self, **kwargs):
             pass
 
     with pytest.warns(DeprecationWarning):
@@ -32,7 +32,7 @@ def test_deprecation_v1_instantiation() -> None:
 @pytest.mark.filterwarnings("error")
 def test_no_deprecation_v2_instantiation() -> None:
     class AppV2(ModelMonitoringApplicationBaseV2):
-        def do_tracking(self):
+        def do_tracking(self, **kwargs):
             pass
 
     AppV2()

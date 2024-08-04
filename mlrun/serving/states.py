@@ -873,7 +873,7 @@ class QueueStep(BaseStep):
 
         if self._stream:
             full_event = self.options.get("full_event")
-            if full_event or full_event is None and self.next is not None:
+            if full_event or full_event is None and self.next:
                 data = storey.utils.wrap_event_for_serialization(event, data)
             self._stream.push(data)
             event.terminated = True

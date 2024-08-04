@@ -2503,6 +2503,9 @@ class SQLDB(DBInterface):
             session, project_record.name, raise_on_not_found=False
         )
         if not project_summary:
+            logger.debug(
+                "Creating project summary in DB", project_name=project.metadata.name
+            )
             summary = mlrun.common.schemas.ProjectSummary(
                 name=project.metadata.name,
             )
@@ -2687,13 +2690,13 @@ class SQLDB(DBInterface):
     ):
         # Do the whole operation in a single transaction
         with session.no_autoflush:
-            self._query(session, ProjectSummary).delete()
             for project_summary_schema in project_summaries:
-                project_summary = ProjectSummary(
-                    project=project_summary_schema.name,
-                    summary=project_summary_schema.dict(),
-                    updated=datetime.now(timezone.utc),
+                query = self._query(
+                    session, ProjectSummary, project=project_summary_schema.name
                 )
+                project_summary = query.one_or_none()
+                project_summary.summary = project_summary_schema.dict()
+                project_summary.updated = datetime.now(timezone.utc)
                 session.add(project_summary)
             session.commit()
 

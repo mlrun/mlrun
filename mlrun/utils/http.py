@@ -95,7 +95,7 @@ class HTTPSessionWithRetry(requests.Session):
                     total=self.max_retries,
                     backoff_factor=self.retry_backoff_factor,
                     status_forcelist=config.http_retry_defaults.status_codes,
-                    method_whitelist=self._retry_methods,
+                    allowed_methods=self._retry_methods,
                     # we want to retry but not to raise since we do want that last response (to parse details on the
                     # error from response body) we'll handle raising ourselves
                     raise_on_status=False,

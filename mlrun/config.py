@@ -1166,6 +1166,7 @@ class Config:
                 )
             elif kind == "stream":  # return list for mlrun<1.6.3 BC
                 return [
+                    # TODO: remove the first stream in 1.9.0
                     mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                         project=project,
                         kind=kind,

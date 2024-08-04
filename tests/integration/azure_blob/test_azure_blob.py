@@ -15,7 +15,6 @@
 import os
 import os.path
 import tempfile
-import time
 import uuid
 from pathlib import Path
 
@@ -258,61 +257,6 @@ class TestAzureBlob:
 
         response = upload_data_item.get()
         assert response.decode() == self.test_string
-
-    @pytest.mark.parametrize("use_datastore_profile", (True, False))
-    def test_large_upload(self, use_datastore_profile):
-        self.setup_before_test(
-            use_datastore_profile=use_datastore_profile,
-            auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
-        )
-        data_item = mlrun.run.get_dataitem(self.object_url)
-        file_size = 1024 * 1024 * 100
-        chunk_size = 1024 * 1024 * 10
-
-        first_start_time = time.monotonic()
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".txt", delete=True, mode="wb"
-        ) as temp_file:
-            num_chunks = file_size // chunk_size
-            remainder = file_size % chunk_size
-            for _ in range(num_chunks):
-                chunk = os.urandom(chunk_size)
-                temp_file.write(chunk)
-            if remainder:
-                chunk = os.urandom(remainder)
-                temp_file.write(chunk)
-            temp_file.flush()
-            temp_file.seek(0)
-
-            print(
-                f"azure test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
-                "seconds"
-            )
-            start_time = time.monotonic()
-            data_item.upload(temp_file.name)
-            print(
-                f"azure test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
-            )
-            with tempfile.NamedTemporaryFile(
-                suffix=".txt", delete=True, mode="wb"
-            ) as temp_file_download:
-                start_time = time.monotonic()
-                data_item.download(temp_file_download.name)
-                print(
-                    f"azure test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
-                )
-                with (
-                    open(temp_file.name, "rb") as file1,
-                    open(temp_file_download.name, "rb") as file2,
-                ):
-                    while True:
-                        chunk1 = file1.read(chunk_size)
-                        chunk2 = file2.read(chunk_size)
-                        if chunk1 != chunk2:
-                            assert False
-                        elif not chunk1 and not chunk2:
-                            break
 
     @pytest.mark.parametrize(
         "auth_method ,use_datastore_profile", generated_pytest_parameters

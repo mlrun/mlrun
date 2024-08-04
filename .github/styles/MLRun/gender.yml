@@ -11,6 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from .helpers import get_stream_path
-from .model_endpoints import ModelEndpoints
+#
+extends: existence
+message: "Use a gender-neutral pronoun instead of '%s'."
+level: error
+ignorecase: true
+tokens:
+  - he/she
+  - s/he
+  - \(s\)he
+  - \bhe\b
+  - \bhim\b
+  - \bhis\b
+  - \bshe\b
+  - \bher\b

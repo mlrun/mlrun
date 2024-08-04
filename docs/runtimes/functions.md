@@ -59,7 +59,7 @@ handle the orchestration and monitoring of the distributed task.
 
 ## Hyperparameters
 MLRun also supports iterative tasks for automatic and distributed execution of many tasks with variable 
-parameters (hyperparams). See {ref}`hyper-params`.
+parameters (`hyperparams`). See {ref}`hyper-params`.
 
 **In this section**
 

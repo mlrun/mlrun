@@ -856,7 +856,7 @@ class TestBatchDrift(TestMLRunSystem):
         )
         model_name = "sklearn_RandomForestClassifier"
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model = project.log_model(
             model_name,
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
@@ -914,12 +914,8 @@ class TestBatchDrift(TestMLRunSystem):
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name, endpoint_id=endpoint_id
         )
-
         # Validate that model_uri is based on models prefix
-        assert (
-            model_endpoint.spec.model_uri
-            == f"store://models/{project.name}/{model_name}:latest"
-        )
+        self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
 
         # Test the drift results
         # TODO: comment out when ML-5767 is done
@@ -932,6 +928,21 @@ class TestBatchDrift(TestMLRunSystem):
         assert len(project.list_artifacts(name="~features_drift_results")) == 1
         # TODO: take the artifacts from the original context when ML-5792 is done
         # artifacts = context.artifacts
+
+    def _validate_model_uri(self, model_obj, model_endpoint):
+        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+            project=model_endpoint.metadata.project,
+            key=model_obj.key,
+            iter=model_obj.iter,
+            tree=model_obj.tree,
+        )
+
+        # Enrich the uri schema with the store prefix
+        model_artifact_uri = mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+        )
+
+        assert model_endpoint.spec.model_uri == model_artifact_uri
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

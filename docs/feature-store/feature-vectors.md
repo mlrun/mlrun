@@ -285,7 +285,7 @@ If you want to return an ordered list of values, set the `as_list` parameter to 
 frameworks and this eliminates additional glue logic. 
    
 When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
-the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
+the `get_online_feature_service` uses QueryByKey on the key-value store: all join types in the graph turn 
 into left joins. Consequently, the function performs joins using the latest events for each required 
 entity within each feature set.
 

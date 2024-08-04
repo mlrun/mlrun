@@ -47,7 +47,6 @@ class AzureBlobStore(DataStore):
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
-            max_concurrency=2,
             **self.get_storage_options(),
         )
         return self._filesystem
@@ -83,7 +82,7 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self.filesystem.upload(src_path, remote_path, overwrite=True)
+        self.filesystem.upload(src_path, remote_path, overwrite=True, max_concurrency=100)
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)

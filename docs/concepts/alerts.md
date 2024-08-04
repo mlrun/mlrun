@@ -6,6 +6,20 @@ delete, and modify alerts and also reset them.
 
 Notifications are used to notify you or the system of an alert, such as through slack, git or webhook. See {ref}`notifications`.
 
+**In this section**
+- [Configuration](#configuration)
+- [SDK](#sdk)
+- [Alert templates](#alert-templates)
+- [Creating an alert without a template](#creating-an-alert-with-a-template)
+- [Creating an alert with a template](#creating-an-alert-without-a-template)
+
+**See also**
+```{toctree}
+:maxdepth: 1
+
+drift-detection-alert
+```
+
 ## Configuration
 These are the variables that control the basic alert behavior: 
 
@@ -38,8 +52,8 @@ The templates are cross-project objects. When generating an alert, the user must
 - CONCEPT_DRIFT_SUSPECTED &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
 - MODEL_PERFORMANCE_DETECTED &mdash; A detected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
 - MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
-- MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units)
-- MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units)
+- MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
 - MM_APP_ANOMALY_DETECTED &mdash; 
 - MM_APP_ANOMALY_SUSPECTED &mdash; 
 - FAILED &mdash; The job failed.

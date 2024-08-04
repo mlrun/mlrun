@@ -491,11 +491,26 @@ class ApplicationRuntime(RemoteRuntime):
 
     @classmethod
     def deploy_reverse_proxy_image(cls):
+        """
+        Build the reverse proxy image and save it.
+        The reverse proxy image is used to route requests to the application sidecar.
+        This is useful when you want to decrease build time by building the application image only once.
+
+        :param use_cache:   Use the cache when building the image
+        """
         # create a function that includes only the reverse proxy, without the application
         from mlrun import get_run_db
         from mlrun.run import new_function
 
         reverse_proxy_func = new_function(name="reverse-proxy-temp", kind="remote")
+        # default max replicas is 4, we only need one replica for the reverse proxy
+        reverse_proxy_func.spec.max_replicas = 1
+
+        # clear out the base image, so it won't be mlrun/mlrun
+        reverse_proxy_func.set_config("spec.build.baseImage", None)
+        reverse_proxy_func.spec.image = ""
+        reverse_proxy_func.spec.build.base_image = ""
+
         cls._ensure_reverse_proxy_configurations(reverse_proxy_func)
         reverse_proxy_func.deploy()
 

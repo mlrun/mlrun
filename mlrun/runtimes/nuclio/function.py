@@ -707,6 +707,11 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.disable_default_http_trigger = False
 
+    def skip_image_enrichment(self):
+        return (
+            self.spec.nuclio_runtime is None or "python" not in self.spec.nuclio_runtime
+        )
+
     def _get_state(
         self,
         dashboard="",

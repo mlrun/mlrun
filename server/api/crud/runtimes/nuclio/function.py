@@ -493,6 +493,19 @@ def _resolve_and_set_build_requirements_and_commands(function, config):
     mlrun.utils.update_in(config, "spec.build.commands", commands)
 
 
+def _enrich_function_node_selector_with_project(
+    run_db, project_name, function_node_selector
+):
+    if run_db and project_name:
+        project = run_db.get_project(project_name)
+        if project.spec.default_function_node_selector:
+            return mlrun.utils.helpers.merge_with_precedence(
+                project.spec.default_function_node_selector,
+                function_node_selector,
+            )
+    return function_node_selector
+
+
 def _add_mlrun_to_requirements_if_needed(config, function):
     build: mlrun.model.ImageBuilder = function.spec.build
     base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
@@ -548,8 +561,13 @@ def _set_function_scheduling_params(function, nuclio_spec):
         # and instead, we delegate the merge logic to nuclio.
         # This approach ensures that mlrun functions remain clean from per-system selectors,
         # maintaining consistent behavior across nuclio and mlrun environments.
-        if function.spec.node_selector:
-            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        if node_selector := _enrich_function_node_selector_with_project(
+            function._get_db(), function.metadata.project, function.spec.node_selector
+        ):
+            nuclio_spec.set_config(
+                "spec.nodeSelector",
+                node_selector,
+            )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:

@@ -372,16 +372,8 @@ class Pipelines(
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
     def get_error_from_pipeline(self, kfp_client, run: PipelineRun):
-        detail = kfp_client._run_api.get_run(run.id)
-        if detail.run.status == "Error":
-            workflow_status = json.loads(detail.pipeline_runtime.workflow_manifest)[
-                "status"
-            ]
-            for node in workflow_status["nodes"].values():
-                # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
-                if node["type"] != "DAG":
-                    if node["message"]:
-                        return node["message"]
+        pipeline = kfp_client._run_api.get_run(run.id)
+        return self.resolve_error_from_pipeline(pipeline)
 
     def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
         """Filter runs by their name while ignoring the project string on them

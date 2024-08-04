@@ -1632,10 +1632,9 @@ def _init_async_objects(context, steps):
                     stream_path = step.path
                     endpoint = None
                     # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
                     options = {
-                        "full_event": step.full_event
-                        or step.full_event is None
-                        and step.next is not None
+                        "full_event": full_event or full_event is None and step.next
                     }
                     options.update(step.options)
 

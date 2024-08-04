@@ -46,11 +46,8 @@ feature_set = mlrun.feature_store.FeatureSet("my_fs", entities=[fs.Entity('KEY')
 df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
   run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
 
-# Pay attention!
-# Snowflake SQL columns are always set to uppercase letters.
-# If we replace 'KEY' with the lowercase 'key', this code will fail and raise an MLRunInvalidArgumentError.
-# The same applies to timestamp_key and label_column.
-```
+# Notice that by default, Snowflake converts to uppercase name of columns ingested to it.
+# The feature-set entity, timestamp_key and label_coumnt must have similar case to the source, othewise the ingest will faile with MLRunInvalidArgumentError exception
 ## Kafka source
 
 

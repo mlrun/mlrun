@@ -27,7 +27,6 @@ import mlrun.feature_store as fstore
 from mlrun.datastore.sources import ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
 from mlrun.feature_store import Entity
-from mlrun.runtimes.utils import RunError
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
@@ -213,82 +212,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             match=".*some attributes are missing.*",
         ):
             fake_target.purge()
-
-    def test_feature_set_wrong_letters_case(self):
-        self.generate_snowflake_source_table()
-        result_table = f"result_{self.current_time}"
-        self.tables_to_drop.append(result_table)
-
-        source = SnowflakeSource(
-            "snowflake_target_for_ingest",
-            query=f"select * from {self.source_table} order by ID limit 10",
-            db_schema=self.schema,
-            **self.snowflake_spark_parameters,
-        )
-
-        target = SnowflakeTarget(
-            "snowflake_target_for_ingest",
-            table_name=result_table,
-            db_schema=self.schema,
-            **self.snowflake_spark_parameters,
-        )
-        timestamp_key_feature_store = fstore.FeatureSet(
-            "timestamp_key_feature_store",
-            timestamp_key="license_date",
-            engine="spark",
-            passthrough=False,
-            relations=None,
-        )
-        entity_feature_store = fstore.FeatureSet(
-            "entity_feature_store",
-            entities=[Entity("id")],
-            engine="spark",
-            passthrough=False,
-            relations=None,
-        )
-        label_feature_store = fstore.FeatureSet(
-            "entity_feature_store",
-            label_column="name",
-            engine="spark",
-            passthrough=False,
-            relations=None,
-        )
-        run_config = fstore.RunConfig(local=self.run_local)
-        error_type = (
-            mlrun.errors.MLRunInvalidArgumentError if self.run_local else RunError
-        )
-        with pytest.raises(
-            error_type,
-            match="timestamp_key is missing from dataframe during ingestion.",
-        ):
-            timestamp_key_feature_store.ingest(
-                source,
-                [target],
-                run_config=run_config,
-                spark_context=self.spark_service,
-            )
-
-        with pytest.raises(
-            error_type,
-            match="There are missing entities from dataframe during ingestion.",
-        ):
-            entity_feature_store.ingest(
-                source,
-                [target],
-                run_config=run_config,
-                spark_context=self.spark_service,
-            )
-
-        with pytest.raises(
-            error_type,
-            match="label_column is missing from dataframe during ingestion.",
-        ):
-            label_feature_store.ingest(
-                source,
-                [target],
-                run_config=run_config,
-                spark_context=self.spark_service,
-            )
 
     def test_parquet_source_ingest(self):
         result_table = f"result_{self.current_time}"

@@ -161,6 +161,9 @@ class AzureBlobStore(DataStore):
             key = Path(self.endpoint, key).as_posix()
         return key
 
+    def print_azure_for_test(self):
+        print("azure")
+
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
         container, remote_path = remote_path.split("/", 1)

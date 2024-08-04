@@ -562,10 +562,9 @@ def _set_function_scheduling_params(function, nuclio_spec):
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        # We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
-        # and instead, we delegate the merge logic to nuclio.
-        # This approach ensures that mlrun functions remain clean from per-system selectors,
-        # maintaining consistent behavior across nuclio and mlrun environments.
+        # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
+        # This approach ensures that node selector settings from both the project and MLRun service levels
+        # are incorporated into the Nuclio config.
         if node_selector := _enrich_function_node_selector_with_project(
             function._get_db(), function.metadata.project, function.spec.node_selector
         ):

@@ -27,7 +27,7 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
 
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 100
 MAX_BLOCKSIZE = 1024 * 1024 * 4
 MAX_SINGLE_PUT_SIZE = 1024 * 1024 * 8  # for BlobServiceClient only.
 
@@ -162,7 +162,7 @@ class AzureBlobStore(DataStore):
         return key
 
     def print_azure_for_test(self):
-        print("azure")
+        print("azure 100 max_concurrency")
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)

@@ -225,6 +225,11 @@ with warnings.catch_warnings():
                 "producer_id",
                 "best_iteration",
             ),
+            Index(
+                "idx_project_kind",
+                "project",
+                "kind",
+            ),
         )
 
         Label = make_label(__tablename__)
@@ -644,7 +649,7 @@ with warnings.catch_warnings():
         page_size = Column(Integer)
         kwargs = Column(JSON)
         last_accessed = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
 
@@ -655,11 +660,11 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
         created = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
         last_updated = Column(
-            SQLTypesUtil.timestamp(),
+            SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=None,
         )
         active = Column(BOOLEAN, default=False)
@@ -728,6 +733,26 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+    class ProjectSummary(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "project_summaries"
+        __table_args__ = (UniqueConstraint("project", name="_project_summaries_uc"),)
+
+        id = Column(Integer, primary_key=True)
+        project = Column(
+            String(255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        updated = Column(SQLTypesUtil.datetime())
+        summary = Column(JSON)
+
+    class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "time_window_trackers"
+
+        key = Column(String(255, collation=SQLTypesUtil.collation()), primary_key=True)
+        timestamp = Column(
+            SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
+        )
+        max_window_size_seconds = Column(Integer)
 
 
 # Must be after all table definitions

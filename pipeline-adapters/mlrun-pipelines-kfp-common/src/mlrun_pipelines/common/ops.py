@@ -15,6 +15,7 @@
 
 import json
 import os
+import warnings
 from copy import deepcopy
 from typing import Union
 
@@ -109,7 +110,7 @@ def mlrun_op(
                      omitted the path will be the out_path/key.
     :param in_path:  default input path/url (prefix) for inputs
     :param out_path: default output path/url (prefix) for artifacts
-    :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
+    :param rundb:    Deprecated. use 'MLRUN_DBPATH' env instead.
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
     :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
@@ -140,16 +141,14 @@ def mlrun_op(
                     command = '/User/kubeflow/training.py',
                     params = {'p1':p1, 'p2':p2},
                     outputs = {'model.txt':'', 'dataset.csv':''},
-                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
+                    out_path ='v3io:///projects/my-proj/mlrun/{{workflow.uid}}/')
 
     # use data from the first step
     def mlrun_validate(modelfile):
         return mlrun_op('validation',
                     command = '/User/kubeflow/validation.py',
                     inputs = {'model.txt':modelfile},
-                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/',
-                    rundb = '/User/kubeflow')
+                    out_path ='v3io:///projects/my-proj/{{workflow.uid}}/')
 
     @dsl.pipeline(
         name='My MLRUN pipeline', description='Shows how to use mlrun.'
@@ -167,6 +166,13 @@ def mlrun_op(
     """
     from mlrun_pipelines.ops import generate_pipeline_node
 
+    if rundb:
+        warnings.warn(
+            "rundb parameter is deprecated and will be removed in 1.9.0. "
+            "use 'MLRUN_DBPATH' env instead.",
+            DeprecationWarning,
+        )
+
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
@@ -177,7 +183,6 @@ def mlrun_op(
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
-    rundb = rundb or mlrun.db.get_or_set_dburl()
     cmd = [
         "python",
         "-m",
@@ -200,7 +205,6 @@ def mlrun_op(
                 command = command or function.spec.command
                 more_args = more_args or function.spec.args
                 mode = mode or function.spec.mode
-                rundb = rundb or function.spec.rundb
                 code_env = str(function.spec.build.functionSourceCode)
             else:
                 runtime = str(function.to_dict())
@@ -441,9 +445,7 @@ def get_default_reg():
     return ""
 
 
-def format_summary_from_kfp_run(
-    kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
-):
+def format_summary_from_kfp_run(kfp_run, project=None):
     from mlrun_pipelines.ops import generate_kfp_dag_and_resolve_project
 
     override_project = project if project and project != "*" else None
@@ -453,13 +455,8 @@ def format_summary_from_kfp_run(
     run_id = kfp_run.id
     logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
-    # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
-    if not run_db:
-        run_db = mlrun.db.get_run_db()
-
     # enrich DAG with mlrun run info
-    runs = run_db.list_runs(project=project, labels=f"workflow={run_id}")
-
+    runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
     for run in runs:
         step = get_in(
             run,
@@ -597,9 +594,7 @@ def write_kfpmeta(struct):
             pass
 
     text = "# Run Report\n"
-    if "iterations" in struct["status"]:
-        del struct["status"]["iterations"]
-
+    _sanitize_ui_metadata(struct)
     text += "## Metadata\n```yaml\n" + dict_to_yaml(struct) + "```\n"
 
     metadata = {"outputs": [{"type": "markdown", "storage": "inline", "source": text}]}
@@ -657,3 +652,36 @@ def get_kfp_outputs(artifacts, labels, project):
                 outputs += [meta]
 
     return outputs, out_dict
+
+
+def _sanitize_ui_metadata(struct):
+    status_fields_to_remove = ["iterations", "artifacts"]
+    for field in status_fields_to_remove:
+        struct["status"].pop(field, None)
+
+
+def _enrich_node_selector(function):
+    function_node_selector = getattr(function.spec, "node_selector") or {}
+    project_node_selector = {}
+    config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+
+    project = mlrun.get_current_project()
+    if not project or (function.metadata.project != project.metadata.name):
+        project = function._get_db().get_project(function.metadata.project)
+    if project:
+        project_node_selector = project.spec.default_function_node_selector
+
+    if project_node_selector or config_node_selector:
+        logger.debug(
+            "Enriching node selector from project and mlrun config",
+            project_node_selector=project.spec.default_function_node_selector,
+            config_node_selector=config_node_selector,
+        )
+        return mlrun.utils.helpers.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                config_node_selector,
+                project.spec.default_function_node_selector,
+                function_node_selector,
+            )
+        )
+    return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)

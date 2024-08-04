@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .constants import (
+    V3IO_MODEL_MONITORING_DB,
     ControllerPolicy,
     DriftStatus,
     EndpointType,
@@ -25,13 +26,12 @@ from .constants import (
     FunctionURI,
     MetricData,
     ModelEndpointTarget,
+    ModelEndpointTargetSchemas,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
     PredictionsQueryConstants,
     ProjectSecretKeys,
-    PrometheusEndpoints,
-    PrometheusMetric,
     ResultData,
     ResultKindApp,
     SchedulingKeys,

@@ -54,7 +54,7 @@ To use a remote source you can either put your code in Git or archive it and the
 * To set project source use the `project.set_source` method.
 * To set workflow use the `project.set_workflow` method.  
 
-To use a different remote source, specify the source URL whe running the workflow with `project.run(source=<source-URL>)` method.  
+To use a different remote source, specify the source URL when running the workflow with `project.run(source=<source-URL>)` method.  
 You can also use a context path to load the project from a local directory contained in the image used for execution:
 * To set project source use the `project.set_source` method (make sure `pull_at_runtime` is set to `False`).
 * To build the image with the project yaml and code use `project.build_image` method. Optionally specify a `target_dir` for the project content.

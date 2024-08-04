@@ -56,7 +56,7 @@ class MonitoringApplicationContext(MLClientCtx):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def __post_init__(self):
+    def _enrich_data(self):
         self.application_name: typing.Optional[str] = None
         self.start_infer_time: typing.Optional[pd.Timestamp] = None
         self.end_infer_time: typing.Optional[pd.Timestamp] = None
@@ -87,39 +87,37 @@ class MonitoringApplicationContext(MLClientCtx):
         """
 
         if not context:
-            self = (
+            ctx = (
                 super().from_dict(
                     attrs=attrs.get(mm_constants.ApplicationEvent.MLRUN_CONTEXT, {}),
                     **kwargs,
                 ),
             )
         else:
-            self = context
-            self.__post_init__()
+            ctx = context
+            cls._enrich_data(ctx)
 
-        self.start_infer_time = pd.Timestamp(
+        ctx.start_infer_time = pd.Timestamp(
             attrs.get(mm_constants.ApplicationEvent.START_INFER_TIME)
         )
-        self.end_infer_time = pd.Timestamp(
+        ctx.end_infer_time = pd.Timestamp(
             attrs.get(mm_constants.ApplicationEvent.END_INFER_TIME)
         )
-        self.latest_request = pd.Timestamp(
+        ctx.latest_request = pd.Timestamp(
             attrs.get(mm_constants.ApplicationEvent.LAST_REQUEST)
         )
-        self.application_name = attrs.get(
-            mm_constants.ApplicationEvent.APPLICATION_NAME
-        )
-        self._feature_stats = json.loads(
+        ctx.application_name = attrs.get(mm_constants.ApplicationEvent.APPLICATION_NAME)
+        ctx._feature_stats = json.loads(
             attrs.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
         )
-        self._sample_df_stats = json.loads(
+        ctx._sample_df_stats = json.loads(
             attrs.get(mm_constants.ApplicationEvent.CURRENT_STATS, "{}")
         )
 
-        self.endpoint_id = attrs.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
-        self._model_endpoint = model_endpoint_dict.get(self.endpoint_id)
+        ctx.endpoint_id = attrs.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
+        ctx._model_endpoint = model_endpoint_dict.get(ctx.endpoint_id)
 
-        return self
+        return ctx
 
     @property
     def sample_df(self) -> pd.DataFrame:

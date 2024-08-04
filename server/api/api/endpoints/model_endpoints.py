@@ -232,24 +232,19 @@ async def list_model_endpoints(
         action=schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    try:
-        endpoints = await run_in_threadpool(
-            server.api.crud.ModelEndpoints().list_model_endpoints,
-            project=project,
-            model=model,
-            function=function,
-            labels=labels,
-            metrics=metrics,
-            start=start,
-            end=end,
-            top_level=top_level,
-            uids=uids,
-        )
-    except mlrun.errors.MLRunInvalidArgumentError as e:
-        logger.warning(
-            f"Failed to list model endpoints, probably store connection is not defined yet. Error: {str(e)}"
-        )
-        endpoints = schemas.ModelEndpointList(endpoints=[])
+
+    endpoints = await run_in_threadpool(
+        server.api.crud.ModelEndpoints().list_model_endpoints,
+        project=project,
+        model=model,
+        function=function,
+        labels=labels,
+        metrics=metrics,
+        start=start,
+        end=end,
+        top_level=top_level,
+        uids=uids,
+    )
     allowed_endpoints = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
@@ -351,12 +346,19 @@ async def get_model_endpoint_monitoring_metrics(
     await _verify_model_endpoint_read_permission(
         project=project, endpoint_id=endpoint_id, auth_info=auth_info
     )
-
-    get_model_endpoint_metrics = (
-        server.api.crud.model_monitoring.helpers.get_store_object(
-            project=project
-        ).get_model_endpoint_metrics
-    )
+    try:
+        get_model_endpoint_metrics = (
+            server.api.crud.model_monitoring.helpers.get_store_object(
+                project=project
+            ).get_model_endpoint_metrics
+        )
+    except mlrun.errors.MLRunInvalidMMStoreType as e:
+        logger.debug(
+            "Failed to list model endpoint metrics because store connection is not defined."
+            " Returning an empty list of metrics",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return []
     metrics: list[mm_endpoints.ModelEndpointMonitoringMetric] = []
     tasks: list[asyncio.Task] = []
     if type == "results" or type == "all":
@@ -493,13 +495,20 @@ async def get_model_endpoint_monitoring_metrics_values(
     invocations_full_name = mlrun.model_monitoring.helpers.get_invocations_fqn(
         params.project
     )
-
-    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-        project=params.project,
-        secret_provider=server.api.crud.secrets.get_project_secret_provider(
-            project=params.project
-        ),
-    )
+    try:
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=params.project,
+            secret_provider=server.api.crud.secrets.get_project_secret_provider(
+                project=params.project
+            ),
+        )
+    except mlrun.errors.MLRunInvalidMMStoreType as e:
+        logger.debug(
+            "Failed to retrieve model endpoint metrics-values because tsdb connection is not defined."
+            " Returning an empty list of metric-values",
+            error=mlrun.errors.err_to_str(e),
+        )
+        return []
 
     for metrics, type in [(params.results, "results"), (params.metrics, "metrics")]:
         if metrics:

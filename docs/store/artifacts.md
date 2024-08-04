@@ -8,7 +8,7 @@ There are several types of Artifacts. The type of the Artifact is reflected in t
 used for grouping the [artifacts in the UI](#viewing-artifacts). 
 The main kinds of artifacts are:
 
-- Files — Files, directories, images, figures, and plotlines
+- Files — Files, directories, images, figures, and plot lines
 - Datasets — Any data, such as tables and DataFrames
 - Models — All trained models
 - Feature Store Objects — Feature sets and feature vectors
@@ -21,12 +21,13 @@ Artifacts metadata is stored in the MLRun database.
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
+- [Deleting artifacts](#deleting-artifacts)
 
 **See also:**
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
-- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact)
 
 
 ## Viewing artifacts
@@ -52,10 +53,10 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
-- MLRun < 1.2: The allowed paths include only v3io paths
+- MLRun < 1.2: The allowed paths include only V3IO paths
 - MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
   `http://` paths are not visible due to security reasons.
-- MLRun 1.5 adds support for  dbfs (Databricks file system): `dbfs://`
+- MLRun 1.5 adds support for DBFS (Databricks file system): `dbfs://`
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 
@@ -131,5 +132,24 @@ Example artifact URLs:
 
 <!-- ## Dataset artifacts moved to data coll and prep, model and plot artifacts to working-with-data-and-model-artifacts -->
 
+## Deleting artifacts
+
+
+Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You delete artifacts from a specific project 
+and choose what you want to delete. You cannot delete artifacts of type: ModelArtifact, DirArtifact, and DatasetArtifact that has more than one file. 
+Deleting artifact data is supported for V3IO, Google, Azure, DBFS, Filestore, and S3. 
+
+
+The options for {py:meth}`~mlrun.projects.MlrunProject.delete_artifact`:
+- metadata-only: Delete only the artifact object. The related artifact data remains.
+- data-optional: Delete the artifact object and the data. If data deletion is unsuccessful, deletes only the object.
+- data-force: Delete the artifact object and the data. If data deletion is unsuccessful, does not delete the object either.
+
+For example:
+```
+artifact = project.get_artifact("name")
+project.delete_artifact(artifact, deletion_strategy=mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.data_force, secrets={"secret1": "user-secret"})
+```
+Be sure to include `secrets` if additional credentials are needed to access the artifact data beyond those already specified as project secrets. 
 
 [Back to top](#top)

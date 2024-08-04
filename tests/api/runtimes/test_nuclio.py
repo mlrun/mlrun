@@ -603,6 +603,23 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
         )
 
+    def test_deploy_mlrun_requirements(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        mlrun.utils.update_in(
+            function.spec.config,
+            "spec.build.baseImage",
+            "mlrun/mlrun:0.6.0",
+        )
+        function.spec.build.requirements = ["some-requirements"]
+        build_function(db, auth_info, function)
+        assert "mlrun[complete]==0.6.0" in function.spec.build.requirements
+
     def test_deploy_with_global_service_account(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
@@ -874,9 +891,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )
-        self.assert_node_selection(
-            node_selector=config_node_selector, affinity=affinity
-        )
+        # The node selector is specific to the service configuration, not the function itself.
+        # Therefore, it is applied only to the run object and not enriched or modified at the function level.
+        self.assert_node_selection(affinity=affinity)
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
@@ -903,7 +920,6 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=6, expected_class=self.class_name
         )
         self.assert_node_selection(
-            node_selector=config_node_selector,
             tolerations=tolerations,
         )
 
@@ -1041,7 +1057,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.5.13"
+        mlconf.nuclio_version = "1.5.13"
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",
@@ -1062,7 +1078,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.8.5"
+        mlconf.nuclio_version = "1.8.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1075,7 +1091,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
         )
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         function.set_env(decode_event_strings_env_var_name, "false")
         self.execute_function(function)
@@ -1089,7 +1105,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, env var not set - add it"
         )
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1099,7 +1115,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_is_nuclio_version_in_range(self):
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.2"
+        mlconf.nuclio_version = "1.7.2"
 
         assert not server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.6.11", "1.7.2"
@@ -1127,7 +1143,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         # best effort - assumes compatibility
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = ""
+        mlconf.nuclio_version = ""
         assert server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "2.3.4"
         )

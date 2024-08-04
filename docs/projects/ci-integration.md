@@ -1,11 +1,11 @@
 (ci-integration)=
-# Run pipelines with Github Actions, GitLab
+# Run pipelines with GitHub Actions, GitLab
 
-You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
+You can run your ML Pipelines using CI frameworks like GitHub Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
 with the CI systems. 
 
 - Build/run complex workflows composed of local/library functions or external cloud services (e.g. AutoML)
-- Support various Pipeline/CI engines (Kubeflow, GitHub, Gitlab, Jenkins)
+- Support various Pipeline/CI engines (Kubeflow, GitHub, GitLab, Jenkins)
 - Track & version code, data, params, results with minimal effort
 - Elastic scaling of each step
 - Extensive Function Hub
@@ -20,8 +20,8 @@ pipeline it detects the environment attributes automatically
 * **MLRUN_DBPATH** &mdash; url of the MLRun cluster.
 * **V3IO_USERNAME** &mdash; username in the remote Iguazio cluster.
 * **V3IO_ACCESS_KEY** &mdash; access key to the remote Iguazio cluster.
-* **GIT_TOKEN** or **GITHUB_TOKEN** &mdash; Github/Gitlab API token (set automatically in Github Actions).
-* **SLACK_WEBHOOK** &mdash; optional. Slack API key when using slack notifications.
+* **GIT_TOKEN** or **GITHUB_TOKEN** &mdash; GitHub/GitLab API token (set automatically in GitHub Actions).
+* **SLACK_WEBHOOK** &mdash; optional. Slack API key when using Slack notifications.
 
 When the workflow runs inside the Git CI system it reports the pipeline progress and results back into the Git tracking system, similar to:
 
@@ -122,7 +122,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'mlrun/mlrun:1.6.2'
+                    image 'mlrun/mlrun:1.6.4'
                 }
             }
             steps {

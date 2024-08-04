@@ -37,6 +37,7 @@ class ArtifactFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.db_key",
                     "spec.size",
                     "spec.framework",
+                    "spec.algorithm",
                     "spec.metrics",
                     "spec.target_path",
                 ]

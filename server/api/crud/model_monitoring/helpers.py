@@ -17,37 +17,13 @@ import typing
 
 import sqlalchemy.orm
 
-import mlrun.common
 import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.common.schemas.schedule
 import mlrun.errors
 import mlrun.model_monitoring
 import mlrun.model_monitoring.db.stores
 import server.api.crud.secrets
-
-
-def get_batching_interval_param(intervals_list: list):
-    """Convert each value in the intervals list into a float number. None
-    Values will be converted into 0.0.
-
-    param intervals_list: A list of values based on the ScheduleCronTrigger expression. Note that at the moment
-                          it supports minutes, hours, and days. e.g. [0, '*/1', None] represents on the hour
-                          every hour.
-
-    :return: A tuple of:
-             [0] = minutes interval as a float
-             [1] = hours interval as a float
-             [2] = days interval as a float
-    """
-    return tuple(
-        [
-            0.0
-            if isinstance(interval, (float, int)) or interval is None
-            else float(f"0{interval.partition('/')[-1]}")
-            for interval in intervals_list
-        ]
-    )
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
@@ -104,19 +80,21 @@ def get_monitoring_parquet_path(
 
 
 def get_stream_path(
-    project: str = None,
+    project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-) -> typing.Union[list[str]]:
+    stream_uri: typing.Optional[str] = None,
+) -> list[str]:
     """
-    Get stream path from the project secret. If wasn't set, take it from the system configurations
+    Get stream path from the project secret. If wasn't set, take it from the system configurations.
 
-    :param project:             Project name.
-    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param project:       Project name.
+    :param function_name: Application name. Default is model_monitoring_stream.
+    :param stream_uri:    Stream URI. If not provided, it will be taken from the project secret.
 
-    :return:                    Monitoring stream path to the relevant application.
+    :return:              Monitoring stream path to the relevant application.
     """
 
-    stream_uri = server.api.crud.secrets.Secrets().get_project_secret(
+    stream_uri = stream_uri or server.api.crud.secrets.Secrets().get_project_secret(
         project=project,
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,

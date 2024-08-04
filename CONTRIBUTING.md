@@ -189,7 +189,7 @@ If running via minikube, you will first need to run
 ```shell
 minikube -n mlrun service mlrun-api
 ```
-Which will tunnel the mlrun api service to your local machine. You can then use the url that is outputted by this command
+Which will tunnel the MLRun api service to your local machine. You can then use the url that is outputted by this command
 to set the `MLRUN_DBPATH` environment variable.
 
 ### Adding System Tests
@@ -223,7 +223,6 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def test_open_source_features(self):
         pass
 
@@ -240,7 +239,6 @@ from tests.system.base import TestMLRunSystem
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 class TestSomeFunctionality(TestMLRunSystem):
-
     def custom_setup(self):
         pass
 

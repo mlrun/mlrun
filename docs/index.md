@@ -51,7 +51,7 @@ The [**gen AI development workflow**](./genai/genai-flow.html) section describes
 
 
 MLRun supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
-Removing inapropriate data at an early stage saves resources that would otherwise be required later on.
+Removing inappropriate data at an early stage saves resources that would otherwise be required later on.
 
 
 `````{div} full-width

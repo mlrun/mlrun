@@ -17,7 +17,6 @@ import traceback
 import typing
 from http import HTTPStatus
 
-import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -323,7 +322,9 @@ async def deploy_status(
     )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(
+    db_session, project_name: str, secret_key: str, store: bool = True
+):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
@@ -369,16 +370,18 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
                 project_name=project_name,
                 project_owner=project_owner.username,
             )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
+    if store:
+        secrets = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_key_name: secret_value}
         )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
+        Secrets().store_project_secrets(
+            project_name, secrets, allow_internal_secrets=True
+        )
+        if user_provided_key:
+            logger.info(
+                "Deleting user-provided access-key - replaced with an internal secret"
+            )
+            Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
 
@@ -507,13 +510,15 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
-            monitoring_deployment.check_if_credentials_are_set()
+            monitoring_deployment.check_if_credentials_are_set(
+                with_upgrade_case_check=True
+            )
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
-                err_txt = f"Can't deploy model monitoring application due to: {exc}"
+                err_txt = f"Can not deploy model monitoring application due to: {exc}"
             else:
                 err_txt = (
-                    f"Can't deploy serving function with track models due to: {exc}"
+                    f"Can not deploy serving function with track models due to: {exc}"
                 )
             server.api.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
@@ -521,29 +526,17 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn,
-                function_name=fn.metadata.name,
+                function=fn, function_name=fn.metadata.name
             )
 
         if serving_to_monitor:
-            if not mlrun.mlconf.is_ce_mode():
-                if (
-                    fn.spec.image.startswith("mlrun/")
-                    and client_version
-                    and (
-                        semver.Version.parse(client_version)
-                        < semver.Version.parse("1.6.3")
-                        or "unstable" in client_version
-                    )
-                ):
-                    raise mlrun.errors.MLRunBadRequestError(
-                        "On deploy of serving-functions which is based on mlrun image "
-                        "('mlrun/') and with set-tracking enabled, client version must be >= 1.6.3"
-                    )
-                if not monitoring_deployment.is_monitoring_stream_has_the_new_stream_trigger():
-                    monitoring_deployment.deploy_model_monitoring_stream_processing(
-                        overwrite=True
-                    )
+            if monitoring_deployment.should_redeploy_monitoring_stream(
+                fn_image=fn.spec.image, client_version=client_version
+            ):
+                # Redeploy the monitoring stream processing function
+                monitoring_deployment.deploy_model_monitoring_stream_processing(
+                    overwrite=True
+                )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
         fn,
@@ -587,8 +580,16 @@ def _handle_nuclio_deploy_status(
     if state in ["error", "unhealthy"]:
         logger.error(f"Nuclio deploy error, {text}", name=name)
 
-    internal_invocation_urls = status.get("internalInvocationUrls", [])
-    external_invocation_urls = status.get("externalInvocationUrls", [])
+    internal_invocation_urls = (
+        status.get("internalInvocationUrls")
+        if status.get("internalInvocationUrls")
+        else []
+    )
+    external_invocation_urls = (
+        status.get("externalInvocationUrls")
+        if status.get("externalInvocationUrls")
+        else []
+    )
 
     # add api gateway's URLs
     if api_gateway_urls:

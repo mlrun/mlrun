@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import csv
 import json
 import os
@@ -25,7 +26,7 @@ import plotly.graph_objects as go
 import pytest
 import yaml
 
-from mlrun import new_function, new_task
+from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
 
@@ -196,3 +197,29 @@ def _generate_task(p1, out_path):
         out_path=out_path,
         outputs=["accuracy", "loss"],
     ).set_label("tests", "kfp")
+
+
+def test_merge_node_selectors_from_function_and_project_on_kfp_pod(
+    ensure_default_project,
+):
+    function = new_function(
+        kfp=True, kind="job", project=ensure_default_project.metadata.name
+    )
+    function_node_selector, function_val = "ns1", "val1"
+    function.spec.node_selector = {function_node_selector: function_val}
+
+    project_node_selector, project_val = "ns2", "val2"
+    ensure_default_project.spec.default_function_node_selector = {
+        project_node_selector: project_val
+    }
+
+    config_node_selector, config_val = "ns3", "val3"
+    mlconf.default_function_node_selector = base64.b64encode(
+        json.dumps({config_node_selector: config_val}).encode("utf-8")
+    )
+    cop = function.as_step()
+    assert cop.node_selector == {
+        function_node_selector: function_val,
+        project_node_selector: project_val,
+        config_node_selector: config_val,
+    }

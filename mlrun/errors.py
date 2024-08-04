@@ -205,6 +205,10 @@ class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
+class MLRunInvalidMMStoreType(MLRunHTTPStatusError, ValueError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
 class MLRunRetryExhaustedError(Exception):
     pass
 

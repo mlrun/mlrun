@@ -96,7 +96,33 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 project_name, alert2["event_name"], alert2["entity"]["kind"]
             )
 
-        # since the reset_policy of the alert is "auto", the state now should be inactive
+        # since the reset_policy of the alert is "manual", the state now should be active
+        alert = self._get_alerts(project_name, created_alert2.name)
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.ACTIVE)
+
+        # reset the alert and trigger the event again and validate that the state is inactive
+        self._reset_alert(project_name, created_alert2.name)
+        self._post_event(project_name, alert2["event_name"], alert2["entity"]["kind"])
+        alert = self._get_alerts(project_name, created_alert2.name)
+        self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
+
+        # create an alert with reset_policy = "auto"
+        self._create_alert(
+            alert2["entity"]["project"],
+            alert2["name"],
+            alert2["entity"]["kind"],
+            alert2["entity"]["project"],
+            alert2["summary"],
+            alert2["event_name"],
+            reset_policy=alert_objects.ResetPolicy.AUTO,
+        )
+
+        for _ in range(alert2["criteria"].count):
+            self._post_event(
+                project_name, alert2["event_name"], alert2["entity"]["kind"]
+            )
+
+        # since the reset_policy of the alert now is "auto", after sending 3 events the state should be inactive
         alert = self._get_alerts(project_name, created_alert2.name)
         self._validate_alert(alert, alert_state=alert_objects.AlertActiveState.INACTIVE)
 
@@ -196,7 +222,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # generate an alert from a template
         alert_name = "new_alert"
         alert_from_template = mlrun.alerts.alert.AlertConfig(
-            project=project_name,
             name=alert_name,
             template=drift_template,
         )
@@ -228,7 +253,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         self._validate_alert(
             alert_from_template,
-            project_name=project_name,
             alert_name=alert_name,
             alert_summary=drift_template.summary,
             alert_severity=drift_template.severity,
@@ -438,7 +462,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert2["summary"],
             alert2["event_name"],
             criteria=alert2["criteria"],
-            reset_policy=alert_objects.ResetPolicy.AUTO,
             notifications=notifications,
         )
         self._validate_alert(

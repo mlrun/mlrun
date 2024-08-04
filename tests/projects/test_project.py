@@ -237,7 +237,7 @@ def test_build_project_from_minimal_dict():
             True,
             "",
             True,
-            "project name mismatch",
+            "Project name mismatch",
         ),
         (
             pathlib.Path(tests.conftest.tests_root_directory)

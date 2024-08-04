@@ -127,7 +127,7 @@ fn = project.set_function(
 
 #### Overview
 
-Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with Github Actions, GitLab](./projects/ci-integration.html)
+Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with GitHub Actions, GitLab](./projects/ci-integration.html)
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
 - **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.
@@ -741,7 +741,7 @@ snowflake_source = SnowflakeSource(
     user="<user>",
     password="<password>",
     database="SNOWFLAKE_SAMPLE_DATA",
-    schema="TPCH_SF1",
+    db_schema="TPCH_SF1",
     warehouse="compute_wh",
 )
 snowflake_df = snowflake_source.to_dataframe()

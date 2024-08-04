@@ -60,7 +60,14 @@ class WebhookNotification(NotificationBase):
             request_body["runs"] = runs
 
         if alert:
-            request_body["alert"] = alert.dict()
+            request_body["name"] = alert.name
+            request_body["project"] = alert.project
+            request_body["severity"] = alert.severity
+            if alert.summary:
+                request_body["summary"] = mlrun.utils.helpers.format_alert_summary(
+                    alert, event_data
+                )
+
             if event_data:
                 request_body["value"] = event_data.value_dict
                 request_body["id"] = event_data.entity.ids[0]
@@ -69,7 +76,7 @@ class WebhookNotification(NotificationBase):
             request_body["custom_html"] = custom_html
 
         if override_body:
-            request_body = override_body
+            request_body = self._serialize_runs_in_request_body(override_body, runs)
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.
         # The `ClientSession` allows using `ssl=None` for the default SSL check,
@@ -83,3 +90,37 @@ class WebhookNotification(NotificationBase):
                 url, headers=headers, json=request_body, ssl=verify_ssl
             )
             response.raise_for_status()
+
+    @staticmethod
+    def _serialize_runs_in_request_body(override_body, runs):
+        str_parsed_runs = ""
+        runs = runs or []
+
+        def parse_runs():
+            parsed_runs = []
+            for run in runs:
+                if hasattr(run, "to_dict"):
+                    run = run.to_dict()
+                if isinstance(run, dict):
+                    parsed_run = {
+                        "project": run["metadata"]["project"],
+                        "name": run["metadata"]["name"],
+                        "host": run["metadata"]["labels"]["host"],
+                        "status": {"state": run["status"]["state"]},
+                    }
+                    if run["status"].get("error", None):
+                        parsed_run["status"]["error"] = run["status"]["error"]
+                    elif run["status"].get("results", None):
+                        parsed_run["status"]["results"] = run["status"]["results"]
+                    parsed_runs.append(parsed_run)
+            return str(parsed_runs)
+
+        if isinstance(override_body, dict):
+            for key, value in override_body.items():
+                if "{{ runs }}" or "{{runs}}" in value:
+                    if not str_parsed_runs:
+                        str_parsed_runs = parse_runs()
+                    override_body[key] = value.replace(
+                        "{{ runs }}", str_parsed_runs
+                    ).replace("{{runs}}", str_parsed_runs)
+        return override_body

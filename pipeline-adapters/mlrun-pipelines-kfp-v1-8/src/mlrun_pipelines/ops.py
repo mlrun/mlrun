@@ -17,6 +17,7 @@ import os
 import os.path
 
 import inflection
+import mlrun_pipelines.common.ops
 from kfp import dsl
 from kubernetes import client as k8s_client
 from mlrun_pipelines.common.helpers import (
@@ -29,6 +30,7 @@ from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
+import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.utils import get_in
 
@@ -245,8 +247,11 @@ def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        if getattr(function.spec, "node_selector"):
-            container_op.node_selector = function.spec.node_selector
+        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
+            function
+        )
+        if enriched_node_selector:
+            container_op.node_selector = enriched_node_selector
 
         if getattr(function.spec, "tolerations"):
             container_op.tolerations = function.spec.tolerations

@@ -714,7 +714,8 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
     name_from_struct = struct.get("metadata", {}).get("name", "")
     if name and name_from_struct and name_from_struct != name:
         error_message = (
-            f"project name mismatch, {name_from_struct} != {name}, please do one of the following:\n"
+            f"Project name mismatch, {name_from_struct} != {name}, project is loaded from {name_from_struct} "
+            f"project yaml. To prevent/allow this, you can take one of the following actions:\n"
             "1. Set the `allow_cross_project=True` when loading the project.\n"
             f"2. Delete the existing project yaml, or ensure its name is equal to {name}.\n"
             "3. Use different project context dir."
@@ -722,14 +723,14 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
 
         if allow_cross_project is None:
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
-            logger.warn(
-                "Project name is different than specified on its project yaml."
-                "You should fix it until version 1.9.0",
-                description=error_message,
+            warnings.warn(
+                f"Project {name=} is different than specified on the context's project yaml. "
+                "This behavior is deprecated and will not be supported from version 1.9.0."
             )
+            logger.warn(error_message)
         elif allow_cross_project:
-            logger.warn(
-                "Project name is different than specified on its project yaml. Overriding.",
+            logger.debug(
+                "Project name is different than specified on the context's project yaml. Overriding.",
                 existing_name=name_from_struct,
                 overriding_name=name,
             )
@@ -1007,8 +1008,13 @@ class ProjectSpec(ModelObj):
                 key = artifact.key
                 artifact = artifact.to_dict()
             else:  # artifact is a dict
-                # imported artifacts don't have metadata,spec,status fields
-                key_field = "key" if _is_imported_artifact(artifact) else "metadata.key"
+                # imported/legacy artifacts don't have metadata,spec,status fields
+                key_field = (
+                    "key"
+                    if _is_imported_artifact(artifact)
+                    or mlrun.utils.is_legacy_artifact(artifact)
+                    else "metadata.key"
+                )
                 key = mlrun.utils.get_in(artifact, key_field, "")
                 if not key:
                     raise ValueError(f'artifacts "{key_field}" must be specified')
@@ -2488,25 +2494,17 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_function(self, name: Union[str, list[str]]):
-        """remove the specified model-monitoring-app function/s from the project spec
+        """delete the specified model-monitoring-app function/s
 
         :param name: name of the model-monitoring-function/s (under the project)
         """
-        names = name if isinstance(name, list) else [name]
-        for func_name in names:
-            function = self.get_function(key=func_name)
-            if (
-                function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
-                == mm_constants.ModelMonitoringAppLabel.VAL
-            ):
-                self.remove_function(name=func_name)
-                logger.info(
-                    f"{func_name} function has been removed from {self.name} project"
-                )
-            else:
-                raise logger.warn(
-                    f"There is no model monitoring function with {func_name} name"
-                )
+        # TODO: Remove this in 1.9.0
+        warnings.warn(
+            "'remove_model_monitoring_function' is deprecated and will be removed in 1.9.0. "
+            "Please use `delete_model_monitoring_function` instead.",
+            FutureWarning,
+        )
+        self.delete_model_monitoring_function(name)
 
     def delete_model_monitoring_function(self, name: Union[str, list[str]]):
         """delete the specified model-monitoring-app function/s
@@ -3207,6 +3205,7 @@ class MlrunProject(ModelObj):
         endpoint_store_connection: Optional[str] = None,
         stream_path: Optional[str] = None,
         tsdb_connection: Optional[str] = None,
+        replace_creds: bool = False,
     ):
         """
         Set the credentials that will be used by the project's model monitoring
@@ -3230,6 +3229,11 @@ class MlrunProject(ModelObj):
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact path.
                                           * TDEngine - for TDEngine tsdb, provide the full websocket connection URL, for example taosws://<username>:<password>@<host>:<port>.
+        :param replace_creds:                     If True, will override the existing credentials.
+                                          Please keep in mind that if you already enabled model monitoring on
+                                          your project this action can cause data loose and will require redeploying
+                                          all model monitoring functions & model monitoring infra
+                                          & tracked model server.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.set_model_monitoring_credentials(
@@ -3240,7 +3244,17 @@ class MlrunProject(ModelObj):
                 "stream_path": stream_path,
                 "tsdb_connection": tsdb_connection,
             },
+            replace_creds=replace_creds,
         )
+        if replace_creds:
+            logger.info(
+                "Model monitoring credentials were set successfully. "
+                "Please keep in mind that if you already had model monitoring functions "
+                "/ model monitoring infra / tracked model server "
+                "deployed on your project, you will need to redeploy them."
+                "For redeploying the model monitoring infra, please use `enable_model_monitoring` API "
+                "and set `rebuild_images=True`"
+            )
 
     def run_function(
         self,
@@ -3761,7 +3775,7 @@ class MlrunProject(ModelObj):
 
 
         :param name: Return only functions with a specific name.
-        :param tag: Return function versions with specific tags.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
@@ -4043,6 +4057,12 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
+        if alert_data.project is not None and alert_data.project != self.metadata.name:
+            logger.warn(
+                "Project in alert does not match project in operation",
+                project=alert_data.project,
+            )
+        alert_data.project = self.metadata.name
         return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:

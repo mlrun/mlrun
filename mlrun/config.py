@@ -52,6 +52,11 @@ default_config = {
     "kubernetes": {
         "kubeconfig_path": "",  # local path to kubeconfig file (for development purposes),
         # empty by default as the API already running inside k8s cluster
+        "pagination": {
+            # pagination config for interacting with k8s API
+            "list_pods_limit": 200,
+            "list_crd_objects_limit": 200,
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -64,11 +69,15 @@ default_config = {
     "api_base_version": "v1",
     "version": "",  # will be set to current version
     "images_tag": "",  # tag to use with mlrun images e.g. mlrun/mlrun (defaults to version)
-    "images_registry": "",  # registry to use with mlrun images e.g. quay.io/ (defaults to empty, for dockerhub)
+    # registry to use with mlrun images that start with "mlrun/" e.g. quay.io/ (defaults to empty, for dockerhub)
+    "images_registry": "",
+    # registry to use with non-mlrun images (don't start with "mlrun/") specified in 'images_to_enrich_registry'
+    # defaults to empty, for dockerhub
+    "vendor_images_registry": "",
     # comma separated list of images that are in the specified images_registry, and therefore will be enriched with this
     # registry when used. default to mlrun/* which means any image which is of the mlrun repository (mlrun/mlrun,
     # mlrun/ml-base, etc...)
-    "images_to_enrich_registry": "^mlrun/*",
+    "images_to_enrich_registry": "^mlrun/*,python:3.9",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
     "kfp_image": "mlrun/mlrun",  # image to use for KFP runner (defaults to mlrun/mlrun)
@@ -104,7 +113,12 @@ default_config = {
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
-        }
+        },
+        "projects": {
+            "summaries": {
+                "cache_interval": "30",
+            },
+        },
     },
     "crud": {
         "runs": {
@@ -238,7 +252,7 @@ default_config = {
         },
         "application": {
             "default_sidecar_internal_port": 8050,
-            "default_authentication_mode": "accessKey",
+            "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -250,7 +264,7 @@ default_config = {
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
             "mpijob": "mlrun/mlrun",
-            "application": "python:3.9-slim",
+            "application": "python:3.9",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -265,6 +279,16 @@ default_config = {
                 "url": "",
                 "service": "mlrun-api-chief",
                 "port": 8080,
+                "feature_gates": {
+                    "scheduler": "enabled",
+                    "project_sync": "enabled",
+                    "cleanup": "enabled",
+                    "runs_monitoring": "enabled",
+                    "pagination_cache": "enabled",
+                    "project_summaries": "enabled",
+                    "start_logs": "enabled",
+                    "stop_logs": "enabled",
+                },
             },
             "worker": {
                 "sync_with_chief": {
@@ -433,7 +457,6 @@ default_config = {
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
-            "counters_cache_ttl": "2 minutes",
             "project_owners_cache_ttl": "30 seconds",
             # access key to be used when the leader is iguazio and polling is done from it
             "iguazio_access_key": "",
@@ -462,10 +485,10 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.21.1",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.18",
             # image for kaniko init container when docker registry is ECR
-            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
@@ -504,7 +527,6 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -661,7 +683,9 @@ default_config = {
         "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
-        "concurrent_start_logs_workers": 15,
+        "concurrent_start_logs_workers": 50,
+        # the number of runs for which to start logs on api startup
+        "start_logs_startup_run_limit": 150,
         # the time in hours in which to start log collection from.
         # after upgrade, we might have runs which completed in the mean time or still in non-terminal state and
         # we want to collect their logs in the new log collection method (sidecar)
@@ -1031,6 +1055,14 @@ class Config:
             resource_requirement.pop(gpu)
         return resource_requirement
 
+    def force_api_gateway_ssl_redirect(self):
+        """
+        Get the default value for the ssl_redirect configuration.
+        In Iguazio we always want to redirect to HTTPS, in other cases we don't.
+        :return: True if we should redirect to HTTPS, False otherwise.
+        """
+        return self.is_running_on_iguazio()
+
     def to_dict(self):
         return copy.deepcopy(self._cfg)
 
@@ -1093,6 +1125,7 @@ class Config:
         target: str = "online",
         artifact_path: str = None,
         function_name: str = None,
+        **kwargs,
     ) -> typing.Union[str, list[str]]:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -1114,6 +1147,12 @@ class Config:
         """
 
         if target != "offline":
+            store_prefix_dict = (
+                mlrun.mlconf.model_endpoint_monitoring.store_prefixes.to_dict()
+            )
+            if store_prefix_dict.get(kind):
+                # Target exist in store prefix and has a valid string value
+                return store_prefix_dict[kind].format(project=project, **kwargs)
             if (
                 function_name
                 and function_name
@@ -1127,6 +1166,7 @@ class Config:
                 )
             elif kind == "stream":  # return list for mlrun<1.6.3 BC
                 return [
+                    # TODO: remove the first stream in 1.9.0
                     mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                         project=project,
                         kind=kind,
@@ -1198,12 +1238,11 @@ class Config:
 
         return storage_options
 
-    def is_explicit_ack(self, version=None) -> bool:
-        if not version:
-            version = self.nuclio_version
+    def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not version
-            or semver.VersionInfo.parse(version) >= semver.VersionInfo.parse("1.12.10")
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

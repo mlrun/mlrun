@@ -99,7 +99,7 @@ def build_function(
                 force_build=force_build,
             )
         fn.save(versioned=True)
-        logger.info("Resolved function", fn=fn.to_yaml())
+        logger.info("Resolved function", fn=fn.to_dict())
     except Exception as err:
         logger.error(traceback.format_exc())
         server.api.api.utils.log_and_raise(

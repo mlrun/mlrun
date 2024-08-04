@@ -3214,18 +3214,18 @@ class MlrunProject(ModelObj):
 
         :param access_key:                Model monitoring access key for managing user permissions.
         :param endpoint_store_connection: Endpoint store connection string. By default, None. Options:
-                                          
+
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the exact path.
                                           * MySQL/SQLite - for SQL endpoint store, provide the full connection string, for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
-                                          
+
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact path.
                                           * Kafka - for Kafka stream, provide the full connection string without custom topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
-                                          
+
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact path.
                                           * TDEngine - for TDEngine tsdb, provide the full websocket connection URL, for example taosws://<username>:<password>@<host>:<port>.

@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
+from azure.storage.blob import BlobServiceClient
 from azure.storage.blob._shared.base_client import parse_connection_str
 from fsspec.registry import get_filesystem_class
 
@@ -26,30 +27,51 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
 
+MAX_CONCURRENCY = 100
+MAX_BLOCKSIZE = 1024 * 1024 * 4
+MAX_SINGLE_PUT_SIZE = 1024 * 1024 * 8  # for BlobServiceClient only.
+
 
 class AzureBlobStore(DataStore):
     using_bucket = True
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        self._service_client = None
+        self.max_concurrency = MAX_CONCURRENCY
+        self.max_blocksize = MAX_BLOCKSIZE
+        self.max_single_put_size = MAX_SINGLE_PUT_SIZE
 
     @property
     def filesystem(self):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
+        self.create_filesystem_and_client()
+        return self._filesystem
+
+    @property
+    def service_client(self):
+        if not self._filesystem or self._service_client:
+            self.create_filesystem_and_client()
+        return self._service_client
+
+    def create_filesystem_and_client(self):
         try:
             import adlfs  # noqa
         except ImportError as exc:
             raise ImportError("Azure adlfs not installed") from exc
+        # Creates with the same storage options to avoid credential differences.
+        storage_options = self.get_storage_options()
         # in order to support az and wasbs kinds.
         filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
-            **self.get_storage_options(),
+            blocksize=self.max_blocksize,
+            **storage_options,
         )
-        return self._filesystem
+        self.do_connect(storage_options)
 
     def get_storage_options(self):
         res = dict(
@@ -71,6 +93,65 @@ class AzureBlobStore(DataStore):
         )
         return self._sanitize_storage_options(res)
 
+    def do_connect(self, storage_options):
+        """Connect to the BlobServiceClient, using user-specified connection details.
+        Tries credentials first, then connection string and finally account key
+
+        Raises
+        ------
+        ValueError if none of the connection details are available
+        """
+        try:
+            if storage_options["connection_string"] is not None:
+                self._service_client = BlobServiceClient.from_connection_string(
+                    conn_str=storage_options["connection_string"],
+                    max_block_size=self.max_blocksize,
+                    max_single_put_size=self.max_single_put_size,
+                )
+            elif storage_options["account_name"] is not None:
+                account_url: str = (
+                    f"https://{storage_options['account_name']}.blob.core.windows.net"
+                )
+
+                creds = [storage_options["credential"], storage_options["account_key"]]
+                if any(creds):
+                    self._service_client = [
+                        BlobServiceClient(
+                            account_url=account_url,
+                            credential=cred,
+                            _location_mode="primary",
+                            max_block_size=self.max_blocksize,
+                            max_single_put_size=self.max_single_put_size,
+                        )
+                        for cred in creds
+                        if cred is not None
+                    ][0]
+                elif storage_options["sas_token"] is not None:
+                    sas_token = storage_options["sas_token"]
+                    if not sas_token.startswith("?"):
+                        sas_token = f"?{storage_options['sas_token']}"
+                    self._service_client = BlobServiceClient(
+                        account_url=account_url + sas_token,
+                        credential=None,
+                        _location_mode="primary",
+                        max_block_size=self.max_blocksize,
+                        max_single_put_size=self.max_single_put_size,
+                    )
+                else:
+                    # Fall back to anonymous login, and assume public container
+                    self._service_client = BlobServiceClient(
+                        account_url=account_url,
+                        max_block_size=self.max_blocksize,
+                        max_single_put_size=self.max_single_put_size,
+                    )
+            else:
+                raise ValueError(
+                    "Must provide either a connection_string or account_name with credentials!!"
+                )
+
+        except Exception as e:
+            raise ValueError(f"unable to connect to account for {e}")
+
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
         schema = urlparse(key).scheme
@@ -82,7 +163,15 @@ class AzureBlobStore(DataStore):
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
-        self.filesystem.upload(src_path, remote_path, overwrite=True, max_concurrency=100)
+        container, remote_path = remote_path.split("/", 1)
+        container_client = self.service_client.get_container_client(container=container)
+        with open(file=src_path, mode="rb") as data:
+            container_client.upload_blob(
+                name=remote_path,
+                data=data,
+                overwrite=True,
+                max_concurrency=self.max_concurrency,
+            )
 
     def get(self, key, size=None, offset=0):
         remote_path = self._convert_key_to_remote_path(key)

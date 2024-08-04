@@ -41,6 +41,13 @@ class S3Store(DataStore):
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
 
+        self.config = TransferConfig(
+            multipart_threshold=1024 * 1024 * 25,
+            max_concurrency=10,
+            multipart_chunksize=1024 * 1024 * 25,
+            use_threads=True,
+        )
+
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(
@@ -96,12 +103,6 @@ class S3Store(DataStore):
             self.s3.meta.client.meta.events.register(
                 "choose-signer.s3.*", disable_signing
             )
-        self.config = TransferConfig(
-            multipart_threshold=1024 * 1024 * 25,
-            max_concurrency=10,
-            multipart_chunksize=1024 * 1024 * 25,
-            use_threads=True,
-        )
 
     def get_spark_options(self):
         res = {}

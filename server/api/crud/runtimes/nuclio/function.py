@@ -500,7 +500,8 @@ def _enrich_function_node_selector_with_project(
         if (
             project := run_db.get_project(project_name)
         ) and project.spec.default_function_node_selector:
-            return mlrun.utils.helpers.merge_with_precedence(
+            return mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
                 project.spec.default_function_node_selector,
                 function_node_selector,
             )

@@ -49,6 +49,7 @@ df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
 # Pay attention!
 # Snowflake SQL columns are always set to uppercase letters.
 # If we replace 'KEY' with the lowercase 'key', this code will fail and raise an MLRunInvalidArgumentError.
+# The same applies to timestamp_key and label_column.
 ```
 ## Kafka source
 

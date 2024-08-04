@@ -174,6 +174,7 @@ class ApplicationStatus(NuclioStatus):
 
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
+    reverse_proxy_image = None
 
     @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
@@ -306,7 +307,7 @@ class ApplicationRuntime(RemoteRuntime):
                 show_on_failure=show_on_failure,
             )
 
-        self._ensure_reverse_proxy_configurations()
+        self._ensure_reverse_proxy_configurations(self)
         self._configure_application_sidecar()
 
         # we only allow accessing the application via the API Gateway
@@ -488,6 +489,24 @@ class ApplicationRuntime(RemoteRuntime):
             **http_client_kwargs,
         )
 
+    @classmethod
+    def deploy_reverse_proxy_image(cls):
+        # create a function that includes only the reverse proxy, without the application
+        from mlrun import get_run_db
+        from mlrun.run import new_function
+
+        reverse_proxy_func = new_function(name="reverse-proxy-temp", kind="remote")
+        cls._ensure_reverse_proxy_configurations(reverse_proxy_func)
+        reverse_proxy_func.deploy()
+
+        # save the created container image
+        cls.reverse_proxy_image = reverse_proxy_func.status.container_image
+
+        # delete the function to avoid cluttering the project
+        get_run_db().delete_function(
+            reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
+        )
+
     def _run(self, runobj: "mlrun.RunObject", execution):
         raise mlrun.runtimes.RunError(
             "Application runtime .run() is not yet supported. Use .invoke() instead."
@@ -527,21 +546,22 @@ class ApplicationRuntime(RemoteRuntime):
             with_mlrun=with_mlrun,
         )
 
-    def _ensure_reverse_proxy_configurations(self):
-        if self.spec.build.functionSourceCode or self.status.container_image:
+    @classmethod
+    def _ensure_reverse_proxy_configurations(cls, function):
+        if function.spec.build.functionSourceCode or function.status.container_image:
             return
 
-        filename, handler = ApplicationRuntime.get_filename_and_handler()
+        filename, handler = cls.get_filename_and_handler()
         name, spec, code = nuclio.build_file(
             filename,
-            name=self.metadata.name,
+            name=function.metadata.name,
             handler=handler,
         )
-        self.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
-        self.spec.build.functionSourceCode = mlrun.utils.get_in(
+        function.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
+        function.spec.build.functionSourceCode = mlrun.utils.get_in(
             spec, "spec.build.functionSourceCode"
         )
-        self.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
+        function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
@@ -552,8 +572,12 @@ class ApplicationRuntime(RemoteRuntime):
             self.status.application_image = self.spec.image
             self.spec.image = ""
 
-        if self.status.container_image:
-            self.from_image(self.status.container_image)
+        # reuse the reverse proxy image if it was built before
+        if (
+            reverse_proxy_image := self.status.container_image
+            or self.reverse_proxy_image
+        ):
+            self.from_image(reverse_proxy_image)
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(

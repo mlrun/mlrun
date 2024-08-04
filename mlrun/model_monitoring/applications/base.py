@@ -113,6 +113,7 @@ class ModelMonitoringApplicationBaseV2(MonitoringApplicationToDict, ABC):
         raise NotImplementedError
 
 
+# TODO: Remove in 1.9.0
 @deprecated(
     version="1.7.0",
     reason="The `ModelMonitoringApplicationBase` class is deprecated from "

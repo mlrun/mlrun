@@ -63,6 +63,7 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
+# TODO: Remove in 1.9.0
 @deprecated(
     version="1.7.0",
     reason="The `EvidentlyModelMonitoringApplicationBase` class is deprecated from "

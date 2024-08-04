@@ -140,7 +140,7 @@ async def update_schedule(
 async def list_schedules(
     project: str,
     name: str = None,
-    labels: str = None,
+    labels: list[str] = fastapi.Query([], alias="label"),
     kind: mlrun.common.schemas.ScheduleKinds = None,
     include_last_run: bool = False,
     include_credentials: bool = fastapi.Query(False, alias="include-credentials"),

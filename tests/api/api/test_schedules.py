@@ -69,6 +69,7 @@ def test_list_schedules(
 
         labels_2 = {
             "label2": "value2",
+            "label3": "value3",
         }
         get_db().create_schedule(
             db,
@@ -88,10 +89,25 @@ def test_list_schedules(
             client, {"labels": "label2"}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
+            client, {"labels": ["label2"]}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": ["label2", "label3"]}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
             client, {"labels": "label1=value1"}, schedule_name, project
         )
         _get_and_assert_single_schedule(
             client, {"labels": "label2=value2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": ["label2=value2"]}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client,
+            {"labels": ["label2=value2", "label3=value3"]},
+            schedule_name_2,
+            project,
         )
 
     # Validate multi-project query

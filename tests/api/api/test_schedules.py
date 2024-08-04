@@ -86,13 +86,16 @@ def test_list_schedules(
             client, {"labels": "label1"}, schedule_name, project
         )
         _get_and_assert_single_schedule(
+            client, {"label": "label1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
             client, {"labels": "label2"}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": ["label2"]}, schedule_name_2, project
+            client, {"label": ["label2"]}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": ["label2", "label3"]}, schedule_name_2, project
+            client, {"label": ["label2", "label3"]}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
             client, {"labels": "label1=value1"}, schedule_name, project
@@ -101,7 +104,10 @@ def test_list_schedules(
             client, {"labels": "label2=value2"}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
-            client, {"labels": ["label2=value2"]}, schedule_name_2, project
+            client, {"label": "label2=value2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"label": ["label2=value2"]}, schedule_name_2, project
         )
         _get_and_assert_single_schedule(
             client,

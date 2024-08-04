@@ -497,8 +497,9 @@ def _enrich_function_node_selector_with_project(
     run_db, project_name, function_node_selector
 ):
     if run_db and project_name:
-        project = run_db.get_project(project_name)
-        if project.spec.default_function_node_selector:
+        if (
+            project := run_db.get_project(project_name)
+        ) and project.spec.default_function_node_selector:
             return mlrun.utils.helpers.merge_with_precedence(
                 project.spec.default_function_node_selector,
                 function_node_selector,

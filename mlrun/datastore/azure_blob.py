@@ -165,6 +165,7 @@ class AzureBlobStore(DataStore):
         remote_path = self._convert_key_to_remote_path(key)
         container, remote_path = remote_path.split("/", 1)
         container_client = self.service_client.get_container_client(container=container)
+        print("start to upload - with container_client")
         with open(file=src_path, mode="rb") as data:
             container_client.upload_blob(
                 name=remote_path,

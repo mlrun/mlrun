@@ -1630,7 +1630,8 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    options = {"full_event": step.full_event is not False}
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)

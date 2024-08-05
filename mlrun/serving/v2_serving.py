@@ -335,6 +335,7 @@ class V2ModelServer(StepToDict):
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
                 track_response = {"outputs": outputs or []}
+                # TODO : check dict/list
                 self._model_logger.push(start, track_request, track_response, op)
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
@@ -376,8 +377,10 @@ class V2ModelServer(StepToDict):
         """postprocess, before returning response"""
         return request
 
-    def predict(self, request: dict) -> dict:
-        """model prediction operation"""
+    def predict(self, request: dict) -> list:
+        """model prediction operation
+        :return: list with the model prediction results (can be multi-port) or list of lists for multiple predictions
+        """
         raise NotImplementedError()
 
     def explain(self, request: dict) -> dict:

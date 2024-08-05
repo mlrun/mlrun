@@ -639,6 +639,10 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+        def get_identifier_string(self) -> str:
+            # TODO
+            pass
+
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"
 
@@ -652,6 +656,10 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
+
+        def get_identifier_string(self) -> str:
+            # TODO
+            pass
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
@@ -681,6 +689,10 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+        def get_identifier_string(self) -> str:
+            # TODO
+            pass
 
     class AlertConfig(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_configs"
@@ -756,6 +768,10 @@ with warnings.catch_warnings():
             SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
         )
         max_window_size_seconds = Column(Integer)
+
+        def get_identifier_string(self) -> str:
+            # TODO
+            pass
 
 
 # Must be after all table definitions

@@ -95,12 +95,26 @@ class AzureBlobStore(DataStore):
 
     def do_connect(self, storage_options):
         """Connect to the BlobServiceClient, using user-specified connection details.
-        Tries credentials first, then connection string and finally account key
+        Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
 
         Raises
         ------
         ValueError if none of the connection details are available
         """
+        # based on do_connect in AzureBlobFileSystem.
+        from azure.identity import ClientSecretCredential
+
+        if (
+            storage_options.get("credential") is None
+            and storage_options.get("account_key") is None
+            and storage_options.get("sas_token") is None
+            and storage_options.get("client_id") is not None
+        ):
+            storage_options["credential"] = ClientSecretCredential(
+                tenant_id=storage_options.get("tenant_id"),
+                client_id=storage_options.get("client_id"),
+                client_secret=storage_options.get("client_secret"),
+            )
         try:
             if storage_options.get("connection_string") is not None:
                 self._service_client = BlobServiceClient.from_connection_string(
@@ -113,7 +127,10 @@ class AzureBlobStore(DataStore):
                     f"https://{storage_options['account_name']}.blob.core.windows.net"
                 )
 
-                creds = [storage_options.get("credential"), storage_options.get("account_key")]
+                creds = [
+                    storage_options.get("credential"),
+                    storage_options.get("account_key"),
+                ]
                 if any(creds):
                     self._service_client = [
                         BlobServiceClient(

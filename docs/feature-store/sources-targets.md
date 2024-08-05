@@ -27,6 +27,30 @@ You can also create a custom `source` to access various databases or data source
 | [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
+## Snowflake source
+```{admonition} Note
+# An example of SnowflakeSource ingest:
+
+os.environ["SNOWFLAKE_PASSWORD"] = "*****"
+source = SnowflakeSource(
+    "snowflake_source_for_ingest",
+    query=f"select * from {source_table} order by ID limit {number_of_rows}",
+    schema="schema",
+    url="url", 
+    user="user", 
+    database="db",
+    warehouse="warehouse",
+)
+ 
+feature_set = mlrun.feature_store.FeatureSet("my_fs", entities=[fs.Entity('KEY')], engine="spark")
+df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
+  run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
+
+# Notice that by default, Snowflake converts to uppercase name of columns ingested to it.
+# The feature-set entity, timestamp_key and label_coumnt must have similar case to the source, 
+# othewise the ingest will fail with MLRunInvalidArgumentError exception.
+```
+
 ## Kafka source
 
 

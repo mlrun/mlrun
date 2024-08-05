@@ -14,10 +14,11 @@
 
 import uuid
 import warnings
-from typing import Union
+from abc import ABC
 
 import pandas as pd
 import semver
+from deprecated import deprecated
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -57,14 +58,22 @@ except ModuleNotFoundError:
 
 
 if _HAS_EVIDENTLY:
-    from evidently.report.report import Report
-    from evidently.suite.base_suite import Suite
+    from evidently.suite.base_suite import Display
     from evidently.ui.type_aliases import STR_UUID
     from evidently.ui.workspace import Workspace
     from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
-class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplicationBase):
+# TODO: Remove in 1.9.0
+@deprecated(
+    version="1.7.0",
+    reason="The `EvidentlyModelMonitoringApplicationBase` class is deprecated from "
+    "version 1.7.0 and will be removed in version 1.9.0. "
+    "Use `EvidentlyModelMonitoringApplicationBaseV2` as your application's base class.",
+)
+class EvidentlyModelMonitoringApplicationBase(
+    mm_base.ModelMonitoringApplicationBase, ABC
+):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
     ) -> None:
@@ -86,12 +95,12 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
         )
 
     def log_evidently_object(
-        self, evidently_object: Union["Report", "Suite"], artifact_name: str
-    ):
+        self, evidently_object: "Display", artifact_name: str
+    ) -> None:
         """
          Logs an Evidently report or suite as an artifact.
 
-        :param evidently_object:    (Union[Report, Suite]) The Evidently report or suite object.
+        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
@@ -122,18 +131,14 @@ class EvidentlyModelMonitoringApplicationBase(mm_base.ModelMonitoringApplication
             additional_graphs={},
         )
 
-        dashboard_html = self._render(file_html_template, template_params)
+        dashboard_html = file_html_template(params=template_params)
         self.context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
 
-    @staticmethod
-    def _render(temple_func, template_params: "TemplateParams"):
-        return temple_func(params=template_params)
-
 
 class EvidentlyModelMonitoringApplicationBaseV2(
-    mm_base.ModelMonitoringApplicationBaseV2
+    mm_base.ModelMonitoringApplicationBaseV2, ABC
 ):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
@@ -160,14 +165,14 @@ class EvidentlyModelMonitoringApplicationBaseV2(
     @staticmethod
     def log_evidently_object(
         monitoring_context: mm_context.MonitoringApplicationContext,
-        evidently_object: Union["Report", "Suite"],
+        evidently_object: "Display",
         artifact_name: str,
-    ):
+    ) -> None:
         """
          Logs an Evidently report or suite as an artifact.
 
         :param monitoring_context:  (MonitoringApplicationContext) The monitoring context to process.
-        :param evidently_object:    (Union[Report, Suite]) The Evidently report or suite object.
+        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
         :param artifact_name:       (str) The name for the logged artifact.
         """
         evidently_object_html = evidently_object.get_html()
@@ -181,7 +186,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
         timestamp_start: pd.Timestamp,
         timestamp_end: pd.Timestamp,
         artifact_name: str = "dashboard",
-    ):
+    ) -> None:
         """
         Logs an Evidently project dashboard.
 
@@ -200,11 +205,7 @@ class EvidentlyModelMonitoringApplicationBaseV2(
             additional_graphs={},
         )
 
-        dashboard_html = self._render(file_html_template, template_params)
+        dashboard_html = file_html_template(params=template_params)
         monitoring_context.log_artifact(
             artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
-
-    @staticmethod
-    def _render(temple_func, template_params: "TemplateParams"):
-        return temple_func(params=template_params)

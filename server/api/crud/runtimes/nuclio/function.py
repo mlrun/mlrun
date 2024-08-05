@@ -493,6 +493,18 @@ def _resolve_and_set_build_requirements_and_commands(function, config):
     mlrun.utils.update_in(config, "spec.build.commands", commands)
 
 
+def _resolve_node_selector(run_db, project_name, function_node_selector):
+    project_node_selector = {}
+
+    if run_db and project_name:
+        if project := run_db.get_project(project_name):
+            project_node_selector = project.spec.default_function_node_selector
+
+    return mlrun.runtimes.utils.resolve_node_selectors(
+        project_node_selector, function_node_selector
+    )
+
+
 def _add_mlrun_to_requirements_if_needed(config, function):
     build: mlrun.model.ImageBuilder = function.spec.build
     base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
@@ -544,12 +556,16 @@ def _set_function_scheduling_params(function, nuclio_spec):
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        # We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
-        # and instead, we delegate the merge logic to nuclio.
-        # This approach ensures that mlrun functions remain clean from per-system selectors,
-        # maintaining consistent behavior across nuclio and mlrun environments.
-        if function.spec.node_selector:
-            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
+        # This approach ensures that node selector settings from both the project and MLRun service levels
+        # are incorporated into the Nuclio config.
+        if node_selector := _resolve_node_selector(
+            function._get_db(), function.metadata.project, function.spec.node_selector
+        ):
+            nuclio_spec.set_config(
+                "spec.nodeSelector",
+                node_selector,
+            )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:

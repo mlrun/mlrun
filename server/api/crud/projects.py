@@ -319,7 +319,7 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_only,
         )
 
-        results = await asyncio.gather(
+        project_counters, pipeline_counters = await asyncio.gather(
             server.api.utils.singletons.db.get_db().get_project_resources_counters(),
             self._calculate_pipelines_counters(),
         )
@@ -333,12 +333,12 @@ class Projects(
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
-        ) = results[0]
+        ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
             project_to_recent_failed_pipelines_count,
             project_to_running_pipelines_count,
-        ) = results[1]
+        ) = pipeline_counters
 
         project_summaries = []
         for project_name in projects_output.projects:

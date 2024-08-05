@@ -557,6 +557,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.
+        if not isinstance(features, list):
+            raise mlrun.errors.MLRunInvalidArgumentError("Model's inputs must be a list")
         features = (
             features
             if not any(not isinstance(feat, list) for feat in features)

@@ -178,14 +178,10 @@ class AzureBlobStore(DataStore):
             key = Path(self.endpoint, key).as_posix()
         return key
 
-    def print_azure_for_test(self):
-        print("azure 100 max_concurrency")
-
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
         container, remote_path = remote_path.split("/", 1)
         container_client = self.service_client.get_container_client(container=container)
-        print("start to upload - with container_client")
         with open(file=src_path, mode="rb") as data:
             container_client.upload_blob(
                 name=remote_path,

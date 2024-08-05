@@ -550,8 +550,7 @@ def _deploy_nuclio_runtime(
                 )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn,
-                function_name=fn.metadata.name,
+                function=fn, function_name=fn.metadata.name
             )
 
         if serving_to_monitor:

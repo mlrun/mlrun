@@ -51,6 +51,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.runtimes.utils import RunError
 from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
@@ -334,6 +335,62 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
+
+    def test_special_columns_missing(self):
+        key = "patient_id"
+        entity_fset = fstore.FeatureSet(
+            "entity_fset",
+            entities=[fstore.Entity(key.upper())],
+            engine="spark",
+        )
+        timestamp_fset = fstore.FeatureSet(
+            "timestamp_fset",
+            timestamp_key="TIMESTAMP",
+            engine="spark",
+        )
+
+        label_fset = fstore.FeatureSet(
+            "label_fset",
+            label_column="BAD",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        self.set_targets(entity_fset, also_in_remote=True)
+        self.set_targets(timestamp_fset, also_in_remote=True)
+        self.set_targets(label_fset, also_in_remote=True)
+        error_type = (
+            mlrun.errors.MLRunInvalidArgumentError if self.run_local else RunError
+        )
+
+        with pytest.raises(
+            error_type,
+            match="There are missing entities from dataframe during ingestion.",
+        ):
+            entity_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        with pytest.raises(
+            error_type,
+            match="timestamp_key is missing from dataframe during ingestion.",
+        ):
+            timestamp_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        with pytest.raises(
+            error_type,
+            match="label_column is missing from dataframe during ingestion.",
+        ):
+            label_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
 
     @pytest.mark.parametrize("passthrough", [True, False])
     def test_parquet_filters(self, passthrough):
@@ -1739,6 +1796,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
+    def test_drop_features_validators(self):
+        key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1751,6 +1810,40 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            label_column="bad",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop label_column: bad$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["timestamp"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop timestamp_key: timestamp$",
         ):
             measurements.ingest(
                 source,

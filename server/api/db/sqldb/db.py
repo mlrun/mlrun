@@ -212,7 +212,8 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        run = self._get_run(session, uid, project, iter, with_for_update=True)
+        # Do not lock run as it may cause deadlocks
+        run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
         if not run:
             run = Run(
@@ -2249,7 +2250,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)

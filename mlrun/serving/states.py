@@ -872,7 +872,8 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            if self.options.get("full_event", True):
+            full_event = self.options.get("full_event")
+            if full_event or full_event is None and self.next:
                 data = storey.utils.wrap_event_for_serialization(event, data)
             self._stream.push(data)
             event.terminated = True
@@ -1630,7 +1631,11 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)

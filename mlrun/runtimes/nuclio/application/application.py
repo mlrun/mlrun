@@ -27,7 +27,7 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
-from mlrun.utils import logger
+from mlrun.utils import logger, update_in
 
 
 class ApplicationSpec(NuclioSpec):
@@ -293,7 +293,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: True if the function is ready (deployed)
         """
-        if self.requires_build() or force_build:
+        if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
             self._build_application_image(
                 builder_env=builder_env,
@@ -382,6 +382,14 @@ class ApplicationRuntime(RemoteRuntime):
 
         # save the image in the status, so we won't repopulate the function source code
         self.status.container_image = image
+
+        # ensure golang runtime and handler for the reverse proxy
+        self.spec.nuclio_runtime = "golang"
+        update_in(
+            self.spec.base_spec,
+            "spec.handler",
+            "main:Handler",
+        )
 
     @classmethod
     def get_filename_and_handler(cls) -> (str, str):
@@ -557,6 +565,12 @@ class ApplicationRuntime(RemoteRuntime):
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
+
+        # configure the sidecar container as the default container for logging purposes
+        self.set_config(
+            "metadata.annotations",
+            {"kubectl.kubernetes.io/default-container": self.status.sidecar_name},
+        )
 
     def _sync_api_gateway(self):
         if not self.status.api_gateway_name:

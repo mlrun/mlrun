@@ -73,9 +73,9 @@ class MonitoringDeployment:
     ) -> None:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
-         1. model monitoring stream
-         2. model monitoring controller
-         3. model monitoring writer
+         1. model monitoring stream (stream triggered by model servers)
+         2. model monitoring controller (cron and HTTP triggers - self triggered every X minutes or manually via HTTP)
+         3. model monitoring writer (stream triggered by user model monitoring functions)
 
         :param project:                     The name of the project.
         :param auth_info:                   The auth info of the request.
@@ -108,7 +108,7 @@ class MonitoringDeployment:
         :param base_period:                       The time period in minutes in which the model monitoring controller
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
-                                                  stream functions, which are real time nuclio functino.
+                                                  stream functions, which are real time nuclio function.
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
@@ -180,6 +180,7 @@ class MonitoringDeployment:
         """
         Deploy model monitoring application controller function.
         The main goal of the controller function is to handle the monitoring processing and triggering applications.
+        The controller is self triggered by a cron. It also has the default HTTP trigger.
 
         :param base_period:                 The time period in minutes in which the model monitoring controller function
                                             triggers. By default, the base period is 10 minutes.
@@ -257,18 +258,21 @@ class MonitoringDeployment:
             )
 
     def apply_and_create_stream_trigger(
-        self, function: mlrun.runtimes.ServingRuntime, function_name: str = None
+        self, function: mlrun.runtimes.ServingRuntime, function_name: str
     ) -> mlrun.runtimes.ServingRuntime:
-        """Adding stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
-        with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema that is
-        defined under mlrun.mlconf.model_endpoint_monitoring.store_prefixes. Note that if no valid stream path has been
-        provided then the function will have a single HTTP stream source.
+        """
+        Add stream source for the nuclio serving function. The function's stream trigger can be
+        either Kafka or V3IO, depends on the stream path schema that is defined by:
 
-        :param function:                    The serving function object that will be applied with the stream trigger.
-        :param function_name:               The name of the function that be applied with the stream trigger,
-                                            None for model_monitoring_stream
+            project.set_model_monitoring_credentials(..., stream_path="...")
 
-        :return: ServingRuntime object with stream trigger.
+        Note: this method also disables the default HTTP trigger of the function, so it remains
+        only with stream trigger(s).
+
+        :param function:      The serving function object that will be applied with the stream trigger.
+        :param function_name: The name of the function that be applied with the stream trigger.
+
+        :return: `ServingRuntime` object with stream trigger.
         """
 
         # Get the stream path from the configuration
@@ -317,9 +321,8 @@ class MonitoringDeployment:
                 function = self._apply_access_key_and_mount_function(
                     function=function, function_name=function_name
                 )
-        # Add the default HTTP source
-        http_source = mlrun.datastore.sources.HttpSource()
-        function = http_source.add_nuclio_trigger(function)
+
+        function.spec.disable_default_http_trigger = True
 
         return function
 
@@ -472,12 +475,15 @@ class MonitoringDeployment:
         """
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name=mm_constants.MonitoringFunctionNames.WRITER,
-            project=self.project,
-            filename=_MONITORING_WRITER_FUNCTION_PATH,
-            kind=mlrun.run.RuntimeKinds.serving,
-            image=writer_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name=mm_constants.MonitoringFunctionNames.WRITER,
+                project=self.project,
+                filename=_MONITORING_WRITER_FUNCTION_PATH,
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=writer_image,
+            ),
         )
         function.set_db_connection(
             server.api.api.utils.get_run_db_instance(self.db_session)
@@ -499,8 +505,7 @@ class MonitoringDeployment:
 
         # Add stream triggers
         function = self.apply_and_create_stream_trigger(
-            function=function,
-            function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            function=function, function_name=mm_constants.MonitoringFunctionNames.WRITER
         )
 
         # Apply feature store run configurations on the serving function

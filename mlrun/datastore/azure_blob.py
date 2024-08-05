@@ -102,18 +102,18 @@ class AzureBlobStore(DataStore):
         ValueError if none of the connection details are available
         """
         try:
-            if storage_options["connection_string"] is not None:
+            if storage_options.get("connection_string") is not None:
                 self._service_client = BlobServiceClient.from_connection_string(
                     conn_str=storage_options["connection_string"],
                     max_block_size=self.max_blocksize,
                     max_single_put_size=self.max_single_put_size,
                 )
-            elif storage_options["account_name"] is not None:
+            elif storage_options.get("account_name") is not None:
                 account_url: str = (
                     f"https://{storage_options['account_name']}.blob.core.windows.net"
                 )
 
-                creds = [storage_options["credential"], storage_options["account_key"]]
+                creds = [storage_options.get("credential"), storage_options.get("account_key")]
                 if any(creds):
                     self._service_client = [
                         BlobServiceClient(
@@ -126,10 +126,10 @@ class AzureBlobStore(DataStore):
                         for cred in creds
                         if cred is not None
                     ][0]
-                elif storage_options["sas_token"] is not None:
-                    sas_token = storage_options["sas_token"]
+                elif storage_options.get("sas_token") is not None:
+                    sas_token = storage_options.get("sas_token")
                     if not sas_token.startswith("?"):
-                        sas_token = f"?{storage_options['sas_token']}"
+                        sas_token = f"?{storage_options.get('sas_token')}"
                     self._service_client = BlobServiceClient(
                         account_url=account_url + sas_token,
                         credential=None,

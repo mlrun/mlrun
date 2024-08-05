@@ -308,10 +308,11 @@ class ApplicationRuntime(RemoteRuntime):
                 show_on_failure=show_on_failure,
             )
 
+        # This is a class method that accepts a function instance, so we pass self as the function instance
         self._ensure_reverse_proxy_configurations(self)
         self._configure_application_sidecar()
 
-        # we only allow accessing the application via the API Gateway
+        # We only allow accessing the application via the API Gateway
         name_tag = tag or self.metadata.tag
         self.status.api_gateway_name = (
             f"{self.metadata.name}-{name_tag}" if name_tag else self.metadata.name
@@ -563,7 +564,7 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
     @staticmethod
-    def _ensure_reverse_proxy_configurations(function):
+    def _ensure_reverse_proxy_configurations(function: RemoteRuntime):
         if function.spec.build.functionSourceCode or function.status.container_image:
             return
 

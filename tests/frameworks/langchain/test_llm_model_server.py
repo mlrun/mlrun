@@ -280,18 +280,43 @@ def test_huggingface():
     )
     assert predict_result
     print("huggingface successful predict predict_result", predict_result)
-    invoke_result = server.test(
+    invoke_result1 = server.test(
         "/v2/models/huggingface-langchain-model/invoke",
-        {"inputs": ["how old are you?"]},
+        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
     )
-    assert invoke_result
-    print("huggingface successful invoke invoke_result", invoke_result)
-    batch_result = server.test(
+    assert invoke_result1
+    print("huggingface successful invoke invoke_result", invoke_result1)
+    invoke_result2 = server.test(
+        "/v2/models/huggingface-langchain-model/invoke",
+        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
+    )
+    assert invoke_result2
+    print("huggingface successful invoke invoke_result", invoke_result2)
+    invoke_result3 = server.test(
+        "/v2/models/huggingface-langchain-model/invoke",
+        {
+            "inputs": ["how old are you?"],
+            "config": {"max_new_tokens": 10},
+            "stop": "<eos>",
+        },
+    )
+    assert invoke_result3
+    print("huggingface successful invoke invoke_result", invoke_result3)
+    batch_result1 = server.test(
         "/v2/models/huggingface-langchain-model/batch",
         {"inputs": ["how old are you?", "how old are you?"]},
     )
-    assert batch_result
-    print("huggingface successful batch batch_result", batch_result)
+    assert batch_result1
+    print("huggingface successful batch batch_result", batch_result1)
+    batch_result2 = server.test(
+        "/v2/models/huggingface-langchain-model/batch",
+        {
+            "inputs": ["how old are you?", "how old are you?"],
+            "config": {"max_new_tokens": 10},
+        },
+    )
+    assert batch_result2
+    print("huggingface successful batch batch_result", batch_result2)
 
 
 @pytest.mark.asyncio
@@ -325,22 +350,42 @@ async def test_huggingface_async():
         model_path=".",
     )
     server = serving_func.to_mock_server()
-    ainvoke_result = await asyncio.gather(
+    ainvoke_result1 = await asyncio.gather(
         server.test(
             "/v2/models/huggingface-langchain-model/ainvoke",
             {"inputs": ["how old are you?"]},
         )
     )
-    ainvoke_result = ainvoke_result[0]
-    assert ainvoke_result
-    print("huggingface successful ainvoke ainvoke_result", ainvoke_result)
-
-    abatch_result = await asyncio.gather(
+    ainvoke_result1 = ainvoke_result1[0]
+    assert ainvoke_result1
+    print("huggingface successful ainvoke ainvoke_result", ainvoke_result1)
+    ainvoke_result2 = await asyncio.gather(
+        server.test(
+            "/v2/models/huggingface-langchain-model/ainvoke",
+            {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
+        )
+    )
+    ainvoke_result2 = ainvoke_result2[0]
+    assert ainvoke_result2
+    print("huggingface successful ainvoke ainvoke_result", ainvoke_result2)
+    abatch_result1 = await asyncio.gather(
         server.test(
             "/v2/models/huggingface-langchain-model/abatch",
             {"inputs": ["how old are you?", "how old are you?"]},
         )
     )
-    abatch_result = abatch_result[0]
-    assert abatch_result
-    print("huggingface successful abatch abatch_result", abatch_result)
+    abatch_result1 = abatch_result1[0]
+    assert abatch_result1
+    print("huggingface successful abatch abatch_result", abatch_result1)
+    abatch_result2 = await asyncio.gather(
+        server.test(
+            "/v2/models/huggingface-langchain-model/abatch",
+            {
+                "inputs": ["how old are you?", "how old are you?"],
+                "config": {"max_new_tokens": 10},
+            },
+        )
+    )
+    abatch_result2 = abatch_result2[0]
+    assert abatch_result2
+    print("huggingface successful abatch abatch_result", abatch_result2)

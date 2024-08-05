@@ -350,13 +350,13 @@ class TestAwsS3:
                     while True:
                         chunk1 = file1.read(chunk_size)
                         chunk2 = file2.read(chunk_size)
+                        if not chunk1 and not chunk2:
+                            break
                         if chunk1 != chunk2:
                             raise AssertionError(
                                 f"expected chunk different from the result."
                                 f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
                             )
-                        elif not chunk1 and not chunk2:
-                            break
                         chunk_number += 1
 
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])

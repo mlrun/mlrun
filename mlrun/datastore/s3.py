@@ -45,7 +45,6 @@ class S3Store(DataStore):
             multipart_threshold=1024 * 1024 * 25,
             max_concurrency=10,
             multipart_chunksize=1024 * 1024 * 25,
-            use_threads=True,
         )
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds

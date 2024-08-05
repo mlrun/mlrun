@@ -2250,7 +2250,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)

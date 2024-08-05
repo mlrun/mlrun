@@ -115,7 +115,7 @@ class MonitoringDeployment:
         :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
                                                   (controller, writer & stream).
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
-        :param client_version:                    The client version that is used to deploy the function.
+        :param client_version:                    The client version.
         """
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
@@ -729,7 +729,7 @@ class MonitoringDeployment:
                                                     Note: you have to set delete_user_applications to True
                                                     in order to delete the desired application.
         :param background_tasks:                    Fastapi Background tasks.
-        :param client_version:                      The client version that is used to deploy the function.
+        :param client_version:                      The client version.
         """
         self._set_credentials_after_server_upgrade(client_version=client_version)
         function_to_delete = []
@@ -1012,7 +1012,7 @@ class MonitoringDeployment:
 
         :param with_upgrade_case_check:         If True, check if indeed the project is an old(<1.7.0) project
                                                 that had model monitoring, if indeed, set the credentials.
-        :param client_version:                  The client version that is used to deploy the function.
+        :param client_version:                  The client version.
         :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
         """
 
@@ -1152,7 +1152,7 @@ class MonitoringDeployment:
         :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
-        :param client_version:            The client version that is used to deploy the function.
+        :param client_version:            The client version.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.

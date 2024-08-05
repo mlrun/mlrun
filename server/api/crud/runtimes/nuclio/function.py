@@ -493,7 +493,7 @@ def _resolve_and_set_build_requirements_and_commands(function, config):
     mlrun.utils.update_in(config, "spec.build.commands", commands)
 
 
-def _enrich_function_node_selector(run_db, project_name, function_node_selector):
+def _resolve_node_selector(run_db, project_name, function_node_selector):
     project_node_selector = {}
 
     if run_db and project_name:
@@ -559,7 +559,7 @@ def _set_function_scheduling_params(function, nuclio_spec):
         # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
         # This approach ensures that node selector settings from both the project and MLRun service levels
         # are incorporated into the Nuclio config.
-        if node_selector := _enrich_function_node_selector(
+        if node_selector := _resolve_node_selector(
             function._get_db(), function.metadata.project, function.spec.node_selector
         ):
             nuclio_spec.set_config(

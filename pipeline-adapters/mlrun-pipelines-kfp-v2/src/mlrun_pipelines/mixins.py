@@ -15,6 +15,7 @@
 import json
 
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 
@@ -83,12 +84,13 @@ class PipelineProviderMixin:
     @staticmethod
     def resolve_error_from_pipeline(pipeline):
         # TODO: need to ensure that it actually the way to do it with kfp v2
-        if pipeline.run.status == ["Error", "Failed"]:
-            workflow_status = json.loads(pipeline.pipeline_runtime.workflow_manifest)[
-                "status"
-            ]
-            for node in workflow_status["nodes"].values():
+        if pipeline.run.status in [RunStatuses.error, RunStatuses.failed]:
+            # status might not be available just yet
+            workflow_status = json.loads(
+                pipeline.pipeline_runtime.workflow_manifest
+            ).get("status", {})
+            for node in workflow_status.get("nodes", {}).values():
                 # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
                 if node["type"] != "DAG":
-                    if node["message"]:
-                        return node["message"]
+                    if message := node.get("message"):
+                        return message

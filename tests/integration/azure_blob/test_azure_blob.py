@@ -247,12 +247,13 @@ class TestAzureBlob:
         assert self.object_file.split("/")[-1] not in dir_dataitem.listdir()
         file_dataitem.delete()  # should not raise an error
 
-    @pytest.mark.parametrize("use_datastore_profile", (True, False))
-    def test_blob_upload(self, use_datastore_profile):
+    @pytest.mark.parametrize(
+        "auth_method ,use_datastore_profile", generated_pytest_parameters
+    )
+    def test_blob_upload(self, use_datastore_profile, auth_method):
         # The upload is done by a different connector than fsspec, so it requires checking every authentication method.
         self.setup_before_test(
-            use_datastore_profile=use_datastore_profile,
-            auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
+            use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
         upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)

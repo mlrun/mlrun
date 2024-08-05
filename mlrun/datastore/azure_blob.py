@@ -78,7 +78,7 @@ class AzureBlobStore(DataStore):
             account_name=self._get_secret_or_env("account_name")
             or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
             account_key=self._get_secret_or_env("account_key")
-            or self._get_secret_or_env("AZURE_STORAGE_KEY"),
+            or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY"),
             connection_string=self._get_secret_or_env("connection_string")
             or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
             tenant_id=self._get_secret_or_env("tenant_id")

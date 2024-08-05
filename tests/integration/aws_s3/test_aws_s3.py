@@ -346,13 +346,18 @@ class TestAwsS3:
                     open(temp_file.name, "rb") as file1,
                     open(temp_file_download.name, "rb") as file2,
                 ):
+                    chunk_number = 1
                     while True:
                         chunk1 = file1.read(chunk_size)
                         chunk2 = file2.read(chunk_size)
                         if chunk1 != chunk2:
-                            assert False
+                            raise AssertionError(
+                                f"expected chunk different from the result."
+                                f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
+                            )
                         elif not chunk1 and not chunk2:
                             break
+                        chunk_number += 1
 
     @pytest.mark.parametrize("fake_token", [None, "fake_token"])
     def test_wrong_credential_rm(self, use_datastore_profile, fake_token):

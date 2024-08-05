@@ -1893,7 +1893,7 @@ def test_create_api_gateway_valid(
     assert "metadata" in gateway_dict
     assert "spec" in gateway_dict
 
-    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com"
     if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         assert gateway.authentication.authentication_mode == "basicAuth"
     elif (
@@ -1999,7 +1999,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
     assert gateways[0].spec.functions == ["project-name/my-func1"]
 
-    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com"
 
 
 def test_project_create_remote():

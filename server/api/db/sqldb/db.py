@@ -2680,6 +2680,10 @@ class SQLDB(DBInterface):
     ):
         project_summaries_to_update = []
         for project_summary_schema in project_summaries:
+            # To avoid a race condition with the delete project flow where a project might be deleted
+            # after its summary has been queried but before the transaction is completed, we check
+            # that the project summary is not `None` after querying.
+            # This is why we cannot query all project summaries outside the loop.
             query = self._query(
                 session, ProjectSummary, project=project_summary_schema.name
             )

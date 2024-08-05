@@ -420,7 +420,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass

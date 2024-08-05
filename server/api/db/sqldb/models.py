@@ -225,6 +225,11 @@ with warnings.catch_warnings():
                 "producer_id",
                 "best_iteration",
             ),
+            Index(
+                "idx_project_kind",
+                "project",
+                "kind",
+            ),
         )
 
         Label = make_label(__tablename__)

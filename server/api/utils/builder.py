@@ -160,6 +160,7 @@ def make_kaniko_pod(
     extra_args="",
     extra_labels=None,
     project_secrets=None,
+    project_default_fucntion_node_selector=None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -167,24 +168,14 @@ def make_kaniko_pod(
         registry = dest.partition("/")[0]
 
     # set kaniko's spec attributes from the runtime spec
-    for attribute in get_kaniko_spec_attributes_from_runtime():
-        attr_value = getattr(runtime_spec, attribute, None)
-        if attribute == "service_account":
-            from server.api.api.utils import resolve_project_default_service_account
-
-            (
-                allowed_service_accounts,
-                default_service_account,
-            ) = resolve_project_default_service_account(project)
-            if attr_value:
-                runtime_spec.validate_service_account(allowed_service_accounts)
-            else:
-                attr_value = default_service_account
-
-        if not attr_value:
-            continue
-
-        extra_runtime_spec[attribute] = attr_value
+    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
+        project,
+        runtime_spec,
+        project_default_fucntion_node_selector,
+    ).items():
+        attr_value = handler(getattr(runtime_spec, attribute, None))
+        if attr_value:
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -400,6 +391,14 @@ def build_image(
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
 
+    project_default_function_node_selector = {}
+    if runtime and runtime._get_db():
+        project_obj = runtime._get_db().get_project(runtime.metadata.project)
+        if project_obj:
+            project_default_function_node_selector = (
+                project_obj.spec.default_function_node_selector
+            )
+
     extra_args = extra_args or {}
     builder_env = builder_env or {}
 
@@ -534,6 +533,7 @@ def build_image(
             mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
+        project_default_fucntion_node_selector=project_default_function_node_selector,
     )
 
     if to_mount:
@@ -557,16 +557,45 @@ def build_image(
         return f"build:{pod}"
 
 
-def get_kaniko_spec_attributes_from_runtime():
+def get_kaniko_spec_attributes_from_runtime(
+    project, runtime_spec, project_default_fucntion_node_selector
+):
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
-    return [
-        "node_name",
-        "node_selector",
-        "affinity",
-        "tolerations",
-        "priority_class_name",
-        "service_account",
-    ]
+
+    def service_account_handler(attr_value):
+        from server.api.api.utils import resolve_project_default_service_account
+
+        (
+            allowed_service_accounts,
+            default_service_account,
+        ) = resolve_project_default_service_account(project)
+        if attr_value:
+            runtime_spec.validate_service_account(allowed_service_accounts)
+        else:
+            attr_value = default_service_account
+        return attr_value
+
+    def node_selector_handler(attr_value):
+        attr_value = mlrun.utils.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
+                project_default_fucntion_node_selector,
+                attr_value,
+            )
+        )
+        return attr_value
+
+    def identity_handler(attr_value):
+        return attr_value
+
+    return {
+        "node_name": identity_handler,
+        "node_selector": node_selector_handler,
+        "affinity": identity_handler,
+        "tolerations": identity_handler,
+        "priority_class_name": identity_handler,
+        "service_account": service_account_handler,
+    }
 
 
 def resolve_mlrun_install_command_version(

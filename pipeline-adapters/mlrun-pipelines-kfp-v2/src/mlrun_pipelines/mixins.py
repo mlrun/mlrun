@@ -83,7 +83,7 @@ class PipelineProviderMixin:
     @staticmethod
     def resolve_error_from_pipeline(pipeline):
         # TODO: need to ensure that it actually the way to do it with kfp v2
-        if pipeline.run.status == "Error":
+        if pipeline.run.status == ["Error", "Failed"]:
             workflow_status = json.loads(pipeline.pipeline_runtime.workflow_manifest)[
                 "status"
             ]

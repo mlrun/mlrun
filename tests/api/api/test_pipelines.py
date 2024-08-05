@@ -587,7 +587,7 @@ def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):
             [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_list_runs(
@@ -609,7 +609,7 @@ def _mock_list_runs(
             runs, len(runs)
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_get_run(

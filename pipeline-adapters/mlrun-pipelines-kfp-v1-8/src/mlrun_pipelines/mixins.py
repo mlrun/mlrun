@@ -98,7 +98,7 @@ class PipelineProviderMixin:
 
     @staticmethod
     def resolve_error_from_pipeline(pipeline):
-        if pipeline.run.status == "Error":
+        if pipeline.run.status in ["Error", "Failed"]:
             workflow_status = json.loads(pipeline.pipeline_runtime.workflow_manifest)[
                 "status"
             ]

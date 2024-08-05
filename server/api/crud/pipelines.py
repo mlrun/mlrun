@@ -71,7 +71,7 @@ class Pipelines(
                 # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
                 # When we have a token from previous call, we will strip out the filter and use the token to continue
                 # (the token contains the details of the filter that was used to create it)
-                response = kfp_client._run_api.list_runs(
+                response = kfp_client.list_runs(
                     page_token=page_token,
                     page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
                     sort_by=sort_by if page_token == "" else "",
@@ -90,7 +90,7 @@ class Pipelines(
             next_page_token = None
         else:
             try:
-                response = kfp_client._run_api.list_runs(
+                response = kfp_client.list_runs(
                     page_token=page_token,
                     page_size=page_size
                     or mlrun.common.schemas.PipelinesPagination.default_page_size,
@@ -217,7 +217,7 @@ class Pipelines(
                     project=project,
                     format_=format_,
                 )
-                run = self._format_run(run, format_)
+                run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
@@ -371,7 +371,7 @@ class Pipelines(
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
 
     def get_error_from_pipeline(self, kfp_client, run: PipelineRun):
-        pipeline = kfp_client._run_api.get_run(run.id)
+        pipeline = kfp_client.get_run(run.id)
         return self.resolve_error_from_pipeline(pipeline)
 
     def _filter_runs_by_name(self, runs: list, target_name: str) -> list:

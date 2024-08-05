@@ -669,7 +669,7 @@ def _enrich_node_selector(function):
     if project:
         project_node_selector = project.spec.default_function_node_selector
 
-    function_node_selector = mlrun.utils.helpers.enrich_node_selectors(
+    function_node_selector = mlrun.runtimes.utils.resolve_node_selectors(
         project_node_selector, function_node_selector
     )
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)

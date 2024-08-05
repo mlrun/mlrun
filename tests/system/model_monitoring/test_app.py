@@ -1007,11 +1007,10 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
-class TestAllKindOfServing(TestMLRunSystem):
+class TestMonitoredServings(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-    function_name = "serving-router"
+    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1020,7 +1019,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.models = {
+        cls.router_models = {
             "int_one_to_one": {
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
@@ -1069,6 +1068,15 @@ class TestAllKindOfServing(TestMLRunSystem):
             },
         }
 
+        cls.test_models_tracking = {
+            "int_one_to_one": {
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, 2, 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+        }
+
     def _log_model(
         self,
         model_name: str,
@@ -1095,7 +1103,7 @@ class TestAllKindOfServing(TestMLRunSystem):
             kind="serving",
         )
         serving_fn.set_topology("router")
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.router_models.items():
             self._log_model(
                 model_name=model_name,
                 training_set=model_dict.get("training_set"),
@@ -1113,8 +1121,34 @@ class TestAllKindOfServing(TestMLRunSystem):
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
-    def _test_endpoint(self, model_name, feature_set_uri) -> dict[str, typing.Any]:
-        model_dict = self.models[model_name]
+    def _deploy_model_serving(
+        self,
+        model_name: str,
+        class_name: str,
+        enable_tracking: bool = True,
+        **kwargs,
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.code_to_function(
+            project=self.project_name,
+            name=self.function_name,
+            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
+            kind="serving",
+        )
+        serving_fn.add_model(
+            model_name,
+            model_path=f"store://models/{self.project_name}/{model_name}:latest",
+            class_name=class_name,
+        )
+        serving_fn.set_tracking(enable_tracking=enable_tracking)
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+
+    def _test_endpoint(
+        self, model_name, feature_set_uri, model_dict
+    ) -> dict[str, typing.Any]:
         serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
         if model_name == "img_one_to_one":
@@ -1152,7 +1186,8 @@ class TestAllKindOfServing(TestMLRunSystem):
             "df": offline_response_df,
         }
 
-    def test(self) -> None:
+    def test_different_kind_of_serving(self) -> None:
+        self.function_name = "serving-router"
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
@@ -1182,6 +1217,9 @@ class TestAllKindOfServing(TestMLRunSystem):
                     feature_set_uri=endpoint[
                         mm_constants.EventFieldType.FEATURE_SET_URI
                     ],
+                    model_dict=self.router_models[
+                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+                    ],
                 )
                 futures.append(future)
 
@@ -1195,50 +1233,8 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "has_all_the_events"
             ], f"For {res_dict['model_name']} Not all the events were saved"
 
-
-class TestTracking(TestAllKindOfServing):
-    project_name = "test-tracking"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-    function_name = "serving-1"
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        cls.models = {
-            "int_one_to_one": {
-                "model_name": "int_one_to_one",
-                "class_name": "OneToOne",
-                "data_point": [1, 2, 3],
-                "schema": ["f0", "f1", "f2", "p0"],
-            },
-        }
-
-    def _deploy_model_serving(
-        self,
-        model_name: str,
-        class_name: str,
-        enable_tracking: bool = True,
-        **kwargs,
-    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
-        serving_fn = mlrun.code_to_function(
-            project=self.project_name,
-            name=self.function_name,
-            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
-            kind="serving",
-        )
-        serving_fn.add_model(
-            model_name,
-            model_path=f"store://models/{self.project_name}/{model_name}:latest",
-            class_name=class_name,
-        )
-        serving_fn.set_tracking(enable_tracking=enable_tracking)
-        if self.image is not None:
-            serving_fn.spec.image = serving_fn.spec.build.image = self.image
-
-        serving_fn.deploy()
-        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
-
-    def test(self) -> None:
+    def test_tracking(self) -> None:
+        self.function_name = "serving-1"
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
@@ -1254,7 +1250,7 @@ class TestTracking(TestAllKindOfServing):
             deploy_histogram_data_drift_app=False,
         )
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._log_model(
                 model_name,
                 training_set=model_dict.get("training_set"),
@@ -1265,7 +1261,7 @@ class TestTracking(TestAllKindOfServing):
         endpoints = self.db.list_model_endpoints()
         assert len(endpoints) == 0
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=True)
 
         endpoints = self.db.list_model_endpoints()
@@ -1279,6 +1275,9 @@ class TestTracking(TestAllKindOfServing):
         res_dict = self._test_endpoint(
             model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
             feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+            model_dict=self.test_models_tracking[
+                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+            ],
         )
         assert res_dict[
             "is_schema_saved"
@@ -1288,7 +1287,7 @@ class TestTracking(TestAllKindOfServing):
             "has_all_the_events"
         ], f"For {res_dict['model_name']} Not all the events were saved"
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints = self.db.list_model_endpoints()
@@ -1302,6 +1301,9 @@ class TestTracking(TestAllKindOfServing):
         res_dict = self._test_endpoint(
             model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
             feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+            model_dict=self.test_models_tracking[
+                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+            ],
         )
 
         assert res_dict[

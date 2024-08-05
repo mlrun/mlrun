@@ -111,7 +111,9 @@ class LangChainModelServer(V2ModelServer):
         config = request.get("config", None)
         stop = request.get("stop", None)
         generation_kwargs = generation_kwargs or self.generation_kwargs
-        return self.model.invoke(input=inputs[0], config=config, stop=stop, **generation_kwargs)
+        return self.model.invoke(
+            input=inputs[0], config=config, stop=stop, **generation_kwargs
+        )
 
     def op_batch(
         self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
@@ -128,7 +130,12 @@ class LangChainModelServer(V2ModelServer):
         config = request.get("config", None)
         return_exceptions = request.get("return_exceptions", None)
         generation_kwargs = generation_kwargs or self.generation_kwargs
-        return self.model.batch(inputs=inputs, config=config, return_exceptions=return_exceptions, **generation_kwargs)
+        return self.model.batch(
+            inputs=inputs,
+            config=config,
+            return_exceptions=return_exceptions,
+            **generation_kwargs,
+        )
 
     def op_ainvoke(
         self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
@@ -145,7 +152,9 @@ class LangChainModelServer(V2ModelServer):
         config = request.get("config", None)
         stop = request.get("stop", None)
         generation_kwargs = generation_kwargs or self.generation_kwargs
-        response = self.model.ainvoke(input=inputs, config=config, stop=stop, **generation_kwargs)
+        response = self.model.ainvoke(
+            input=inputs, config=config, stop=stop, **generation_kwargs
+        )
         return response
 
     def op_abatch(
@@ -163,5 +172,10 @@ class LangChainModelServer(V2ModelServer):
         config = request.get("config", None)
         return_exceptions = request.get("return_exceptions", None)
         generation_kwargs = generation_kwargs or self.generation_kwargs
-        response = self.model.abatch(inputs=inputs, config=config, return_exceptions=return_exceptions, **generation_kwargs)
+        response = self.model.abatch(
+            inputs=inputs,
+            config=config,
+            return_exceptions=return_exceptions,
+            **generation_kwargs,
+        )
         return response

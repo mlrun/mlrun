@@ -881,7 +881,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
-        self.assert_node_selection(node_selector=node_selector)
+        self.assert_node_selection(
+            node_selector={**config_node_selector, **node_selector}
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         affinity = self._generate_affinity()
@@ -893,7 +895,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         # The node selector is specific to the service configuration, not the function itself.
         # Therefore, it is applied only to the run object and not enriched or modified at the function level.
-        self.assert_node_selection(affinity=affinity)
+        self.assert_node_selection(
+            affinity=affinity, node_selector=config_node_selector
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
@@ -903,7 +907,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_node_selection(
             node_name=node_name,
-            node_selector=node_selector,
+            node_selector={**config_node_selector, **node_selector},
             affinity=affinity,
         )
 
@@ -921,6 +925,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_node_selection(
             tolerations=tolerations,
+            node_selector=config_node_selector,
         )
 
     @pytest.mark.parametrize(

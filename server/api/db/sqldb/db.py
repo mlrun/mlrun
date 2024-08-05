@@ -212,7 +212,8 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        run = self._get_run(session, uid, project, iter, with_for_update=True)
+        # Do not lock run as it may cause deadlocks
+        run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
         if not run:
             run = Run(
@@ -663,8 +664,8 @@ class SQLDB(DBInterface):
         project=None,
         tag=None,
         labels=None,
-        since=None,
-        until=None,
+        since: datetime = None,
+        until: datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -917,7 +918,9 @@ class SQLDB(DBInterface):
             .group_by(ArtifactV2.Tag.name)
         )
         if category:
-            query = self._add_artifact_category_query(category, query)
+            query = self._add_artifact_category_query(category, query).with_hint(
+                ArtifactV2, "USE INDEX (idx_project_kind)"
+            )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
@@ -991,6 +994,15 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
+        if not artifacts_keys:
+            logger.debug(
+                "No artifacts to tag",
+                project=project,
+                tag=tag_name,
+                artifacts=artifacts,
+            )
+            return
+
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,
@@ -1698,7 +1710,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project
@@ -1911,29 +1923,42 @@ class SQLDB(DBInterface):
             )
             return
 
+        # remove trailing slashes from the URL
+        url = url.rstrip("/")
+
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == mlrun.common.types.Operation.ADD:
+        updated = False
+        if (
+            operation == mlrun.common.types.Operation.ADD
+            and url not in existing_invocation_urls
+        ):
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url not in existing_invocation_urls:
-                existing_invocation_urls.append(url)
+            updated = True
+            existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        elif operation == mlrun.common.types.Operation.REMOVE:
+        elif (
+            operation == mlrun.common.types.Operation.REMOVE
+            and url in existing_invocation_urls
+        ):
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url in existing_invocation_urls:
-                struct["status"]["external_invocation_urls"].remove(url)
-        function.struct = struct
-        self._upsert(session, [function])
+            updated = True
+            struct["status"]["external_invocation_urls"].remove(url)
+
+        # update the function record only if the external invocation URLs were updated
+        if updated:
+            function.struct = struct
+            self._upsert(session, [function])
 
     def _get_function(
         self,
@@ -2238,7 +2263,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
@@ -2488,22 +2513,16 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        objects_to_upsert = [project_record]
 
-        project_summary = self.get_project_summary(
-            session, project_record.name, raise_on_not_found=False
+        summary = mlrun.common.schemas.ProjectSummary(
+            name=project.metadata.name,
         )
-        if not project_summary:
-            summary = mlrun.common.schemas.ProjectSummary(
-                name=project.metadata.name,
-            )
-            project_summary = ProjectSummary(
-                project=project.metadata.name,
-                summary=summary.dict(),
-                updated=datetime.now(timezone.utc),
-            )
-            objects_to_upsert.append(project_summary)
-        self._upsert(session, objects_to_upsert)
+        project_summary = ProjectSummary(
+            project=project.metadata.name,
+            summary=summary.dict(),
+            updated=datetime.now(timezone.utc),
+        )
+        self._upsert(session, [project_record, project_summary])
 
     @retry_on_conflict
     def store_project(
@@ -2555,7 +2574,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str = None,
         project_id: int = None,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -2617,7 +2636,6 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        raise_on_not_found: bool = True,
     ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,
@@ -2625,8 +2643,6 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         if not project_summary_record:
-            if not raise_on_not_found:
-                return None
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project summary not found: {project=}"
             )
@@ -2676,17 +2692,22 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        # Do the whole operation in a single transaction
-        with session.no_autoflush:
-            self._query(session, ProjectSummary).delete()
-            for project_summary_schema in project_summaries:
-                project_summary = ProjectSummary(
-                    project=project_summary_schema.name,
-                    summary=project_summary_schema.dict(),
-                    updated=datetime.now(timezone.utc),
-                )
-                session.add(project_summary)
-            session.commit()
+        project_summaries_to_update = []
+        for project_summary_schema in project_summaries:
+            # To avoid a race condition with the delete project flow where a project might be deleted
+            # after its summary has been queried but before the transaction is completed, we check
+            # that the project summary is not `None` after querying.
+            # This is why we cannot query all project summaries outside the loop.
+            query = self._query(
+                session, ProjectSummary, project=project_summary_schema.name
+            )
+            project_summary = query.one_or_none()
+            if project_summary:
+                project_summary.summary = project_summary_schema.dict()
+                project_summary.updated = datetime.now(timezone.utc)
+                project_summaries_to_update.append(project_summary)
+
+        self._upsert(session, project_summaries_to_update)
 
     async def get_project_resources_counters(
         self,
@@ -4680,7 +4701,7 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = mlrun.common.schemas.Project(
@@ -4698,9 +4719,9 @@ class SQLDB(DBInterface):
                 ),
             )
             self.store_project(session, project_record.name, project)
-            return project
+            return mlrun.common.schemas.ProjectOut(**project.dict())
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return mlrun.common.schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(
         self,
@@ -5202,6 +5223,11 @@ class SQLDB(DBInterface):
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
         return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
+        state = self.get_alert_state(session, alert_id)
+        if state is not None:
+            return state.to_dict()
 
     def delete_alert_notifications(
         self,

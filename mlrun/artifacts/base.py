@@ -632,6 +632,7 @@ class DirArtifactSpec(ArtifactSpec):
         "src_path",
         "target_path",
         "db_key",
+        "producer",
     ]
 
 

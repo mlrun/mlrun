@@ -136,7 +136,16 @@ async def store_api_gateway(
                 for func in existing_api_gateway.get_function_names()
                 if func not in api_gateway.get_function_names()
             ]
-            if unused_functions:
+            # if invocation URL has changed, delete URL from all the functions
+            if existing_api_gateway.get_invoke_url != api_gateway.get_invoke_url:
+                await _delete_functions_external_invocation_url(
+                    project=project,
+                    url=existing_api_gateway.get_invoke_url(),
+                    function_names=existing_api_gateway.get_function_names(),
+                )
+            # if only functions list has changed, then delete URL only from those functions
+            # which are not used in api gateway anymore
+            elif unused_functions:
                 # delete api gateway url from those functions which are not used in api gateway anymore
                 await _delete_functions_external_invocation_url(
                     project=project,
@@ -322,7 +331,9 @@ async def deploy_status(
     )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(
+    db_session, project_name: str, secret_key: str, store: bool = True
+):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
@@ -368,16 +379,18 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
                 project_name=project_name,
                 project_owner=project_owner.username,
             )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
+    if store:
+        secrets = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_key_name: secret_value}
         )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
+        Secrets().store_project_secrets(
+            project_name, secrets, allow_internal_secrets=True
+        )
+        if user_provided_key:
+            logger.info(
+                "Deleting user-provided access-key - replaced with an internal secret"
+            )
+            Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
 
@@ -522,8 +535,7 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn,
-                function_name=fn.metadata.name,
+                function=fn, function_name=fn.metadata.name
             )
 
         if serving_to_monitor:

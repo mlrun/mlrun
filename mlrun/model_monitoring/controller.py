@@ -15,6 +15,7 @@
 import concurrent.futures
 import datetime
 import json
+import multiprocessing
 import os
 import re
 from collections.abc import Iterator
@@ -363,7 +364,10 @@ class MonitoringApplicationController:
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=min(len(endpoints), 10)
+            max_workers=min(len(endpoints), 10),
+            # On Linux, the default is "fork" (this is set to change in Python 3.14), which inherits the current heap
+            # and resources (such as sockets), which is not what we want (ML-7160)
+            mp_context=multiprocessing.get_context("spawn"),
         ) as pool:
             for endpoint in endpoints:
                 if (

@@ -206,8 +206,8 @@ class DBInterface(ABC):
         project="",
         tag="",
         labels=None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -420,7 +420,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass
@@ -522,7 +522,9 @@ class DBInterface(ABC):
         pass
 
     def get_project_summary(
-        self, session, project: str, raise_on_not_found: bool = True
+        self,
+        session,
+        project: str,
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 

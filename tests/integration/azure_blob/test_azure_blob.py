@@ -249,6 +249,7 @@ class TestAzureBlob:
 
     @pytest.mark.parametrize("use_datastore_profile", (True, False))
     def test_blob_upload(self, use_datastore_profile):
+        # The upload is done by a different connector than fsspec, so it requires checking every authentication method.
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile,
             auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
@@ -261,6 +262,8 @@ class TestAzureBlob:
 
     @pytest.mark.parametrize("use_datastore_profile", (True, False))
     def test_large_upload(self, use_datastore_profile):
+        # Time-consuming test, so every authentication method is checked in test_blob_upload, which is faster.
+
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile,
             auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",

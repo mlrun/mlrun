@@ -17,7 +17,6 @@ import traceback
 import typing
 from http import HTTPStatus
 
-import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -512,42 +511,19 @@ def _deploy_nuclio_runtime(
         )
         try:
             monitoring_deployment.check_if_credentials_are_set(
-                with_upgrade_case_check=True
+                with_upgrade_case_check=True, client_version=client_version
             )
         except mlrun.errors.MLRunBadRequestError as exc:
-            raise_error = True
-            if (
-                client_version
-                and (
-                    semver.Version.parse(client_version) < semver.Version.parse("1.7.0")
-                    or "unstable" in client_version
+            if monitoring_application:
+                err_txt = f"Can not deploy model monitoring application due to: {exc}"
+            else:
+                err_txt = (
+                    f"Can not deploy serving function with track models due to: {exc}"
                 )
-            ):
-                logger.info(
-                    "Setting credentials for older client version(1.7.0), using v3io as default (not in ce mode)"
-                )
-                try:
-                    monitoring_deployment.set_credentials(
-                        _default_secrets_v3io=mm_constants.V3IO_MODEL_MONITORING_DB
-                        if not mlrun.mlconf.is_ce_mode()
-                        else None,
-                        replace_creds=True,
-                    )
-                    raise_error = False
-                except mlrun.errors.MLRunInvalidMMStoreType:
-                    raise_error = True
-
-            if raise_error:
-                if monitoring_application:
-                    err_txt = (
-                        f"Can not deploy model monitoring application due to: {exc}"
-                    )
-                else:
-                    err_txt = f"Can not deploy serving function with track models due to: {exc}"
-                server.api.api.utils.log_and_raise(
-                    HTTPStatus.BAD_REQUEST.value,
-                    reason=err_txt,
-                )
+            server.api.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=err_txt,
+            )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
                 function=fn, function_name=fn.metadata.name

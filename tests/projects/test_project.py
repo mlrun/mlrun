@@ -1893,7 +1893,7 @@ def test_create_api_gateway_valid(
     assert "metadata" in gateway_dict
     assert "spec" in gateway_dict
 
-    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com"
     if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         assert gateway.authentication.authentication_mode == "basicAuth"
     elif (

@@ -894,7 +894,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=4, expected_class=self.class_name
         )
         # The node selector is specific to the service configuration, not the function itself.
-        # Therefore, it is applied only to the run object and not enriched or modified at the function level.
+        # It is applied only to the run object on other run kinds. In case of a Nuclio function,
+        # since there is no run object, the node selector is included in the created config.
         self.assert_node_selection(
             affinity=affinity, node_selector=config_node_selector
         )

@@ -378,7 +378,9 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def test_empty_function(self):
         # test simple function (no source)
-        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function = new_function(
+            "serving", kind="serving", project=self.project, image="mlrun/mlrun"
+        )
         function.set_topology("flow")
         (
             _,
@@ -390,7 +392,11 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # test function built from source repo (set the handler)
         function = new_function(
-            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+            "serving",
+            kind="serving",
+            image="mlrun/mlrun",
+            project=self.project,
+            source="git://x/y#z",
         )
         function.set_topology("flow")
 

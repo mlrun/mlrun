@@ -325,13 +325,13 @@ class TestAwsS3:
             temp_file.flush()
             temp_file.seek(0)
 
-            print(
+            logger.info(
                 f"s3 test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
                 "seconds"
             )
             start_time = time.monotonic()
             data_item.upload(temp_file.name)
-            print(
+            logger.info(
                 f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
             )
             with tempfile.NamedTemporaryFile(
@@ -339,7 +339,7 @@ class TestAwsS3:
             ) as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
-                print(
+                logger.info(
                     f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
                 )
                 with (

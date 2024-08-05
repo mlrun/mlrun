@@ -18,6 +18,7 @@ import nuclio
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
+import mlrun.run
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
@@ -392,8 +393,8 @@ class ApplicationRuntime(RemoteRuntime):
             "main:Handler",
         )
 
-    @classmethod
-    def get_filename_and_handler(cls) -> (str, str):
+    @staticmethod
+    def get_filename_and_handler() -> (str, str):
         reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
         return str(reverse_proxy_file_path), "Handler"
 
@@ -499,10 +500,10 @@ class ApplicationRuntime(RemoteRuntime):
         :param use_cache:   Use the cache when building the image
         """
         # create a function that includes only the reverse proxy, without the application
-        from mlrun import get_run_db
-        from mlrun.run import new_function
 
-        reverse_proxy_func = new_function(name="reverse-proxy-temp", kind="remote")
+        reverse_proxy_func = mlrun.run.new_function(
+            name="reverse-proxy-temp", kind="remote"
+        )
         # default max replicas is 4, we only need one replica for the reverse proxy
         reverse_proxy_func.spec.max_replicas = 1
 
@@ -518,7 +519,7 @@ class ApplicationRuntime(RemoteRuntime):
         cls.reverse_proxy_image = reverse_proxy_func.status.container_image
 
         # delete the function to avoid cluttering the project
-        get_run_db().delete_function(
+        mlrun.get_run_db().delete_function(
             reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
         )
 
@@ -561,12 +562,12 @@ class ApplicationRuntime(RemoteRuntime):
             with_mlrun=with_mlrun,
         )
 
-    @classmethod
-    def _ensure_reverse_proxy_configurations(cls, function):
+    @staticmethod
+    def _ensure_reverse_proxy_configurations(function):
         if function.spec.build.functionSourceCode or function.status.container_image:
             return
 
-        filename, handler = cls.get_filename_and_handler()
+        filename, handler = ApplicationRuntime.get_filename_and_handler()
         name, spec, code = nuclio.build_file(
             filename,
             name=function.metadata.name,

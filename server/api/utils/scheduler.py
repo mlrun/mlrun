@@ -247,7 +247,7 @@ class Scheduler:
         project: str = None,
         name: str = None,
         kind: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:

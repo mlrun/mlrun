@@ -294,7 +294,7 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client: mlrun_pipelines.utils.client = None,
+        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:

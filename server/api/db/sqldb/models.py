@@ -640,7 +640,7 @@ with warnings.catch_warnings():
             self._full_object = json.dumps(value, default=str)
 
         def get_identifier_string(self) -> str:
-            return f"{self.name}"
+            return f"{self.project}/{self.name}"
 
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"

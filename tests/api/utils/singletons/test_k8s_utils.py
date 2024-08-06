@@ -22,6 +22,15 @@ import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
 
 
+@pytest.fixture
+def k8s_helper():
+    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(
+        "test-namespace", silent=True
+    )
+    k8s_helper.v1api = unittest.mock.MagicMock()
+    return k8s_helper
+
+
 @pytest.mark.parametrize(
     "run_type,mpi_version,extra_selector",
     [
@@ -63,3 +72,11 @@ def test_get_logger_pods_label_selector(
 
     k8s_helper.get_logger_pods(project, uid, run_type)
     k8s_helper.list_pods.assert_called_once_with(namespace, selector=selector)
+
+
+def test_store_empty_secret(k8s_helper):
+    # we want to ensure that if the data is None, the function doesn't raise an exception
+    k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
+        data=None
+    )
+    k8s_helper.store_secrets("my-secret", {})

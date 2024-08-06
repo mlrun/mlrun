@@ -597,7 +597,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         secret_data = {}
         if secrets:
-            secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
+            secret_data = k8s_secret.data.copy()
             for secret in secrets:
                 secret_data.pop(secret, None)
 

@@ -1007,7 +1007,7 @@ class TestModelMonitoringInitialize(TestMLRunSystem):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
-class TestAllKindOfServing(TestMLRunSystem):
+class TestMonitoredServings(TestMLRunSystem):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -1019,33 +1019,29 @@ class TestAllKindOfServing(TestMLRunSystem):
             .reshape(-1, 3)
             .tolist()
         )
-        cls.models = {
+        cls.router_models = {
             "int_one_to_one": {
-                "name": "serving_1",
                 "model_name": "int_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0"],
             },
             "int_one_to_many": {
-                "name": "serving_2",
                 "model_name": "int_one_to_many",
                 "class_name": "OneToMany",
                 "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0", "p1", "p2", "p3", "p4"],
             },
             "str_one_to_one": {
-                "name": "serving_3",
                 "model_name": "str_one_to_one",
                 "class_name": "OneToOne",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["f0", "p0"],
             },
             "str_one_to_one_with_train": {
-                "name": "serving_4",
                 "model_name": "str_one_to_one_with_train",
                 "class_name": "OneToOne",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["str_in", "str_out"],
                 "training_set": pd.DataFrame(
                     data={"str_in": ["str_1", "str_2"], "str_out": ["str_3", "str_4"]}
@@ -1053,24 +1049,30 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "label_column": "str_out",
             },
             "str_one_to_many": {
-                "name": "serving_5",
                 "model_name": "str_one_to_many",
                 "class_name": "OneToMany",
-                "data_point": "input_str",
+                "data_point": ["input_str"],
                 "schema": ["f0", "p0", "p1", "p2", "p3", "p4"],
             },
             "img_one_to_one": {
-                "name": "serving_6",
                 "model_name": "img_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": random_rgb_image_list,
                 "schema": [f"f{i}" for i in range(600)] + ["p0"],
             },
             "int_and_str_one_to_one": {
-                "name": "serving_7",
                 "model_name": "int_and_str_one_to_one",
                 "class_name": "OneToOne",
                 "data_point": [1, "a", 3],
+                "schema": ["f0", "f1", "f2", "p0"],
+            },
+        }
+
+        cls.test_models_tracking = {
+            "int_one_to_one": {
+                "model_name": "int_one_to_one",
+                "class_name": "OneToOne",
+                "data_point": [1, 2, 3],
                 "schema": ["f0", "f1", "f2", "p0"],
             },
         }
@@ -1089,44 +1091,76 @@ class TestAllKindOfServing(TestMLRunSystem):
             label_column=label_column,
         )
 
-    @classmethod
-    def _deploy_model_serving(
-        cls,
+    def _deploy_model_router(
+        self,
         name: str,
+        enable_tracking: bool = True,
+    ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
+        serving_fn = mlrun.code_to_function(
+            project=self.project_name,
+            name=name,
+            filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
+            kind="serving",
+        )
+        serving_fn.set_topology("router")
+        for model_name, model_dict in self.router_models.items():
+            self._log_model(
+                model_name=model_name,
+                training_set=model_dict.get("training_set"),
+                label_column=model_dict.get("label_column"),
+            )
+            serving_fn.add_model(
+                model_name,
+                model_path=f"store://models/{self.project_name}/{model_name}:latest",
+                class_name=model_dict.get("class_name"),
+            )
+        serving_fn.set_tracking(enable_tracking=enable_tracking)
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
+
+        serving_fn.deploy()
+        return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
+
+    def _deploy_model_serving(
+        self,
         model_name: str,
         class_name: str,
         enable_tracking: bool = True,
         **kwargs,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         serving_fn = mlrun.code_to_function(
-            project=cls.project_name,
-            name=name,
+            project=self.project_name,
+            name=self.function_name,
             filename=f"{str((Path(__file__).parent / 'assets').absolute())}/models.py",
             kind="serving",
         )
         serving_fn.add_model(
             model_name,
-            model_path=f"store://models/{cls.project_name}/{model_name}:latest",
+            model_path=f"store://models/{self.project_name}/{model_name}:latest",
             class_name=class_name,
         )
         serving_fn.set_tracking(enable_tracking=enable_tracking)
-        if cls.image is not None:
-            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
+        if self.image is not None:
+            serving_fn.spec.image = serving_fn.spec.build.image = self.image
 
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.nuclio.serving.ServingRuntime, serving_fn)
 
-    def _test_endpoint(self, model_name, feature_set_uri) -> dict[str, typing.Any]:
-        model_dict = self.models[model_name]
-        serving_fn = self.project.get_function(model_dict.get("name"))
+    def _test_endpoint(
+        self, model_name, feature_set_uri, model_dict
+    ) -> dict[str, typing.Any]:
+        serving_fn = self.project.get_function(self.function_name)
         data_point = model_dict.get("data_point")
-
+        if model_name == "img_one_to_one":
+            data_point = [data_point]
         serving_fn.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps(
-                {"inputs": [data_point]},
+                {"inputs": data_point},
             ),
         )
+        if model_name == "img_one_to_one":
+            data_point = data_point[0]
         serving_fn.invoke(
             f"v2/models/{model_name}/infer",
             json.dumps({"inputs": [data_point, data_point]}),
@@ -1149,9 +1183,11 @@ class TestAllKindOfServing(TestMLRunSystem):
             "model_name": model_name,
             "is_schema_saved": is_schema_saved,
             "has_all_the_events": has_all_the_events,
+            "df": offline_response_df,
         }
 
-    def test_all(self) -> None:
+    def test_different_kind_of_serving(self) -> None:
+        self.function_name = "serving-router"
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
@@ -1162,27 +1198,16 @@ class TestAllKindOfServing(TestMLRunSystem):
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
+        self._deploy_model_router(self.function_name)
+
         futures = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            for model_name, model_dict in self.models.items():
-                self._log_model(
-                    model_name,
-                    training_set=model_dict.get("training_set"),
-                    label_column=model_dict.get("label_column"),
-                )
-                future = executor.submit(self._deploy_model_serving, **model_dict)
-                futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
-
-        futures_2 = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
             self.db = mlrun.model_monitoring.get_store_object(
                 project=self.project_name,
                 store_connection_string=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             )
             endpoints = self.db.list_model_endpoints()
+            assert len(endpoints) == 7
             for endpoint in endpoints:
                 future = executor.submit(
                     self._test_endpoint,
@@ -1192,10 +1217,13 @@ class TestAllKindOfServing(TestMLRunSystem):
                     feature_set_uri=endpoint[
                         mm_constants.EventFieldType.FEATURE_SET_URI
                     ],
+                    model_dict=self.router_models[
+                        endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+                    ],
                 )
-                futures_2.append(future)
+                futures.append(future)
 
-        for future in concurrent.futures.as_completed(futures_2):
+        for future in concurrent.futures.as_completed(futures):
             res_dict = future.result()
             assert res_dict[
                 "is_schema_saved"
@@ -1205,25 +1233,8 @@ class TestAllKindOfServing(TestMLRunSystem):
                 "has_all_the_events"
             ], f"For {res_dict['model_name']} Not all the events were saved"
 
-
-class TestTracking(TestAllKindOfServing):
-    project_name = "test-tracking"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        cls.models = {
-            "int_one_to_one": {
-                "name": "serving_1",
-                "model_name": "int_one_to_one",
-                "class_name": "OneToOne",
-                "data_point": [1, 2, 3],
-                "schema": ["f0", "f1", "f2", "p0"],
-            },
-        }
-
     def test_tracking(self) -> None:
+        self.function_name = "serving-1"
         self.project.set_model_monitoring_credentials(
             endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
@@ -1239,7 +1250,7 @@ class TestTracking(TestAllKindOfServing):
             deploy_histogram_data_drift_app=False,
         )
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._log_model(
                 model_name,
                 training_set=model_dict.get("training_set"),
@@ -1250,7 +1261,7 @@ class TestTracking(TestAllKindOfServing):
         endpoints = self.db.list_model_endpoints()
         assert len(endpoints) == 0
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=True)
 
         endpoints = self.db.list_model_endpoints()
@@ -1264,6 +1275,9 @@ class TestTracking(TestAllKindOfServing):
         res_dict = self._test_endpoint(
             model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
             feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+            model_dict=self.test_models_tracking[
+                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+            ],
         )
         assert res_dict[
             "is_schema_saved"
@@ -1273,7 +1287,7 @@ class TestTracking(TestAllKindOfServing):
             "has_all_the_events"
         ], f"For {res_dict['model_name']} Not all the events were saved"
 
-        for model_name, model_dict in self.models.items():
+        for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)
 
         endpoints = self.db.list_model_endpoints()
@@ -1287,6 +1301,9 @@ class TestTracking(TestAllKindOfServing):
         res_dict = self._test_endpoint(
             model_name=endpoint[mm_constants.EventFieldType.MODEL].split(":")[0],
             feature_set_uri=endpoint[mm_constants.EventFieldType.FEATURE_SET_URI],
+            model_dict=self.test_models_tracking[
+                endpoint[mm_constants.EventFieldType.MODEL].split(":")[0]
+            ],
         )
 
         assert res_dict[

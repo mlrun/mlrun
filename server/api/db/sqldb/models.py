@@ -225,6 +225,11 @@ with warnings.catch_warnings():
                 "producer_id",
                 "best_iteration",
             ),
+            Index(
+                "idx_project_kind",
+                "project",
+                "kind",
+            ),
         )
 
         Label = make_label(__tablename__)
@@ -634,6 +639,9 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     class PaginationCache(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "pagination_cache"
 
@@ -647,6 +655,9 @@ with warnings.catch_warnings():
             SQLTypesUtil.timestamp(),  # TODO: change to `datetime`, see ML-6921
             default=datetime.now(timezone.utc),
         )
+
+        def get_identifier_string(self) -> str:
+            return f"{self.key}"
 
     class AlertState(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_states"
@@ -676,6 +687,9 @@ with warnings.catch_warnings():
         @full_object.setter
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.id}"
 
     class AlertConfig(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "alert_configs"
@@ -740,6 +754,9 @@ with warnings.catch_warnings():
         updated = Column(SQLTypesUtil.datetime())
         summary = Column(JSON)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}"
+
     class TimeWindowTracker(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "time_window_trackers"
 
@@ -748,6 +765,9 @@ with warnings.catch_warnings():
             SQLTypesUtil.datetime(), nullable=False, default=datetime.now(timezone.utc)
         )
         max_window_size_seconds = Column(Integer)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.key}"
 
 
 # Must be after all table definitions

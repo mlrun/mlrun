@@ -5,7 +5,7 @@ You can apply this method to the project object or the context object when loggi
 
 **In this section**
 - [Basic logging of an artifacts file](#basic-logging-of-an-artifacts-file)
-- [Log a Plotly object as an html file](#log-a-plotly-object-as-an-html-file)
+- [Log a Plotly object as an HTML file](#log-a-plotly-object-as-an-html-file)
 - [Logging Plotly artifacts](#logging-plotly-artifacts)
 - [Logging directory artifacts](#logging-directory-artifacts)
 
@@ -13,7 +13,7 @@ You can apply this method to the project object or the context object when loggi
 - {ref}`working-with-data-and-model-artifacts`
 - {ref}`models`
 - {ref}`logging_datasets`
-- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).
+- [Logging a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact)
 ## Basic logging of an artifacts file
 `log_artifact` can be used to log many kinds of files, for example `html`,`pkl` and more. This is the most general method of logging artifacts. 
 ```{admonition} Tip
@@ -43,7 +43,7 @@ project.log_artifact(
 )
 ```
 
-## Log a Plotly object as an html file
+## Log a Plotly object as an HTML file
 This example illustrates logging a Plotly figure using `log_artifact` as an `html` file:
 ```python
 import plotly.graph_objects as go

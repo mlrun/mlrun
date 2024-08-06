@@ -71,10 +71,10 @@ class ModelEndpoints:
                 )
             )
 
-            mlrun.utils.helpers.verify_field_of_type(
-                field_name="model_endpoint.spec.model_uri",
-                field_value=model_obj,
-                expected_type=mlrun.artifacts.ModelArtifact,
+            # Verify and enrich the model endpoint obj with the updated model uri
+            cls._enrich_model_endpoint_with_model_uri(
+                model_endpoint=model_endpoint,
+                model_obj=model_obj,
             )
 
             # Get stats from model object if not found in model endpoint object
@@ -317,22 +317,13 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        try:
-            model_endpoint_store = (
-                server.api.crud.model_monitoring.helpers.get_store_object(
-                    project=project
-                )
-            )
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
-            logger.debug(
-                "Failed to delete model endpoint because store connection is not defined."
-                " Returning without deleting the model endpoint.",
-                error=mlrun.errors.err_to_str(e),
-            )
-            return
-        model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
+        model_endpoint_store = server.api.crud.ModelEndpoints()._get_store_object(
+            project=project
+        )
+        if model_endpoint_store:
+            model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
-        logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+            logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     def get_model_endpoint(
         self,
@@ -374,23 +365,13 @@ class ModelEndpoints:
         )
 
         # Generate a model endpoint store object and get the model endpoint record as a dictionary
-        try:
-            model_endpoint_store = (
-                server.api.crud.model_monitoring.helpers.get_store_object(
-                    project=project
-                )
+        model_endpoint_store = self._get_store_object(project=project)
+        if model_endpoint_store:
+            model_endpoint_record = model_endpoint_store.get_model_endpoint(
+                endpoint_id=endpoint_id,
             )
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
-            logger.debug(
-                "Failed to get model endpoint because store connection is not defined."
-                " Returning an empty model endpoint object.",
-                error=mlrun.errors.err_to_str(e),
-            )
+        else:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
-
-        model_endpoint_record = model_endpoint_store.get_model_endpoint(
-            endpoint_id=endpoint_id,
-        )
 
         # Convert to `ModelEndpoint` object
         model_endpoint_object = self._convert_into_model_endpoint_object(
@@ -456,28 +437,24 @@ class ModelEndpoints:
         :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata.
                  To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
-        try:
-            logger.info(
-                "Listing endpoints",
-                project=project,
-                model=model,
-                function=function,
-                labels=labels,
-                metrics=metrics,
-                start=start,
-                end=end,
-                top_level=top_level,
-                uids=uids,
-            )
 
-            # Initialize an empty model endpoints list
-            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
+        logger.info(
+            "Listing endpoints",
+            project=project,
+            model=model,
+            function=function,
+            labels=labels,
+            metrics=metrics,
+            start=start,
+            end=end,
+            top_level=top_level,
+            uids=uids,
+        )
 
-            # Generate a model endpoint store object and get a list of model endpoint dictionaries
-            endpoint_store = server.api.crud.model_monitoring.helpers.get_store_object(
-                project=project
-            )
-
+        # Initialize an empty model endpoints list
+        endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
+        endpoint_store = self._get_store_object(project=project)
+        if endpoint_store:
             endpoint_dictionary_list = endpoint_store.list_model_endpoints(
                 function=function,
                 model=model,
@@ -485,31 +462,26 @@ class ModelEndpoints:
                 top_level=top_level,
                 uids=uids,
             )
+        else:
+            endpoint_dictionary_list = []
 
-            for endpoint_dict in endpoint_dictionary_list:
-                # Convert to `ModelEndpoint` object
-                endpoint_obj = self._convert_into_model_endpoint_object(
-                    endpoint=endpoint_dict
+        for endpoint_dict in endpoint_dictionary_list:
+            # Convert to `ModelEndpoint` object
+            endpoint_obj = self._convert_into_model_endpoint_object(
+                endpoint=endpoint_dict
+            )
+
+            # If time metrics were provided, retrieve the results from the time series DB
+            if metrics:
+                self._add_real_time_metrics(
+                    model_endpoint_object=endpoint_obj,
+                    metrics=metrics,
+                    start=start,
+                    end=end,
                 )
 
-                # If time metrics were provided, retrieve the results from the time series DB
-                if metrics:
-                    self._add_real_time_metrics(
-                        model_endpoint_object=endpoint_obj,
-                        metrics=metrics,
-                        start=start,
-                        end=end,
-                    )
-
-                # Add the `ModelEndpoint` object into the model endpoints list
-                endpoint_list.endpoints.append(endpoint_obj)
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
-            logger.debug(
-                "Failed to list model endpoints because store connection is not defined."
-                " Returning an empty list of model endpoints.",
-                error=mlrun.errors.err_to_str(e),
-            )
-            endpoint_list = mlrun.common.schemas.ModelEndpointList(endpoints=[])
+            # Add the `ModelEndpoint` object into the model endpoints list
+            endpoint_list.endpoints.append(endpoint_obj)
 
         return endpoint_list
 
@@ -522,8 +494,6 @@ class ModelEndpoints:
 
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
-        # TODO : check v3io store if cred is not defined and not in ce
-        #  (can be done inside list_model_endpoints/ get mep) for BC.
         endpoints = self.list_model_endpoints(project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
@@ -563,16 +533,9 @@ class ModelEndpoints:
             self.verify_project_has_no_model_endpoints(project_name=project_name)
         except mlrun.errors.MLRunPreconditionFailedError:
             # Delete model monitoring store resources
-            try:
-                endpoint_store = (
-                    server.api.crud.model_monitoring.helpers.get_store_object(
-                        project=project_name
-                    )
-                )
+            endpoint_store = self._get_store_object(project=project_name)
+            if endpoint_store:
                 endpoint_store.delete_model_endpoints_resources()
-            except mlrun.errors.MLRunInvalidMMStoreType:
-                # TODO : delete from v3io store for BC (if not ce).
-                pass
             try:
                 # Delete model monitoring TSDB resources
                 tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
@@ -581,11 +544,18 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-                tsdb_connector.delete_tsdb_resources()
-            except mlrun.errors.MLRunInvalidMMStoreType:
-                # TODO : delete from v3io store for BC (if not ce).
-                pass
 
+            except mlrun.errors.MLRunInvalidMMStoreType:
+                # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
+                if not mlrun.mlconf.is_ce_mode():
+                    tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+                        project=project_name,
+                        tsdb_connection_string=mlrun.common.schemas.model_monitoring.V3IO_MODEL_MONITORING_DB,
+                    )
+                else:
+                    tsdb_connector = None
+            if tsdb_connector:
+                tsdb_connector.delete_tsdb_resources()
         # Delete model monitoring stream resources
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,
@@ -788,3 +758,72 @@ class ModelEndpoints:
                 endpoint_obj.status.drift_measures = drift_measures
 
         return endpoint_obj
+
+    @staticmethod
+    def _get_store_object(
+        project: str,
+    ) -> typing.Union[mlrun.model_monitoring.db.stores.base.store.StoreBase, None]:
+        """
+        Get the model endpoint store object.
+        Firstly trying to use project secret and if there is no such secret
+        it's trys to use the default/v3io store connection string.
+        Note : Use this method only for deleting/reading model endpoints.
+        """
+        try:
+            model_endpoint_store = (
+                server.api.crud.model_monitoring.helpers.get_store_object(
+                    project=project
+                )
+            )
+        except mlrun.errors.MLRunInvalidMMStoreType:
+            # TODO: delete in 1.9.0 - for BC trying to create default/v3io store
+            store_connection_string = (
+                mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+                or mlrun.common.schemas.model_monitoring.V3IO_MODEL_MONITORING_DB
+                if not mlrun.mlconf.is_ce_mode()
+                else None
+            )
+            logger.debug(
+                "Failed to create model endpoint store connector because store connection is not defined."
+                " Trying use default/v3io."
+            )
+            model_endpoint_store = None
+            if store_connection_string:
+                model_endpoint_store = mlrun.model_monitoring.get_store_object(
+                    project=project, store_connection_string=store_connection_string
+                )
+        return model_endpoint_store
+
+    @staticmethod
+    def _enrich_model_endpoint_with_model_uri(
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        model_obj: mlrun.artifacts.ModelArtifact,
+    ):
+        """
+        Enrich the model endpoint object with the model uri from the model object. Instead of using the model uri that
+        includes the model object's version, we will use a unique reference to the model object that includes
+        the project, key, iter, and tree. This will allow us to handle future changes in the model object without
+        updating the model endpoint object.
+        In addition, we verify that the model object is of type `ModelArtifact`.
+
+        :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.
+        :param model_obj:         An object representing the model artifact.
+
+        :raise: `MLRunInvalidArgumentError` if the model object is not of type `ModelArtifact`.
+        """
+        mlrun.utils.helpers.verify_field_of_type(
+            field_name="model_endpoint.spec.model_uri",
+            field_value=model_obj,
+            expected_type=mlrun.artifacts.ModelArtifact,
+        )
+
+        # Update model_uri with a unique reference to handle future changes
+        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+            project=model_endpoint.metadata.project,
+            key=model_obj.key,
+            iter=model_obj.iter,
+            tree=model_obj.tree,
+        )
+        model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+        )

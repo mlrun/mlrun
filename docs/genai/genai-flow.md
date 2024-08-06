@@ -29,7 +29,7 @@ The implementation of a GenAI workflow is illustrated in the following figure:
 
 
 [MLRun's Function hub](https://www.mlrun.org/hub/functions) provides a collection of reusable functions 
-and assets that are optimized and tested to simplify and accelate the move to production.
+and assets that are optimized and tested to simplify and accelerate the move to production.
 
 - {ref}`genai-data-mgmt`
 - {ref}`genai-development`

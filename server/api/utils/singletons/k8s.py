@@ -595,21 +595,28 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 )
                 raise exc
 
-        secret_data = {}
+        # Create a copy of the k8s secret data, filtering out specified secrets if any
         if secrets:
+            secret_data = {
+                key: value
+                for key, value in k8s_secret.data.items()
+                if key not in secrets
+            }
+        else:
             secret_data = k8s_secret.data.copy()
-            for secret in secrets:
-                secret_data.pop(secret, None)
 
+        # Check if there were any changes to the secret data
         if len(secret_data) == len(k8s_secret.data):
             # No secrets were deleted
             return None
 
         if secret_data:
+            # Update the existing secret with modified data
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
             return mlrun.common.schemas.SecretEventActions.updated
 
+        # No secrets left, so delete the secret
         self.v1api.delete_namespaced_secret(secret_name, namespace)
         return mlrun.common.schemas.SecretEventActions.deleted
 

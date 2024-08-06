@@ -1,3 +1,4 @@
+(alerts)=
 # Alerts 
 
 Alerts are a mechanism for informing you about possible problem situations. The Alerts page in the UI shows the 

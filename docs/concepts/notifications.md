@@ -118,8 +118,7 @@ configured &mdash; the notification that includes `when=running` determines the 
 example te=he webook, credentials, etc.</br>
 If you only want notifications for pipelines in terminal states, you can opt out of the `pipeline started` notification by using:
 ```python
-project.run(..., 
-	send_start_notification=False)
+project.run(..., send_start_notification=False)
 ```
 
 ### Remote pipeline notifications

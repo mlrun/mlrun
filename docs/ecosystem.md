@@ -66,8 +66,8 @@ This section lists the data stores, development tools, services, platforms, etc.
 ## CI/CD 
 
 - Jenkins 
-- Github Actions 
-- Gitlab CI/CD 
+- GitHub Actions 
+- GitLab CI/CD 
 - KFP
 
 ## Browser

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import abc
 import pickle
 from datetime import datetime
 
@@ -28,11 +29,21 @@ class BaseModel:
         columns = [column.key for column in mapper.columns if column.key not in exclude]
 
         def get_key_value(c):
+            # all (never say never) DB classes have "object" defined as "full_object"
+            if c == "object":
+                c = "full_object"
             if isinstance(getattr(self, c), datetime):
                 return c, getattr(self, c).isoformat()
             return c, getattr(self, c)
 
         return dict(map(get_key_value, columns))
+
+    @abc.abstractmethod
+    def get_identifier_string(self):
+        """
+        This method must be implemented by any subclass.
+        """
+        pass
 
 
 class HasStruct(BaseModel):
@@ -51,3 +62,10 @@ class HasStruct(BaseModel):
         exclude = exclude or []
         exclude.append("body")
         return super().to_dict(exclude, strip=strip)
+
+    @abc.abstractmethod
+    def get_identifier_string(self):
+        """
+        This method must be implemented by any subclass.
+        """
+        pass

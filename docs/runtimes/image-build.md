@@ -16,11 +16,11 @@ if one of the following is true:
 - Executed source code has changed, and the image has the code packaged in it - see
   [here](mlrun_jobs.html#deploy-build-the-function-container) for more details on source code, and using 
   {py:func}`~mlrun.runtimes.BaseRuntime.with_code()` to avoid re-building the image when the code has changed
-- The code runs nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
-  nuclio)
+- The code runs Nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
+  Nuclio)
 
 The build process in MLRun is based on [Kaniko](https://github.com/GoogleContainerTools/kaniko) and automated by MLRun -
-MLRun generates the dockerfile for the build process, and configures Kaniko with parameters needed for the build.
+MLRun generates the Dockerfile for the build process, and configures Kaniko with parameters needed for the build.
 
 Building images is done through functions provided by the {py:class}`~mlrun.projects.MlrunProject` class. By using 
 project functions, the same process is used to build and deploy a stand-alone function or functions serving as steps 
@@ -64,7 +64,7 @@ options that control and configure the build process.
 
 ### Specifying base image
 To use an existing image as the base image for building the image, set the image name in the `base_image` parameter.
-Note that this image serves as the base (dockerfile `FROM` property), and should not to be confused with the 
+Note that this image serves as the base (Dockerfile `FROM` property), and should not to be confused with the 
 resulting image name, as specified in the `image` parameter.
 
 ```python
@@ -91,7 +91,7 @@ project.build_function(
 )
 ```
 
-These commands are added as `RUN` operations to the dockerfile generating the image.
+These commands are added as `RUN` operations to the Dockerfile generating the image.
 
 ### MLRun package deployment
 The `with_mlrun` and `mlrun_version_specifier` parameters allow control over the inclusion of the MLRun package in the
@@ -200,9 +200,9 @@ Note that when building an image in MLRun, project secrets are automatically pas
 variables whose name is the secret key.
 
 
-## Deploying nuclio functions
-When using nuclio functions, the image build process is done by nuclio as part of the deployment of the function. 
-Most of the configurations mentioned in this page are available for nuclio functions as well. To deploy a nuclio 
+## Deploying Nuclio functions
+When using Nuclio functions, the image build process is done by Nuclio as part of the deployment of the function. 
+Most of the configurations mentioned in this page are available for Nuclio functions as well. To deploy a Nuclio 
 function, use {py:func}`~mlrun.projects.deploy_function()` instead of using 
 {py:func}`~mlrun.projects.build_function()` and {py:func}`~mlrun.projects.run_function()`.
 

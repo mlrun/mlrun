@@ -39,7 +39,7 @@ Use `run_function` as a `project` methods. For example:
     
    
 The first parameter in `run_function` is either the function name (in the project), or a function object if you want to 
-use functions that you imported/created ad hoc, or modify a function spec, for example:
+use functions that you imported/created or modify a function spec, for example:
 
     run_results = project.run_function(fn, params={"label_column": "label"}, inputs={'data': data_url})
 

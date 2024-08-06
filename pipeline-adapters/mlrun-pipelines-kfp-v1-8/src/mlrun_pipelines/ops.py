@@ -247,8 +247,8 @@ def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
-        enriched_node_selector = (
-            mlrun_pipelines.common.ops._enrich_node_selector_from_project(function)
+        enriched_node_selector = mlrun_pipelines.common.ops._enrich_node_selector(
+            function
         )
         if enriched_node_selector:
             container_op.node_selector = enriched_node_selector

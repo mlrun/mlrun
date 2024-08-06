@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import abc
 import pickle
 from datetime import datetime
 
@@ -37,6 +38,13 @@ class BaseModel:
 
         return dict(map(get_key_value, columns))
 
+    @abc.abstractmethod
+    def get_identifier_string(self):
+        """
+        This method must be implemented by any subclass.
+        """
+        pass
+
 
 class HasStruct(BaseModel):
     @property
@@ -54,3 +62,10 @@ class HasStruct(BaseModel):
         exclude = exclude or []
         exclude.append("body")
         return super().to_dict(exclude, strip=strip)
+
+    @abc.abstractmethod
+    def get_identifier_string(self):
+        """
+        This method must be implemented by any subclass.
+        """
+        pass

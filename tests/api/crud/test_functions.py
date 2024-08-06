@@ -72,9 +72,9 @@ def test_update_functions_with_api_gateway_url(db: sqlalchemy.orm.Session):
     # check that URL is there
     assert updated_function["status"]["external_invocation_urls"][0] == gw_host
 
-    # try to add existed external invocation URL
+    # try to add existing external invocation URL, with a slash at the end
     server.api.crud.Functions().add_function_external_invocation_url(
-        db, uri, project, gw_host
+        db, uri, project, gw_host + "/"
     )
     updated_function = server.api.crud.Functions().get_function(
         db, project=project, name=function_name, tag=function_tag

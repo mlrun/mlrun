@@ -80,11 +80,10 @@ def test_get_logger_pods_label_selector(
         # we want to ensure that if the data is None, the function doesn't raise an exception
         (None, {}, {}),
         (None, None, {}),
-
         # regular case
-        ({"a": "b"}, {"a": "c"}, {'a': 'Yw=='}),
-        (None, {"a": "b"}, {'a': 'Yg=='}),
-    ]
+        ({"a": "b"}, {"a": "c"}, {"a": "Yw=="}),
+        (None, {"a": "b"}, {"a": "Yg=="}),
+    ],
 )
 def test_store_secret(k8s_helper, secret_data, secrets, expected):
     k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(

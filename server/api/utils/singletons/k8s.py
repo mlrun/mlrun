@@ -496,6 +496,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param retry_on_conflict:   if True, will retry to create the secret for race conditions
         :return: returns the action if the secret was created or updated, None if nothing changed
         """
+        if not secrets:
+            # Nothing to store
+            return
+
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -535,8 +539,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
 
-        if not secrets:
-            return
         for key, value in secrets.items():
             secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
 

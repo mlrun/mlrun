@@ -520,7 +520,7 @@ def _deploy_nuclio_runtime(
         )
         try:
             monitoring_deployment.check_if_credentials_are_set(
-                with_upgrade_case_check=True
+                with_upgrade_case_check=True, client_version=client_version
             )
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:

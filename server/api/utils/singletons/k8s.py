@@ -595,9 +595,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 )
                 raise exc
 
-        if k8s_secret.data is None:
+        if not k8s_secret.data:
             logger.debug(
-                "Kubernetes secret data not found",
+                "No data found in the Kubernetes secret",
                 secret_name=secret_name,
             )
             return None

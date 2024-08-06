@@ -1285,15 +1285,15 @@ class TestModelEndpointWithManyFeatures(TestMLRunSystem):
         )
 
         # Generate a model with 500 features
-        X, y = make_classification(n_samples=1000, n_features=500, random_state=42)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, train_size=0.8, test_size=0.2, random_state=42
+        x, y = make_classification(n_samples=1000, n_features=500, random_state=42)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, train_size=0.8, test_size=0.2, random_state=42
         )
         model = LinearRegression()
-        model.fit(X_train, y_train)
-        X_test = pd.DataFrame(X_test, columns=[f"column_{i}" for i in range(500)])
+        model.fit(x_train, y_train)
+        x_test = pd.DataFrame(x_test, columns=[f"column_{i}" for i in range(500)])
         y_test = pd.DataFrame(y_test, columns=["label"])
-        training_set = pd.concat([X_test, y_test], axis=1)
+        training_set = pd.concat([x_test, y_test], axis=1)
 
         model_obj = project.log_model(
             key="model",

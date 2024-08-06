@@ -1244,6 +1244,46 @@ class TestProject(TestMLRunSystem):
         }
         self._create_and_validate_project_function_with_node_selector(project)
 
+    def _create_and_validate_spark_function_with_project_node_selectors(self, project):
+        function_name = "spark-function"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
+
+        code_path = str(self.assets_path / "spark.py")
+        spark_function = mlrun.code_to_function(
+            name=function_name,
+            kind="spark",
+            handler="handler",
+            project=project.name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        spark_function.with_driver_limits(cpu="1300m")
+        spark_function.with_driver_requests(cpu=1, mem="512m")
+
+        spark_function.with_executor_limits(cpu="1400m")
+        spark_function.with_executor_requests(cpu=1, mem="512m")
+
+        spark_function.with_node_selection(
+            node_selector={
+                function_label_name: function_label_val,
+                function_override_label: function_override_val,
+            }
+        )
+        spark_function.spec.replicas = 2
+        spark_function.with_igz_spark()
+
+        spark_run = spark_function.run(auto_build=True)
+        assert spark_run.status.state == RunStates.completed
+
+        # Verify that the node selector is correctly enriched on job object
+        assert spark_run.spec.node_selector == {
+            **project.spec.default_function_node_selector,
+            function_override_label: function_override_val,
+            function_label_name: function_label_val,
+        }
+
     def test_project_default_function_node_selector(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
         project_label_to_remove, project_label_to_remove_val = (
@@ -1267,8 +1307,9 @@ class TestProject(TestMLRunSystem):
             project_label_to_remove: project_label_to_remove_val,
         }
 
-        self._create_and_validate_project_function_with_node_selector(project)
-        self._create_and_validate_mpi_function_with_node_selector(project)
+        # self._create_and_validate_project_function_with_node_selector(project)
+        # self._create_and_validate_mpi_function_with_node_selector(project)
+        self._create_and_validate_spark_function_with_project_node_selectors(project)
 
     def test_project_build_image(self):
         name = "test-build-image"
@@ -1297,10 +1338,6 @@ class TestProject(TestMLRunSystem):
 
         run_result = project.run_function("scores", params={"text": "good morning"})
         assert run_result.output("score")
-
-
-    def test_spark_with_node_selectors(self):
-        pass
 
     def test_project_build_config_export_import(self):
         # Verify that the build config is exported properly by the project, and a new project loaded from it

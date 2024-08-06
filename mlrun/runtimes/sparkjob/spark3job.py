@@ -523,8 +523,9 @@ class Spark3Runtime(KubejobRuntime):
                 "Setting affinity is not supported for spark runtime"
             )
         self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
-        self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
-        # super().with_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_executor_node_selection(
+            node_name, node_selector, affinity, tolerations
+        )
 
     def with_driver_node_selection(
         self,

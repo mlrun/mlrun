@@ -1174,6 +1174,7 @@ class TestProject(TestMLRunSystem):
 
         # Verify that the node selector is correctly enriched on job object
         assert job.spec.node_selector == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project.spec.default_function_node_selector,
             function_override_label: function_override_val,
             function_label_name: function_label_val,
@@ -1216,6 +1217,7 @@ class TestProject(TestMLRunSystem):
 
         # Verify that the node selector is correctly enriched on job object
         assert mpijob_run.spec.node_selector == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project.spec.default_function_node_selector,
             function_override_label: function_override_val,
             function_label_name: function_label_val,

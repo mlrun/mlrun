@@ -77,8 +77,7 @@ Request body:
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
 - **inputs**: Inputs for a model, where each data point should be provided as a list. 
-Each data point can be extracted from different features with varying types. 
-For convenience, users can also pass a list of lists to enable batch processing.
+Each data point can be extracted from different features with varying types.
   1. **Single Data Point Input:** 
      - Accepts a list representing a single data point, which can include features of different types.
      - Example: `[feature1, feature2, feature3, ...]`
@@ -92,13 +91,7 @@ with each data point containing features of different types.
 
 - **outputs:** Optional, requested output values.
 
-Let me know if there's anything else you'd like to add!
 ## infer_dict / predict_dict
-- This API is particularly helpful when the user does not remember the order of the features.
-- The API can be used only if the model was logged with a schema.
-- When using this API, the predict method of the model server will still receive a 
-list of lists with the features in the correct order.
-
 
     POST /v2/models/<model>[/versions/{VERSION}]/infer_dict
 
@@ -124,6 +117,12 @@ This API support only batch mode.
      - Allows a list of dictionaries for processing multiple data points simultaneously, with each data point containing features of different types.
      - Example: `[{feature1a: value1a, feature2a: value2a, feature3a: value3a, ...} ..]`
 - **outputs:** Optional, requested output values.
+
+### Additional Information:
+- This API is particularly helpful when the user does not remember the order of the features.
+- The API can be used only if the model was logged with a schema.
+- When using this API, the predict method of the model server will still receive a 
+list of lists with the features in the correct order.
 
 ```{note} You can also send binary data to the function, for example, a JPEG image. The serving engine pre-processor 
 detects it based on the HTTP content-type and converts it to the above request structure, placing the 

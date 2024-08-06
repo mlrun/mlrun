@@ -15,6 +15,7 @@
 import tempfile
 import unittest.mock
 import uuid
+from datetime import datetime, timedelta
 from http import HTTPStatus
 
 import deepdiff
@@ -24,6 +25,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+import mlrun.utils
+import server.api.db.sqldb.models
 from mlrun.common.constants import MYSQL_MEDIUMBLOB_SIZE_BYTES
 
 PROJECT = "prj"
@@ -160,22 +163,7 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
 
 def test_create_artifact(db: Session, unversioned_client: TestClient):
     _create_project(unversioned_client, prefix="v1")
-    data = {
-        "kind": "artifact",
-        "metadata": {
-            "description": "",
-            "labels": {},
-            "key": "some-key",
-            "project": PROJECT,
-            "tree": "some-tree",
-        },
-        "spec": {
-            "db_key": "some-key",
-            "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "memory://aaa/aaa",
-        },
-        "status": {},
-    }
+    data = _generate_artifact_body(tree="some-tree")
     url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT)
     resp = unversioned_client.post(
         url,
@@ -280,6 +268,38 @@ def test_delete_artifact_data_default_deletion_strategy(
         delete_artifact_data.assert_not_called()
         delete_artifact_data.reset_mock()
         assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_artifact_with_uid(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client)
+
+    # create an artifact
+    data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+
+    # get the artifact to extract the created uid
+    artifacts_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+
+    # delete the artifact by uid
+    artifact_uid = artifacts[0]["metadata"]["uid"]
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_uid = url + f"?object-uid={artifact_uid}"
+    resp = unversioned_client.delete(url_with_uid)
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+    # verify the artifact was deleted
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 0
 
 
 @pytest.mark.parametrize(
@@ -413,22 +433,7 @@ def test_list_artifacts_with_limits(
     _create_project(unversioned_client, prefix="v1")
 
     for i in range(list_limit + 1):
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api"},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body()
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -456,22 +461,7 @@ def test_list_artifacts_with_producer_uri(
     producer_uri_2 = f"{PROJECT}/def"
     producer_uris = [producer_uri_1, producer_uri_1, producer_uri_2, ""]
     for producer_uri in producer_uris:
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body(producer={"kind": "api", "uri": producer_uri})
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -765,6 +755,153 @@ def test_store_oversized_artifact(
     assert resp.status_code == expected_status_code
 
 
+def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client, prefix="v1")
+    t1 = datetime(2020, 2, 16)
+    t2 = t1 + timedelta(days=7)
+    t3 = t2 + timedelta(days=7)
+    start = datetime.now()
+
+    key1 = "key1"
+    key2 = "key2"
+    key3 = "key3"
+    key4 = "key4"
+    old_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key1,
+        project=PROJECT,
+        created=t1,
+        updated=t1,
+        full_object={
+            "metadata": {
+                "key": key1,
+            }
+        },
+    )
+    recent_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key2,
+        project=PROJECT,
+        created=t2,
+        updated=t2,
+        full_object={
+            "metadata": {
+                "key": key2,
+            }
+        },
+    )
+    new_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key3,
+        project=PROJECT,
+        created=start,
+        updated=start,
+        full_object={
+            "metadata": {
+                "key": key3,
+            }
+        },
+    )
+    recently_updated_artifact_record = server.api.db.sqldb.models.ArtifactV2(
+        key=key4,
+        project=PROJECT,
+        created=t2,
+        updated=t3,
+        full_object={
+            "metadata": {
+                "key": key4,
+            }
+        },
+    )
+    for artifact in [
+        old_artifact_record,
+        recent_artifact_record,
+        new_artifact_record,
+        recently_updated_artifact_record,
+    ]:
+        db.add(artifact)
+        db.commit()
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(t2)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 3, "since t2 filter did not return 3 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key2, key3, key4].sort()
+    ), "since t2 filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path,
+        params={
+            "since": mlrun.utils.datetime_to_iso(t2),
+            "until": mlrun.utils.datetime_to_iso(t3),
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2, "since t2 until t3 filter did not return 2 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key2, key4].sort()
+    ), "since t2 until t3 filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path,
+        params={
+            "since": mlrun.utils.datetime_to_iso(t3),
+            "until": mlrun.utils.datetime_to_iso(start),
+        },
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2, "since t3 until start filter did not return 2 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key3, key4].sort()
+    ), "since t3 until start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(start)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1, "since start filter did not return 1 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key4].sort()
+    ), "since start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"until": mlrun.utils.datetime_to_iso(start)}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 4, "until start filter did not return 4 artifacts"
+    artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+    assert (
+        artifact_keys.sort() == [key1, key2, key3, key4].sort()
+    ), "until start filter returned the wrong artifacts"
+
+    artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(
+        artifact_path, params={"since": mlrun.utils.datetime_to_iso(datetime.now())}
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 0, "since now filter returned artifacts unexpectedly"
+
+
 def _create_project(
     client: TestClient, project_name: str = PROJECT, prefix: str = None
 ):
@@ -778,3 +915,37 @@ def _create_project(
     resp = client.post(url, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
+
+
+def _generate_artifact_body(
+    key=KEY,
+    project=PROJECT,
+    tree=None,
+    tag=None,
+    body=None,
+    producer=None,
+):
+    tree = tree or str(uuid.uuid4())
+    producer = producer or {"kind": "api", "uri": "my-uri:3000"}
+    data = {
+        "kind": "artifact",
+        "metadata": {
+            "description": "",
+            "labels": {},
+            "key": key,
+            "project": project,
+            "tree": tree,
+        },
+        "spec": {
+            "db_key": key,
+            "producer": producer,
+            "target_path": "memory://aaa/aaa",
+        },
+        "status": {},
+    }
+    if tag:
+        data["metadata"]["tag"] = tag
+    if body:
+        data["spec"] = {"body": body}
+
+    return data

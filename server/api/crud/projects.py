@@ -100,6 +100,7 @@ class Projects(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -117,7 +118,12 @@ class Projects(
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
-            self.delete_project_resources(session, name, auth_info=auth_info)
+            self.delete_project_resources(
+                session,
+                name,
+                auth_info=auth_info,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
@@ -142,6 +148,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        model_monitoring_access_key: str = None,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
@@ -175,7 +182,7 @@ class Projects(
                 project=name,
                 db_session=session,
                 auth_info=auth_info,
-                model_monitoring_access_key=None,
+                model_monitoring_access_key=model_monitoring_access_key,
             )
         )
 
@@ -198,6 +205,7 @@ class Projects(
             project_name=name,
             db_session=session,
             model_monitoring_applications=model_monitoring_applications,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
         if mlrun.mlconf.is_api_running_on_k8s():
@@ -206,7 +214,7 @@ class Projects(
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return server.api.utils.singletons.db.get_db().get_project(session, name)
 
     def list_projects(

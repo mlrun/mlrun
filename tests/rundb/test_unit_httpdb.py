@@ -185,16 +185,28 @@ def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
 
 def test_resolve_artifacts_to_tag_objects():
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-    artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
-    artifact.metadata.iter = 1
-    artifact.metadata.tree = "some-tree"
+    key = "some-key"
+    tree = "some-tree"
+    iteration = 1
+
+    artifact = mlrun.artifacts.base.Artifact(
+        metadata=mlrun.artifacts.base.ArtifactMetadata(
+            key=key,
+            tree=tree,
+            iter=iteration,
+        ),
+        spec=mlrun.artifacts.base.ArtifactSpec(
+            body="some-data",
+            db_key=key,
+        ),
+    )
 
     tag_objects = db._resolve_artifacts_to_tag_objects([artifact])
     assert len(tag_objects.identifiers) == 1
-    assert tag_objects.identifiers[0].key == "some-key"
-    assert tag_objects.identifiers[0].iter == 1
+    assert tag_objects.identifiers[0].key == key
+    assert tag_objects.identifiers[0].iter == iteration
     assert tag_objects.identifiers[0].kind == "artifact"
-    assert tag_objects.identifiers[0].producer_id == "some-tree"
+    assert tag_objects.identifiers[0].producer_id == tree
 
 
 @pytest.mark.parametrize(

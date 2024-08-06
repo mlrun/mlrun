@@ -44,6 +44,8 @@ from mlrun.utils.helpers import (
     verify_list_items_type,
 )
 
+STORE_PREFIX = "store://artifacts/dummy-project/dummy-db-key"
+
 
 def test_retry_until_successful_fatal_failure():
     original_exception = Exception("original")
@@ -1005,13 +1007,89 @@ def test_is_safe_path(basedir, path, is_symlink, is_valid):
     assert safe == is_valid
 
 
-def test_get_artifact_target():
+@pytest.mark.parametrize(
+    "kind, tag, target_path, expected",
+    [
+        ("artifact", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
+        ("artifact", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "artifact",
+            "latest",
+            "/path/to/artifact",
+            f"{STORE_PREFIX}:latest@dummy-tree",
+        ),
+        ("dataset", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
+        ("dataset", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("dataset", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("model", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
+        ("model", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("model", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("dir", "v1", "/path/to/artifact", "/path/to/artifact"),
+        ("table", "v1", "/path/to/artifact", "/path/to/artifact"),
+        ("plot", "v1", "/path/to/artifact", "/path/to/artifact"),
+    ],
+)
+def test_get_artifact_target(kind, tag, target_path, expected):
     item = {
-        "kind": "artifact",
+        "kind": kind,
         "spec": {
             "db_key": "dummy-db-key",
+            "target_path": target_path,
         },
-        "metadata": {"tree": "dummy-tree", "tag": "dummy-tag"},
+        "metadata": {"tree": "dummy-tree", "tag": tag},
     }
     target = mlrun.utils.get_artifact_target(item, project="dummy-project")
-    assert target == "store://artifacts/dummy-project/dummy-db-key:dummy-tag@dummy-tree"
+    assert target == expected
+
+
+def test_validate_single_def_handler_invalid_handler():
+    code = """
+def handler():
+    pass
+def handler():
+    pass
+"""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        mlrun.utils.validate_single_def_handler("mlrun", code)
+    assert str(exc.value) == (
+        "The code file contains a function named “handler“, which is reserved. "
+        + "Use a different name for your function."
+    )
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+def dummy_handler():
+    pass
+def handler():
+    pass
+""",
+        """
+def handler():
+    pass
+""",
+        """
+def handler():
+    pass
+def dummy_handler():
+    def handler():
+        pass
+    handler()
+""",
+        """
+# def handler():
+#     pass
+def handler():
+    pass
+""",
+    ],
+)
+def test_validate_single_def_handler_valid_handler(code):
+    try:
+        mlrun.utils.validate_single_def_handler("mlrun", code)
+    except mlrun.errors.MLRunInvalidArgumentError:
+        pytest.fail(
+            "validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly."
+        )

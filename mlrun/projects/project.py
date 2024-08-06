@@ -725,7 +725,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
             warnings.warn(
                 f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported in version 1.9.0."
+                "This behavior is deprecated and will not be supported from version 1.9.0."
             )
             logger.warn(error_message)
         elif allow_cross_project:
@@ -3781,7 +3781,7 @@ class MlrunProject(ModelObj):
 
 
         :param name: Return only functions with a specific name.
-        :param tag: Return function versions with specific tags.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
@@ -4063,6 +4063,12 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
+        if alert_data.project is not None and alert_data.project != self.metadata.name:
+            logger.warn(
+                "Project in alert does not match project in operation",
+                project=alert_data.project,
+            )
+        alert_data.project = self.metadata.name
         return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:

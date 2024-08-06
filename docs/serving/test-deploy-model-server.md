@@ -55,7 +55,7 @@ See the full [Model Server example](https://github.com/mlrun/functions/blob/mast
 If you want to use multiple versions for the same model, use `:` to separate the name from the version. 
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
-You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
+You should specify the `model_path` (url of the model artifact/dir) and the `class_name`
 (or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 

@@ -1015,7 +1015,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object-uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1051,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object-uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
@@ -1071,8 +1071,8 @@ class HTTPRunDB(RunDBInterface):
         project=None,
         tag=None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
@@ -1102,8 +1102,8 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
-        :param since: Not in use in :py:class:`HTTPRunDB`.
-        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
             ``None`` (default) return artifacts from all iterations.
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
@@ -1137,6 +1137,8 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "producer_uri": producer_uri,
             "limit": limit,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
@@ -1260,7 +1262,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
-        :param tag: Return function versions with specific tags.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Return functions that have specific labels assigned to them.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
@@ -1684,7 +1686,7 @@ class HTTPRunDB(RunDBInterface):
             last_log_timestamp = float(
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
-            if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+            if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
                 mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
                     func, resp.headers
                 )
@@ -3378,7 +3380,7 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
+            method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/model-monitoring-controller",
             params={
                 "base_period": base_period,

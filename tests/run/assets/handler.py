@@ -17,11 +17,16 @@ import os
 import mlrun
 
 
-def myhandler(context: mlrun.MLClientCtx, tag):
+def myhandler(context: mlrun.MLClientCtx, tag=None):
     print(f"Run: {context.name} (uid={context.uid})")
-    context.log_artifact(
-        "file_result", body=b"abc123", local_path="result.txt", tag=tag
-    )
+    artifact_params = {
+        "item": "file_result",
+        "body": b"abc123",
+        "local_path": "result.txt",
+    }
+    if tag:
+        artifact_params["tag"] = tag
+    context.log_artifact(**artifact_params)
 
 
 def handler2(context: mlrun.MLClientCtx):
@@ -31,6 +36,13 @@ def handler2(context: mlrun.MLClientCtx):
 def env_file_test(context: mlrun.MLClientCtx):
     context.log_result("ENV_ARG1", os.environ.get("ENV_ARG1"))
     context.log_result("kfp_ttl", mlrun.mlconf.kfp_ttl)
+
+
+def log_artifact_many_tags(context: mlrun.MLClientCtx):
+    body = b"abc123"
+    context.log_artifact("file_result", body=body, tag="v1")
+    context.log_artifact("file_result", body=body, tag="v2")
+    context.log_artifact("file_result", body=body, tag="v3")
 
 
 class MyCls:

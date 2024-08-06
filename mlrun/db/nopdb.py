@@ -178,7 +178,9 @@ class NopDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         pass
 
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     def tag_objects(

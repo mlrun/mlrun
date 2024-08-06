@@ -23,6 +23,8 @@ from sqlalchemy import (
     Text,
 )
 
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
+
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     FileTargetKind,
@@ -65,8 +67,8 @@ class ModelEndpointsBaseTable(BaseModel):
         EventFieldType.MONITORING_MODE,
         String(10),
     )
-    feature_stats = Column(EventFieldType.FEATURE_STATS, Text)
-    current_stats = Column(EventFieldType.CURRENT_STATS, Text)
+    feature_stats = Column(EventFieldType.FEATURE_STATS, MEDIUMTEXT)
+    current_stats = Column(EventFieldType.CURRENT_STATS, MEDIUMTEXT)
     feature_names = Column(EventFieldType.FEATURE_NAMES, Text)
     children = Column(EventFieldType.CHILDREN, Text)
     label_names = Column(EventFieldType.LABEL_NAMES, Text)
@@ -89,7 +91,7 @@ class ModelEndpointsBaseTable(BaseModel):
         String(255),
     )
     error_count = Column(EventFieldType.ERROR_COUNT, Integer)
-    metrics = Column(EventFieldType.METRICS, Text)
+    metrics = Column(EventFieldType.METRICS, MEDIUMTEXT)
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
         TIMESTAMP(timezone=True),  # TODO: migrate to DATETIME, see ML-6921
@@ -134,8 +136,8 @@ class ApplicationResultBaseTable(BaseModel):
     result_status = Column(ResultData.RESULT_STATUS, String(10))
     result_kind = Column(ResultData.RESULT_KIND, String(40))
     result_value = Column(ResultData.RESULT_VALUE, Float)
-    result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, Text)
-    current_stats = Column(ResultData.CURRENT_STATS, Text)
+    result_extra_data = Column(ResultData.RESULT_EXTRA_DATA, MEDIUMTEXT)
+    current_stats = Column(ResultData.CURRENT_STATS, MEDIUMTEXT)
 
 
 class ApplicationMetricsBaseTable(BaseModel):

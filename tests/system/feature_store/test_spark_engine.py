@@ -80,12 +80,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     """
 
     ds_profile = None
-    project_name = "fs-system-spark-engine"
+    project_name = "fs-system-spark-engine888"
     spark_service = ""
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = False
+    run_local = True
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -1899,12 +1899,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements = fstore.FeatureSet(
             "measurements_spark",
             engine="spark",
+            entities=[fstore.Entity(key)],
         )
         measurements.graph.to(
             MapValues(
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {False: "0", True: "1"},
+                    key: {
+                        "622-37-0180": "622-37-0180"
+                    },  # a workaround because can not drop entity on with_original_features =False
                 },
                 with_original_features=with_original_features,
             )
@@ -1929,6 +1933,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {False: "0", True: "1"},
+                    key: {
+                        "622-37-0180": "622-37-0180"
+                    },  # a workaround because can not drop entity on with_original_features =False
                 },
                 with_original_features=with_original_features,
             )
@@ -1962,11 +1969,30 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             spark_service=self.spark_service,
         )
         result = resp.to_dataframe()
-        result = result.drop(["bad_mapped", "hr_is_error_mapped"], axis=1)
-        if not with_original_features:
-            columns = ["bad", "hr_is_error"]
-            df = df[columns]
-        pd.testing.assert_frame_equal(df, result, check_dtype=False)
+        result.reset_index(drop=False, inplace=True)
+        if with_original_features:
+            result = result[["bad_mapped", "hr_is_error_mapped", f"{key}_mapped"]]
+            result.rename(
+                columns={
+                    "bad_mapped": "bad",
+                    "hr_is_error_mapped": "hr_is_error",
+                    f"{key}_mapped": key,
+                },
+                inplace=True,
+            )
+
+        columns = [key, "bad", "hr_is_error"]
+        df = df[columns]
+        df["bad"] = df["bad"].apply(lambda x: "one" if 0 <= x < 30 else "two")
+        df["hr_is_error"] = df["hr_is_error"].replace(False, "0").replace(True, "1")
+
+        # TODO delete when solved, due to ML-3646:
+        # df.drop("hr_is_error", axis=1, inplace=True)
+        # result.drop("hr_is_error", axis=1, inplace=True)
+
+        pd.testing.assert_frame_equal(
+            sort_df(df, [key, "bad"]), sort_df(result, [key, "bad"]), check_dtype=False
+        )
 
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.

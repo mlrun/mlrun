@@ -82,6 +82,7 @@ def test_get_logger_pods_label_selector(
         ({"key1": "value1", "key2": "value2"}, []),
         ({"key1": "value1", "key2": "value2"}, None),
         (None, ["key1"]),
+        ({}, ["key1"]),
     ],
 )
 def test_delete_secrets_no_changes(k8s_helper, k8s_secret_data, secrets_data):

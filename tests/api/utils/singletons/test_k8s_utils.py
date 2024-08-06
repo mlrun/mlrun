@@ -86,7 +86,9 @@ def test_get_logger_pods_label_selector(
         ({"key1": "value1", "key2": "value2"}, ["key3"]),
     ],
 )
-def test_delete_secrets_no_changes(k8s_helper, k8s_secret_data, secrets_data):
+def test_delete_secrets_no_changes_with_no_key_overlap(
+    k8s_helper, k8s_secret_data, secrets_data
+):
     k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
         data=k8s_secret_data
     )
@@ -119,7 +121,7 @@ def test_delete_secrets_secret_found_with_changes(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_not_called()
 
 
-def test_delete_secrets_delete_secret(k8s_helper):
+def test_delete_secrets_confirms_deletion_for_matching_keys(k8s_helper):
     secret_data = {"key1": "value1"}
     k8s_secret_mock = unittest.mock.MagicMock(data=secret_data)
     k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock

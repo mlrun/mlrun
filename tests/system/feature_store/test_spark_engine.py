@@ -80,12 +80,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     """
 
     ds_profile = None
-    project_name = "fs-system-spark-engine888"
+    project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
-    run_local = True
+    run_local = False
     use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -1985,10 +1985,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df = df[columns]
         df["bad"] = df["bad"].apply(lambda x: "one" if 0 <= x < 30 else "two")
         df["hr_is_error"] = df["hr_is_error"].replace(False, "0").replace(True, "1")
-
-        # TODO delete when solved, due to ML-3646:
-        # df.drop("hr_is_error", axis=1, inplace=True)
-        # result.drop("hr_is_error", axis=1, inplace=True)
 
         pd.testing.assert_frame_equal(
             sort_df(df, [key, "bad"]), sort_df(result, [key, "bad"]), check_dtype=False

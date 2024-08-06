@@ -94,31 +94,7 @@ def test_delete_secrets_no_changes_with_no_key_overlap(
     )
 
     result = k8s_helper.delete_secrets("my-secret", secrets_data)
-
     assert result is None
-    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace
-    )
-    k8s_helper.v1api.replace_namespaced_secret.assert_not_called()
-    k8s_helper.v1api.delete_namespaced_secret.assert_not_called()
-
-
-def test_delete_secrets_secret_found_with_changes(k8s_helper):
-    secret_data = {"key1": "value1", "key2": "value2"}
-    k8s_secret_mock = unittest.mock.MagicMock(data=secret_data)
-    k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock
-
-    result = k8s_helper.delete_secrets("my-secret", ["key1"])
-
-    assert result == mlrun.common.schemas.SecretEventActions.updated
-    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace
-    )
-    k8s_secret_mock.data = {"key2": "value2"}
-    k8s_helper.v1api.replace_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace, k8s_secret_mock
-    )
-    k8s_helper.v1api.delete_namespaced_secret.assert_not_called()
 
 
 def test_delete_secrets_confirms_deletion_for_matching_keys(k8s_helper):
@@ -129,10 +105,73 @@ def test_delete_secrets_confirms_deletion_for_matching_keys(k8s_helper):
     result = k8s_helper.delete_secrets("my-secret", ["key1"])
     assert result == mlrun.common.schemas.SecretEventActions.deleted
 
+
+def test_delete_secrets_secret_found_with_changes(k8s_helper):
+    secret_data = {"key1": "value1", "key2": "value2"}
+    k8s_secret_mock = unittest.mock.MagicMock(data=secret_data)
+    k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock
+
+    result = k8s_helper.delete_secrets("my-secret", ["key1"])
+    assert result == mlrun.common.schemas.SecretEventActions.updated
+
+    k8s_secret_mock.data = {"key2": "value2"}
+    k8s_helper.v1api.replace_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace, k8s_secret_mock
+    )
+
+
+@pytest.mark.parametrize(
+    "k8s_secret_data, secrets_data, expected_action, expected_secret_data",
+    [
+        (
+            {"key1": "value1", "key2": "value2"},
+            [],
+            None,
+            {"key1": "value1", "key2": "value2"},
+        ),
+        (
+            {"key1": "value1", "key2": "value2"},
+            None,
+            None,
+            {"key1": "value1", "key2": "value2"},
+        ),
+        (None, ["key1"], None, {}),
+        ({}, ["key1"], None, {}),
+        (
+            {"key1": "value1", "key2": "value2"},
+            ["key3"],
+            None,
+            {"key1": "value1", "key2": "value2"},
+        ),
+        (
+            {"key1": "value1"},
+            ["key1"],
+            mlrun.common.schemas.SecretEventActions.deleted,
+            {},
+        ),
+        (
+            {"key1": "value1", "key2": "value2"},
+            ["key1"],
+            mlrun.common.schemas.SecretEventActions.updated,
+            {"key2": "value2"},
+        ),
+    ],
+)
+def test_delete_secrets(
+    k8s_helper, k8s_secret_data, secrets_data, expected_action, expected_secret_data
+):
+    k8s_secret_mock = unittest.mock.MagicMock(data=k8s_secret_data)
+    k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock
+
+    result = k8s_helper.delete_secrets("my-secret", secrets_data)
+    assert result == expected_action
+
     k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
         "my-secret", k8s_helper.namespace
     )
-    k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace
-    )
-    k8s_helper.v1api.replace_namespaced_secret.assert_not_called()
+
+    if expected_action == mlrun.common.schemas.SecretEventActions.updated:
+        k8s_secret_mock.data = expected_secret_data
+        k8s_helper.v1api.replace_namespaced_secret.assert_called_once_with(
+            "my-secret", k8s_helper.namespace, k8s_secret_mock
+        )

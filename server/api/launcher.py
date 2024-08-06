@@ -280,7 +280,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             not runtime.spec.image
             and not runtime.requires_build()
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
-            and not runtime.skip_base_image_enrichment()
+            and not runtime.skip_image_enrichment()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind

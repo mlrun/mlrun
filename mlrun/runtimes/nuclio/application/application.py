@@ -508,7 +508,7 @@ class ApplicationRuntime(RemoteRuntime):
         # default max replicas is 4, we only need one replica for the reverse proxy
         reverse_proxy_func.spec.max_replicas = 1
 
-        # clear out the base image, so it won't be mlrun/mlrun
+        # the reverse proxy image should not be based on another image
         reverse_proxy_func.set_config("spec.build.baseImage", None)
         reverse_proxy_func.spec.image = ""
         reverse_proxy_func.spec.build.base_image = ""

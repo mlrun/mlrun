@@ -1,0 +1,164 @@
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+######################
+### Default Owners ###
+######################
+
+# The main owner of this repo is alonmr and the platform team,
+# any change that won't match a specific owner will automatically be assigned to them.
+# (The last match is the one that applies, keep that in mind when adding new lines)
+* @alonmr @mlrun/platform
+
+##############################################
+### CI, Automation, Packaging & Test Infra ###
+##############################################
+
+# CI, automation, packaging & test infra is owned by liranbg
+.dockerignore @liranbg
+.git-blame-ignore-revs @liranbg
+.gitignore @liranbg
+conda-arm64-requirements.txt @liranbg
+dependencies.py @liranbg
+dev-requirements.txt @liranbg
+extra-requirements.txt @liranbg
+Makefile @liranbg
+packages.py @liranbg
+pyproject.toml @liranbg
+requirements.txt @liranbg
+setup.py @liranbg
+.github/** @liranbg
+.run/** @liranbg
+automation/** @liranbg
+dockerfiles/** @liranbg
+tests/** @liranbg
+tests/**/test_*.py # owner left empty, the tests belong to the relevant component owner, not liranbg
+
+# administrative files are co-owned by liranbg and assaf758
+.licenserc.json @liranbg @assaf758
+LICENSE @liranbg @assaf758
+
+# This CODEOWNERS file is owned by quaark
+CODEOWNERS @quaark
+
+############
+### Docs ###
+############
+
+# The docs are co-owned by jillnogold (content) and rokatyy (build and deployment)
+docs/** @jillnogold
+CONTRIBUTING.md @jillnogold
+MANIFEST.in @jillnogold
+README.md @jillnogold
+docs/_static/** @rokatyy
+docs/_templates/** @rokatyy
+docs/conf.py @rokatyy
+docs/make.bat @rokatyy
+docs/Makefile @rokatyy
+docs/requirements.txt @rokatyy
+.readthedocs.yml @rokatyy
+.vale.ini @rokatyy
+
+##################
+### Deprecated ###
+##################
+
+# The examples and hack are deprecated and not owned by anyone
+examples/**
+hack/**
+
+#########################
+### Pipeline Adapters ###
+#########################
+
+# pipeline adapters is owned by adamdelman
+pipeline_adapters/** @adamdelman
+
+##############
+### Server ###
+##############
+
+# log collector is owned by TomerShor
+server/log_collector/** @TomerShor
+
+# api framework is owned by quaark
+# so quaark owns the server/api directory and all its subdirectories
+# any specific file that has a different owner should be listed explicitly
+server/api/** @quaark
+mlrun/api/** @quaark
+mlrun/common/schemas/** @quaark
+mlrun/common/formatters/** @quaark
+
+# server clients, server side runtimes and run monitoring are owned by alonmr
+server/api/common/runtime_handlers.py @alonmr
+server/api/utils/clients/** @alonmr
+server/api/utils/runtimes/** @alonmr
+server/api/runtime_handlers/** @alonmr
+
+# scheduling is co-owned by alonmr and roei3000b
+server/api/utils/scheduler.py @alonmr @roei3000b
+
+# projects are owned by yaelgen
+server/api/utils/projects/** @yaelgen
+server/api/utils/clients/iguazio.py @yaelgen
+
+# alerts, events and notifications are owned by TomerShor
+server/api/utils/events/** @TomerShor
+server/api/utils/notification_pusher.py @TomerShor
+
+#################
+### MLRun SDK ###
+#################
+
+# Main orchastration SDK is owned by alonmr
+mlrun/db/** @alonmr
+mlrun/launcher/** @alonmr
+mlrun/runtimes/** @alonmr
+
+# nuclio and serving runtimes are owned by gtopper
+mlrun/runtimes/nuclio/** @gtopper
+mlrun/runtimes/serving/** @gtopper
+
+# api gateway runtime is owned by rokatyy
+mlrun/runtimes/nuclio/api_gateway.py @rokatyy
+
+# application runtime is owned by TomerShor
+mlrun/runtimes/nuclio/application/** @TomerShor
+
+# alerts, notifications and cli are owned by TomerShor
+mlrun/alerts/** @TomerShor
+mlrun/utils/notifications/** @TomerShor
+__main__.py @TomerShor
+
+# artifacts are owned by moranbental
+mlrun/artifacts/** @moranbental
+
+# projects are owned by yaelgen
+mlrun/projects/** @yaelgen
+
+# pipelines are owned by adamdelman
+mlrun/projects/pipelines.py @adamdelman
+mlrun/projects/operations.py @adamdelman
+
+# data types, datastore, model monitoring and feature store are owned by data-flows team
+mlrun/data_types/** @mlrun/data-flows
+mlrun/datastore/** @mlrun/data-flows
+mlrun/model_monitoring/** @mlrun/data-flows
+mlrun/common/model_monitoring/** @mlrun/data-flows
+mlrun/feature_store/** @mlrun/data-flows
+
+# framewarks, packagers and trackers are owned by mle team
+mlrun/frameworks/** @mlrun/mle
+mlrun/package/** @mlrun/mle
+mlrun/track/** @mlrun/mle

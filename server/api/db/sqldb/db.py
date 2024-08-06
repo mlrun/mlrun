@@ -2692,22 +2692,27 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        project_summaries_to_update = []
-        for project_summary_schema in project_summaries:
-            # To avoid a race condition with the delete project flow where a project might be deleted
-            # after its summary has been queried but before the transaction is completed, we check
-            # that the project summary is not `None` after querying.
-            # This is why we cannot query all project summaries outside the loop.
-            query = self._query(
-                session, ProjectSummary, project=project_summary_schema.name
-            )
-            project_summary = query.one_or_none()
-            if project_summary:
-                project_summary.summary = project_summary_schema.dict()
-                project_summary.updated = datetime.now(timezone.utc)
-                project_summaries_to_update.append(project_summary)
+        summary_dict = {summary.name: summary.dict() for summary in project_summaries}
 
-        self._upsert(session, project_summaries_to_update)
+        # Query existing project summaries that match the provided project names
+        existing_summaries = (
+            session.query(ProjectSummary)
+            .filter(ProjectSummary.project.in_(summary_dict.keys()))
+            .all()
+        )
+
+        updated_summaries = []
+        for project_summary in existing_summaries:
+            project_summary.summary = summary_dict.get(project_summary.project)
+            project_summary.updated = datetime.now(timezone.utc)
+            updated_summaries.append(project_summary)
+
+        self._upsert(session, updated_summaries)
+
+        # To avoid race conditions where a project might be deleted after its summary is queried
+        # but before the transaction completes, we delete project summaries that do not have
+        # any associated projects.
+        self._delete_orphaned_summaries(session)
 
     async def get_project_resources_counters(
         self,
@@ -5922,3 +5927,17 @@ class SQLDB(DBInterface):
             query = query.limit(page_size).offset((page - 1) * page_size)
 
         return query
+
+    @staticmethod
+    def _delete_orphaned_summaries(session: Session):
+        """Delete project summaries that do not have associated projects."""
+        orphaned_summaries = (
+            session.query(ProjectSummary)
+            .outerjoin(Project, Project.name == ProjectSummary.project)
+            .filter(Project.id.is_(None))  # No associated project
+        )
+
+        for project in orphaned_summaries:
+            project.delete()
+
+        session.commit()

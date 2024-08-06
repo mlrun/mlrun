@@ -22,7 +22,6 @@ from sqlalchemy import (
     String,
     Text,
 )
-
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 
 from mlrun.common.schemas.model_monitoring import (

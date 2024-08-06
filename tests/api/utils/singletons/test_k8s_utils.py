@@ -17,9 +17,20 @@ import unittest.mock
 import pytest
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes
+import mlrun.common.schemas
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
+
+
+@pytest.fixture
+def k8s_helper():
+    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(
+        "test-namespace", silent=True
+    )
+    k8s_helper.v1api = unittest.mock.MagicMock()
+    return k8s_helper
 
 
 @pytest.mark.parametrize(
@@ -40,7 +51,7 @@ import server.api.utils.singletons.k8s
     ],
 )
 def test_get_logger_pods_label_selector(
-    monkeypatch, run_type, mpi_version, extra_selector
+    k8s_helper, monkeypatch, run_type, mpi_version, extra_selector
 ):
     monkeypatch.setattr(
         server.api.runtime_handlers.mpijob,
@@ -49,7 +60,6 @@ def test_get_logger_pods_label_selector(
     )
     uid = "test-uid"
     project = "test-project"
-    namespace = "test-namespace"
     selector = (
         f"{mlrun_constants.MLRunInternalLabels.mlrun_class},"
         f"{mlrun_constants.MLRunInternalLabels.project}={project},"
@@ -58,8 +68,43 @@ def test_get_logger_pods_label_selector(
     if extra_selector:
         selector += f",{extra_selector}"
 
-    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)
-    k8s_helper.list_pods.assert_called_once_with(namespace, selector=selector)
+    k8s_helper.list_pods.assert_called_once_with(
+        k8s_helper.namespace, selector=selector
+    )
+
+
+def test_delete_secrets_secret_found_no_changes(k8s_helper):
+    secret_data = {"key1": "value1", "key2": "value2"}
+    k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
+        data=secret_data
+    )
+
+    result = k8s_helper.delete_secrets("my-secret", [])
+
+    assert result is None
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace
+    )
+    k8s_helper.v1api.replace_namespaced_secret.assert_not_called()
+    k8s_helper.v1api.delete_namespaced_secret.assert_not_called()
+
+
+def test_delete_secrets_secret_found_with_changes(k8s_helper):
+    secret_data = {"key1": "value1", "key2": "value2"}
+    k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
+        data=secret_data
+    )
+
+    result = k8s_helper.delete_secrets("my-secret", ["key1"])
+
+    assert result == mlrun.common.schemas.SecretEventActions.updated
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace
+    )
+    k8s_helper.v1api.replace_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace, {"key2": "value2"}
+    )
+    k8s_helper.v1api.delete_namespaced_secret.assert_not_called()

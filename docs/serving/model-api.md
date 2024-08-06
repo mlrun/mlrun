@@ -3,7 +3,7 @@
 
 MLRun Serving follows the same REST API defined by Triton and [KFServing v2](https://github.com/kubeflow/kfserving/blob/master/docs/predict-api/v2/required_api.md).
 
-Nuclio also supports streaming protocols (Kafka, kinesis, MQTT, etc.). When streaming, the 
+Nuclio also supports streaming protocols (Kafka, Kinesis, MQTT, etc.). When streaming, the 
 `model` name and `operation` can be encoded inside the message body.
 
 The APIs are:
@@ -76,7 +76,7 @@ Request body:
 - **model**: Model to select (for streaming protocols without URLs).
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
-- **inputs**: List of input elements (numeric values, arrays, or dicts).
+- **inputs**: List of input elements (numeric values, arrays, or dictionaries).
 - **outputs:** Optional, requested output values.
 
 ```{note} You can also send binary data to the function, for example, a JPEG image. The serving engine pre-processor 

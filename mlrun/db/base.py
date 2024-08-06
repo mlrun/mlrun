@@ -242,9 +242,8 @@ class RunDBInterface(ABC):
             )
             artifact_identifiers.append(
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
-                    # we are passing tree as uid when storing an artifact, so if uid is not defined,
-                    # pass the tree as uid
+                    # we pass the db_key and not the key so the API will be able to find the artifact in the db
+                    key=mlrun.utils.get_in_artifact(artifact_obj, "db_key"),
                     uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
                     producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
@@ -690,8 +689,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        api_gateway: mlrun.common.schemas.APIGateway,
-        project: str = None,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            "mlrun.runtimes.nuclio.api_gateway.APIGateway",
+        ],
+        project: Optional[str] = None,
     ):
         pass
 

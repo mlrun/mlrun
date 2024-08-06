@@ -177,6 +177,11 @@ class SQLStoreBase(StoreBase):
         param table:     SQLAlchemy declarative table.
         :param criteria: A list of binary expressions that filter the query.
         """
+        if not self._engine.has_table(table.__tablename__):
+            logger.debug(
+                f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
+            )
+            return
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
             session.query(

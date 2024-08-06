@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Annotated, Optional
 
 import fastapi
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -93,6 +93,9 @@ async def enable_model_monitoring(
     deploy_histogram_data_drift_app: bool = True,
     rebuild_images: bool = False,
     fetch_credentials_from_sys_config: bool = False,
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -112,6 +115,7 @@ async def enable_model_monitoring(
     :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
                                               (controller, writer & stream).
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+    :param client_version:                    The client version.
 
     """
     MonitoringDeployment(
@@ -125,10 +129,11 @@ async def enable_model_monitoring(
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         rebuild_images=rebuild_images,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+        client_version=client_version,
     )
 
 
-@router.post("/model-monitoring-controller")
+@router.patch("/model-monitoring-controller")
 async def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
@@ -208,6 +213,9 @@ async def disable_model_monitoring(
     delete_histogram_data_drift_app: bool = True,
     delete_user_applications: bool = False,
     user_application_list: list[str] = None,
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     """
     Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -231,6 +239,7 @@ async def disable_model_monitoring(
                                                 Default all the applications.
                                                 Note: you have to set delete_user_applications to True
                                                 in order to delete the desired application.
+    :param client_version:                      The client version.
 
     """
     tasks = await MonitoringDeployment(
@@ -245,6 +254,7 @@ async def disable_model_monitoring(
         delete_user_applications=delete_user_applications,
         user_application_list=user_application_list,
         background_tasks=background_tasks,
+        client_version=client_version,
     )
     response.status_code = http.HTTPStatus.ACCEPTED.value
     return tasks

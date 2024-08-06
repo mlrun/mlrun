@@ -203,6 +203,7 @@ async def get_artifact(
     tag: str = None,
     iter: int = None,
     object_uid: str = Query(None, alias="object-uid"),
+    uid: str = Query(None),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -223,7 +224,7 @@ async def get_artifact(
         project,
         format_,
         producer_id=tree,
-        object_uid=object_uid,
+        object_uid=object_uid or uid,
     )
     return artifact
 
@@ -235,6 +236,13 @@ async def delete_artifact(
     tree: str = None,
     tag: str = None,
     object_uid: str = Query(None, alias="object-uid"),
+    # TODO: remove deprecated uid parameter in 1.9.0
+    # we support both uid and object-uid for backward compatibility
+    uid: str = Query(
+        None,
+        deprecated=True,
+        description="Use object-uid instead, will be removed in the 1.9.0",
+    ),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
     secrets: dict = None,
@@ -249,6 +257,7 @@ async def delete_artifact(
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         iteration=iteration,
+        object_uid=object_uid or uid,
     )
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -264,7 +273,7 @@ async def delete_artifact(
         key=key,
         tag=tag,
         project=project,
-        object_uid=object_uid,
+        object_uid=object_uid or uid,
         producer_id=tree,
         deletion_strategy=deletion_strategy,
         secrets=secrets,

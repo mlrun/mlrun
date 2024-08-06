@@ -208,13 +208,6 @@ class Alerts(
 
             self._states[alert.id] = state_obj
 
-        else:
-            logger.debug(
-                "The entity of the alert does not match the one in event",
-                name=alert.name,
-                event=event_data.entity.ids[0],
-            )
-
     def populate_event_cache(self, session: sqlalchemy.orm.Session):
         try:
             self._try_populate_event_cache(session)
@@ -233,7 +226,9 @@ class Alerts(
     def _get_alert_by_id_cached(cls):
         if not cls._alert_cache:
             cls._alert_cache = server.api.utils.lru_cache.LRUCache(
-                server.api.utils.singletons.db.get_db().get_alert_by_id, maxsize=1000
+                server.api.utils.singletons.db.get_db().get_alert_by_id,
+                maxsize=1000,
+                ignore_args_for_hash=[0],
             )
 
         return cls._alert_cache
@@ -244,6 +239,7 @@ class Alerts(
             cls._alert_state_cache = server.api.utils.lru_cache.LRUCache(
                 server.api.utils.singletons.db.get_db().get_alert_state_dict,
                 maxsize=1000,
+                ignore_args_for_hash=[0],
             )
         return cls._alert_state_cache
 

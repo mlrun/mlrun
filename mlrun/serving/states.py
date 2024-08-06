@@ -388,6 +388,9 @@ class BaseStep(ModelObj):
         """
         raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
+    def supports_termination(self):
+        return False
+
 
 class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
@@ -869,7 +872,8 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            if self.options.get("full_event", True):
+            full_event = self.options.get("full_event")
+            if full_event or full_event is None and self.next:
                 data = storey.utils.wrap_event_for_serialization(event, data)
             self._stream.push(data)
             event.terminated = True
@@ -1386,6 +1390,9 @@ class FlowStep(BaseStep):
 
         return step
 
+    def supports_termination(self):
+        return self.engine == "async"
+
 
 class RootFlowStep(FlowStep):
     """root flow step"""
@@ -1624,7 +1631,11 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
@@ -1678,7 +1689,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+    explicit_ack = (
+        is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    )
 
     # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(

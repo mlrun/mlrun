@@ -131,7 +131,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         return self._leader_follower.get_project(db_session, name)
 
     def list_projects(

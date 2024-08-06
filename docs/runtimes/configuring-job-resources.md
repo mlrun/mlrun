@@ -323,11 +323,16 @@ of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 Requires Nuclio v1.13.5 or higher.
 ```
 Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced 
-parameter mainly used in production deployments to isolate platform services from workloads. Node selection can be specified in the MLRun 
-and in the Nuclio service level, at the function level, and at the project level. Configurations defined at the function level take 
+parameter mainly used in production deployments to isolate platform services from workloads. You can assign a node or a node group for MLRun or Nuclio serviceservices, 
+for jobs executed by a service, and at the project level.  When specified, the 
+service/function/project can only run on nodes whose labels match the node selector entries configured for the specific service/function/project. 
+
+Configurations defined at the function level take 
 precedence over those at the project level. Configurations set at either the project or function level (or both) take precedence over 
 those at the service level: if any configuration is specified at the project or function level (or both), the service level 
 configuration is not considered.   
+
+If node selection is not specified, the selection criteria defaults to the Kubernetes default behavior: the service/function run on a random node.
 
 To illustrate this logic, consider the following cases:
 
@@ -342,8 +347,16 @@ while still incorporating any additional labels defined at the project level:
 - The function level specifies {"zone": "us-east1", "gpu": "true"}
 - The resulting configuration for the function is {"zone": "us-east1", "gpu": "true", "arch": "amd64"}
 
-Additionally, you can override and ignore (without node selectors defined at the project level from the function level by 
+```{Tip}
+You can always override and ignore (without node selectors defined at the project level from the function level) by 
 using an empty key (a key with no value), thereby completely canceling a specific node selector label.
+```
+### Best Practice
+
+Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
+For example, a Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
+(and doesn't benefit from being assigned to a GPU node). 
+A Spark Function includes an executor and a driver; the driver also does not benefit from a GPU node.
 
 ### SDK configuration
 
@@ -370,11 +383,13 @@ See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-- Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
-When you get to the **Resources** tab, add **Key:Value** pair(s). 
+- Configure node selection for individual MLRun jobs You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
+and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
-- Configure the node selection for a project in the Project page, under **Settings**, by adding **Key:Value** pairs.
+- Configure node selection on the function level in the **Projects | <project> | Settings**, by adding or removing 
+Key:Value pairs.
+
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 

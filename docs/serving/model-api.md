@@ -76,7 +76,53 @@ Request body:
 - **model**: Model to select (for streaming protocols without URLs).
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
-- **inputs**: List of input elements (numeric values, arrays, or dictionaries).
+- **inputs**: Inputs for a model, where each data point should be provided as a list. 
+Each data point can be extracted from different features with varying types. 
+For convenience, users can also pass a list of lists to enable batch processing.
+  1. **Single Data Point Input:** 
+     - Accepts a list representing a single data point, which can include features of different types.
+     - Example: `[feature1, feature2, feature3, ...]`
+  2. **Batch Input:**
+     - Allows a list of lists for processing multiple data points simultaneously, 
+with each data point containing features of different types.
+     - Example: `[[feature1a, feature2a, feature3a, ...], [feature1b, feature2b, feature3b, ...], ..]`
+
+  - Note: If the user wants to send an image as an input, it should be sent as a list of RGB lists. 
+  This format is only accepted in the **batch** case. For example: `[[[[R1, G1, B1], [R2, G2, B2], ...]],...]`
+
+- **outputs:** Optional, requested output values.
+
+Let me know if there's anything else you'd like to add!
+## infer_dict / predict_dict
+- This API is particularly helpful when the user does not remember the order of the features.
+- The API can be used only if the model was logged with a schema.
+- When using this API, the predict method of the model server will still receive a 
+list of lists with the features in the correct order.
+
+
+    POST /v2/models/<model>[/versions/{VERSION}]/infer_dict
+
+Request body:
+
+    {
+      "id" : $string #optional,
+      "model" : $string #optional
+      "data_url" : $string #optional
+      "parameters" : $parameters #optional,
+      "inputs" : [ $request_input, ... ],
+      "outputs" : [ $request_output, ... ] #optional
+    }
+
+- **id**: Unique Id of the request, if not provided a random value is provided.
+- **model**: Model to select (for streaming protocols without URLs).
+- **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
+- **parameters**: Optional request parameters.
+- **inputs**: Inputs for a model, where each data point should be provided as a dictionary. 
+Each data point can be extracted from different features with varying types. 
+This API support only batch mode.
+1**Batch Input:**
+     - Allows a list of dictionaries for processing multiple data points simultaneously, with each data point containing features of different types.
+     - Example: `[{feature1a: value1a, feature2a: value2a, feature3a: value3a, ...} ..]`
 - **outputs:** Optional, requested output values.
 
 ```{note} You can also send binary data to the function, for example, a JPEG image. The serving engine pre-processor 

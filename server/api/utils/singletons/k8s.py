@@ -489,7 +489,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         Store secrets in a kubernetes secret object
         :param secret_name: the project secret name
-        :param secrets:     the secrets to delete
+        :param secrets:     the secrets to create
         :param namespace:   k8s namespace
         :param type_:       k8s secret type
         :param labels:      k8s labels for the secret

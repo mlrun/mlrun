@@ -80,6 +80,7 @@ def test_get_logger_pods_label_selector(
     "k8s_secret_data,secrets_data",
     [
         ({"key1": "value1", "key2": "value2"}, []),
+        ({"key1": "value1", "key2": "value2"}, None),
         (None, ["key1"]),
     ],
 )

@@ -17,6 +17,7 @@ import unittest.mock
 import pytest
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
@@ -75,21 +76,33 @@ def test_get_logger_pods_label_selector(
 
 
 @pytest.mark.parametrize(
-    "secret_data,secrets,expected",
+    "secret_data,secrets,expected_data,expected_result",
     [
         # we want to ensure that if the data is None, the function doesn't raise an exception
-        (None, {}, {}),
-        (None, None, {}),
+        (None, {}, {}, None),
+        (None, None, {}, None),
         # regular case
-        ({"a": "b"}, {"a": "c"}, {"a": "Yw=="}),
-        (None, {"a": "b"}, {"a": "Yg=="}),
+        (
+            {"a": "b"},
+            {"a": "c"},
+            {"a": "Yw=="},
+            mlrun.common.schemas.SecretEventActions.updated,
+        ),
+        (
+            None,
+            {"a": "b"},
+            {"a": "Yg=="},
+            mlrun.common.schemas.SecretEventActions.updated,
+        ),
     ],
 )
-def test_store_secret(k8s_helper, secret_data, secrets, expected):
+def test_store_secret(k8s_helper, secret_data, secrets, expected_data, expected_result):
     k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
         data=secret_data
     )
     k8s_helper.v1api.replace_namespaced_secret = unittest.mock.MagicMock()
-    k8s_helper.store_secrets("my-secret", secrets)
-    data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
-    assert data == expected
+    result = k8s_helper.store_secrets("my-secret", secrets)
+    assert result == expected_result
+    if expected_data:
+        data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
+        assert data == expected_data

@@ -534,9 +534,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 raise exc
 
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
-        if secrets:
-            for key, value in secrets.items():
-                secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
+
+        if not secrets:
+            return
+        for key, value in secrets.items():
+            secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
 
         k8s_secret.data = secret_data
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)

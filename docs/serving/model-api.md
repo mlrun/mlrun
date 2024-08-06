@@ -77,7 +77,7 @@ Request body:
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
 - **inputs**: Inputs for a model, where each data point should be provided as a list. 
-Each data point can be extracted from different features with varying types.
+Each data point can be extracted from different features with varying types, the feature have to be serializable.
   1. **Single Data Point Input:** 
      - Accepts a list representing a single data point, which can include features of different types.
      - Example: `[feature1, feature2, feature3, ...]`
@@ -111,7 +111,7 @@ Request body:
 - **data_url**: Option to load the `inputs` from an external file/s3/v3io/.. object.
 - **parameters**: Optional request parameters.
 - **inputs**: Inputs for a model, where each data point should be provided as a dictionary. 
-Each data point can be extracted from different features with varying types. 
+Each data point can be extracted from different features with varying types, the feature have to be serializable. 
 This API support only batch mode.
 1**Batch Input:**
      - Allows a list of dictionaries for processing multiple data points simultaneously, with each data point containing features of different types.

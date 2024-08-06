@@ -54,8 +54,8 @@ The templates are cross-project objects. When generating an alert, the user must
 - MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
 - MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
 - MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- MM_APP_ANOMALY_DETECTED &mdash; 
-- MM_APP_ANOMALY_SUSPECTED &mdash; 
+- MM_APP_ANOMALY_DETECTED &mdash; An alert based on user-defined metrics/results.
+- MM_APP_ANOMALY_SUSPECTED &mdash; An alert based on user-defined metrics/results.
 - FAILED &mdash; The job failed.
 
 

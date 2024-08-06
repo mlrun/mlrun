@@ -305,7 +305,7 @@ class Pipelines(
         self,
         run: PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        kfp_client=None,
+        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
         if kfp_client:

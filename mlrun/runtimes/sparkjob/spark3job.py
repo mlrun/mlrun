@@ -14,6 +14,7 @@
 import typing
 
 import kubernetes.client
+from deprecated import deprecated
 from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.common.schemas.function
@@ -481,6 +482,16 @@ class Spark3Runtime(KubejobRuntime):
             "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
         }
 
+    @deprecated(
+        version="1.9.0",
+        reason=(
+            "'Due to Spark's restriction that node selectors "
+            "cannot be defined for both the application and driver/executor, "
+            "this method will be deprecated in 1.9.0. Use 'with_executor_node_selection()'"
+            " and 'with_driver_node_selection()' instead."
+        ),
+        category=FutureWarning,
+    )
     def with_node_selection(
         self,
         node_name: typing.Optional[str] = None,
@@ -511,7 +522,9 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting affinity is not supported for spark runtime"
             )
-        super().with_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
+        # super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
     def with_driver_node_selection(
         self,
@@ -565,9 +578,10 @@ class Spark3Runtime(KubejobRuntime):
                                 for details
         """
         if node_name:
-            raise NotImplementedError(
+            self.error = NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
+            raise self.error
         if affinity:
             self.spec.executor_affinity = affinity
         if node_selector:

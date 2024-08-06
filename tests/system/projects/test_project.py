@@ -1298,6 +1298,10 @@ class TestProject(TestMLRunSystem):
         run_result = project.run_function("scores", params={"text": "good morning"})
         assert run_result.output("score")
 
+
+    def test_spark_with_node_selectors(self):
+        pass
+
     def test_project_build_config_export_import(self):
         # Verify that the build config is exported properly by the project, and a new project loaded from it
         # can build default image directly without needing additional details.

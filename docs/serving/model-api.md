@@ -112,7 +112,7 @@ Request body:
 - **parameters**: Optional request parameters.
 - **inputs**: Inputs for a model, where each data point should be provided as a dictionary. 
 Each data point can be extracted from different features with varying types, the feature have to be serializable. 
-This API support only batch mode.
+This API supports only batch mode.
 1**Batch Input:**
      - Allows a list of dictionaries for processing multiple data points simultaneously, with each data point containing features of different types.
      - Example: `[{feature1a: value1a, feature2a: value2a, feature3a: value3a, ...} ..]`

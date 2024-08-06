@@ -485,10 +485,10 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.21.1",  # kaniko builder image
+            "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.18",
             # image for kaniko init container when docker registry is ECR
-            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
@@ -1166,6 +1166,7 @@ class Config:
                 )
             elif kind == "stream":  # return list for mlrun<1.6.3 BC
                 return [
+                    # TODO: remove the first stream in 1.9.0
                     mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                         project=project,
                         kind=kind,

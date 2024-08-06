@@ -46,3 +46,7 @@ REGISTRY_PASSWORD:
 
 # Optional - only required if asking to reset DB
 DB_USER:
+
+# Optional - relevant when working with multiple DATA_NODES and iguazio datanode registry
+# set to "true" if you want the image to be pushed only to a single registry specified in DOCKER_REGISTRY
+SKIP_MULTI_NODE_PUSH:

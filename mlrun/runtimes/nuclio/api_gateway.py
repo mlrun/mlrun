@@ -657,7 +657,7 @@ class APIGateway(ModelObj):
         host = self.spec.host
         if not self.spec.host.startswith("http"):
             host = f"https://{self.spec.host}"
-        return urljoin(host, self.spec.path)
+        return urljoin(host, self.spec.path).rstrip("/")
 
     @staticmethod
     def _generate_basic_auth(username: str, password: str):

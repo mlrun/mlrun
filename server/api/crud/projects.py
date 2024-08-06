@@ -114,6 +114,10 @@ class Projects(
                 session, name
             ):
                 return
+            # although we verify the project is empty before spawning the delete project background task, we still
+            # need to verify it here, if someone used this method directly with the restricted strategy.
+            # if the flow arrived here via the delete project background task, the project is already verified to be
+            # empty and the strategy was switched to 'cascading' so we won't arrive at this decision tree.
             self.verify_project_is_empty(session, name, auth_info)
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
@@ -151,8 +155,12 @@ class Projects(
         model_monitoring_access_key: str = None,
     ):
         # Delete schedules before runtime resources - otherwise they will keep getting created
+        # We skip notification secrets because, the entire project secret will be deleted later
+        # so there's no need to delete individual entries from the secret.
         server.api.utils.singletons.scheduler.get_scheduler().delete_schedules(
-            session, name
+            session,
+            name,
+            skip_notification_secrets=True,
         )
 
         # delete runtime resources
@@ -311,7 +319,7 @@ class Projects(
             format_=mlrun.common.formatters.ProjectFormat.name_only,
         )
 
-        results = await asyncio.gather(
+        project_counters, pipeline_counters = await asyncio.gather(
             server.api.utils.singletons.db.get_db().get_project_resources_counters(),
             self._calculate_pipelines_counters(),
         )
@@ -325,12 +333,12 @@ class Projects(
             project_to_recent_completed_runs_count,
             project_to_recent_failed_runs_count,
             project_to_running_runs_count,
-        ) = results[0]
+        ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
             project_to_recent_failed_pipelines_count,
             project_to_running_pipelines_count,
-        ) = results[1]
+        ) = pipeline_counters
 
         project_summaries = []
         for project_name in projects_output.projects:

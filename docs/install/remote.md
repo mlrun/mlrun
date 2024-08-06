@@ -202,7 +202,7 @@ edit box and expand it to edit the environment variables.
 
    > If the remote service is on an instance of the Iguazio AI Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
-#### Remote environment from VScode
+#### Remote environment from VSCode
 
 Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` 
 file that's stored in a `.vscode` folder in your workspace.

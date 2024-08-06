@@ -489,13 +489,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         Store secrets in a kubernetes secret object
         :param secret_name: the project secret name
-        :param secrets:     the secrets to delete
+        :param secrets:     the secrets to create
         :param namespace:   k8s namespace
         :param type_:       k8s secret type
         :param labels:      k8s labels for the secret
         :param retry_on_conflict:   if True, will retry to create the secret for race conditions
         :return: returns the action if the secret was created or updated, None if nothing changed
         """
+        if not secrets:
+            # Nothing to store
+            return
+
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -533,7 +537,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     )
                 raise exc
 
-        secret_data = k8s_secret.data.copy()
+        secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
+
         for key, value in secrets.items():
             secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
 
@@ -600,6 +605,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             secret_data = k8s_secret.data.copy()
             for secret in secrets:
                 secret_data.pop(secret, None)
+
+        if len(secret_data) == len(k8s_secret.data):
+            # No secrets were deleted
+            return None
 
         if secret_data:
             k8s_secret.data = secret_data

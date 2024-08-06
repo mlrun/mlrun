@@ -1893,13 +1893,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
         base_path = self.get_test_output_subdir_path()
-        csv_path_spark = f"{base_path}_spark"
-        csv_path_storey = f"{base_path}_storey.csv"
+        parquet_path_spark = f"{base_path}_spark"
+        parquet_path_storey = f"{base_path}_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
             engine="spark",
         )
         measurements.graph.to(
@@ -1911,20 +1909,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=with_original_features,
             )
         )
+        df = pd.read_parquet(self.get_pq_source_path())
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        targets = [ParquetTarget(name="parquet", path=parquet_path_spark)]
         measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        csv_path_spark = measurements.get_target_path(name="csv")
+        parquet_path_spark = measurements.get_target_path(name="parquet")
 
         measurements = fstore.FeatureSet(
             "measurements_storey",
             entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
         )
         measurements.graph.to(
             MapValues(
@@ -1935,14 +1933,40 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 with_original_features=with_original_features,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        targets = [
+            ParquetTarget(name="parquet", path=parquet_path_storey, partitioned=False)
+        ]
         measurements.ingest(
             source,
             targets,
         )
-        csv_path_storey = measurements.get_target_path(name="csv")
-        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+        parquet_path_storey = measurements.get_target_path(name="parquet")
+        self.read_parquet_and_assert(parquet_path_spark, parquet_path_storey)
+
+        vector = fstore.FeatureVector(
+            "vector",
+            ["measurements_spark.*"],
+        )
+
+        target = ParquetTarget(
+            "get_offline_target", path=f"{self.output_dir()}-get_offline_features"
+        )
+        resp = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=True,
+            run_config=fstore.RunConfig(
+                local=self.run_local, kind=None if self.run_local else "remote-spark"
+            ),
+            engine="spark",
+            spark_service=self.spark_service,
+        )
+        result = resp.to_dataframe()
+        result = result.drop(["bad_mapped", "hr_is_error_mapped"], axis=1)
+        if not with_original_features:
+            columns = ["bad", "hr_is_error"]
+            df = df[columns]
+        pd.testing.assert_frame_equal(df, result, check_dtype=False)
 
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.

@@ -2531,6 +2531,7 @@ class SQLDB(DBInterface):
             updated=datetime.now(timezone.utc),
         )
         objects_to_store.append(project_summary)
+        return project_summary
 
     @retry_on_conflict
     def store_project(

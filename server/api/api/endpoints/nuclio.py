@@ -364,9 +364,16 @@ def process_model_monitoring_secret(
             allow_internal_secrets=True,
         )
         if not secret_value:
-            project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
+            try:
+                project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                    db_session, project_name
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Failed to retrieve project owner, the project does not exist in Iguazio.",
+                    project_name=project_name,
+                )
+                raise
 
             secret_value = project_owner.access_key
             if not secret_value:

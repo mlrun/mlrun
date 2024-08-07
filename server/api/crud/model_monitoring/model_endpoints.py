@@ -556,14 +556,21 @@ class ModelEndpoints:
                     tsdb_connector = None
             if tsdb_connector:
                 tsdb_connector.delete_tsdb_resources()
-        # Delete model monitoring stream resources
-        self._delete_model_monitoring_stream_resources(
-            project_name=project_name,
-            db_session=db_session,
-            model_monitoring_applications=model_monitoring_applications,
-            stream_paths=stream_paths,
-            model_monitoring_access_key=model_monitoring_access_key,
-        )
+
+        try:
+            # Delete model monitoring stream resources
+            self._delete_model_monitoring_stream_resources(
+                project_name=project_name,
+                db_session=db_session,
+                model_monitoring_applications=model_monitoring_applications,
+                stream_paths=stream_paths,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "Project does not exist in Iguazio, skipping deletion of model monitoring stream resources",
+                project_name=project_name,
+            )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(

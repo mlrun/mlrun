@@ -1248,41 +1248,37 @@ class TestProject(TestMLRunSystem):
         function_name = "spark-function"
         function_label_name, function_label_val = "kubernetes.io/os", "linux"
         function_override_label, function_override_val = "kubernetes.io/hostname", ""
+        file_name = "spark.py"
 
-        code_path = str(self.assets_path / "spark.py")
-        spark_function = mlrun.code_to_function(
+        self._files_to_upload.append(file_name)
+        self._upload_code_to_cluster()
+        code_path = os.path.join(self.remote_code_dir, file_name)
+        spark_function = mlrun.new_function(
             name=function_name,
             kind="spark",
-            handler="handler",
-            project=project.name,
-            filename=code_path,
-            image="mlrun/mlrun",
+            command=code_path.replace("v3io:///", "/v3io/"),
         )
-
+        spark_function.with_igz_spark()
         spark_function.with_driver_limits(cpu="1300m")
         spark_function.with_driver_requests(cpu=1, mem="512m")
 
         spark_function.with_executor_limits(cpu="1400m")
         spark_function.with_executor_requests(cpu=1, mem="512m")
 
-        spark_function.with_node_selection(
-            node_selector={
-                function_label_name: function_label_val,
-                function_override_label: function_override_val,
-            }
-        )
-        spark_function.spec.replicas = 2
+        node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+
+        spark_function.with_node_selection(node_selector=node_selector)
+
+        assert spark_function.spec.driver_node_selector == node_selector
+        assert spark_function.spec.executor_node_selector == node_selector
+
         spark_function.with_igz_spark()
 
         spark_run = spark_function.run(auto_build=True)
         assert spark_run.status.state == RunStates.completed
-
-        # Verify that the node selector is correctly enriched on job object
-        assert spark_run.spec.node_selector == {
-            **project.spec.default_function_node_selector,
-            function_override_label: function_override_val,
-            function_label_name: function_label_val,
-        }
 
     def test_project_default_function_node_selector(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"

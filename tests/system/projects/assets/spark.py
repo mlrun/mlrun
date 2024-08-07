@@ -12,19 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from time import sleep
-
 from pyspark.sql import SparkSession
 
-from mlrun import get_or_create_ctx
+# build spark session
+spark = SparkSession.builder.appName("Spark job").getOrCreate()
 
-
-def handler():
-    context = get_or_create_ctx("spark-function")
-
-    # build spark session
-    spark = SparkSession.builder.appName("Spark job").getOrCreate()
-    sleep(60)
-    # log final report
-    context.log_result("spark_result", 1000)
-    spark.stop()
+spark.stop()

@@ -130,7 +130,6 @@ class ModelMonitoringWriter(StepToDict):
         project_name: str,
         result_kind: int,
     ) -> None:
-        logger.info("Sending an event")
         entity = mlrun.common.schemas.alert.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,
@@ -146,7 +145,9 @@ class ModelMonitoringWriter(StepToDict):
             entity=entity,
             value_dict=event_value,
         )
+        logger.info("Sending a drift event")
         mlrun.get_run_db().generate_event(event_kind, event_data)
+        logger.info("Drift event sent successfully")
 
     @staticmethod
     def _generate_alert_event_kind(
@@ -261,3 +262,5 @@ class ModelMonitoringWriter(StepToDict):
                 endpoint_id=endpoint_id,
                 attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
             )
+
+        logger.info("Model monitoring writer finished handling event")

@@ -502,7 +502,7 @@ class MonitoringDeployment:
                     project=self.project
                 ),
             )
-        ).respond()  # writer
+        )  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project

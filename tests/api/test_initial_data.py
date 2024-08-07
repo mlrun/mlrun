@@ -221,11 +221,10 @@ def test_migrate_project_summaries():
     server.api.initial_data._migrate_project_summaries(db, db_session)
 
     # Check that the project summary was migrated
-    migrated_project_summary = db.get_project_summary(
-        db_session, project.metadata.name
-    )
+    migrated_project_summary = db.get_project_summary(db_session, project.metadata.name)
 
     assert migrated_project_summary.name == project.metadata.name
+
 
 def _initialize_db_without_migrations() -> (
     tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]

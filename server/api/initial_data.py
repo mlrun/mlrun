@@ -36,7 +36,6 @@ import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
 from mlrun.artifacts.base import fill_artifact_object_hash
-from server.api.db.sqldb.models import ProjectSummary
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
 from mlrun.utils import (
@@ -46,6 +45,7 @@ from mlrun.utils import (
 )
 from server.api.db.init_db import init_db
 from server.api.db.session import close_session, create_session
+from server.api.db.sqldb.models import ProjectSummary
 
 
 def init_data(
@@ -893,7 +893,6 @@ def _migrate_project_summaries(db, db_session):
             summary=summary.dict(),
         )
         db._upsert(db_session, [project_summary], ignore=True)
-
 
 
 def main() -> None:

@@ -348,8 +348,9 @@ while still incorporating any additional labels defined at the project level:
 - The resulting configuration for the function is {"zone": "us-east1", "gpu": "true", "arch": "amd64"}
 
 ```{Tip}
-You can always override and ignore (without node selectors defined at the project level from the function level) by 
-using an empty key (a key with no value), thereby completely canceling a specific node selector label.
+YWhen creating a function within a project that has a `default_function_node_selector` defined, with {"label":"key"}, you can 
+override the node selector label defined at the project level by assigning the node selector {"label": ""} (a key with no value) 
+to your function.
 ```
 ### Best Practice
 

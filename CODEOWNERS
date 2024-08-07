@@ -166,7 +166,7 @@ mlrun/runtimes/** @alonmr
 ### Runtimes ###
 
 # databricks runtime is owned by tomerm-iguazio
-mlrun/runtimes/databricks_job/** @tomer-iguazio
+mlrun/runtimes/databricks_job/** @tomerm-iguazio
 
 # nuclio, serving and spark runtimes are owned by gtopper
 mlrun/runtimes/nuclio/** @gtopper

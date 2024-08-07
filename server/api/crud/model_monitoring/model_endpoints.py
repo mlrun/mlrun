@@ -558,7 +558,6 @@ class ModelEndpoints:
                 tsdb_connector.delete_tsdb_resources()
 
         try:
-            # Delete model monitoring stream resources
             self._delete_model_monitoring_stream_resources(
                 project_name=project_name,
                 db_session=db_session,

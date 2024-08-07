@@ -71,6 +71,7 @@ class _AppData:
     abs_path: str = field(init=False)
     results: set[str] = field(default_factory=set)  # only for testing
     metrics: set[str] = field(default_factory=set)  # only for testing
+    artifacts: set[str] = field(default_factory=set)  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -87,6 +88,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
+    artifacts={"features_drift_results", "drift_table_plot"},
 )
 
 
@@ -388,6 +390,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
+                artifacts={"evidently_report", "evidently_suite", "dashboard"},
             ),
         ]
 
@@ -544,6 +547,17 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert endpoints and len(endpoints) == 1
         return endpoints[0].metadata.uid
 
+    def _test_artifacts(self) -> None:
+        for app_data in self.apps_data:
+            if app_data.artifacts:
+                app_name = app_data.class_.NAME
+                self._logger.debug("Checking app artifacts", app_name=app_name)
+                for name in app_data.artifacts:
+                    key = f"{app_name}-logger_{name}"
+                    self._logger.debug("Checking artifact", key=key)
+                    # Test that the artifact can be fetched from the store
+                    self.project.get_artifact(key).to_dataitem().get()
+
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
         cls._logger.debug("Checking model endpoint", ep_id=ep_id)
@@ -623,6 +637,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
         self._test_predictions_table(ep_id)
 
+        self._test_artifacts()
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
@@ -656,6 +671,7 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
                     "with_training_set": True,
                 },
                 results={"data_drift_test"},
+                artifacts={"evidently_report", "evidently_suite", "dashboard"},
             ),
         ]
 

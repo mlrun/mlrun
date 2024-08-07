@@ -75,9 +75,9 @@ class Notification(pydantic.BaseModel):
     severity: NotificationSeverity
     when: list[str]
     condition: typing.Optional[str] = None
-    params: dict[str, typing.Any] = None
-    status: NotificationStatus = None
-    sent_time: typing.Union[str, datetime.datetime] = None
+    params: typing.Optional[dict[str, typing.Any]] = None
+    status: typing.Optional[NotificationStatus] = None
+    sent_time: typing.Optional[typing.Union[str, datetime.datetime]] = None
     secret_params: typing.Optional[dict[str, typing.Any]] = None
     reason: typing.Optional[str] = None
 

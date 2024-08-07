@@ -4437,7 +4437,8 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore)
 
-    def _commit(self, session, objects, ignore=False):
+    @staticmethod
+    def _commit(session, objects, ignore=False):
         def _try_commit_obj():
             try:
                 session.commit()
@@ -5928,16 +5929,23 @@ class SQLDB(DBInterface):
 
         return query
 
-    @staticmethod
-    def _delete_orphaned_summaries(session: Session):
+    def _delete_orphaned_summaries(self, session: Session):
         """Delete project summaries that do not have associated projects."""
         orphaned_summaries = (
             session.query(ProjectSummary)
             .outerjoin(Project, Project.name == ProjectSummary.project)
             .filter(Project.id.is_(None))  # No associated project
+            .all()
         )
 
-        for project in orphaned_summaries:
-            project.delete()
+        if orphaned_summaries:
+            projects_names = [summary.project for summary in orphaned_summaries]
+            logger.debug(
+                "Deleting project summaries that do not have associated projects",
+                projects=projects_names,
+            )
 
-        session.commit()
+            for project in orphaned_summaries:
+                session.delete(project)
+
+            self._commit(session, orphaned_summaries)

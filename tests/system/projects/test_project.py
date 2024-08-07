@@ -653,8 +653,8 @@ class TestProject(TestMLRunSystem):
             notification_steps={
                 # gen data function build step
                 "build": 1,
-                # workflow runner, gen data, summary, train, test and model testing steps
-                "run": 6,
+                # gen data, summary, train and test steps
+                "run": 4,
                 # serving step
                 "deploy": 1,
             },
@@ -1640,6 +1640,9 @@ class TestProject(TestMLRunSystem):
         )[0]
         notification_data_steps = {}
         for step in notification_data:
+            if not step.get("step_kind"):
+                # If there is not step_kind in the step, it means that it is the workflow runner, so we skip it
+                continue
             notification_data_steps.setdefault(step.get("step_kind"), 0)
             notification_data_steps[step.get("step_kind")] += 1
 

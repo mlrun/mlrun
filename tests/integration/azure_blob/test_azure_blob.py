@@ -289,13 +289,13 @@ class TestAzureBlob:
             temp_file.flush()
             temp_file.seek(0)
 
-            print(
+            logger.info(
                 f"azure test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
                 "seconds"
             )
             start_time = time.monotonic()
             data_item.upload(temp_file.name)
-            print(
+            logger.info(
                 f"azure test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
             )
             with tempfile.NamedTemporaryFile(
@@ -303,20 +303,25 @@ class TestAzureBlob:
             ) as temp_file_download:
                 start_time = time.monotonic()
                 data_item.download(temp_file_download.name)
-                print(
+                logger.info(
                     f"azure test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
                 )
                 with (
                     open(temp_file.name, "rb") as file1,
                     open(temp_file_download.name, "rb") as file2,
                 ):
+                    chunk_number = 1
                     while True:
                         chunk1 = file1.read(chunk_size)
                         chunk2 = file2.read(chunk_size)
-                        if chunk1 != chunk2:
-                            assert False
-                        elif not chunk1 and not chunk2:
+                        if not chunk1 and not chunk2:
                             break
+                        if chunk1 != chunk2:
+                            raise AssertionError(
+                                f"expected chunk different from the result."
+                                f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
+                            )
+                        chunk_number += 1
 
     @pytest.mark.parametrize(
         "auth_method ,use_datastore_profile", generated_pytest_parameters

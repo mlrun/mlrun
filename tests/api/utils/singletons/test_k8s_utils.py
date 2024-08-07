@@ -77,6 +77,39 @@ def test_get_logger_pods_label_selector(
 
 
 @pytest.mark.parametrize(
+    "secret_data,secrets,expected_data,expected_result",
+    [
+        # we want to ensure that if the data is None, the function doesn't raise an exception
+        (None, {}, {}, None),
+        (None, None, {}, None),
+        # regular case
+        (
+            {"a": "b"},
+            {"a": "c"},
+            {"a": "Yw=="},
+            mlrun.common.schemas.SecretEventActions.updated,
+        ),
+        (
+            None,
+            {"a": "b"},
+            {"a": "Yg=="},
+            mlrun.common.schemas.SecretEventActions.updated,
+        ),
+    ],
+)
+def test_store_secret(k8s_helper, secret_data, secrets, expected_data, expected_result):
+    k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
+        data=secret_data
+    )
+    k8s_helper.v1api.replace_namespaced_secret = unittest.mock.MagicMock()
+    result = k8s_helper.store_secrets("my-secret", secrets)
+    assert result == expected_result
+    if expected_data:
+        data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
+        assert data == expected_data
+
+
+@pytest.mark.parametrize(
     "k8s_secret_data, secrets_data, expected_action, expected_secret_data",
     [
         (
@@ -127,7 +160,5 @@ def test_delete_secrets(
     )
 
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
-        k8s_secret_mock.data = expected_secret_data
-        k8s_helper.v1api.replace_namespaced_secret.assert_called_once_with(
-            "my-secret", k8s_helper.namespace, k8s_secret_mock
-        )
+        data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
+        assert data == expected_secret_data

@@ -709,9 +709,7 @@ class RemoteRuntime(KubeResource):
 
     def skip_image_enrichment(self):
         # make sure the API does not enrich the base image if the function is not a python function
-        return (
-            self.spec.nuclio_runtime is None or "python" not in self.spec.nuclio_runtime
-        )
+        return self.spec.nuclio_runtime and "python" not in self.spec.nuclio_runtime
 
     def _get_state(
         self,

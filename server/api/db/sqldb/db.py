@@ -2692,27 +2692,48 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
+        """
+        This method updates the summaries of projects that have associated projects in the database
+        and removes project summaries that no longer have associated projects.
+        """
+
         summary_dict = {summary.name: summary.dict() for summary in project_summaries}
 
-        # Query existing project summaries that match the provided project names
-        existing_summaries = (
+        # Create a query for project summaries with associated projects
+        existing_summaries_query = (
             session.query(ProjectSummary)
+            .outerjoin(Project, Project.name == ProjectSummary.project)
             .filter(ProjectSummary.project.in_(summary_dict.keys()))
-            .all()
         )
 
-        updated_summaries = []
-        for project_summary in existing_summaries:
+        associated_summaries = existing_summaries_query.filter(
+            Project.id.is_not(None)
+        ).all()
+
+        # Update the summaries of projects that have associated projects
+        for project_summary in associated_summaries:
             project_summary.summary = summary_dict.get(project_summary.project)
             project_summary.updated = datetime.now(timezone.utc)
-            updated_summaries.append(project_summary)
-
-        self._upsert(session, updated_summaries)
+            session.add(project_summary)
 
         # To avoid race conditions where a project might be deleted after its summary is queried
         # but before the transaction completes, we delete project summaries that do not have
         # any associated projects.
-        self._delete_orphaned_summaries(session)
+        orphaned_summaries = existing_summaries_query.filter(
+            Project.id.is_(None)
+        ).all()  # No associated project
+
+        if orphaned_summaries:
+            projects_names = [summary.project for summary in orphaned_summaries]
+            logger.debug(
+                "Deleting project summaries that do not have associated projects",
+                projects=projects_names,
+            )
+
+            for project in orphaned_summaries:
+                session.delete(project)
+
+        self._commit(session, associated_summaries + orphaned_summaries)
 
     async def get_project_resources_counters(
         self,
@@ -5928,24 +5949,3 @@ class SQLDB(DBInterface):
             query = query.limit(page_size).offset((page - 1) * page_size)
 
         return query
-
-    def _delete_orphaned_summaries(self, session: Session):
-        """Delete project summaries that do not have associated projects."""
-        orphaned_summaries = (
-            session.query(ProjectSummary)
-            .outerjoin(Project, Project.name == ProjectSummary.project)
-            .filter(Project.id.is_(None))  # No associated project
-            .all()
-        )
-
-        if orphaned_summaries:
-            projects_names = [summary.project for summary in orphaned_summaries]
-            logger.debug(
-                "Deleting project summaries that do not have associated projects",
-                projects=projects_names,
-            )
-
-            for project in orphaned_summaries:
-                session.delete(project)
-
-            self._commit(session, orphaned_summaries)

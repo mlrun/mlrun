@@ -884,15 +884,14 @@ def _migrate_project_summaries(db, db_session):
     projects = db.list_projects(
         db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )
-    for project_name in projects.projects:
-        summary = mlrun.common.schemas.ProjectSummary(
-            name=project_name,
-        )
-        project_summary = ProjectSummary(
+    project_summaries = [
+        ProjectSummary(
             project=project_name,
-            summary=summary.dict(),
+            summary=mlrun.common.schemas.ProjectSummary(name=project_name).dict(),
         )
-        db._upsert(db_session, [project_summary], ignore=True)
+        for project_name in projects.projects
+    ]
+    db._upsert(db_session, project_summaries, ignore=True)
 
 
 def main() -> None:

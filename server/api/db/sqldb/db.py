@@ -2496,7 +2496,9 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     # ---- Projects ----
-    def create_project(self, session: Session, project: mlrun.common.schemas.Project):
+    def create_project(
+        self, session: Session, project: mlrun.common.schemas.Project, with_summary=True
+    ):
         logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.utcnow()
         project.metadata.created = created
@@ -2514,15 +2516,19 @@ class SQLDB(DBInterface):
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
 
-        summary = mlrun.common.schemas.ProjectSummary(
-            name=project.metadata.name,
-        )
-        project_summary = ProjectSummary(
-            project=project.metadata.name,
-            summary=summary.dict(),
-            updated=datetime.now(timezone.utc),
-        )
-        self._upsert(session, [project_record, project_summary])
+        objects_to_save = [project_record]
+        if with_summary:
+            summary = mlrun.common.schemas.ProjectSummary(
+                name=project.metadata.name,
+            )
+            project_summary = ProjectSummary(
+                project=project.metadata.name,
+                summary=summary.dict(),
+                updated=datetime.now(timezone.utc),
+            )
+            objects_to_save.append(project_summary)
+
+        self._upsert(session, objects_to_save)
 
     @retry_on_conflict
     def store_project(

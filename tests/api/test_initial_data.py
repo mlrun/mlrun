@@ -215,7 +215,7 @@ def test_migrate_project_summaries():
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
     )
-    db.create_project(db_session, project)
+    db.create_project(db_session, project, with_summary=False)
 
     # Migrate the project summaries
     server.api.initial_data._migrate_project_summaries(db, db_session)

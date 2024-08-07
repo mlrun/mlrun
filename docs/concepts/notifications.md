@@ -115,7 +115,7 @@ project.run(..., notifications=[notification])
 
 For pipelines that have configured notifications, MLRun always sends a `pipeline started` notification. Assuming you have a few notifications 
 configured &mdash; the notification that includes `when=running` determines the parameters for the `pipeline started` notification, for 
-example te=he webook, credentials, etc.</br>
+example the webook, credentials, etc.</br>
 If you only want notifications for pipelines in terminal states, you can opt out of the `pipeline started` notification by using:
 ```python
 project.run(..., send_start_notification=False)

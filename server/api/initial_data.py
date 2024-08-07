@@ -36,6 +36,7 @@ import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
 from mlrun.artifacts.base import fill_artifact_object_hash
+from server.api.db.sqldb.models import ProjectSummary
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
 from mlrun.utils import (
@@ -138,7 +139,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 6
+latest_data_version = 7
 
 
 def update_default_configuration_data():
@@ -242,6 +243,9 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_5_data_migrations(db, db_session)
             if current_data_version < 6:
                 _perform_version_6_data_migrations(db, db_session)
+            if current_data_version < 7:
+                _perform_version_7_data_migrations(db, db_session)
+
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -865,6 +869,31 @@ def _migrate_model_monitoring_jobs(db, db_session):
         project="*",
         names=["model-monitoring-controller", "model-monitoring-batch"],
     )
+
+
+def _perform_version_7_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_project_summaries(db, db_session)
+
+
+def _migrate_project_summaries(db, db_session):
+    # Here we want to iterate other all projects and create the related project summary.
+    # We do this because we create ProjectSummary record only when creating project.
+    # Because we upgrade from a version that doesn't have ProjectSummary, we need to create them manually now.
+    projects = db.list_projects(
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
+    )
+    for project_name in projects.projects:
+        summary = mlrun.common.schemas.ProjectSummary(
+            name=project_name,
+        )
+        project_summary = ProjectSummary(
+            project=project_name,
+            summary=summary.dict(),
+        )
+        db._upsert(db_session, [project_summary], ignore=True)
+
 
 
 def main() -> None:

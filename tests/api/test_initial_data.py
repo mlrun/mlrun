@@ -90,6 +90,10 @@ def test_perform_data_migrations_from_first_version():
         server.api.initial_data._perform_version_6_data_migrations
     )
     server.api.initial_data._perform_version_6_data_migrations = unittest.mock.Mock()
+    original_perform_version_7_data_migrations = (
+        server.api.initial_data._perform_version_7_data_migrations
+    )
+    server.api.initial_data._perform_version_7_data_migrations = unittest.mock.Mock()
 
     # perform migrations
     server.api.initial_data._perform_data_migrations(db_session)
@@ -102,6 +106,7 @@ def test_perform_data_migrations_from_first_version():
     server.api.initial_data._perform_version_4_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_6_data_migrations.assert_called_once()
+    server.api.initial_data._perform_version_7_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         server.api.initial_data.latest_data_version
@@ -122,6 +127,9 @@ def test_perform_data_migrations_from_first_version():
     )
     server.api.initial_data._perform_version_6_data_migrations = (
         original_perform_version_6_data_migrations
+    )
+    server.api.initial_data._perform_version_7_data_migrations = (
+        original_perform_version_7_data_migrations
     )
 
 
@@ -199,6 +207,25 @@ def test_add_default_hub_source_if_needed():
         server.api.initial_data._add_default_hub_source_if_needed(db, db_session)
         assert update_default_hub_source.call_count == 0
 
+
+def test_migrate_project_summaries():
+    db, db_session = _initialize_db_without_migrations()
+
+    # Create a project
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+    )
+    db.create_project(db_session, project)
+
+    # Migrate the project summaries
+    server.api.initial_data._migrate_project_summaries(db, db_session)
+
+    # Check that the project summary was migrated
+    migrated_project_summary = db.get_project_summary(
+        db_session, project.metadata.name
+    )
+
+    assert migrated_project_summary.name == project.metadata.name
 
 def _initialize_db_without_migrations() -> (
     tuple[server.api.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]

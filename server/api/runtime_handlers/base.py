@@ -1211,11 +1211,11 @@ class BaseRuntimeHandler(ABC):
         self, db: DBInterface, db_session: Session, states: list = None
     ):
         last_update_time_from = None
-        if config.monitoring.runs.list_runs_time_period_in_days:
+        if config.monitoring.runs.list_runs_time_period_in_hours:
             last_update_time_from = (
                 datetime.now()
                 - timedelta(
-                    days=int(config.monitoring.runs.list_runs_time_period_in_days)
+                    hours=int(config.monitoring.runs.list_runs_time_period_in_hours)
                 )
             ).isoformat()
 
@@ -1223,6 +1223,7 @@ class BaseRuntimeHandler(ABC):
             db_session,
             project="*",
             states=states,
+            labels=f"{mlrun_constants.MLRunInternalLabels.kind}={self.kind}",
             last_update_time_from=last_update_time_from,
         )
         project_run_uid_map = {}

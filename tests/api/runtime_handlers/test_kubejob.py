@@ -649,7 +649,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     @pytest.mark.asyncio
     async def test_monitor_stale_run(self, db: Session, client: TestClient):
         # set list run time period to be negative so that list runs will not find the run
-        config.monitoring.runs.list_runs_time_period_in_days = -1
+        config.monitoring.runs.list_runs_time_period_in_hours = -1
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
             # additional time for the get_logger_pods

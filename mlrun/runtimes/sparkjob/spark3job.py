@@ -485,7 +485,7 @@ class Spark3Runtime(KubejobRuntime):
     @deprecated(
         version="1.9.0",
         reason=(
-            "'Due to Spark's restriction that node selectors "
+            "Due to Spark's restriction that node selectors "
             "cannot be defined for both the application and driver/executor, "
             "this method will be deprecated in 1.9.0. Use 'with_executor_node_selection()'"
             " and 'with_driver_node_selection()' instead."
@@ -515,12 +515,6 @@ class Spark3Runtime(KubejobRuntime):
         if node_name:
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
-            )
-        # TODO add affinity support
-        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
-        if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
             )
         self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
         self.with_executor_node_selection(
@@ -579,10 +573,9 @@ class Spark3Runtime(KubejobRuntime):
                                 for details
         """
         if node_name:
-            self.error = NotImplementedError(
+            raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-            raise self.error
         if affinity:
             self.spec.executor_affinity = affinity
         if node_selector:

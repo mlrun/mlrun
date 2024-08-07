@@ -447,17 +447,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         "project_node_selector,config_node_selector,function_node_selector,driver_node_selector,executor_node_selector",
         [
             # All parameters are empty
-            # ({}, {}, {}, {}, {}),
-            # # Only project node selector is defined
-            # ({"project-label": "project-val"}, {}, {}, {}, {}),
-            # # Only config node selector is defined
-            # ({}, {"config-label": "config-val"}, {}, {}, {}),
-            # # Only function node selector is defined
-            # ({}, {}, {"function-label": "function-val"}, {}, {}),
-            # # Only driver node selector is defined
-            # ({}, {}, {}, {"driver-label": "driver-val"}, {}),
-            # # Only executor node selector is defined
-            # ({}, {}, {}, {}, {"executor-label": "executor-val"}),
+            ({}, {}, {}, {}, {}),
+            # Only project node selector is defined
+            ({"project-label": "project-val"}, {}, {}, {}, {}),
+            # Only config node selector is defined
+            ({}, {"config-label": "config-val"}, {}, {}, {}),
+            # Only function node selector is defined
+            ({}, {}, {"function-label": "function-val"}, {}, {}),
+            # Only driver node selector is defined
+            ({}, {}, {}, {"driver-label": "driver-val"}, {}),
+            # Only executor node selector is defined
+            ({}, {}, {}, {}, {"executor-label": "executor-val"}),
             # Project and function node selectors are defined
             (
                 {"project-label": "project-val"},

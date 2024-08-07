@@ -1303,8 +1303,8 @@ class TestProject(TestMLRunSystem):
             project_label_to_remove: project_label_to_remove_val,
         }
 
-        # self._create_and_validate_project_function_with_node_selector(project)
-        # self._create_and_validate_mpi_function_with_node_selector(project)
+        self._create_and_validate_project_function_with_node_selector(project)
+        self._create_and_validate_mpi_function_with_node_selector(project)
         self._create_and_validate_spark_function_with_project_node_selectors(project)
 
     def test_project_build_image(self):

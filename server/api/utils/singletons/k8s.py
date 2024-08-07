@@ -605,7 +605,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 "No data found in the Kubernetes secret",
                 secret_name=secret_name,
             )
-            return None
+            self.v1api.delete_namespaced_secret(secret_name, namespace)
+            return mlrun.common.schemas.SecretEventActions.deleted
 
         # Create a copy of the k8s secret data, filtering out specified secrets if any
         if secrets:

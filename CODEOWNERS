@@ -117,6 +117,43 @@ server/api/utils/clients/iguazio.py @yaelgen
 server/api/utils/events/** @TomerShor
 server/api/utils/notification_pusher.py @TomerShor
 
+### Endpoints ###
+
+# This section is divided according to the rest of the document
+server/api/api/endpoints/alert** @TomerShor
+server/api/api/endpoints/artifacts** @moranbental
+server/api/api/endpoints/datastore** @alxtkr77 @tomerm-iguazio
+server/api/api/endpoints/events** @TomerShor
+server/api/api/endpoints/feature_store** @gtopper @alxtkr77
+server/api/api/endpoints/grafana** @Eyal-Danieli
+server/api/api/endpoints/model_endpoints** @jond01
+server/api/api/endpoints/model_monitoring** @jond01 @davesh0812 @Eyal-Danieli
+server/api/api/endpoints/nuclio** @gtopper
+server/api/api/endpoints/pipelines** @adamdelman
+server/api/api/endpoints/projects** @yaelgen
+server/api/api/endpoints/run** @alonmr
+server/api/api/endpoints/schedule** @alonmr @roei3000b
+server/api/api/endpoints/workflows** @adamdelman
+
+### End of Endpoints ###
+
+### CRUD ###
+
+# This section is divided according to the rest of the document
+server/api/api/crud/alert** @TomerShor
+server/api/api/crud/artifacts** @moranbental
+server/api/api/crud/datastore** @alxtkr77 @tomerm-iguazio
+server/api/api/crud/events** @TomerShor
+server/api/api/crud/feature_store** @gtopper @alxtkr77
+server/api/api/crud/notification** @TomerShor
+server/api/api/crud/model_monitoring** @jond01 @davesh0812 @Eyal-Danieli
+server/api/api/crud/pipelines** @adamdelman
+server/api/api/crud/projects** @yaelgen
+server/api/api/crud/run** @alonmr
+server/api/api/crud/workflows** @adamdelman
+
+### End of CRUD ###
+
 #################
 ### MLRun SDK ###
 #################
@@ -126,15 +163,26 @@ mlrun/db/** @alonmr
 mlrun/launcher/** @alonmr
 mlrun/runtimes/** @alonmr
 
-# nuclio and serving runtimes are owned by gtopper
+### Runtimes ###
+
+# databricks runtime is owned by tomerm-iguazio
+mlrun/runtimes/databricks_job/** @tomer-iguazio
+
+# nuclio, serving and spark runtimes are owned by gtopper
 mlrun/runtimes/nuclio/** @gtopper
 mlrun/runtimes/serving/** @gtopper
+mlrun/runtimes/sparkjob/** @gtopper
+
+# model serving is co-owned by gtopper and davesh0812
+mlrun/runtimes/serving/*_serving.py @gtopper @davesh0812
 
 # api gateway runtime is owned by rokatyy
 mlrun/runtimes/nuclio/api_gateway.py @rokatyy
 
 # application runtime is owned by TomerShor
 mlrun/runtimes/nuclio/application/** @TomerShor
+
+### End of Runtimes ###
 
 # alerts, notifications and cli are owned by TomerShor
 mlrun/alerts/** @TomerShor
@@ -151,14 +199,19 @@ mlrun/projects/** @yaelgen
 mlrun/projects/pipelines.py @adamdelman
 mlrun/projects/operations.py @adamdelman
 
-# data types, datastore, model monitoring and feature store are owned by data-flows team
-mlrun/data_types/** @mlrun/data-flows
-mlrun/datastore/** @mlrun/data-flows
-mlrun/model_monitoring/** @mlrun/data-flows
-mlrun/common/model_monitoring/** @mlrun/data-flows
-mlrun/feature_store/** @mlrun/data-flows
+# datastore is co-owned by alxtkr77 and tomerm-iguazio
+mlrun/datastore/** @alxtkr77 @tomerm-iguazio
+
+# feature store is co-owned by gtopper and alxtkr77
+mlrun/feature_store/** @gtopper @alxtkr77
+mlrun/data_types/** @gtopper @alxtkr77
+
+# model monitoring is co-owned by jond01, davesh0812 and Eyal-Danieli
+mlrun/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
+mlrun/common/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
+mlrun/model_monitoring/db/tsdb/tdengine/** @Eyal-Danieli
 
 # framewarks, packagers and trackers are owned by mle team
-mlrun/frameworks/** @mlrun/mle
-mlrun/package/** @mlrun/mle
-mlrun/track/** @mlrun/mle
+# mlrun/frameworks/** @mlrun/mle
+# mlrun/package/** @mlrun/mle
+# mlrun/track/** @mlrun/mle

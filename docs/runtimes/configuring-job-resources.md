@@ -217,7 +217,7 @@ Preemption mode has these values:
 - none: No preemptible configuration is applied to the function
 
 To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" envvar to either one of the above modes).
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
 
 ### SDK configuration
 
@@ -230,7 +230,7 @@ This example illustrates a function that cannot be scheduled on preemptible node
 fn. with_preemption_mode("allow")
 ```
 
-And another function that can only be scheduled on preemptible noodes:
+And another function that can only be scheduled on preemptible nodes:
 
 ```
 import mlrun
@@ -384,13 +384,12 @@ See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-- Configure node selection for individual MLRun jobs You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
+- Configure node selection for individual MLRun jobs when creating a Batch run by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
 and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
 - Configure node selection on the function level in the **Projects | <project> | Settings**, by adding or removing 
 Key:Value pairs.
-
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 

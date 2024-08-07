@@ -17,6 +17,7 @@ import os
 import mlrun_pipelines.mounts
 import pytest
 from kfp import dsl
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 import tests.system.base
@@ -114,3 +115,37 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         )
 
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
+
+    @pytest.mark.enterprise
+    def test_kfp_with_failed_pipeline(self):
+        code_path = str(self.assets_path / "raise_func.py")
+        func = mlrun.code_to_function(
+            name="func",
+            kind="job",
+            filename=code_path,
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(func)
+
+        @dsl.pipeline(name="job test", description="demonstrating mlrun usage")
+        def job_pipeline():
+            mlrun.run_function(
+                "func",
+                handler="handler",
+                outputs=["mymodel"],
+            )
+
+        run_id = self.project.run(
+            workflow_handler=job_pipeline,
+            name="my-job",
+        )
+
+        # double check that the pipeline completed successfully
+        mlrun.wait_for_pipeline_completion(
+            run_id, project=self.project_name, expected_statuses=[RunStatuses.failed]
+        )
+        db = mlrun.get_run_db()
+        run = db.get_pipeline(run_id, self.project_name)
+
+        assert run["run"].get("error") == "Error (exit code 1)"

@@ -32,26 +32,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._upload_code_to_cluster()
 
         self._logger.debug("Creating application")
-        function = self.project.set_function(
-            name="vizro-app",
-            kind="application",
-            requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
-        )
-        function.set_internal_application_port(8050)
-        function.spec.command = "gunicorn"
-        function.spec.args = [
-            "vizro_app:server",
-            "--bind",
-            "0.0.0.0:8050",
-            "--log-level",
-            "debug",
-        ]
-
-        source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
-        function.with_source_archive(
-            source=source,
-            pull_at_runtime=False,
-        )
+        function, source = self._create_vizro_application()
 
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
@@ -68,18 +49,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
         )
 
-        self._logger.debug("Redeploying vizro application with capturing stdout")
-
-        # Create a StringIO object to capture stdout
-        old_stdout = sys.stdout
-        new_stdout = io.StringIO()
-        sys.stdout = new_stdout
-        try:
-            function.deploy(with_mlrun=False)
-        finally:
-            sys.stdout = old_stdout
-        output = new_stdout.getvalue()
-        new_stdout.close()
+        self._logger.debug("Redeploying the same application with capturing stdout")
+        output = self._deploy_application_with_stdout_capture(function)
 
         # Assert nuclio image build was skipped
         assert "(info) Skipping build" in output
@@ -90,3 +61,66 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function.status.application_image
             == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
         )
+
+    def test_deploy_application_from_image(self):
+        self._logger.debug("Creating first application")
+        function, source = self._create_vizro_application(name="first-app")
+
+        self._logger.debug("Deploying first application")
+        function.deploy(with_mlrun=False)
+
+        assert function.invoke("/", verify=False)
+
+        # take the application image and container image, and use them to deploy a new function
+        application_image = function.status.application_image
+        container_image = function.status.container_image
+
+        function, _ = self._create_vizro_application(
+            name="second-app", app_image=application_image
+        )
+        function.from_image(container_image)
+
+        self._logger.debug("Deploying a second application")
+        output = self._deploy_application_with_stdout_capture(function)
+
+        # make sure the build was skipped
+        assert "(info) Skipping build" in output
+
+    def _create_vizro_application(self, name="vizro-app", app_image=None):
+        function = self.project.set_function(
+            name=name,
+            kind="application",
+            requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
+        )
+        function.set_internal_application_port(8050)
+        function.spec.command = "gunicorn"
+        function.spec.args = [
+            "vizro_app:server",
+            "--bind",
+            "0.0.0.0:8050",
+            "--log-level",
+            "debug",
+        ]
+        source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
+        if app_image:
+            function.spec.image = app_image
+        else:
+            function.with_source_archive(
+                source=source,
+                pull_at_runtime=False,
+            )
+        return function, source
+
+    @staticmethod
+    def _deploy_application_with_stdout_capture(function):
+        # Create a StringIO object to capture stdout
+        old_stdout = sys.stdout
+        new_stdout = io.StringIO()
+        sys.stdout = new_stdout
+        try:
+            function.deploy(with_mlrun=False)
+        finally:
+            sys.stdout = old_stdout
+        output = new_stdout.getvalue()
+        new_stdout.close()
+        return output

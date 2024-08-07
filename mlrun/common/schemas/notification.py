@@ -55,7 +55,7 @@ class Notification(pydantic.BaseModel):
     message: str
     severity: NotificationSeverity
     when: list[str]
-    condition: str
+    condition: str = None
     params: dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None

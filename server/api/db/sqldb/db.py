@@ -2515,9 +2515,7 @@ class SQLDB(DBInterface):
         update_labels(project_record, labels)
 
         objects_to_store = [project_record]
-
         self._append_project_summary(project, objects_to_store)
-
         self._upsert(session, objects_to_store)
 
     @staticmethod

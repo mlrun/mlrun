@@ -208,17 +208,19 @@ def test_add_default_hub_source_if_needed():
         assert update_default_hub_source.call_count == 0
 
 
-def test_migrate_project_summaries():
+def test_create_project_summaries():
     db, db_session = _initialize_db_without_migrations()
 
     # Create a project
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
     )
-    db.create_project(db_session, project, with_summary=False)
+
+    with unittest.mock.patch.object(db, "_generate_project_summary", return_value=None):
+        db.create_project(db_session, project)
 
     # Migrate the project summaries
-    server.api.initial_data._migrate_project_summaries(db, db_session)
+    server.api.initial_data._create_project_summaries(db, db_session)
 
     # Check that the project summary was migrated
     migrated_project_summary = db.get_project_summary(db_session, project.metadata.name)

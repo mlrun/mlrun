@@ -874,13 +874,13 @@ def _migrate_model_monitoring_jobs(db, db_session):
 def _perform_version_7_data_migrations(
     db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _migrate_project_summaries(db, db_session)
+    _create_project_summaries(db, db_session)
 
 
-def _migrate_project_summaries(db, db_session):
-    # Here we want to iterate other all projects and create the related project summary.
-    # We do this because we create ProjectSummary record only when creating project.
-    # Because we upgrade from a version that doesn't have ProjectSummary, we need to create them manually now.
+def _create_project_summaries(db, db_session):
+    # Create a project summary record for all projects.
+    # We need to create them manually because a summary record is created only when a new
+    # project is created, so project that existing prior to the upgrade don't have summaries.
     projects = db.list_projects(
         db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
     )

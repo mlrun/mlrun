@@ -216,7 +216,7 @@ def test_create_project_summaries():
         metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
     )
 
-    with unittest.mock.patch.object(db, "_generate_project_summary", return_value=None):
+    with unittest.mock.patch.object(db, "_append_project_summary"):
         db.create_project(db_session, project)
 
     # Migrate the project summaries

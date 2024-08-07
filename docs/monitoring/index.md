@@ -37,9 +37,9 @@ Before you deploy the model monitoring or serving function, you need to {py:meth
 
 When you call `enable_model_monitoring` on a project, by default MLRun deploys te onitoring app, `HistogramDataDriftApplication`, which is 
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
-* **Total Variation Distance** (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
-* **Hellinger Distance** &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
-* **Kullback–Leibler Divergence** (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
+* Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
+* Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+* Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
 You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
 
@@ -48,7 +48,7 @@ Then you disable the default app, enable your customer app, and create and run t
 
 See the:
 - User flow example **in ??????**.
-- Custom apps in **?????**
+- Custom apps in **?????**.
 
 The basic flow for classic ML and other models is the same, but the apps and the infer requests are different.
 
@@ -60,7 +60,7 @@ The basic flow for classic ML and other models is the same, but the apps and the
 Each unique combination of runtime function (a deployed Nuclio function) and model has an endpoint and a corresponding {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`. 
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
-Metrics are grouped under their applications. After you select the metrics and the timeframe, you get a hostogram showing the number of occurrencea/values range, and a timeline 
+Metrics are grouped under their applications. After you select the metrics and the timeframe, you get a histogram showing the number of occurrences/values range, and a timeline 
 graph of the metric and the threshold. Any alerts are shown in the upper-right corner of the metrics box. For example:
 
 <img src="../_static/images/mm_metrics.png" width="700" >
@@ -70,14 +70,3 @@ graph of the metric and the threshold. Any alerts are shown in the upper-right c
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
 And you can use {ref}`notifications` to notify about alerts. 
-
-**In this section**
-
-```{toctree}
-:maxdepth: 1
-
-model-monitoring
-monitoring-models
-model-monitoring-deployment
-legacy-model-monitoring
-```

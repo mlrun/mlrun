@@ -106,10 +106,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         if app_image:
             function.spec.image = app_image
         else:
-            function.with_source_archive(
-                source=source,
-                pull_at_runtime=False,
-            )
+            function.with_source_archive(source=source)
         return function, source
 
     def test_deploy_reverse_proxy_base_image(self):

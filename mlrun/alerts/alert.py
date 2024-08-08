@@ -28,6 +28,7 @@ class AlertConfig(ModelObj):
         "severity",
         "reset_policy",
         "state",
+        "count",
     ]
     _fields_to_serialize = ModelObj._fields_to_serialize + [
         "entities",

@@ -2514,6 +2514,12 @@ class SQLDB(DBInterface):
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
 
+        objects_to_store = [project_record]
+        self._append_project_summary(project, objects_to_store)
+        self._upsert(session, objects_to_store)
+
+    @staticmethod
+    def _append_project_summary(project, objects_to_store):
         summary = mlrun.common.schemas.ProjectSummary(
             name=project.metadata.name,
         )
@@ -2522,7 +2528,7 @@ class SQLDB(DBInterface):
             summary=summary.dict(),
             updated=datetime.now(timezone.utc),
         )
-        self._upsert(session, [project_record, project_summary])
+        objects_to_store.append(project_summary)
 
     @retry_on_conflict
     def store_project(

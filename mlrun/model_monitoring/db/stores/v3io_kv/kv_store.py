@@ -350,7 +350,7 @@ class KVStoreBase(StoreBase):
             table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: json.dumps(event)}
+            attributes = {metric_name: self._encode_field(json.dumps(event))}
         else:
             raise ValueError(f"Invalid {kind = }")
 

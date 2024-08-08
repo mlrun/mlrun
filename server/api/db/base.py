@@ -877,9 +877,9 @@ class DBInterface(ABC):
         project: str,
         name: str,
         last_updated: datetime,
-        count: typing.Union[int, None] = None,
+        count: typing.Optional[int] = None,
         active: bool = False,
-        obj: dict = None,
+        obj: typing.Optional[dict] = None,
     ):
         pass
 

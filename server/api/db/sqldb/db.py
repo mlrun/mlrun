@@ -5207,9 +5207,9 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         last_updated: datetime,
-        count: typing.Union[int, None] = None,
+        count: typing.Optional[int] = None,
         active: bool = False,
-        obj: dict = None,
+        obj: typing.Optional[dict] = None,
     ):
         alert = self.get_alert(session, project, name)
         state = self.get_alert_state(session, alert.id)

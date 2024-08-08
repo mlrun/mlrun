@@ -358,7 +358,8 @@ class Alerts(
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert)
 
-    def _delete_notifications(self, alert: mlrun.common.schemas.AlertConfig):
+    @staticmethod
+    def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:
             server.api.api.utils.delete_notification_params_secret(
                 alert.project, notification.notification

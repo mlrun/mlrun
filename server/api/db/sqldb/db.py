@@ -5113,7 +5113,7 @@ class SQLDB(DBInterface):
             self._get_alert_record_by_id(session, alert_id)
         )
 
-    def enrich_alert(self, session, alert: AlertConfig):
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         state = self.get_alert_state(session, alert.id)
         alert.state = (
             mlrun.common.schemas.AlertActiveState.ACTIVE
@@ -5213,9 +5213,9 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         last_updated: datetime,
-        count: typing.Union[int, None] = None,
+        count: typing.Optional[int] = None,
         active: bool = False,
-        obj: dict = None,
+        obj: typing.Optional[dict] = None,
     ):
         alert = self.get_alert(session, project, name)
         state = self.get_alert_state(session, alert.id)

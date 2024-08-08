@@ -700,10 +700,10 @@ with ctx:
         job: dict,
         project_name: str,
     ):
-        # If `driver_node_selector` is defined, it takes precedence and will be used for the driver node selector.
-        # If not provided or empty, the `node_selector` from the run will be used instead.
+        # If `driver_node_selector` is defined, it takes precedence and will be used as the driver node selector.
+        # If not provided or empty, the `node_selector` from the run object, which is enriched from the runtime object
+        # when the run is launched, will be used instead.
         # The same logic applies to `executor_node_selector`.
-
         driver_node_selector = (
             runtime.spec.driver_node_selector or run.spec.node_selector
         )

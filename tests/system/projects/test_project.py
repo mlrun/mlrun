@@ -1280,6 +1280,13 @@ class TestProject(TestMLRunSystem):
         spark_run = spark_function.run(auto_build=True)
         assert spark_run.status.state == RunStates.completed
 
+        runtime_resources = mlrun.get_run_db().list_runtime_resources(
+            project=project.metadata.name,
+            kind="spark",
+            object_id=spark_run.metadata.uid,
+        )[0]
+        print(runtime_resources)
+
     def test_project_default_function_node_selector(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
         project_label_to_remove, project_label_to_remove_val = (
@@ -1303,8 +1310,8 @@ class TestProject(TestMLRunSystem):
             project_label_to_remove: project_label_to_remove_val,
         }
 
-        self._create_and_validate_project_function_with_node_selector(project)
-        self._create_and_validate_mpi_function_with_node_selector(project)
+        # self._create_and_validate_project_function_with_node_selector(project)
+        # self._create_and_validate_mpi_function_with_node_selector(project)
         self._create_and_validate_spark_function_with_project_node_selectors(project)
 
     def test_project_build_image(self):

@@ -328,7 +328,7 @@ def test_refresh_project_summaries(db: DBInterface, db_session: sqlalchemy.orm.S
     ]
 
     for summary in project_summaries:
-        project = _generate_project(summary.project)
+        project = _generate_project(summary.name)
         db.create_project(db_session, project)
 
     # Delete one of the projects without deleting its summary
@@ -338,7 +338,7 @@ def test_refresh_project_summaries(db: DBInterface, db_session: sqlalchemy.orm.S
     # Create project without project summary
     summary = _generate_project_summary("project-summary-3")
     project_summaries.append(summary)
-    project = _generate_project(summary.project)
+    project = _generate_project(summary.name)
     with unittest.mock.patch.object(db, "_append_project_summary"):
         db.create_project(db_session, project)
 
@@ -386,7 +386,7 @@ def _generate_project_summary(
     project="project-name",
 ) -> mlrun.common.schemas.ProjectSummary:
     return mlrun.common.schemas.ProjectSummary(
-        project=project,
+        name=project,
         updated=datetime.datetime.utcnow(),
     )
 
@@ -418,7 +418,7 @@ def _assert_project_summary(
     expected_project_summary: mlrun.common.schemas.ProjectSummary,
 ):
     project_summary_output = db.get_project_summary(
-        db_session, expected_project_summary.project
+        db_session, expected_project_summary.name
     )
     assert (
         deepdiff.DeepDiff(

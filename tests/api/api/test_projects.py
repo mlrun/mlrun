@@ -418,9 +418,9 @@ async def test_list_and_get_project_summaries(
         **response.json()
     )
     for index, project_summary in enumerate(project_summaries_output.project_summaries):
-        if project_summary.project == empty_project_name:
+        if project_summary.name == empty_project_name:
             _assert_project_summary(project_summary, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-        elif project_summary.project == project_name:
+        elif project_summary.name == project_name:
             _assert_project_summary(
                 project_summary,
                 files_count,

@@ -2521,7 +2521,7 @@ class SQLDB(DBInterface):
     @staticmethod
     def _append_project_summary(project, objects_to_store):
         summary = mlrun.common.schemas.ProjectSummary(
-            project=project.metadata.name,
+            name=project.metadata.name,
         )
         project_summary = ProjectSummary(
             project=project.metadata.name,
@@ -2594,7 +2594,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        self._delete_project_summary(name)
+        self._delete_project_summary(session, name)
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -2653,7 +2653,7 @@ class SQLDB(DBInterface):
                 f"Project summary not found: {project=}"
             )
 
-        project_summary_record.summary["project"] = project_summary_record.project
+        project_summary_record.summary["name"] = project_summary_record.project
         project_summary_record.summary["updated"] = project_summary_record.updated
         return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
@@ -2703,9 +2703,7 @@ class SQLDB(DBInterface):
         and removes project summaries that no longer have associated projects.
         """
 
-        summary_dicts = {
-            summary.project: summary.dict() for summary in project_summaries
-        }
+        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
 
         # Create a query for project summaries with associated projects
         existing_summaries_query = (

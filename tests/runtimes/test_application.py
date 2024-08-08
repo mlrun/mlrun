@@ -19,6 +19,7 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.runtimes
 import mlrun.utils
 
 
@@ -245,6 +246,11 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
             },
         }
     ]
+
+
+def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
+    mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
+    assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
 
 
 def _assert_function_code(fn, file_path=None):

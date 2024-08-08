@@ -112,7 +112,7 @@ default_config = {
             "missing_runtime_resources_debouncing_interval": None,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
-            "list_runs_time_period_in_hours": 24 * 1,
+            "list_runs_time_period_in_hours": 24 * 3,  # 3 days
         },
         "projects": {
             "summaries": {

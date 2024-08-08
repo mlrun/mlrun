@@ -477,6 +477,12 @@ with ctx:
                     )
         return in_terminal_state, completion_time, desired_run_state
 
+    def _is_terminal_state(self, runtime_resource: dict) -> bool:
+        state = (
+            runtime_resource.get("status", {}).get("applicationState", {}).get("state")
+        )
+        return state in SparkApplicationStates.terminal_states()
+
     def _update_ui_url(
         self,
         db: DBInterface,

@@ -20,6 +20,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
 import mlrun.serving
+import mlrun.utils.helpers
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
@@ -151,12 +152,15 @@ class _PrepareMonitoringEvent(StepToDict):
 
     @staticmethod
     def _create_mlrun_context(app_name: str):
+        artifact_path = mlrun.utils.helpers.template_artifact_path(
+            mlrun.mlconf.artifact_path, mlrun.mlconf.default_project
+        )
         context = mlrun.get_or_create_ctx(
             f"{app_name}-logger",
             spec={
-                "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.serving}}
+                "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.serving}},
+                "spec": {mlrun.utils.helpers.RunKeys.output_path: artifact_path},
             },
-            upload_artifacts=True,
         )
         context.__class__ = MonitoringApplicationContext
         return context

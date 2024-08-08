@@ -109,6 +109,7 @@ class _PushToMonitoringWriter(StepToDict):
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )
             self.output_stream.push([writer_event])
+            logger.info(f"Pushed data to {self.stream_uri} successfully")
 
     def _lazy_init(self):
         if self.output_stream is None:

@@ -35,6 +35,7 @@ import mlrun.common.types
 import mlrun.db.httpdb
 import mlrun.feature_store
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
@@ -541,8 +542,12 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
         endpoints = cls.run_db.list_model_endpoints(project=cls.project_name)
-        assert endpoints and len(endpoints) == 1
-        return endpoints[0].metadata.uid
+        assert endpoints and len(endpoints) == 1, "Expects a single model endpoint"
+        endpoint = typing.cast(mlrun.model_monitoring.ModelEndpoint, endpoints[0])
+        assert endpoint.spec.stream_path == mlrun.model_monitoring.get_stream_path(
+            project=cls.project_name
+        ), "The model endpoint stream path is different than expected"
+        return endpoint.metadata.uid
 
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:

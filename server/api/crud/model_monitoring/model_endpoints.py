@@ -556,7 +556,7 @@ class ModelEndpoints:
                     tsdb_connector = None
             if tsdb_connector:
                 tsdb_connector.delete_tsdb_resources()
-        # Delete model monitoring stream resources
+
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,
             db_session=db_session,
@@ -588,13 +588,19 @@ class ModelEndpoints:
 
         if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
-            model_monitoring_access_key = (
-                server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+            try:
+                model_monitoring_access_key = server.api.api.endpoints.nuclio.process_model_monitoring_secret(
                     db_session,
                     project_name,
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 )
-            )
+
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Project does not exist in Iguazio, skipping deletion of model monitoring stream resources",
+                    project_name=project_name,
+                )
+                return
 
         model_monitoring_applications = model_monitoring_applications or []
 

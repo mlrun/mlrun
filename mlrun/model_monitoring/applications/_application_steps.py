@@ -34,8 +34,8 @@ class _PushToMonitoringWriter(StepToDict):
 
     def __init__(
         self,
-        project: Optional[str] = None,
-        writer_application_name: Optional[str] = None,
+        project: str,
+        writer_application_name: str,
         stream_uri: Optional[str] = None,
         name: Optional[str] = None,
     ):

@@ -2594,8 +2594,8 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
+        self._delete_project_summary(session, name)
         self._delete(session, Project, name=name)
-        self._delete(session, ProjectSummary, project=name)
 
     def list_projects(
         self,
@@ -2698,22 +2698,54 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        project_summaries_to_update = []
-        for project_summary_schema in project_summaries:
-            # To avoid a race condition with the delete project flow where a project might be deleted
-            # after its summary has been queried but before the transaction is completed, we check
-            # that the project summary is not `None` after querying.
-            # This is why we cannot query all project summaries outside the loop.
-            query = self._query(
-                session, ProjectSummary, project=project_summary_schema.name
-            )
-            project_summary = query.one_or_none()
-            if project_summary:
-                project_summary.summary = project_summary_schema.dict()
-                project_summary.updated = datetime.now(timezone.utc)
-                project_summaries_to_update.append(project_summary)
+        """
+        This method updates the summaries of projects that have associated projects in the database
+        and removes project summaries that no longer have associated projects.
+        """
 
-        self._upsert(session, project_summaries_to_update)
+        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
+
+        # Create a query for project summaries with associated projects
+        existing_summaries_query = (
+            session.query(ProjectSummary)
+            .outerjoin(Project, Project.name == ProjectSummary.project)
+            .filter(ProjectSummary.project.in_(summary_dicts.keys()))
+        )
+
+        associated_summaries = existing_summaries_query.filter(
+            Project.id.is_not(None)
+        ).all()
+
+        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
+
+        # Update the summaries of projects that have associated projects
+        for project_summary in associated_summaries:
+            project_summary.summary = summary_dicts.get(project_summary.project)
+            project_summary.updated = datetime.now(timezone.utc)
+            session.add(project_summary)
+
+        # To avoid race conditions where a project might be deleted after its summary is queried
+        # but before the transaction completes, we delete project summaries that do not have
+        # any associated projects.
+        if orphaned_summaries:
+            projects_names = [summary.project for summary in orphaned_summaries]
+            logger.debug(
+                "Deleting project summaries that do not have associated projects",
+                projects=projects_names,
+            )
+
+            for summary in orphaned_summaries:
+                session.delete(summary)
+
+        self._commit(session, associated_summaries + orphaned_summaries)
+
+    def _delete_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Deleting project summary from DB", name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     async def get_project_resources_counters(
         self,
@@ -2777,7 +2809,8 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
-    def _calculate_functions_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_functions_counters(session) -> dict[str, int]:
         functions_count_per_project = (
             session.query(Function.project, func.count(distinct(Function.name)))
             .group_by(Function.project)
@@ -2788,8 +2821,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
+    @staticmethod
     def _calculate_schedules_counters(
-        self, session
+        session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
@@ -2836,7 +2870,8 @@ class SQLDB(DBInterface):
             project_to_schedule_pending_workflows_count,
         )
 
-    def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_feature_sets_counters(session) -> dict[str, int]:
         feature_sets_count_per_project = (
             session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
             .group_by(FeatureSet.project)
@@ -2875,8 +2910,9 @@ class SQLDB(DBInterface):
             project_to_files_count[file_artifact.project] += 1
         return project_to_files_count
 
+    @staticmethod
     def _calculate_runs_counters(
-        self, session
+        session,
     ) -> tuple[
         dict[str, int],
         dict[str, int],
@@ -4438,7 +4474,8 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore)
 
-    def _commit(self, session, objects, ignore=False):
+    @staticmethod
+    def _commit(session, objects, ignore=False):
         def _try_commit_obj():
             try:
                 session.commit()

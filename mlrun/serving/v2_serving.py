@@ -15,11 +15,11 @@
 import threading
 import time
 import traceback
-from typing import Union
+from typing import Optional, Union
 
+import mlrun.artifacts
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
-from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
@@ -102,7 +102,7 @@ class V2ModelServer(StepToDict):
         self.error = ""
         self.protocol = protocol or "v2"
         self.model_path = model_path
-        self.model_spec: mlrun.artifacts.ModelArtifact = None
+        self.model_spec: Optional[mlrun.artifacts.ModelArtifact] = None
         self._input_path = input_path
         self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()

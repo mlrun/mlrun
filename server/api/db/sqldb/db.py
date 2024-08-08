@@ -2739,6 +2739,14 @@ class SQLDB(DBInterface):
 
         self._commit(session, associated_summaries + orphaned_summaries)
 
+    def _delete_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Deleting project summary from DB", name=name)
+        self._delete(session, ProjectSummary, project=name)
+
     async def get_project_resources_counters(
         self,
     ) -> tuple[
@@ -5935,14 +5943,6 @@ class SQLDB(DBInterface):
             "Table not found, skipping delete",
             table_name=sanitized_table_name,
         )
-
-    def _delete_project_summary(
-        self,
-        session: Session,
-        name: str,
-    ):
-        logger.debug("Deleting project summary from DB", name=name)
-        self._delete(session, ProjectSummary, project=name)
 
     @staticmethod
     def _is_table_exists(session: Session, table_name: str) -> bool:

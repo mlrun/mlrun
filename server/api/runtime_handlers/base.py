@@ -1219,11 +1219,11 @@ class BaseRuntimeHandler(ABC):
         self, db: DBInterface, db_session: Session, states: list = None
     ):
         last_update_time_from = None
-        if config.monitoring.runs.list_runs_time_period_in_hours:
+        if config.monitoring.runs.list_runs_time_period_in_days:
             last_update_time_from = (
                 datetime.now()
                 - timedelta(
-                    hours=int(config.monitoring.runs.list_runs_time_period_in_hours)
+                    days=int(config.monitoring.runs.list_runs_time_period_in_days)
                 )
             ).isoformat()
 

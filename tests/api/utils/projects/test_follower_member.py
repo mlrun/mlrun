@@ -403,7 +403,7 @@ async def test_list_project_summaries(
 ):
     project = _generate_project(name="name-1")
     project_summary = mlrun.common.schemas.ProjectSummary(
-        name=project.metadata.name,
+        project=project.metadata.name,
         files_count=4,
         feature_sets_count=5,
         models_count=6,
@@ -470,7 +470,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     await server.api.crud.Projects().refresh_project_resources_counters_cache(db)
     project_summaries = await projects_follower.list_project_summaries(db)
     assert len(project_summaries.project_summaries) == 1
-    assert project_summaries.project_summaries[0].name == project_name
+    assert project_summaries.project_summaries[0].project == project_name
     assert project_summaries.project_summaries[0].pipelines_running_count == 0
     assert project_summaries.project_summaries[0].files_count == 0
 

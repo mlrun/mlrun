@@ -345,7 +345,7 @@ def _generate_project():
 
 def _generate_project_summary():
     return mlrun.common.schemas.ProjectSummary(
-        name="project-name",
+        project="project-name",
         updated=datetime.datetime.utcnow(),
     )
 
@@ -377,7 +377,7 @@ def _assert_project_summary(
     expected_project_summary: mlrun.common.schemas.ProjectSummary,
 ):
     project_summary_output = db.get_project_summary(
-        db_session, expected_project_summary.name
+        db_session, expected_project_summary.project
     )
     assert (
         deepdiff.DeepDiff(

@@ -145,7 +145,7 @@ class ProjectOwner(pydantic.BaseModel):
 
 
 class ProjectSummary(pydantic.BaseModel):
-    name: str
+    project: str
     files_count: int = 0
     feature_sets_count: int = 0
     models_count: int = 0

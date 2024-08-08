@@ -2515,7 +2515,7 @@ class SQLDB(DBInterface):
         update_labels(project_record, labels)
 
         summary = mlrun.common.schemas.ProjectSummary(
-            name=project.metadata.name,
+            project=project.metadata.name,
         )
         project_summary = ProjectSummary(
             project=project.metadata.name,
@@ -2647,7 +2647,7 @@ class SQLDB(DBInterface):
                 f"Project summary not found: {project=}"
             )
 
-        project_summary_record.summary["name"] = project_summary_record.project
+        project_summary_record.summary["project"] = project_summary_record.project
         project_summary_record.summary["updated"] = project_summary_record.updated
         return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
@@ -2697,7 +2697,9 @@ class SQLDB(DBInterface):
         and removes project summaries that no longer have associated projects.
         """
 
-        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
+        summary_dicts = {
+            summary.project: summary.dict() for summary in project_summaries
+        }
 
         # Create a query for project summaries with associated projects
         existing_summaries_query = (
@@ -2719,9 +2721,7 @@ class SQLDB(DBInterface):
         # To avoid race conditions where a project might be deleted after its summary is queried
         # but before the transaction completes, we delete project summaries that do not have
         # any associated projects.
-        orphaned_summaries = existing_summaries_query.filter(
-            Project.id.is_(None)
-        ).all()
+        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
 
         if orphaned_summaries:
             projects_names = [summary.project for summary in orphaned_summaries]
@@ -2797,7 +2797,8 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
-    def _calculate_functions_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_functions_counters(session) -> dict[str, int]:
         functions_count_per_project = (
             session.query(Function.project, func.count(distinct(Function.name)))
             .group_by(Function.project)
@@ -2808,8 +2809,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
+    @staticmethod
     def _calculate_schedules_counters(
-        self, session
+        session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
@@ -2856,7 +2858,8 @@ class SQLDB(DBInterface):
             project_to_schedule_pending_workflows_count,
         )
 
-    def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_feature_sets_counters(session) -> dict[str, int]:
         feature_sets_count_per_project = (
             session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
             .group_by(FeatureSet.project)
@@ -2895,8 +2898,9 @@ class SQLDB(DBInterface):
             project_to_files_count[file_artifact.project] += 1
         return project_to_files_count
 
+    @staticmethod
     def _calculate_runs_counters(
-        self, session
+        session,
     ) -> tuple[
         dict[str, int],
         dict[str, int],

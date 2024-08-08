@@ -187,6 +187,10 @@ def run_function(
     task.spec.verbose = task.spec.verbose or verbose
 
     if engine == "kfp":
+        if schedule:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "schedule is not supported in KFP runs"
+            )
         return function.as_step(
             name=name, runspec=task, workdir=workdir, outputs=outputs, labels=labels
         )

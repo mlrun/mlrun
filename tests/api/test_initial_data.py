@@ -225,7 +225,7 @@ def test_create_project_summaries():
     # Check that the project summary was migrated
     migrated_project_summary = db.get_project_summary(db_session, project.metadata.name)
 
-    assert migrated_project_summary.name == project.metadata.name
+    assert migrated_project_summary.project == project.metadata.name
 
 
 def _initialize_db_without_migrations() -> (

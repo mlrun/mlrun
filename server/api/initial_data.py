@@ -887,7 +887,7 @@ def _create_project_summaries(db, db_session):
     project_summaries = [
         ProjectSummary(
             project=project_name,
-            summary=mlrun.common.schemas.ProjectSummary(name=project_name).dict(),
+            summary=mlrun.common.schemas.ProjectSummary(project=project_name).dict(),
         )
         for project_name in projects.projects
     ]

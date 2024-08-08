@@ -2697,13 +2697,13 @@ class SQLDB(DBInterface):
         and removes project summaries that no longer have associated projects.
         """
 
-        summary_dict = {summary.name: summary.dict() for summary in project_summaries}
+        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
 
         # Create a query for project summaries with associated projects
         existing_summaries_query = (
             session.query(ProjectSummary)
             .outerjoin(Project, Project.name == ProjectSummary.project)
-            .filter(ProjectSummary.project.in_(summary_dict.keys()))
+            .filter(ProjectSummary.project.in_(summary_dicts.keys()))
         )
 
         associated_summaries = existing_summaries_query.filter(
@@ -2712,7 +2712,7 @@ class SQLDB(DBInterface):
 
         # Update the summaries of projects that have associated projects
         for project_summary in associated_summaries:
-            project_summary.summary = summary_dict.get(project_summary.project)
+            project_summary.summary = summary_dicts.get(project_summary.project)
             project_summary.updated = datetime.now(timezone.utc)
             session.add(project_summary)
 
@@ -2721,7 +2721,7 @@ class SQLDB(DBInterface):
         # any associated projects.
         orphaned_summaries = existing_summaries_query.filter(
             Project.id.is_(None)
-        ).all()  # No associated project
+        ).all()
 
         if orphaned_summaries:
             projects_names = [summary.project for summary in orphaned_summaries]
@@ -2730,8 +2730,8 @@ class SQLDB(DBInterface):
                 projects=projects_names,
             )
 
-            for project in orphaned_summaries:
-                session.delete(project)
+            for summary in orphaned_summaries:
+                session.delete(summary)
 
         self._commit(session, associated_summaries + orphaned_summaries)
 

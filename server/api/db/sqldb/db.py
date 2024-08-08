@@ -2594,8 +2594,8 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
+        self._delete_project_summary(name)
         self._delete(session, Project, name=name)
-        self._delete(session, ProjectSummary, project=name)
 
     def list_projects(
         self,
@@ -2718,6 +2718,8 @@ class SQLDB(DBInterface):
             Project.id.is_not(None)
         ).all()
 
+        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
+
         # Update the summaries of projects that have associated projects
         for project_summary in associated_summaries:
             project_summary.summary = summary_dicts.get(project_summary.project)
@@ -2727,8 +2729,6 @@ class SQLDB(DBInterface):
         # To avoid race conditions where a project might be deleted after its summary is queried
         # but before the transaction completes, we delete project summaries that do not have
         # any associated projects.
-        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
-
         if orphaned_summaries:
             projects_names = [summary.project for summary in orphaned_summaries]
             logger.debug(
@@ -5937,6 +5937,14 @@ class SQLDB(DBInterface):
             "Table not found, skipping delete",
             table_name=sanitized_table_name,
         )
+
+    def _delete_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Deleting project summary from DB", name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     @staticmethod
     def _is_table_exists(session: Session, table_name: str) -> bool:

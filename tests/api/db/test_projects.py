@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -320,6 +321,44 @@ def test_delete_project(
         db.get_project_summary(db_session, project_name)
 
 
+def test_refresh_project_summaries(db: DBInterface, db_session: sqlalchemy.orm.Session):
+    project_summaries = [
+        _generate_project_summary("project-summary-1"),
+        _generate_project_summary("project-summary-2"),
+    ]
+
+    for summary in project_summaries:
+        project = _generate_project(summary.project)
+        db.create_project(db_session, project)
+
+    # Delete one of the projects without deleting its summary
+    with unittest.mock.patch.object(db, "_delete_project_summary"):
+        db.delete_project(db_session, "project-summary-2")
+
+    # Create project without project summary
+    summary = _generate_project_summary("project-summary-3")
+    project_summaries.append(summary)
+    project = _generate_project(summary.project)
+    with unittest.mock.patch.object(db, "_append_project_summary"):
+        db.create_project(db_session, project)
+
+    db_session.delete = unittest.mock.MagicMock()
+    db_session.add = unittest.mock.MagicMock()
+    db_session.commit = unittest.mock.MagicMock()
+
+    db.refresh_project_summaries(db_session, project_summaries)
+
+    # Assert that 'project-summary-1' was updated
+    assert db_session.add.call_count == 1
+    added_summary = db_session.add.call_args[0][0]
+    assert added_summary.project == "project-summary-1"
+
+    # Assert that 'project-summary-2' was deleted
+    assert db_session.delete.call_count == 1
+    deleted_summary = db_session.delete.call_args[0][0]
+    assert deleted_summary.project == "project-summary-2"
+
+
 def _generate_and_insert_pre_060_record(
     db_session: sqlalchemy.orm.Session, project_name: str
 ):
@@ -328,10 +367,10 @@ def _generate_and_insert_pre_060_record(
     db_session.commit()
 
 
-def _generate_project():
+def _generate_project(name="project-name"):
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
-            name="project-name",
+            name=name,
             created=datetime.datetime.utcnow() - datetime.timedelta(seconds=1),
             labels={
                 "some-label": "some-label-value",
@@ -343,9 +382,11 @@ def _generate_project():
     )
 
 
-def _generate_project_summary():
+def _generate_project_summary(
+    project="project-name",
+) -> mlrun.common.schemas.ProjectSummary:
     return mlrun.common.schemas.ProjectSummary(
-        project="project-name",
+        project=project,
         updated=datetime.datetime.utcnow(),
     )
 

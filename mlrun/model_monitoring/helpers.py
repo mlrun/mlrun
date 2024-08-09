@@ -45,8 +45,7 @@ class _BatchDict(typing.TypedDict):
 
 
 def get_stream_path(
-    project: str = None,
-    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    project: str, function_name: str = mm_constants.MonitoringFunctionNames.STREAM
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations

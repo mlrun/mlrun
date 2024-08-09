@@ -149,7 +149,7 @@ class AlertConfig(pydantic.BaseModel):
     entities: EventEntities
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
-    reset_policy: ResetPolicy = ResetPolicy.MANUAL
+    reset_policy: ResetPolicy = ResetPolicy.AUTO
     notifications: pydantic.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
@@ -185,7 +185,7 @@ class AlertTemplate(
     severity: AlertSeverity
     trigger: AlertTrigger
     criteria: Optional[AlertCriteria]
-    reset_policy: ResetPolicy = ResetPolicy.MANUAL
+    reset_policy: ResetPolicy = ResetPolicy.AUTO
 
     # This is slightly different than __eq__ as it doesn't compare everything
     def templates_differ(self, other):

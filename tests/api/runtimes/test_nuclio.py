@@ -881,7 +881,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
-        self.assert_node_selection(node_selector=node_selector)
+        self.assert_node_selection(
+            node_selector={**config_node_selector, **node_selector}
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         affinity = self._generate_affinity()
@@ -892,8 +894,11 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=4, expected_class=self.class_name
         )
         # The node selector is specific to the service configuration, not the function itself.
-        # Therefore, it is applied only to the run object and not enriched or modified at the function level.
-        self.assert_node_selection(affinity=affinity)
+        # It is applied only to the run object on other run kinds. In case of a Nuclio function,
+        # since there is no run object, the node selector is included in the created config.
+        self.assert_node_selection(
+            affinity=affinity, node_selector=config_node_selector
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_node_selection(node_name, node_selector, affinity)
@@ -903,7 +908,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_node_selection(
             node_name=node_name,
-            node_selector=node_selector,
+            node_selector={**config_node_selector, **node_selector},
             affinity=affinity,
         )
 
@@ -921,7 +926,44 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_node_selection(
             tolerations=tolerations,
+            node_selector=config_node_selector,
         )
+
+    @pytest.mark.parametrize(
+        "config_node_selector, project_node_selector",
+        [({}, {}), ({"kubernetes.io/arch": "amd64"}, {"kubernetes.io/os": "linux"})],
+    )
+    def test_compile_function_config_node_selector_enriched_from_project(
+        self,
+        db: Session,
+        client: TestClient,
+        project_node_selector,
+        config_node_selector,
+    ):
+        config_node_selector = config_node_selector
+        mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(config_node_selector).encode("utf-8")
+        )
+
+        run_db = mlrun.get_run_db()
+        project = run_db.get_project(self.project)
+        project.spec.default_function_node_selector = project_node_selector
+        run_db.store_project(self.project, project)
+
+        function = self._generate_runtime(self.runtime_kind)
+        function_node_selector = {"kubernetes.io/hostname": "k8s-node1"}
+        function.spec.node_selector = function_node_selector
+
+        (
+            _,
+            _,
+            config,
+        ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
+        assert config["spec"]["nodeSelector"] == {
+            **config_node_selector,
+            **project.spec.default_function_node_selector,
+            **function_node_selector,
+        }
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.5.20"
@@ -1674,7 +1716,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 
@@ -1702,7 +1744,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 

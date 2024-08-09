@@ -140,7 +140,14 @@ async def update_schedule(
 async def list_schedules(
     project: str,
     name: str = None,
-    labels: str = None,
+    # TODO: Remove _labels in 1.9.0
+    _labels: str = fastapi.Query(
+        None,
+        alias="labels",
+        deprecated=True,
+        description="Use 'label' instead, will be removed in the 1.9.0",
+    ),
+    labels: list[str] = fastapi.Query([], alias="label"),
     kind: mlrun.common.schemas.ScheduleKinds = None,
     include_last_run: bool = False,
     include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
@@ -160,7 +167,7 @@ async def list_schedules(
         project,
         name,
         kind,
-        labels,
+        labels or _labels,
         include_last_run,
         include_credentials,
     )

@@ -229,21 +229,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
             project_node_selector = project.spec.default_function_node_selector
-            config_node_selector = mlrun.mlconf.get_default_function_node_selector()
-            if project_node_selector or config_node_selector:
-                mlrun.utils.logger.debug(
-                    "Enriching run node selector from project and mlrun config",
-                    project_name=run.metadata.project,
-                    project_node_selector=project_node_selector,
-                    config_node_selector=config_node_selector,
-                )
-                run.spec.node_selector = (
-                    mlrun.utils.helpers.merge_dicts_with_precedence(
-                        config_node_selector,
-                        project.spec.default_function_node_selector,
-                        runtime.spec.node_selector,
-                    )
-                )
+            run.spec.node_selector = mlrun.runtimes.utils.resolve_node_selectors(
+                project_node_selector, run.spec.node_selector
+            )
         return run
 
     def enrich_runtime(
@@ -292,6 +280,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             not runtime.spec.image
             and not runtime.requires_build()
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+            and not runtime.skip_image_enrichment()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind

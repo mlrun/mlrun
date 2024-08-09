@@ -445,3 +445,21 @@ def enrich_run_labels(
         if label.value not in labels and enrichment:
             labels[label.value] = enrichment
     return labels
+
+
+def resolve_node_selectors(
+    project_node_selector: dict, instance_node_selector: dict
+) -> dict:
+    config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+    if project_node_selector or config_node_selector:
+        mlrun.utils.logger.debug(
+            "Enriching node selector from project and mlrun config",
+            project_node_selector=project_node_selector,
+            config_node_selector=config_node_selector,
+        )
+        return mlrun.utils.helpers.merge_dicts_with_precedence(
+            config_node_selector,
+            project_node_selector,
+            instance_node_selector,
+        )
+    return instance_node_selector

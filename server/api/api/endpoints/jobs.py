@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
 
 import fastapi
+from fastapi import Header
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -41,6 +43,9 @@ async def create_model_monitoring_controller(
     db_session: Session = fastapi.Depends(deps.get_db_session),
     default_controller_image: str = "mlrun/mlrun",
     base_period: int = 10,
+    client_version: typing.Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -58,6 +63,7 @@ async def create_model_monitoring_controller(
                                      image. By default, the image is mlrun/mlrun.
     :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
                                      is running. By default, the base period is 5 minutes.
+    :param client_version:           The client version that sent the request.
     """
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -84,6 +90,7 @@ async def create_model_monitoring_controller(
         image=default_controller_image,
         base_period=base_period,
         deploy_histogram_data_drift_app=False,  # mlrun client < 1.7.0
+        client_version=client_version,
     )
 
     return {

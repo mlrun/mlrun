@@ -505,13 +505,10 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        # TODO add affinity support
-        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
-        if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
-            )
-        super().with_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_executor_node_selection(
+            node_name, node_selector, affinity, tolerations
+        )
 
     def with_driver_node_selection(
         self,

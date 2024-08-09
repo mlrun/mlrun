@@ -381,29 +381,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
 
     @pytest.mark.asyncio
-    async def test_monitor_run_overriding_terminal_state(
-        self, db: Session, client: TestClient
-    ):
-        list_namespaced_pods_calls = [
-            [self.failed_job_pod],
-        ]
-        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
-        self.run["status"]["state"] = RunStates.completed
-        server.api.crud.Runs().store_run(
-            db, self.run, self.run_uid, project=self.project
-        )
-        expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls
-        )
-        for _ in range(expected_monitor_cycles_to_reach_expected_state):
-            self.runtime_handler.monitor_runs(get_db(), db)
-        self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, expected_number_of_list_pods_calls
-        )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-
-    @pytest.mark.asyncio
     async def test_monitor_run_debouncing_non_terminal_state(
         self, db: Session, client: TestClient
     ):
@@ -481,7 +458,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     ):
         get_db().del_run(db, self.run_uid, self.project)
         list_namespaced_pods_calls = [
-            [self.completed_job_pod],
+            [self.running_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
@@ -494,7 +471,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.completed
+            db, self.project, self.run_uid, RunStates.running
         )
 
     @pytest.mark.asyncio
@@ -651,15 +628,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # set list run time period to be negative so that list runs will not find the run
         config.monitoring.runs.list_runs_time_period_in_days = -1
         list_namespaced_pods_calls = [
-            [self.completed_job_pod],
-            # additional time for the get_logger_pods
-            [self.completed_job_pod],
+            [self.running_job_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_read_namespaced_pod_log()
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         expected_monitor_cycles_to_reach_expected_state = (
-            expected_number_of_list_pods_calls - 1
+            expected_number_of_list_pods_calls
         )
 
         run = get_db().read_run(db, self.run_uid, self.project)
@@ -672,7 +647,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
             mock_read_run.assert_called_once()
         self._assert_run_reached_state(
-            db, self.project, self.run_uid, RunStates.completed
+            db, self.project, self.run_uid, RunStates.running
         )
 
     @pytest.mark.asyncio

@@ -285,7 +285,10 @@ def _compile_function_config(
         # TODO: remove in 1.9.0.
         can_pass_via_cm = (
             not client_version
-            or (semver.Version.parse(client_version) >= semver.Version.parse("1.7.0"))
+            or (
+                semver.Version.parse(client_version)
+                >= semver.Version.parse("1.7.0-rc30")
+            )
             or "unstable" in client_version
         )
         # since environment variables have a limited size,
@@ -317,6 +320,12 @@ def _compile_function_config(
                 "volumeMount": volume_mount,
             }
         else:
+            if not can_pass_via_cm:
+                logger.debug(
+                    "Client version does not support passing serving spec via ConfigMap",
+                    client_version=client_version,
+                    serving_spec_length=len(serving_spec),
+                )
             env_dict["SERVING_SPEC_ENV"] = serving_spec
 
     # resolve sidecars images
@@ -442,6 +451,7 @@ def _resolve_and_set_nuclio_runtime(
     )
 
     # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
+    # TODO: remove in 1.8, default to 3.9
     if server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
         "0.0.0", "1.6.0"
     ) and nuclio_runtime in [

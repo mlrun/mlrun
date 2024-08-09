@@ -22,3 +22,23 @@ updates:
     commit-message:
       prefix: "[Dependabot-automated] "
     open-pull-requests-limit: 6
+
+  # custom actions
+  - package-ecosystem: github-actions
+    directories:
+      - ".github/actions/image-matrix-prep"
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "[Dependabot-automated] "
+    open-pull-requests-limit: 6
+
+  # go modules
+  - package-ecosystem: gomod
+    directories:
+      - "server/log-collector/go.mod"
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "[Dependabot-automated] "
+    open-pull-requests-limit: 6

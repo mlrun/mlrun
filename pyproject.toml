@@ -1,3 +1,204 @@
+[project]
+name = "mlrun"
+dynamic = ["version"]
+description = "Tracking and config of machine learning runs"
+authors = [
+    {name = "Yaron Haviv", email = "yaronh@iguazio.com"},
+]
+readme = "README.md"
+license = {text = "Apache License 2.0"}
+keywords=[
+    "mlrun",
+    "mlops",
+    "data-science",
+    "machine-learning",
+    "experiment-tracking",
+]
+classifiers=[
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+]
+requires-python = ">=3.9, <3.12"
+dependencies = [
+    # >=1.28.0,<1.29.0 botocore inside boto3 1.28.17 inside nuclio-jupyter 0.9.13
+    "urllib3>=1.26.9, <1.27",
+    "GitPython~=3.1, >=3.1.41",
+    "aiohttp~=3.9",
+    "aiohttp-retry~=2.8",
+    "click~=8.1",
+    "nest-asyncio~=1.0",
+    "ipython~=8.10",
+    "nuclio-jupyter~=0.9.17",
+    "numpy>=1.16.5, <1.27.0",
+    # pandas 2.2 requires sqlalchemy 2
+    "pandas>=1.2, <2.2",
+    # used as an engine for parquet files by pandas
+    # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
+    # <15 to prevent bugs due to major upgrading
+    "pyarrow>=10.0, <15",
+    "pyyaml~=5.1",
+    "requests~=2.31",
+    # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
+    "tabulate~=0.8.6",
+    "v3io~=0.6.4",
+    # pydantic 1.10.8 fixes a bug with literal and typing-extension 4.6.0
+    # https://docs.pydantic.dev/latest/changelog/#v1108-2023-05-23
+    # TODO: loosen upperbound and remove the below comment once fixed upstream
+    # pydantic 1.10.15 breaks backwards compatibility due to https://github.com/pydantic/pydantic/pull/9042
+    "pydantic>=1.10.8, <1.10.15",
+    "mergedeep~=1.3",
+    "v3io-frames~=0.10.12",
+    "semver~=3.0",
+    "dependency-injector~=4.41",
+    # should be identical to gcs and s3fs.
+    "fsspec>=2023.9.2, <2024.4",
+    "v3iofs~=0.1.17",
+    "storey~=1.7.20",
+    "inflection~=0.5.0",
+    "python-dotenv~=0.17.0",
+    # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
+    "setuptools~=69.1",
+    "deprecated~=1.2",
+    "jinja2~=3.1, >=3.1.3",
+    "orjson>=3.9.15, <4",
+    # mlrun pipeline adapters
+    "mlrun-pipelines-kfp-common~=0.1.1, >0.1.0",
+    "mlrun-pipelines-kfp-v1-8~=0.1.1, >0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # uploading to PyPI
+    "twine~=3.1",
+    "build~=1.0",
+    # formatting & linting
+    "ruff==0.4.2",
+    "import-linter~=2.0",
+    # testing
+    "pytest~=8.2",
+    "pytest-asyncio~=0.21.2",
+    "pytest-alembic~=0.11.0",
+    "pytest-httpserver~=1.0",
+    "pytest-timeout~=2.0",
+    "aioresponses~=0.7",
+    "requests-mock~=1.8",
+    "httpx~=0.27.0",
+    "deepdiff~=7.0",
+    "hypothesis[numpy]~=6.103",
+    "pytest-rerunfailures~=14.0",
+    # system tests
+    "matplotlib~=3.5",
+    "graphviz~=0.20.0",
+    "nuclio-sdk>=0.5",
+    "avro~=1.11",
+    "sqlalchemy-utils~=0.39.0",
+    "snowflake-connector-python~=3.7",
+    # frameworks tests
+    "scikit-learn~=1.4.0",
+    "lightgbm~=4.3",
+    "xgboost~=1.1",
+]
+s3 = [
+    "boto3>=1.28.0,<1.29.0",
+    "aiobotocore>=2.5.0,<2.8",
+    "s3fs>=2023.9.2, <2024.4",
+]
+azure-blob-storage= [
+    "msrest~=0.6.21",
+    "azure-core~=1.24",
+    "adlfs==2023.9.0",
+    "pyopenssl>=23",
+]
+azure-key-vault= [
+    "azure-identity~=1.5",
+    "azure-keyvault-secrets~=4.2",
+    "pyopenssl>=23",
+]
+# plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+# so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+plotly= ["plotly~=5.4, <5.12.0"]
+# used to generate visualization nuclio/serving graph steps
+graphviz= ["graphviz~=0.20.0"]
+# google-cloud is mainly used for QA, that is why we are not including it in complete
+google-cloud= [
+    "google-cloud-storage==2.14.0",
+    "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
+    "google-cloud==0.34",
+]
+google-loud-storage= ["gcsfs>=2023.9.2, <2024.4"]
+google-loud-bigquery= ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"]
+kafka= [
+    "kafka-python~=2.0",
+    # because confluent kafka supports avro format by default
+    "avro~=1.11",
+]
+redis= ["redis~=4.3"]
+mlflow= ["mlflow~=2.8"]
+databrick-sdk = ["databricks-sdk~=0.13.0"]
+sqlalchemy= ["sqlalchemy~=1.4"]
+dask= [
+    "dask~=2023.9.0",
+    "distributed~=2023.9.0",
+]
+alibaba-oss= ["ossfs==2023.12.0", "oss2==2.18.1"]
+tdengine = ["taos-ws-py~=0.3.2"]
+api = [
+    "uvicorn~=0.27.1",
+    "dask-kubernetes~=0.11.0",
+    # no support for 4 yet
+    # 3.10.2 is bugged for python 3.9
+    "apscheduler>=3.10.3,<4",
+    "objgraph~=3.6",
+    "igz-mgmt~=0.2.0",
+    "humanfriendly~=10.0",
+    "fastapi~=0.110.0",
+    # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
+    "sqlalchemy~=1.4",
+    "pymysql~=1.0",
+    "alembic~=1.9",
+    "timelength~=1.1",
+    "memray~=1.12",
+]
+complete = [
+    # google-cloud is excluded, see above for reasoning
+    "mlrun[dev,s3,azure-blob-storage,azure-key-vault,plotly,graphviz,google-loud-storage,google-loud-bigquery,kafka,redis,mlflow,databrick-sdk,sqlalchemy,dask,alibaba-oss,tdengine,api]"
+]
+complete-api = ["mlrun[api, complete]"]
+all = ["mlrun[complete, google-cloud]"]
+
+[project.urls]
+Homepage = "https://github.com/mlrun/mlrun"
+Documentation = "https://docs.mlrun.org/en/stable/"
+Changelog = "https://docs.mlrun.org/en/stable/change-log/index.html"
+
+[project.entry-points."console_scripts"]
+mlrun = "mlrun.__main__:main"
+
+[build-system]
+requires = [
+    "setuptools ~= 69.1",
+    "dependencies ~= 7.7",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "pyversion.__pypi_version__"}
+
+[tool.setuptools.packages.find]
+namespaces = true
+where = ["."]
+include = ["mlrun*"]
+
+
 [tool.ruff]
 extend-include = ["*.ipynb"]
 target-version = "py39"

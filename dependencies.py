@@ -45,10 +45,6 @@ def extra_requirements() -> dict[str, list[str]]:
             "azure-keyvault-secrets~=4.2",
             "pyopenssl>=23",
         ],
-        "bokeh": [
-            # >=2.4.2 to force having a security fix done in 2.4.2
-            "bokeh~=2.4, >=2.4.2",
-        ],
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": ["plotly~=5.4, <5.12.0"],
@@ -85,7 +81,7 @@ def extra_requirements() -> dict[str, list[str]]:
     }
 
     # see above why we are excluding google-cloud
-    exclude_from_complete = ["bokeh", "google-cloud"]
+    exclude_from_complete = ["google-cloud"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )

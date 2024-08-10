@@ -42,3 +42,14 @@ updates:
     commit-message:
       prefix: "[Dependabot-automated] "
     open-pull-requests-limit: 6
+
+  # mlrun pipelines adapters
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: "mlrun-pipelines-kfp*"
+    commit-message:
+      prefix: "[Dependabot-automated] "
+    open-pull-requests-limit: 6

@@ -32,7 +32,6 @@ from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
 
 from ..common.helpers import parse_versioned_object_uri
-from ..config import config
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
@@ -1057,9 +1056,7 @@ def _init_endpoint_record(
                 function_uri=graph_server.function_uri,
                 model=versioned_model_name,
                 model_class=voting_ensemble.__class__.__name__,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
-                ),
+                stream_path=voting_ensemble.context.stream.stream_uri,
                 active=True,
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
             ),

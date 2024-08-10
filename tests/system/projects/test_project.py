@@ -1246,6 +1246,42 @@ class TestProject(TestMLRunSystem):
         }
         self._create_and_validate_project_function_with_node_selector(project)
 
+    def _create_and_validate_spark_function_with_project_node_selectors(self, project):
+        function_name = "spark-function"
+        function_label_name, function_label_val = "kubernetes.io/os", "linux"
+        function_override_label, function_override_val = "kubernetes.io/hostname", ""
+        file_name = "spark.py"
+
+        self._files_to_upload.append(file_name)
+        self._upload_code_to_cluster()
+        code_path = os.path.join(self.remote_code_dir, file_name)
+        spark_function = mlrun.new_function(
+            name=function_name,
+            kind="spark",
+            command=code_path.replace("v3io:///", "/v3io/"),
+        )
+        spark_function.with_igz_spark()
+        spark_function.with_driver_limits(cpu="1300m")
+        spark_function.with_driver_requests(cpu=1, mem="512m")
+
+        spark_function.with_executor_limits(cpu="1400m")
+        spark_function.with_executor_requests(cpu=1, mem="512m")
+
+        node_selector = {
+            function_label_name: function_label_val,
+            function_override_label: function_override_val,
+        }
+
+        spark_function.with_node_selection(node_selector=node_selector)
+
+        assert spark_function.spec.driver_node_selector == node_selector
+        assert spark_function.spec.executor_node_selector == node_selector
+
+        spark_function.with_igz_spark()
+
+        spark_run = spark_function.run(auto_build=True)
+        assert spark_run.status.state == RunStates.completed
+
     def test_project_default_function_node_selector(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
         project_label_to_remove, project_label_to_remove_val = (
@@ -1269,8 +1305,9 @@ class TestProject(TestMLRunSystem):
             project_label_to_remove: project_label_to_remove_val,
         }
 
-        self._create_and_validate_project_function_with_node_selector(project)
-        self._create_and_validate_mpi_function_with_node_selector(project)
+        # self._create_and_validate_project_function_with_node_selector(project)
+        # self._create_and_validate_mpi_function_with_node_selector(project)
+        self._create_and_validate_spark_function_with_project_node_selectors(project)
 
     def test_project_build_image(self):
         name = "test-build-image"

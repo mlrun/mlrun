@@ -59,8 +59,9 @@ class AlertConfig(ModelObj):
         Alert config object
 
         Example::
-            # create an alert on endpoint_id, which will be triggered to slack if there is a "data_drift_detected" event
-            3 times in the next hour.
+        
+            # create an alert on endpoint_id, which will be triggered to slack if there is a
+            # "data_drift_detected" event 3 times in the next hour.
             from mlrun.alerts import AlertConfig
             import mlrun.common.schemas.alert as alert_objects
 
@@ -93,29 +94,29 @@ class AlertConfig(ModelObj):
             )
             project.store_alert_config(alert_data)
 
-        :param project:        name of the project to associate the alert with
-        :param name:           name of the alert
-        :param template:       optional parameter that allows to create an alert based on a predefined template.
-                               you can pass either an AlertTemplate object or a string (the template name).
-                               if a template is used, many fields of the alert will be auto-generated based on the
-                               template. however, you still need to provide the following fields:
+        :param project:        Name of the project to associate the alert with
+        :param name:           Name of the alert
+        :param template:       Optional parameter that allows creating an alert based on a predefined template.
+                               You can pass either an AlertTemplate object or a string (the template name).
+                               If a template is used, many fields of the alert will be auto-generated based on the
+                               template.However, you still need to provide the following fields:
                                `name`, `project`, `entity`, `notifications`
-        :param description:    description of the alert
-        :param summary:        summary of the alert, will be sent in the generated notifications
-        :param severity:       severity of the alert
-        :param trigger:        the events that will trigger this alert, may be a simple trigger based on events or
+        :param description:    Description of the alert
+        :param summary:        Summary of the alert, will be sent in the generated notifications
+        :param severity:       Severity of the alert
+        :param trigger:        The events that will trigger this alert, may be a simple trigger based on events or
                                complex trigger which is based on a prometheus alert
-        :param criteria:       when the alert will be triggered based on the specified number of events within the
+        :param criteria:       When the alert will be triggered based on the specified number of events within the
                                defined time period.
-        :param reset_policy:   when to clear the alert. May be "manual" for manual reset of the alert, or
+        :param reset_policy:   When to clear the alert. May be "manual" for manual reset of the alert, or
                                "auto" if the criteria contains a time period
-        :param notifications:  list of notifications to invoke once the alert is triggered
-        :param entities:       entities that the event relates to. The entity object will contain fields that uniquely
-                               identify a given entity in the system
-        :param id:             internal id of the alert (user should not supply it)
-        :param state:          state of the alert, may be active/inactive (user should not supply it)
-        :param created:        when the alert is created (user should not supply it)
-        :param count:          internal counter of the alert (user should not supply it)
+        :param notifications:  List of notifications to invoke once the alert is triggered
+        :param entities:       Entities that the event relates to. The entity object will contain fields that
+                               uniquely identify a given entity in the system
+        :param id:             Internal id of the alert (user should not supply it)
+        :param state:          State of the alert, may be active/inactive (user should not supply it)
+        :param created:        When the alert is created (user should not supply it)
+        :param count:          Internal counter of the alert (user should not supply it)
         """
         self.project = project
         self.name = name

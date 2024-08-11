@@ -52,6 +52,7 @@ class NotificationLimits(enum.Enum):
 class Notification(pydantic.BaseModel):
     """
     Notification object schema
+    
     :param kind: notification implementation kind - slack, webhook, etc.
     :param name: for logging and identification
     :param message: message content in the notification

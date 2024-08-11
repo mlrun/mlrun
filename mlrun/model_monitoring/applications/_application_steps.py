@@ -20,6 +20,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
 import mlrun.serving
+import mlrun.utils.helpers
 import mlrun.utils.v3io_clients
 from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
@@ -34,8 +35,8 @@ class _PushToMonitoringWriter(StepToDict):
 
     def __init__(
         self,
-        project: Optional[str] = None,
-        writer_application_name: Optional[str] = None,
+        project: str,
+        writer_application_name: str,
         stream_uri: Optional[str] = None,
         name: Optional[str] = None,
     ):
@@ -109,6 +110,7 @@ class _PushToMonitoringWriter(StepToDict):
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )
             self.output_stream.push([writer_event])
+            logger.info(f"Pushed data to {self.stream_uri} successfully")
 
     def _lazy_init(self):
         if self.output_stream is None:
@@ -150,12 +152,15 @@ class _PrepareMonitoringEvent(StepToDict):
 
     @staticmethod
     def _create_mlrun_context(app_name: str):
+        artifact_path = mlrun.utils.helpers.template_artifact_path(
+            mlrun.mlconf.artifact_path, mlrun.mlconf.default_project
+        )
         context = mlrun.get_or_create_ctx(
             f"{app_name}-logger",
             spec={
-                "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.serving}}
+                "metadata": {"labels": {"kind": mlrun.runtimes.RuntimeKinds.serving}},
+                "spec": {mlrun.utils.helpers.RunKeys.output_path: artifact_path},
             },
-            upload_artifacts=True,
         )
         context.__class__ = MonitoringApplicationContext
         return context

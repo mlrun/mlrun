@@ -339,6 +339,9 @@ class RunDBMock:
             raise mlrun.errors.MLRunNotFoundError("Function not found")
         return self._functions[function]
 
+    def delete_function(self, name: str, project: str = ""):
+        self._functions.pop(name, None)
+
     def submit_job(self, runspec, schedule=None):
         return {"status": {"status_text": "just a status"}}
 
@@ -395,6 +398,7 @@ class RunDBMock:
         function.setdefault("status", {})
         function["status"]["state"] = "ready"
         function["status"]["nuclio_name"] = "test-nuclio-name"
+        function["status"]["container_image"] = function["metadata"]["name"]
         self._functions[function["metadata"]["name"]] = function
         return {
             "data": {

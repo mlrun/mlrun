@@ -24,7 +24,9 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
-from gcsfs.retry import HttpError
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 import mlrun
 import mlrun.errors
@@ -383,20 +385,39 @@ class TestGoogleCloudStorage:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    @pytest.mark.parametrize("credentials_value", [None, "wrong credentials"])
+    def _generate_fake_private_key(self):
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return pem.decode("utf-8")
+
+    @pytest.mark.parametrize("credentials_value", [False, True])
     def test_wrong_credentials_rm(self, use_datastore_profile, credentials_value):
+        if credentials_value:
+            fake_credentials = json.loads(self.credentials)
+            fake_credentials["private_key"] = self._generate_fake_private_key()
+            fake_credentials = json.dumps(fake_credentials)
+
+        else:
+            fake_credentials = None
         if use_datastore_profile:
             gcp_credentials_dict = (
-                {"gcp_credentials": credentials_value} if credentials_value else {}
+                {"gcp_credentials": fake_credentials} if credentials_value else {}
             )
             self.profile = DatastoreProfileGCS(
                 name=self.profile_name, **gcp_credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
-        elif credentials_value:
-            os.environ["GCP_CREDENTIALS"] = credentials_value
+        elif fake_credentials:
+            os.environ["GCP_CREDENTIALS"] = fake_credentials
         data_item = mlrun.run.get_dataitem(self._object_url)
-        with pytest.raises(HttpError):
+        with pytest.raises((DefaultCredentialsError, RefreshError)):
             data_item.delete()
 
     def test_rm_file_not_found(self, use_datastore_profile):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import os
 from pathlib import Path
 
 from fsspec.registry import get_filesystem_class
@@ -23,30 +24,54 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
+WORKERS = 8
+CHUNK_SIZE = 32 * 1024 * 1024
+
 
 class GoogleCloudStorageStore(DataStore):
     using_bucket = True
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        self._storage_client = None
+        self._transfer_manager = None
+        self.workers = WORKERS
+        self.chunk_size = CHUNK_SIZE
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
     @property
-    def filesystem(self):
-        """return fsspec file system object, if supported"""
-        if self._filesystem:
-            return self._filesystem
+    def storage_client(self):
+        if not self._filesystem or self._storage_client:
+            self.create_filesystem_and_client()
+        return self._storage_client
+
+    def create_filesystem_and_client(self):
         try:
             import gcsfs  # noqa
         except ImportError as exc:
             raise ImportError(
                 "Google gcsfs not installed, run pip install gcsfs"
             ) from exc
+        from google.cloud.storage import Client, transfer_manager
+
+        # Creates with the same storage options to avoid credential differences.
+        storage_options = self.get_storage_options()
+        # in order to support az and wasbs kinds.
         filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
-            **self.get_storage_options(),
+            **storage_options,
         )
+        credentials = self._filesystem.credentials.credentials
+        self._storage_client = Client(credentials=credentials)
+        # to avoid importing transfer_manager later:
+        self._transfer_manager = transfer_manager
+
+    @property
+    def filesystem(self):
+        """return fsspec file system object, if supported"""
+        if not self._filesystem:
+            self.create_filesystem_and_client()
         return self._filesystem
 
     def get_storage_options(self):
@@ -103,8 +128,41 @@ class GoogleCloudStorageStore(DataStore):
             f.write(data)
 
     def upload(self, key, src_path):
-        path = self._make_path(key)
-        self.filesystem.put_file(src_path, path, overwrite=True)
+        file_size = os.path.getsize(src_path)
+        united_path = self._make_path(key)
+
+        # Multiple upload limitation recommendations as described in
+        # https://cloud.google.com/storage/docs/multipart-uploads#storage-upload-object-chunks-python
+
+        if file_size < self.chunk_size:
+            self.filesystem.put_file(src_path, united_path, overwrite=True)
+            return
+
+        bucket = self.storage_client.bucket(self.endpoint)
+        bucket_retention_policy = bucket._properties.get("retentionPolicy")
+        if bucket_retention_policy or bucket.object_retention_mode:
+            self.filesystem.put_file(src_path, united_path, overwrite=True)
+            return
+        blob = bucket.blob(key)
+
+        if (
+            blob.retention_expiration_time
+            or blob.temporary_hold
+            or blob.event_based_hold
+        ):
+            self.filesystem.put_file(src_path, united_path, overwrite=True)
+            return
+
+        try:
+            self._transfer_manager.upload_chunks_concurrently(
+                src_path, blob, chunk_size=self.chunk_size, max_workers=self.workers
+            )
+        except Exception as upload_chunks_concurrently_exception:
+            logger.warning(
+                f"gcs: failed to concurrently upload {src_path},"
+                f" exception: {upload_chunks_concurrently_exception}. Retrying with single part upload."
+            )
+            self.filesystem.put_file(src_path, united_path, overwrite=True)
 
     def stat(self, key):
         path = self._make_path(key)

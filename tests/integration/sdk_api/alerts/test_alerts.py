@@ -222,7 +222,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         # generate an alert from a template
         alert_name = "new_alert"
         alert_from_template = mlrun.alerts.alert.AlertConfig(
-            project=project_name,
             name=alert_name,
             template=drift_template,
         )
@@ -254,7 +253,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         self._validate_alert(
             alert_from_template,
-            project_name=project_name,
             alert_name=alert_name,
             alert_summary=drift_template.summary,
             alert_severity=drift_template.severity,

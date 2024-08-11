@@ -938,6 +938,17 @@ def generate_notification_validation_params():
                     ),
                 )
             )
+            # valid url with secret params
+            validation_params.append(
+                (
+                    {
+                        "kind": kind,
+                        "secret_params": {"webhook": "some-webhook"},
+                        "params": valid_params,
+                    },
+                    does_not_raise(),
+                )
+            )
 
     return validation_params
 

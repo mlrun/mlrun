@@ -31,7 +31,7 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 The model monitoring process flow starts with collecting operational data from a function in the model serving pod. The model 
 monitoring stream pod forwards data to a Parquet database. 
 The controller periodically checks the Parquet DB for new data and forwards it to the relevant application. 
-Each monitoring application is a separate nuclio real-time function. Each one listens to a stream that is filled by 
+Each monitoring application is a separate Nuclio real-time function. Each one listens to a stream that is filled by 
 the monitoring controller on each `base_period` interval.
 The stream function examines 
 the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 

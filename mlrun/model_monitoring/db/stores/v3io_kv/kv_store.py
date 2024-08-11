@@ -408,14 +408,14 @@ class KVStoreBase(StoreBase):
 
         """
         try:
-            data = self.client.kv.get(
+            response = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
                     project_name=self.project
                 ),
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
+            return response.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
             raise mlrun.errors.MLRunNotFoundError(

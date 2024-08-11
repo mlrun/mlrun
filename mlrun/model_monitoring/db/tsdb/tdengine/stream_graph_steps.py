@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import json
 
@@ -20,8 +19,6 @@ from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
 )
-
-_TABLE_COLUMN = "table_column"
 
 
 class ProcessBeforeTDEngine(mlrun.feature_store.steps.MapClass):

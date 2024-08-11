@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 
@@ -78,3 +80,17 @@ class PipelineProviderMixin:
                     raise NotImplementedError(f"Unknown action: {action}")
 
         return mlrun.mlconf.default_project
+
+    @staticmethod
+    def resolve_error_from_pipeline(pipeline):
+        # TODO: need to ensure that it actually the way to do it with kfp v2
+        if pipeline.run.status in [RunStatuses.error, RunStatuses.failed]:
+            # status might not be available just yet
+            workflow_status = json.loads(
+                pipeline.pipeline_runtime.workflow_manifest
+            ).get("status", {})
+            for node in workflow_status.get("nodes", {}).values():
+                # The "DAG" node is the parent node of the pipeline so we skip it for getting the detailed error
+                if node["type"] != "DAG":
+                    if message := node.get("message"):
+                        return message

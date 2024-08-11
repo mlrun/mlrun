@@ -795,7 +795,8 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
             assert (
                 deepdiff.DeepDiff(
                     pod.spec.node_selector,
-                    mlrun.utils.helpers.merge_with_precedence(
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
+                        mlrun.mlconf.get_default_function_node_selector(),
                         self.project_default_function_node_selector,
                         expected_node_selector,
                     ),

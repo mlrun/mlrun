@@ -615,6 +615,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 for key, value in k8s_secret.data.items()
                 if key not in secrets
             }
+        elif secrets is None:
+            # Delete all secrets
+            secret_data = {}
         else:
             secret_data = k8s_secret.data.copy()
 

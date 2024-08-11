@@ -359,8 +359,9 @@ class ApplicationRuntime(RemoteRuntime):
 
     def with_source_archive(
         self,
-        source: str,
-        workdir: str = None,
+        source,
+        workdir=None,
+        pull_at_runtime: bool = False,
         target_dir: str = None,
     ):
         """load the code from git/tar/zip archive at build
@@ -371,6 +372,7 @@ class ApplicationRuntime(RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
         self._configure_mlrun_build_with_source(

@@ -375,6 +375,13 @@ class ApplicationRuntime(RemoteRuntime):
         :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
+        if pull_at_runtime:
+            logger.warning(
+                f"{pull_at_runtime=} is currently not supported for application runtime "
+                "and will be overridden to False",
+                pull_at_runtime=pull_at_runtime,
+            )
+
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,

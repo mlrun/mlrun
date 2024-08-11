@@ -372,15 +372,21 @@ class TestGetModelEndpointMetrics:
             "ddw2lke",
             [],
             "app-results",
-            "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
+            (
+                "SELECT result_value,result_status,result_kind "
+                "FROM 'app-results' WHERE endpoint_id='ddw2lke' "
+                "GROUP BY application_name,result_name;"
+            ),
         ),
         (
             "ep123",
             [("app1", "res1")],
             "path/to/app-results",
             (
-                "SELECT * FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
-                "AND ((application_name='app1' AND result_name='res1'));"
+                "SELECT result_value,result_status,result_kind "
+                "FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
+                "AND ((application_name='app1' AND result_name='res1')) "
+                "GROUP BY application_name,result_name;"
             ),
         ),
         (
@@ -388,20 +394,26 @@ class TestGetModelEndpointMetrics:
             [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
             "app-results",
             (
-                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
+                "SELECT result_value,result_status,result_kind "
+                "FROM 'app-results' WHERE endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
                 "(application_name='app1' AND result_name='res2') OR "
-                "(application_name='app2' AND result_name='res1'));"
+                "(application_name='app2' AND result_name='res1')) "
+                "GROUP BY application_name,result_name;"
             ),
         ),
     ],
 )
-def test_tsdb_query(
+def test_tsdb_results_query(
     endpoint_id: str, names: list[tuple[str, str]], table_path: str, expected_query: str
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(
-            endpoint_id=endpoint_id, metric_and_app_names=names, table_path=table_path
+            endpoint_id=endpoint_id,
+            metric_and_app_names=names,
+            table_path=table_path,
+            columns=["result_value", "result_status", "result_kind"],
+            groupby=["application_name", "result_name"],
         )
         == expected_query
     )

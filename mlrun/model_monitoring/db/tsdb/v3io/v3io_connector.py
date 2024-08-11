@@ -546,6 +546,7 @@ class V3IOTSDBConnector(TSDBConnector):
         name: str = mm_schemas.ResultData.RESULT_NAME,
         metric_and_app_names: Optional[list[tuple[str, str]]] = None,
         columns: Optional[list[str]] = None,
+        groupby: Optional[list[str]] = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
         if columns:
@@ -571,6 +572,9 @@ class V3IOTSDBConnector(TSDBConnector):
                     query.write(sub_cond)
 
                 query.write(")")
+
+            if groupby:
+                query.write(f" GROUP BY {','.join(groupby)}")
 
             query.write(";")
             return query.getvalue()

@@ -255,7 +255,7 @@ class ApplicationRuntime(RemoteRuntime):
                 )
 
     def prepare_image_for_deploy(self):
-        if self.spec.source and self.spec.build.load_source_on_run:
+        if self.spec.build.source and self.spec.build.load_source_on_run:
             logger.warning(
                 "Application runtime requires loading the source into the application image. "
                 f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."

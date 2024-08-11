@@ -622,7 +622,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             secret_data = k8s_secret.data.copy()
 
         # Check if there were any changes to the secret data
-        if len(secret_data) == len(k8s_secret.data):
+        if k8s_secret.data and len(secret_data) == len(k8s_secret.data):
             # No secrets were deleted
             return None
 

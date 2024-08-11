@@ -1,9 +1,7 @@
 (alerts)=
 # Alerts 
 
-Alerts are a mechanism for informing you about possible problem situations. The Alerts page in the UI shows the 
-list of configured alerts, and indicates which are active. In this page, you can acknowledge, 
-delete, and modify alerts and also reset them. 
+Alerts are a mechanism for informing you about possible problem situations. 
 
 Notifications are used to notify you or the system of an alert, such as through slack, git or webhook. See {ref}`notifications`.
 
@@ -46,7 +44,10 @@ The SDK supports these alert operations:
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
 predefined templates that can be used with MLRun applications. 
 If you use non-MLRun applications (for example, with model monitoring), you must configure an application-specific alert. 
-The templates are cross-project objects. When generating an alert, the user must assign the project to it. The predefined alerts are:
+The templates are cross-project objects. When generating an alert, the user must assign the project to it. 
+
+## Predefined alerts
+The predefined alert types are:
 - DATA_DRIFT_DETECTED &mdash; A detected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
 - DATA_DRIFT_SUSPECTED &mdash; A suspected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
 - CONCEPT_DRIFT_DETECTED &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
@@ -60,35 +61,12 @@ The templates are cross-project objects. When generating an alert, the user must
 - FAILED &mdash; The job failed.
 
 
-## Creating an alert with a template
-
-When you use a template, you only need to supply:
-- name: str
-- project: str
-- entity: EventEntity from the list in [Alert templates](#alert-templates)
-- {py:func}`~mlrun.common.schemas.notification.NotificationKind`
-
-```python
-job_fail_template = project.get_alert_template("JobFailed")
-alert_from_template = mlrun.alerts.alert.AlertConfig(
-    project=project_name,
-    name="failure",
-    template=job_fail_template,
-)
-entities = alert_objects.EventEntities(
-    kind=alert_objects.EventEntityKind.JOB,
-    project=project_name,
-    ids=[run_id],
-)
-alert_from_template.with_entities(entities=entities)
-alert_from_template.with_notifications(notifications=notifications)
-project.store_alert_config(alert_from_template)
-```
-
 ## Creating an alert without a template
 You can select an alert type for a specific model, for example "drift detection" for a given model. You must specify 
 the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). 
-You can also configure email/Slack details to send notifications.
+You can configure Git, Slack, and webhook notifications.
+
+This example illustrates a Slack notification for drift detection on a model endpoint:
 
 ```python
 notification = mlrun.model.Notification(
@@ -125,4 +103,31 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 )
 
 project.store_alert_config(alert_data)
+```
+
+## Creating an alert with a template
+
+When you use a template, you only need to supply:
+- name: str
+- project: str
+- entity: EventEntity from the list in [Alert templates](#alert-templates)
+- {py:func}`~mlrun.common.schemas.notification.NotificationKind`
+
+This example illustrates a Slack notification for a job failure alert, using the predefined system template "JobFailed":
+
+```python
+job_fail_template = project.get_alert_template("JobFailed")
+alert_from_template = mlrun.alerts.alert.AlertConfig(
+    project=project_name,
+    name="failure",
+    template=job_fail_template,
+)
+entities = alert_objects.EventEntities(
+    kind=alert_objects.EventEntityKind.JOB,
+    project=project_name,
+    ids=[run_id],
+)
+alert_from_template.with_entities(entities=entities)
+alert_from_template.with_notifications(notifications=notifications)
+project.store_alert_config(alert_from_template)
 ```

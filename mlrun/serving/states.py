@@ -1391,7 +1391,7 @@ class FlowStep(BaseStep):
         return step
 
     def supports_termination(self):
-        return self.engine == "async"
+        return self.engine != "sync"
 
 
 class RootFlowStep(FlowStep):

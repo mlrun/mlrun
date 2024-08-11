@@ -35,6 +35,7 @@ import mlrun.common.types
 import mlrun.db.httpdb
 import mlrun.feature_store
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
@@ -71,6 +72,7 @@ class _AppData:
     abs_path: str = field(init=False)
     results: set[str] = field(default_factory=set)  # only for testing
     metrics: set[str] = field(default_factory=set)  # only for testing
+    artifacts: set[str] = field(default_factory=set)  # only for testing
     deploy: bool = True  # Set `False` for the default app
 
     def __post_init__(self) -> None:
@@ -87,6 +89,7 @@ _DefaultDataDriftAppData = _AppData(
     deploy=False,
     results={"general_drift"},
     metrics={"hellinger_mean", "kld_mean", "tvd_mean"},
+    artifacts={"features_drift_results", "drift_table_plot"},
 )
 
 
@@ -388,17 +391,16 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_project_id": cls.evidently_project_id,
                 },
                 results={"data_drift_test"},
+                artifacts={"evidently_report", "evidently_suite", "dashboard"},
             ),
         ]
 
         cls.run_db = mlrun.get_run_db()
 
-    @classmethod
-    def custom_setup(cls) -> None:
-        _V3IORecordsChecker.custom_setup(project_name=cls.project_name)
+    def custom_setup(self) -> None:
+        _V3IORecordsChecker.custom_setup(project_name=self.project_name)
 
-    @classmethod
-    def custom_teardown(self):
+    def custom_teardown(self) -> None:
         # validate that stream resources were deleted as expected
         stream_path = self._test_env[
             "MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"
@@ -541,8 +543,23 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
         endpoints = cls.run_db.list_model_endpoints(project=cls.project_name)
-        assert endpoints and len(endpoints) == 1
-        return endpoints[0].metadata.uid
+        assert endpoints and len(endpoints) == 1, "Expects a single model endpoint"
+        endpoint = typing.cast(mlrun.model_monitoring.ModelEndpoint, endpoints[0])
+        assert endpoint.spec.stream_path == mlrun.model_monitoring.get_stream_path(
+            project=cls.project_name
+        ), "The model endpoint stream path is different than expected"
+        return endpoint.metadata.uid
+
+    def _test_artifacts(self) -> None:
+        for app_data in self.apps_data:
+            if app_data.artifacts:
+                app_name = app_data.class_.NAME
+                self._logger.debug("Checking app artifacts", app_name=app_name)
+                for name in app_data.artifacts:
+                    key = f"{app_name}-logger_{name}"
+                    self._logger.debug("Checking artifact", key=key)
+                    # Test that the artifact can be fetched from the store
+                    self.project.get_artifact(key).to_dataitem().get()
 
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
@@ -623,6 +640,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_v3io_records(ep_id=ep_id, inputs=inputs, outputs=outputs)
         self._test_predictions_table(ep_id)
 
+        self._test_artifacts()
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
@@ -656,6 +674,7 @@ class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
                     "with_training_set": True,
                 },
                 results={"data_drift_test"},
+                artifacts={"evidently_report", "evidently_suite", "dashboard"},
             ),
         ]
 

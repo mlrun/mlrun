@@ -254,9 +254,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         # the launcher status also has running property, but it's empty for
         # short period after the creation, so we're
         # checking terminal state by the completion time existence
-        in_terminal_state = (
-            crd_object.get("status", {}).get("completionTime", None) is not None
-        )
+        in_terminal_state = self._is_terminal_state(crd_object)
         desired_run_state = RunStates.running
         completion_time = None
         if in_terminal_state:
@@ -271,6 +269,11 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
                 else RunStates.completed
             )
         return in_terminal_state, completion_time, desired_run_state
+
+    def _is_terminal_state(self, runtime_resource: dict) -> bool:
+        return (
+            runtime_resource.get("status", {}).get("completionTime", None) is not None
+        )
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:

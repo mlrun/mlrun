@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 import pandas as pd
+import pydantic
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.helpers
@@ -289,19 +290,27 @@ class TSDBConnector(ABC):
             full_name = mlrun.model_monitoring.helpers._compose_full_name(
                 project=project, app=app_name, name=name
             )
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringResultValues(
-                    full_name=full_name,
-                    result_kind=result_kind,
-                    values=list(
-                        zip(
-                            sub_df.index,
-                            sub_df[mm_schemas.ResultData.RESULT_VALUE],
-                            sub_df[mm_schemas.ResultData.RESULT_STATUS],
-                        )
-                    ),  # pyright: ignore[reportArgumentType]
+            try:
+                metrics_values.append(
+                    mm_schemas.ModelEndpointMonitoringResultValues(
+                        full_name=full_name,
+                        result_kind=result_kind,
+                        values=list(
+                            zip(
+                                sub_df.index,
+                                sub_df[mm_schemas.ResultData.RESULT_VALUE],
+                                sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                            )
+                        ),  # pyright: ignore[reportArgumentType]
+                    )
                 )
-            )
+            except pydantic.ValidationError:
+                logger.exception(
+                    "Failed to convert data-frame into `ModelEndpointMonitoringResultValues`",
+                    full_name=full_name,
+                    sub_df_json=sub_df.to_json(),
+                )
+                raise
             del metrics_without_data[full_name]
 
         for metric in metrics_without_data.values():

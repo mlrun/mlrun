@@ -101,6 +101,7 @@ class MonitoringDeployment:
         deploy_histogram_data_drift_app: bool = True,
         rebuild_images: bool = False,
         fetch_credentials_from_sys_config: bool = False,
+        client_version: str = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -114,11 +115,14 @@ class MonitoringDeployment:
         :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
                                                   (controller, writer & stream).
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param client_version:                    The client version.
         """
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
-        self.check_if_credentials_are_set(with_upgrade_case_check=True)
+        self.check_if_credentials_are_set(
+            with_upgrade_case_check=True, client_version=client_version
+        )
 
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period, overwrite=rebuild_images
@@ -498,7 +502,7 @@ class MonitoringDeployment:
                     project=self.project
                 ),
             )
-        ).respond()  # writer
+        )  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -703,6 +707,7 @@ class MonitoringDeployment:
         delete_user_applications: bool = False,
         user_application_list: list[str] = None,
         background_tasks: fastapi.BackgroundTasks = None,
+        client_version: str = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
         Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -724,8 +729,9 @@ class MonitoringDeployment:
                                                     Note: you have to set delete_user_applications to True
                                                     in order to delete the desired application.
         :param background_tasks:                    Fastapi Background tasks.
+        :param client_version:                      The client version.
         """
-        self._set_credentials_after_server_upgrade()
+        self._set_credentials_after_server_upgrade(client_version=client_version)
         function_to_delete = []
         if delete_resources:
             function_to_delete = mm_constants.MonitoringFunctionNames.list()
@@ -936,8 +942,13 @@ class MonitoringDeployment:
                 )
 
                 try:
+                    # if the stream path is in the users directory, we need to use pipelines access key to delete it
                     v3io_client.stream.delete(
-                        container, stream_path, access_key=access_key
+                        container,
+                        stream_path,
+                        access_key=mlrun.mlconf.get_v3io_access_key()
+                        if container.startswith("users")
+                        else access_key,
                     )
                     logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:
@@ -998,12 +1009,15 @@ class MonitoringDeployment:
 
         return credentials_dict
 
-    def check_if_credentials_are_set(self, with_upgrade_case_check: bool = False):
+    def check_if_credentials_are_set(
+        self, with_upgrade_case_check: bool = False, client_version: str = None
+    ):
         """
         Check if the model monitoring credentials are set. If not, raise an error.
 
         :param with_upgrade_case_check:         If True, check if indeed the project is an old(<1.7.0) project
                                                 that had model monitoring, if indeed, set the credentials.
+        :param client_version:                  The client version.
         :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
         """
 
@@ -1020,7 +1034,9 @@ class MonitoringDeployment:
         ):
             return
         if with_upgrade_case_check:
-            with_upgrade_case_check = self._set_credentials_after_server_upgrade()
+            with_upgrade_case_check = self._set_credentials_after_server_upgrade(
+                client_version=client_version
+            )
 
         if not with_upgrade_case_check:
             raise mlrun.errors.MLRunBadRequestError(
@@ -1029,7 +1045,7 @@ class MonitoringDeployment:
                 "or pass fetch_credentials_from_sys_config=True when using enable_model_monitoring API/SDK."
             )
 
-    def _set_credentials_after_server_upgrade(self) -> bool:
+    def _set_credentials_after_server_upgrade(self, client_version: str = None) -> bool:
         """
         Check and set the model monitoring credentials for old project that included model monitoring before the server
         upgrade. Will set the credentials only if at least one of the following conditions is met:
@@ -1038,10 +1054,12 @@ class MonitoringDeployment:
             3. Part of the model monitoring credentials are already set
         If True, set the cred in to the project secret (from exist cred/from sys config/v3io by default).
 
+        :param client_version: The client version.
+
         :return: True if the credentials are set, otherwise False.
         """
         credentials_dict = self._get_monitoring_mandatory_project_secrets()
-        mm_enabled = False
+        set_cred = False
         store_connection_string = (
             credentials_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
@@ -1059,7 +1077,12 @@ class MonitoringDeployment:
 
         if store_connector and store_connector.list_model_endpoints():
             # if there are model endpoints, the project has monitoring
-            mm_enabled = True
+            set_cred = True
+        elif client_version and (
+            semver.Version.parse(client_version) < semver.Version.parse("1.7.0")
+            or "unstable" in client_version
+        ):
+            set_cred = True
         else:
             try:
                 server.api.crud.Functions().get_function(
@@ -1068,7 +1091,7 @@ class MonitoringDeployment:
                     project=self.project,
                 )
                 # if stream pod is on, the project has monitoring
-                mm_enabled = True
+                set_cred = True
             except mlrun.errors.MLRunNotFoundError:
                 # if one of the cred is already set, the project has monitoring
                 if any(
@@ -1080,16 +1103,20 @@ class MonitoringDeployment:
                     ]
                     # stream is not mandatory for now for BC, Todo: del in 1.9.0
                 ):
-                    mm_enabled = True
+                    set_cred = True
 
-        if mm_enabled and None in credentials_dict.values():
+        if set_cred and None in credentials_dict.values():
+            logger.info(
+                "Setting credentials for older client version(1.7.0)/ old projects, "
+                "using v3io as default (not in ce mode)"
+            )
             self.set_credentials(
                 _default_secrets_v3io=mm_constants.V3IO_MODEL_MONITORING_DB
                 if not mlrun.mlconf.is_ce_mode()
                 else None,
                 replace_creds=True,
             )
-        return mm_enabled
+        return set_cred
 
     def set_credentials(
         self,
@@ -1129,6 +1156,7 @@ class MonitoringDeployment:
         :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
+        :param client_version:            The client version.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.

@@ -16,6 +16,7 @@ import io
 import os
 import sys
 
+import mlrun.runtimes
 import tests.system.base
 
 
@@ -110,6 +111,24 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
                 pull_at_runtime=False,
             )
         return function, source
+
+    def test_deploy_reverse_proxy_base_image(self):
+        tests.system.base.TestMLRunSystem._logger.debug(
+            "Deploying reverse proxy base image"
+        )
+        mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
+        assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+
+        # deploy an application and expect it to use the reverse proxy image
+        function, source = self._create_vizro_application()
+
+        self._logger.debug("Deploying vizro application")
+        function.deploy(with_mlrun=False)
+
+        assert (
+            function.status.container_image
+            == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+        )
 
     @staticmethod
     def _deploy_application_with_stdout_capture(function):

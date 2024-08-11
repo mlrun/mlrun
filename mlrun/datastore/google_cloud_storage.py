@@ -143,7 +143,7 @@ class GoogleCloudStorageStore(DataStore):
         if bucket_retention_policy or bucket.object_retention_mode:
             self.filesystem.put_file(src_path, united_path, overwrite=True)
             return
-        blob = bucket.blob(key)
+        blob = bucket.blob(key.strip("/"))
 
         if (
             blob.retention_expiration_time

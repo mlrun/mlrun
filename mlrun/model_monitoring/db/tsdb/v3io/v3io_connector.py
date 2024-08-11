@@ -504,19 +504,29 @@ class V3IOTSDBConnector(TSDBConnector):
         if type == "metrics":
             table_path = self.tables[mm_schemas.V3IOTSDBTables.METRICS]
             name = mm_schemas.MetricData.METRIC_NAME
+            columns = [mm_schemas.MetricData.METRIC_VALUE]
             df_handler = self.df_to_metrics_values
         elif type == "results":
             table_path = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
             name = mm_schemas.ResultData.RESULT_NAME
+            columns = [
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_KIND,
+            ]
             df_handler = self.df_to_results_values
         else:
             raise ValueError(f"Invalid {type = }")
+
+        groupby = [name, mm_schemas.WriterEvent.APPLICATION_NAME]
 
         query = self._get_sql_query(
             endpoint_id=endpoint_id,
             metric_and_app_names=[(metric.app, metric.name) for metric in metrics],
             table_path=table_path,
             name=name,
+            columns=columns,
+            groupby=groupby,
         )
 
         logger.debug("Querying V3IO TSDB", query=query)

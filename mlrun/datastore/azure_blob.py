@@ -30,14 +30,14 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 class AzureBlobStore(DataStore):
     using_bucket = True
+    max_concurrency = 100
+    max_blocksize = 1024 * 1024 * 4
+    max_single_put_size = 1024 * 1024 * 8  # for BlobServiceClient only
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
         self._storage_options = None
-        self.max_concurrency = 100
-        self.max_blocksize = 1024 * 1024 * 4
-        self.max_single_put_size = 1024 * 1024 * 8  # for BlobServiceClient only
 
     @property
     def storage_options(self):

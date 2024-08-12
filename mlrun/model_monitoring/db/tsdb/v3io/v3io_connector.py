@@ -738,15 +738,16 @@ class V3IOTSDBConnector(TSDBConnector):
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
             end=end,
+            columns=[mm_schemas.ResultData.RESULT_STATUS],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["max"],
+            group_by="endpoint_id"
         )
         if not df.empty:
             df.columns = [
-                col[len("max(") : -1] if "max(" in col else col for col in df.columns
+                col[len("max("): -1] if "max(" in col else col for col in df.columns
             ]
-            drift_status = df.loc[df.reset_index().groupby([f"{mm_schemas.EventFieldType.ENDPOINT_ID}"])[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
-            return drift_status
+        return df
 
     def get_metrics_metadata(
         self,

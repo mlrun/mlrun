@@ -160,10 +160,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
             f": {notification_object.message}" if notification_object.message else ""
         )
 
-        severity = (
-            notification_object.severity
-            or mlrun.common.schemas.NotificationSeverity.INFO
-        )
+        severity = alert.severity
         return message, severity
 
     @staticmethod

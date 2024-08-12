@@ -40,6 +40,7 @@ import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
 
+# Configmap objects on Kubernetes have 1Mb size limit
 SERVING_SPEC_MAX_LENGTH = 1048576
 
 
@@ -300,7 +301,6 @@ def _compile_function_config(
             can_pass_via_cm
             and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
         ):
-            # Configmap objects on Kubernetes have 1Mb size limit
             if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Serving spec length {serving_spec_len} is too large. "

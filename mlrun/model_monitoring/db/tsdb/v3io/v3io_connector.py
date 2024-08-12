@@ -91,7 +91,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         errors_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
-            kind=mm_schemas.FileTargetKind.EVENTS,
+            kind=mm_schemas.FileTargetKind.ERRORS,
         )
         (
             _,
@@ -292,7 +292,7 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.TSDBTarget",
             name="tsdb_error",
             after="FilterIfNotError",
-            path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.ERRORS]}",
+            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.ERRORS]}",
             rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
@@ -705,7 +705,11 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["last"],
         )
-
+        df.rename(
+            columns={
+                f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+            }
+        )
         df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"].map(
             lambda last_request: datetime.fromtimestamp(last_request)
         )
@@ -737,7 +741,7 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         df.reset_index(inplace=True)
         df.columns = [
-            col[len("last(") : -1] if "last(" in col else col for col in df.columns
+            col[len("max(") : -1] if "max(" in col else col for col in df.columns
         ]
         drift_status = df.iloc[df[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
         return drift_status[f"{mm_schemas.ResultData.RESULT_STATUS}"], drift_status
@@ -765,7 +769,7 @@ class V3IOTSDBConnector(TSDBConnector):
             agg_funcs=["last"],
         )
 
-        df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"])
+        df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True)
         return df
 
     def get_results_metadata(
@@ -795,7 +799,8 @@ class V3IOTSDBConnector(TSDBConnector):
         df.rename(
             columns={
                 f"last({mm_schemas.ResultData.RESULT_KIND})": f"{mm_schemas.ResultData.RESULT_KIND}"
-            }
+            },
+            inplace=True,
         )
         return df
 

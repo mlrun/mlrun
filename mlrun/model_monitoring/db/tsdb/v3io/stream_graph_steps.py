@@ -22,6 +22,7 @@ from mlrun.common.schemas.model_monitoring import (
     EventKeyMetrics,
     EventLiveStats,
 )
+from mlrun.utils import logger
 
 
 def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
@@ -144,7 +145,9 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         error = event.get("error")
+        logger.info("[DAVID] In ErrorExtractor")
         if error:
+            logger.info("Write error to errors tsdb table")
             timestamp = datetime.fromisoformat(event.get("when"))
             endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
             return storey.Event(

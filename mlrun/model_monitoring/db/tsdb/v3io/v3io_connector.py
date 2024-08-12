@@ -711,9 +711,9 @@ class V3IOTSDBConnector(TSDBConnector):
             },
             inplace=True,
         )
-        df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"].map(
-            lambda last_request: datetime.fromtimestamp(last_request)
-        )
+        df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"] = df[
+            f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+        ].map(lambda last_request: datetime.fromtimestamp(last_request))
 
         return df
 

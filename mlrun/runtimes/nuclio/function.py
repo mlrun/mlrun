@@ -446,6 +446,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def from_image(self, image):
+        """
+        Deploy the function with an existing nuclio processor image.
+
+        :param image: image name
+        """
         config = nuclio.config.new_config()
         update_in(
             config,
@@ -568,6 +573,9 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
@@ -681,7 +689,7 @@ class RemoteRuntime(KubeResource):
             "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
         )
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
@@ -698,6 +706,10 @@ class RemoteRuntime(KubeResource):
         Enables nuclio's default http trigger creation
         """
         self.spec.disable_default_http_trigger = False
+
+    def skip_image_enrichment(self):
+        # make sure the API does not enrich the base image if the function is not a python function
+        return self.spec.nuclio_runtime and "python" not in self.spec.nuclio_runtime
 
     def _get_state(
         self,

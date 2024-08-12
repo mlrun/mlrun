@@ -1032,6 +1032,8 @@ def _ingest_with_spark(
     try:
         import pyspark.sql
 
+        from mlrun.datastore.spark_utils import check_special_columns_exists
+
         if spark is None or spark is True:
             # create spark context
 
@@ -1050,7 +1052,6 @@ def _ingest_with_spark(
             created_spark_context = True
 
         timestamp_key = featureset.spec.timestamp_key
-
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
         elif isinstance(source, pyspark.sql.DataFrame):
@@ -1080,6 +1081,12 @@ def _ingest_with_spark(
                 target = get_target_driver(target, featureset)
             target.set_resource(featureset)
             if featureset.spec.passthrough and target.is_offline:
+                check_special_columns_exists(
+                    spark_df=df,
+                    entities=featureset.spec.entities,
+                    timestamp_key=timestamp_key,
+                    label_column=featureset.spec.label_column,
+                )
                 continue
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
@@ -1090,6 +1097,17 @@ def _ingest_with_spark(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
             write_format = spark_options.pop("format", None)
+            # We can get to this point if the column exists in different letter cases,
+            # so PySpark will be able to read it, but we still have to raise an exception for it.
+
+            # This check is here and not in to_spark_df because in spark_merger we can have a target
+            # that has different letter cases than the source, like in SnowflakeTarget.
+            check_special_columns_exists(
+                spark_df=df_to_write,
+                entities=featureset.spec.entities,
+                timestamp_key=timestamp_key,
+                label_column=featureset.spec.label_column,
+            )
             if overwrite:
                 write_spark_dataframe_with_options(
                     spark_options, df_to_write, "overwrite", write_format=write_format

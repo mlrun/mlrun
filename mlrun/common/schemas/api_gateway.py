@@ -107,7 +107,7 @@ class APIGateway(_APIGatewayBaseModel):
             self.spec.host + self.spec.path
             if self.spec.path and self.spec.host
             else self.spec.host
-        )
+        ).rstrip("/")
 
     def enrich_mlrun_names(self):
         self._enrich_api_gateway_mlrun_name()

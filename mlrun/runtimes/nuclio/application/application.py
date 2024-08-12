@@ -18,6 +18,7 @@ import nuclio
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
+import mlrun.run
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes import RemoteRuntime
 from mlrun.runtimes.nuclio import min_nuclio_versions
@@ -27,7 +28,7 @@ from mlrun.runtimes.nuclio.api_gateway import (
     APIGatewaySpec,
 )
 from mlrun.runtimes.nuclio.function import NuclioSpec, NuclioStatus
-from mlrun.utils import logger
+from mlrun.utils import logger, update_in
 
 
 class ApplicationSpec(NuclioSpec):
@@ -149,6 +150,7 @@ class ApplicationStatus(NuclioStatus):
         build_pod=None,
         container_image=None,
         application_image=None,
+        application_source=None,
         sidecar_name=None,
         api_gateway_name=None,
         api_gateway=None,
@@ -164,6 +166,7 @@ class ApplicationStatus(NuclioStatus):
             container_image=container_image,
         )
         self.application_image = application_image or None
+        self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
         self.api_gateway = api_gateway or None
@@ -172,6 +175,7 @@ class ApplicationStatus(NuclioStatus):
 
 class ApplicationRuntime(RemoteRuntime):
     kind = "application"
+    reverse_proxy_image = None
 
     @min_nuclio_versions("1.13.1")
     def __init__(self, spec=None, metadata=None):
@@ -250,6 +254,15 @@ class ApplicationRuntime(RemoteRuntime):
                     "Application sidecar spec must include a command if args are provided"
                 )
 
+    def prepare_image_for_deploy(self):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            logger.warning(
+                "Application runtime requires loading the source into the application image. "
+                f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
+            )
+            self.spec.build.load_source_on_run = False
+        super().prepare_image_for_deploy()
+
     def deploy(
         self,
         project="",
@@ -292,7 +305,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return: True if the function is ready (deployed)
         """
-        if self.requires_build() or force_build:
+        if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
             self._build_application_image(
                 builder_env=builder_env,
@@ -305,10 +318,11 @@ class ApplicationRuntime(RemoteRuntime):
                 show_on_failure=show_on_failure,
             )
 
-        self._ensure_reverse_proxy_configurations()
+        # This is a class method that accepts a function instance, so we pass self as the function instance
+        self._ensure_reverse_proxy_configurations(self)
         self._configure_application_sidecar()
 
-        # we only allow accessing the application via the API Gateway
+        # We only allow accessing the application via the API Gateway
         name_tag = tag or self.metadata.tag
         self.status.api_gateway_name = (
             f"{self.metadata.name}-{name_tag}" if name_tag else self.metadata.name
@@ -318,15 +332,25 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
         super().deploy(
-            project,
-            tag,
-            verbose,
-            auth_info,
-            builder_env,
+            project=project,
+            tag=tag,
+            verbose=verbose,
+            auth_info=auth_info,
+            builder_env=builder_env,
+        )
+        logger.info(
+            "Successfully deployed function, creating API gateway",
+            api_gateway_name=self.status.api_gateway_name,
+            authentication_mode=authentication_mode,
         )
 
+        # Restore the source in case it was removed to make nuclio not consider it when building
+        if not self.spec.build.source and self.status.application_source:
+            self.spec.build.source = self.status.application_source
+        self.save(versioned=False)
+
         ports = self.spec.internal_application_port if direct_port_access else []
-        self.create_api_gateway(
+        return self.create_api_gateway(
             name=self.status.api_gateway_name,
             ports=ports,
             authentication_mode=authentication_mode,
@@ -335,9 +359,13 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
     def with_source_archive(
-        self, source, workdir=None, pull_at_runtime=True, target_dir=None
+        self,
+        source,
+        workdir=None,
+        pull_at_runtime: bool = False,
+        target_dir: str = None,
     ):
-        """load the code from git/tar/zip archive at runtime or build
+        """load the code from git/tar/zip archive at build
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
@@ -345,18 +373,50 @@ class ApplicationRuntime(RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
-        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
+        if pull_at_runtime:
+            logger.warning(
+                f"{pull_at_runtime=} is currently not supported for application runtime "
+                "and will be overridden to False",
+                pull_at_runtime=pull_at_runtime,
+            )
+
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
-            pull_at_runtime=pull_at_runtime,
+            pull_at_runtime=False,
             target_dir=target_dir,
         )
 
-    @classmethod
-    def get_filename_and_handler(cls) -> (str, str):
+    def from_image(self, image):
+        """
+        Deploy the function with an existing nuclio processor image.
+        This applies only for the reverse proxy and not the application image.
+
+        :param image: image name
+        """
+        super().from_image(image)
+        # nuclio implementation detail - when providing the image and emptying out the source code and build source,
+        # nuclio skips rebuilding the image and simply takes the prebuilt image
+        self.spec.build.functionSourceCode = ""
+        self.status.application_source = self.spec.build.source
+        self.spec.build.source = ""
+
+        # save the image in the status, so we won't repopulate the function source code
+        self.status.container_image = image
+
+        # ensure golang runtime and handler for the reverse proxy
+        self.spec.nuclio_runtime = "golang"
+        update_in(
+            self.spec.base_spec,
+            "spec.handler",
+            "main:Handler",
+        )
+
+    @staticmethod
+    def get_filename_and_handler() -> (str, str):
         reverse_proxy_file_path = pathlib.Path(__file__).parent / "reverse_proxy.go"
         return str(reverse_proxy_file_path), "Handler"
 
@@ -410,6 +470,9 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
 
+        logger.info("Successfully created API gateway", url=self.url)
+        return self.url
+
     def invoke(
         self,
         path: str,
@@ -449,6 +512,47 @@ class ApplicationRuntime(RemoteRuntime):
             **http_client_kwargs,
         )
 
+    @classmethod
+    def deploy_reverse_proxy_image(cls):
+        """
+        Build the reverse proxy image and save it.
+        The reverse proxy image is used to route requests to the application sidecar.
+        This is useful when you want to decrease build time by building the application image only once.
+
+        :param use_cache:   Use the cache when building the image
+        """
+        # create a function that includes only the reverse proxy, without the application
+
+        reverse_proxy_func = mlrun.run.new_function(
+            name="reverse-proxy-temp", kind="remote"
+        )
+        # default max replicas is 4, we only need one replica for the reverse proxy
+        reverse_proxy_func.spec.max_replicas = 1
+
+        # the reverse proxy image should not be based on another image
+        reverse_proxy_func.set_config("spec.build.baseImage", None)
+        reverse_proxy_func.spec.image = ""
+        reverse_proxy_func.spec.build.base_image = ""
+
+        cls._ensure_reverse_proxy_configurations(reverse_proxy_func)
+        reverse_proxy_func.deploy()
+
+        # save the created container image
+        cls.reverse_proxy_image = reverse_proxy_func.status.container_image
+
+        # delete the function to avoid cluttering the project
+        mlrun.get_run_db().delete_function(
+            reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
+        )
+
+    def _run(self, runobj: "mlrun.RunObject", execution):
+        raise mlrun.runtimes.RunError(
+            "Application runtime .run() is not yet supported. Use .invoke() instead."
+        )
+
+    def _enrich_command_from_status(self):
+        pass
+
     def _build_application_image(
         self,
         builder_env: dict = None,
@@ -468,6 +572,13 @@ class ApplicationRuntime(RemoteRuntime):
                 args=self.spec.args,
             )
 
+        if self.spec.build.source in [".", "./"]:
+            logger.info(
+                "The application is configured to use the project's source. "
+                "Application runtime requires loading the source into the application image. "
+                "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
         return self._build_image(
             builder_env=builder_env,
@@ -480,21 +591,22 @@ class ApplicationRuntime(RemoteRuntime):
             with_mlrun=with_mlrun,
         )
 
-    def _ensure_reverse_proxy_configurations(self):
-        if self.spec.build.functionSourceCode or self.status.container_image:
+    @staticmethod
+    def _ensure_reverse_proxy_configurations(function: RemoteRuntime):
+        if function.spec.build.functionSourceCode or function.status.container_image:
             return
 
         filename, handler = ApplicationRuntime.get_filename_and_handler()
         name, spec, code = nuclio.build_file(
             filename,
-            name=self.metadata.name,
+            name=function.metadata.name,
             handler=handler,
         )
-        self.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
-        self.spec.build.functionSourceCode = mlrun.utils.get_in(
+        function.spec.function_handler = mlrun.utils.get_in(spec, "spec.handler")
+        function.spec.build.functionSourceCode = mlrun.utils.get_in(
             spec, "spec.build.functionSourceCode"
         )
-        self.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
+        function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point
@@ -505,11 +617,12 @@ class ApplicationRuntime(RemoteRuntime):
             self.status.application_image = self.spec.image
             self.spec.image = ""
 
-        if self.status.container_image:
-            self.from_image(self.status.container_image)
-            # nuclio implementation detail - when providing the image and emptying out the source code,
-            # nuclio skips rebuilding the image and simply takes the prebuilt image
-            self.spec.build.functionSourceCode = ""
+        # reuse the reverse proxy image if it was built before
+        if (
+            reverse_proxy_image := self.status.container_image
+            or self.reverse_proxy_image
+        ):
+            self.from_image(reverse_proxy_image)
 
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(
@@ -521,6 +634,12 @@ class ApplicationRuntime(RemoteRuntime):
         )
         self.set_env("SIDECAR_PORT", self.spec.internal_application_port)
         self.set_env("SIDECAR_HOST", "http://localhost")
+
+        # configure the sidecar container as the default container for logging purposes
+        self.set_config(
+            "metadata.annotations",
+            {"kubectl.kubernetes.io/default-container": self.status.sidecar_name},
+        )
 
     def _sync_api_gateway(self):
         if not self.status.api_gateway_name:

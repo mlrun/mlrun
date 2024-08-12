@@ -725,7 +725,7 @@ def _project_instance_from_struct(struct, name, allow_cross_project):
             # TODO: Remove this warning in version 1.9.0 and also fix cli to support allow_cross_project
             warnings.warn(
                 f"Project {name=} is different than specified on the context's project yaml. "
-                "This behavior is deprecated and will not be supported in version 1.9.0."
+                "This behavior is deprecated and will not be supported from version 1.9.0."
             )
             logger.warn(error_message)
         elif allow_cross_project:
@@ -2967,6 +2967,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3003,6 +3004,8 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
+        :param send_start_notification:
+                          Send a notification when the workflow starts
 
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -3080,6 +3083,7 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
+            send_start_notification=send_start_notification,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
@@ -4063,6 +4067,12 @@ class MlrunProject(ModelObj):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if alert_name is None:
             alert_name = alert_data.name
+        if alert_data.project is not None and alert_data.project != self.metadata.name:
+            logger.warn(
+                "Project in alert does not match project in operation",
+                project=alert_data.project,
+            )
+        alert_data.project = self.metadata.name
         return db.store_alert_config(alert_name, alert_data, project=self.metadata.name)
 
     def get_alert_config(self, alert_name: str) -> AlertConfig:

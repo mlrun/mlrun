@@ -26,7 +26,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
-from sklearn.datasets import load_diabetes, load_iris
+from sklearn.datasets import load_diabetes, load_iris, make_classification
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
@@ -247,9 +248,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
     @pytest.mark.parametrize(
         "with_sql_target",
         [
-            pytest.param(
-                True, marks=pytest.mark.skip(reason="Chronically fails, see ML-5820")
-            ),
+            True,
             False,
         ],
     )
@@ -298,7 +297,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         labels = {"framework": "sklearn", "mylabel": "l1"}
 
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model_obj = project.log_model(
             model_name,
             model_dir=str(self.assets_path),
             model_file="model.pkl",
@@ -338,7 +337,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
 
-        # ML-6594
         assert not endpoint.status.feature_stats
 
         self._assert_model_endpoint_tags_and_labels(
@@ -347,6 +345,18 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Test metrics
         self._assert_model_endpoint_metrics(endpoint=endpoint)
+
+        self._assert_model_uri(model_obj=model_obj, endpoint=endpoint)
+
+    def _assert_model_uri(
+        self,
+        model_obj: mlrun.artifacts.ModelArtifact,
+        endpoint: mlrun.model_monitoring.model_endpoint.ModelEndpoint,
+    ) -> None:
+        assert (
+            endpoint.spec.model_uri
+            == f"store://models/{model_obj.metadata.project}/{model_obj.key}#{model_obj.iter}@{model_obj.tree}"
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -847,7 +857,7 @@ class TestBatchDrift(TestMLRunSystem):
         )
         model_name = "sklearn_RandomForestClassifier"
         # Upload the model through the projects API so that it is available to the serving function
-        project.log_model(
+        model = project.log_model(
             model_name,
             model_dir=os.path.relpath(self.assets_path),
             model_file="model.pkl",
@@ -905,12 +915,8 @@ class TestBatchDrift(TestMLRunSystem):
         model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
             project=project.name, endpoint_id=endpoint_id
         )
-
         # Validate that model_uri is based on models prefix
-        assert (
-            model_endpoint.spec.model_uri
-            == f"store://models/{project.name}/{model_name}:latest"
-        )
+        self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
 
         # Test the drift results
         # TODO: comment out when ML-5767 is done
@@ -923,6 +929,21 @@ class TestBatchDrift(TestMLRunSystem):
         assert len(project.list_artifacts(name="~features_drift_results")) == 1
         # TODO: take the artifacts from the original context when ML-5792 is done
         # artifacts = context.artifacts
+
+    def _validate_model_uri(self, model_obj, model_endpoint):
+        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+            project=model_endpoint.metadata.project,
+            key=model_obj.key,
+            iter=model_obj.iter,
+            tree=model_obj.tree,
+        )
+
+        # Enrich the uri schema with the store prefix
+        model_artifact_uri = mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+        )
+
+        assert model_endpoint.spec.model_uri == model_artifact_uri
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -1235,3 +1256,59 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         sleep(130)
 
         self._test_v3io_tsdb_record()
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
+class TestModelEndpointWithManyFeatures(TestMLRunSystem):
+    """Log a model with 500 features and validate the model endpoint feature stats."""
+
+    project_name = "pr-many-features-model-monitoring"
+
+    @pytest.mark.parametrize(
+        "with_sql_target",
+        [
+            True,
+            False,
+        ],
+    )
+    def test_model_endpoint_with_many_features(self, with_sql_target: bool) -> None:
+        project = self.project
+
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            if with_sql_target
+            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+        # Generate a model with 500 features
+        x, y = make_classification(n_samples=1000, n_features=500, random_state=42)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, train_size=0.8, test_size=0.2, random_state=42
+        )
+        model = LinearRegression()
+        model.fit(x_train, y_train)
+        x_test = pd.DataFrame(x_test, columns=[f"column_{i}" for i in range(500)])
+        y_test = pd.DataFrame(y_test, columns=["label"])
+        training_set = pd.concat([x_test, y_test], axis=1)
+
+        model_obj = project.log_model(
+            key="model",
+            body=pickle.dumps(model),
+            model_file="model.pkl",
+            training_set=training_set,
+            label_column="label",
+        )
+
+        # Generate a model endpoint
+        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+            project=project.name,
+            model_path=model_obj.uri,
+            function_name="dummy_func",
+            model_endpoint_name="dummy_ep",
+        )
+
+        assert len(model_endpoint.status.feature_stats) == 501

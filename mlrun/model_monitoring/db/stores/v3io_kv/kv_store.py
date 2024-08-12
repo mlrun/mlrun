@@ -226,24 +226,8 @@ class KVStoreBase(StoreBase):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
-        """
-        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available model endpoints for the given project will
-        be listed.
-
-        :param model:           The name of the model to filter by.
-        :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                                key (i.e. "key").
-        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param uids:            List of model endpoint unique ids to include in the result.
-
-
-        :return: A list of model endpoint dictionaries.
-        """
-
         # # Initialize an empty model endpoints list
         endpoint_list = []
 
@@ -283,9 +267,10 @@ class KVStoreBase(StoreBase):
             endpoint_dict = self.get_model_endpoint(
                 endpoint_id=endpoint_id,
             )
-            # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
-            endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
-            endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
+            if not include_stats:
+                # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
             if labels and not self._validate_labels(
                 endpoint_dict=endpoint_dict, labels=labels
@@ -365,7 +350,7 @@ class KVStoreBase(StoreBase):
             table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: json.dumps(event)}
+            attributes = {metric_name: self._encode_field(json.dumps(event))}
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -423,14 +408,14 @@ class KVStoreBase(StoreBase):
 
         """
         try:
-            data = self.client.kv.get(
+            response = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
                     project_name=self.project
                 ),
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
+            return response.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
             raise mlrun.errors.MLRunNotFoundError(

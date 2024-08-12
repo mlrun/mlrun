@@ -38,10 +38,7 @@ from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
-from .utils import (
-    event_id_key,
-    event_path_key,
-)
+from .utils import event_id_key, event_path_key
 
 
 class _StreamContext:
@@ -71,15 +68,15 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
+            self.stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
-                stream_uri = log_stream.format(project=project)
+                self.stream_uri = log_stream.format(project=project)
 
             stream_args = parameters.get("stream_args", {})
 
-            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+            self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
 
 
 class GraphServer(ModelObj):
@@ -321,9 +318,9 @@ def v2_serving_init(context, namespace=None):
         server.http_trigger = getattr(context.trigger, "kind", "http") == "http"
     context.logger.info_with(
         "Setting current function",
-        current_functiton=os.environ.get("SERVING_CURRENT_FUNCTION", ""),
+        current_function=os.getenv("SERVING_CURRENT_FUNCTION", ""),
     )
-    server.set_current_function(os.environ.get("SERVING_CURRENT_FUNCTION", ""))
+    server.set_current_function(os.getenv("SERVING_CURRENT_FUNCTION", ""))
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
@@ -344,9 +341,14 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
-    if hasattr(context, "platform") and hasattr(
-        context.platform, "set_termination_callback"
-    ):
+    _set_callbacks(server, context)
+
+
+def _set_callbacks(server, context):
+    if not server.graph.supports_termination() or not hasattr(context, "platform"):
+        return
+
+    if hasattr(context.platform, "set_termination_callback"):
         context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
@@ -358,7 +360,7 @@ def v2_serving_init(context, namespace=None):
 
         context.platform.set_termination_callback(termination_callback)
 
-    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+    if hasattr(context.platform, "set_drain_callback"):
         context.logger.info(
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
@@ -417,7 +419,7 @@ def create_graph_server(
     parameters = parameters or {}
     server = GraphServer(graph, parameters, load_mode, verbose=verbose, **kwargs)
     server.set_current_function(
-        current_function or os.environ.get("SERVING_CURRENT_FUNCTION", "")
+        current_function or os.getenv("SERVING_CURRENT_FUNCTION", "")
     )
     return server
 

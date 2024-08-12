@@ -404,12 +404,15 @@ def enrich_dask_cluster(
     # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
     project = function._get_db().get_project(function.metadata.project)
     logger.debug(
-        "Enriching Dask Cluster node selector from project",
+        "Enriching Dask Cluster node selector from project and mlrun config",
         project_name=function.metadata.project,
         project_node_selector=project.spec.default_function_node_selector,
+        mlconf_node_selector=mlrun.mlconf.get_default_function_node_selector(),
     )
-    node_selector = mlrun.utils.helpers.merge_with_precedence(
-        project.spec.default_function_node_selector, function.spec.node_selector
+    node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
+        mlrun.mlconf.get_default_function_node_selector(),
+        project.spec.default_function_node_selector,
+        function.spec.node_selector,
     )
     scheduler_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, scheduler_container, node_selector=node_selector

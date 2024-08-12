@@ -22,6 +22,7 @@ from datetime import datetime
 import fsspec
 import pandas as pd
 import pytest
+import requests
 import v3iofs
 from pandas._testing import assert_frame_equal
 from storey import EmitEveryEvent
@@ -50,6 +51,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.runtimes.utils import RunError
 from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
@@ -333,6 +335,62 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         print(f"stats_df: {stats_df.to_json()}")
         print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
+
+    def test_special_columns_missing(self):
+        key = "patient_id"
+        entity_fset = fstore.FeatureSet(
+            "entity_fset",
+            entities=[fstore.Entity(key.upper())],
+            engine="spark",
+        )
+        timestamp_fset = fstore.FeatureSet(
+            "timestamp_fset",
+            timestamp_key="TIMESTAMP",
+            engine="spark",
+        )
+
+        label_fset = fstore.FeatureSet(
+            "label_fset",
+            label_column="BAD",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        self.set_targets(entity_fset, also_in_remote=True)
+        self.set_targets(timestamp_fset, also_in_remote=True)
+        self.set_targets(label_fset, also_in_remote=True)
+        error_type = (
+            mlrun.errors.MLRunInvalidArgumentError if self.run_local else RunError
+        )
+
+        with pytest.raises(
+            error_type,
+            match="There are missing entities from dataframe during ingestion.",
+        ):
+            entity_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        with pytest.raises(
+            error_type,
+            match="timestamp_key is missing from dataframe during ingestion.",
+        ):
+            timestamp_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        with pytest.raises(
+            error_type,
+            match="label_column is missing from dataframe during ingestion.",
+        ):
+            label_fset.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
 
     @pytest.mark.parametrize("passthrough", [True, False])
     def test_parquet_filters(self, passthrough):
@@ -1524,6 +1582,68 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp_df.reset_index(drop=True, inplace=True)
         pd.testing.assert_frame_equal(resp_df[["bad", "department"]], expected_df)
+        target.purge()
+        with pytest.raises(FileNotFoundError):
+            target.as_df()
+        # check that a FileNotFoundError is not raised
+        target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_wrong_credentials(self):
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            host=os.getenv("HDFS_HOST"),
+            port=int(os.getenv("HDFS_PORT")),
+            http_port=int(os.getenv("HDFS_HTTP_PORT")),
+            user="wrong-user",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(PermissionError):
+            target.purge()
+
+    @pytest.mark.skipif(
+        not {"HDFS_HOST", "HDFS_PORT", "HDFS_HTTP_PORT", "HADOOP_USER_NAME"}.issubset(
+            os.environ.keys()
+        ),
+        reason="HDFS host, ports and user name are not defined",
+    )
+    def test_hdfs_empty_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("HDFS_HOST")
+
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+            port=int(os.environ["HDFS_PORT"]),
+            http_port=int(os.environ["HDFS_HTTP_PORT"]),
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(requests.exceptions.ConnectionError):
+            target.purge()
+
+        monkeypatch.delenv("HDFS_PORT")
+        monkeypatch.delenv("HDFS_HTTP_PORT")
+        datastore_profile = DatastoreProfileHdfs(
+            name="my-hdfs",
+        )
+        register_temporary_client_datastore_profile(datastore_profile)
+        self.project.register_datastore_profile(datastore_profile)
+        target = ParquetTarget(
+            "mytarget", path=f"{self.hdfs_output_dir}-get_offline_features"
+        )
+        with pytest.raises(ValueError):
+            target.purge()
 
     @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
     def test_get_offline_features_with_drop_columns(self, drop_column):
@@ -1676,6 +1796,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         self.read_csv_and_assert(csv_path_spark, csv_path_storey)
 
+    def test_drop_features_validators(self):
+        key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1688,6 +1810,40 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            label_column="bad",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop label_column: bad$",
+        ):
+            measurements.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["timestamp"]))
+        source = ParquetSource("myparquet", path=self.get_pq_source_path())
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="^DropFeatures can not drop timestamp_key: timestamp$",
         ):
             measurements.ingest(
                 source,
@@ -1737,56 +1893,102 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
         base_path = self.get_test_output_subdir_path()
-        csv_path_spark = f"{base_path}_spark"
-        csv_path_storey = f"{base_path}_storey.csv"
+        parquet_path_spark = f"{base_path}_spark"
+        parquet_path_storey = f"{base_path}_storey"
 
         measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
             engine="spark",
+            entities=[fstore.Entity(key)],
         )
         measurements.graph.to(
             MapValues(
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {False: "0", True: "1"},
+                    key: {
+                        "622-37-0180": "622-37-0180"
+                    },  # a workaround because can not drop entity on with_original_features =False
                 },
                 with_original_features=with_original_features,
             )
         )
+        df = pd.read_parquet(self.get_pq_source_path())
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        targets = [ParquetTarget(name="parquet", path=parquet_path_spark)]
         measurements.ingest(
             source,
             targets,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        csv_path_spark = measurements.get_target_path(name="csv")
+        parquet_path_spark = measurements.get_target_path(name="parquet")
 
         measurements = fstore.FeatureSet(
             "measurements_storey",
             entities=[fstore.Entity(key)],
-            timestamp_key="timestamp",
         )
         measurements.graph.to(
             MapValues(
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {False: "0", True: "1"},
+                    key: {
+                        "622-37-0180": "622-37-0180"
+                    },  # a workaround because can not drop entity on with_original_features =False
                 },
                 with_original_features=with_original_features,
             )
         )
-        source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        targets = [
+            ParquetTarget(name="parquet", path=parquet_path_storey, partitioned=False)
+        ]
         measurements.ingest(
             source,
             targets,
         )
-        csv_path_storey = measurements.get_target_path(name="csv")
-        self.read_csv_and_assert(csv_path_spark, csv_path_storey)
+        parquet_path_storey = measurements.get_target_path(name="parquet")
+        self.read_parquet_and_assert(parquet_path_spark, parquet_path_storey)
+
+        vector = fstore.FeatureVector(
+            "vector",
+            ["measurements_spark.*"],
+        )
+
+        target = ParquetTarget(
+            "get_offline_target", path=f"{self.output_dir()}-get_offline_features"
+        )
+        resp = fstore.get_offline_features(
+            vector,
+            target=target,
+            with_indexes=True,
+            run_config=fstore.RunConfig(
+                local=self.run_local, kind=None if self.run_local else "remote-spark"
+            ),
+            engine="spark",
+            spark_service=self.spark_service,
+        )
+        result = resp.to_dataframe()
+        result.reset_index(drop=False, inplace=True)
+        if with_original_features:
+            result = result[["bad_mapped", "hr_is_error_mapped", f"{key}_mapped"]]
+            result.rename(
+                columns={
+                    "bad_mapped": "bad",
+                    "hr_is_error_mapped": "hr_is_error",
+                    f"{key}_mapped": key,
+                },
+                inplace=True,
+            )
+
+        columns = [key, "bad", "hr_is_error"]
+        df = df[columns]
+        df["bad"] = df["bad"].apply(lambda x: "one" if 0 <= x < 30 else "two")
+        df["hr_is_error"] = df["hr_is_error"].replace(False, "0").replace(True, "1")
+
+        pd.testing.assert_frame_equal(
+            sort_df(df, [key, "bad"]), sort_df(result, [key, "bad"]), check_dtype=False
+        )
 
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.

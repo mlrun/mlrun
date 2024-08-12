@@ -99,7 +99,7 @@ class AzureBlobStore(DataStore):
         # Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
         # Raises MLRunInvalidArgumentError if none of the connection details are available
         # based on do_connect in AzureBlobFileSystem:
-        # https://github.com/fsspec/adlfs/blob/7f06dbdd410224047df09d0ef9e5e9913c64bf7d/adlfs/spec.py#L468
+        # https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422
 
         from azure.identity import ClientSecretCredential
 

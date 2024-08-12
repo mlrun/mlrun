@@ -19,6 +19,7 @@ import pytest
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.runtimes
 import mlrun.utils
 
 
@@ -40,7 +41,7 @@ def test_create_application_runtime():
     assert fn.spec.image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
     _assert_function_code(fn)
-    # _assert_function_handler(fn)
+    _assert_function_handler(fn)
 
 
 def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
@@ -53,7 +54,7 @@ def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     assert fn.status.application_image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
     _assert_function_code(fn)
-    # _assert_function_handler(fn)
+    _assert_function_handler(fn)
 
 
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
@@ -247,6 +248,11 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
     ]
 
 
+def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
+    mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
+    assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+
+
 def _assert_function_code(fn, file_path=None):
     file_path = (
         file_path or mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()[0]
@@ -265,7 +271,8 @@ def _assert_function_handler(fn):
     ) = mlrun.runtimes.ApplicationRuntime.get_filename_and_handler()
     expected_filename = pathlib.Path(filepath).name
     expected_module = mlrun.utils.normalize_name(expected_filename.split(".")[0])
-    expected_function_handler = f"{expected_module}:{expected_handler}"
+    # '-nuclio' suffix is added by nuclio-jupyter
+    expected_function_handler = f"{expected_module}-nuclio:{expected_handler}"
     assert fn.spec.function_handler == expected_function_handler
 
 

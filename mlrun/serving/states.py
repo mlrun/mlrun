@@ -27,6 +27,8 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Union
 
+import storey.utils
+
 import mlrun
 
 from ..config import config
@@ -385,6 +387,9 @@ class BaseStep(ModelObj):
             ).to(dict(name="step4", class_name="Step4Class"))
         """
         raise NotImplementedError("set_flow() can only be called on a FlowStep")
+
+    def supports_termination(self):
+        return False
 
 
 class TaskStep(BaseStep):
@@ -867,7 +872,10 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            self._stream.push({"id": event.id, "body": data, "path": event.path})
+            full_event = self.options.get("full_event")
+            if full_event or full_event is None and self.next:
+                data = storey.utils.wrap_event_for_serialization(event, data)
+            self._stream.push(data)
             event.terminated = True
             event.body = None
         return event
@@ -1273,6 +1281,8 @@ class FlowStep(BaseStep):
             event.body = {"id": event.id}
             return event
 
+        event = storey.utils.unpack_event_if_wrapped(event)
+
         if len(self._start_steps) == 0:
             return event
         next_obj = self._start_steps[0]
@@ -1379,6 +1389,9 @@ class FlowStep(BaseStep):
                 step = step.to(next_step)
 
         return step
+
+    def supports_termination(self):
+        return self.engine != "sync"
 
 
 class RootFlowStep(FlowStep):
@@ -1618,7 +1631,11 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
@@ -1672,7 +1689,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+    explicit_ack = (
+        is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    )
 
     # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(

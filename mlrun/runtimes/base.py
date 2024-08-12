@@ -929,3 +929,6 @@ class BaseRuntime(ModelObj):
                         if "default" in p:
                             line += f", default={p['default']}"
                         print("    " + line)
+
+    def skip_image_enrichment(self):
+        return False

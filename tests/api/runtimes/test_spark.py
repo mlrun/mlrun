@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import base64
+import json
 import os
 import typing
 import unittest
@@ -39,7 +40,6 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
     def custom_setup(self):
         self.image_name = "mlrun/mlrun:latest"
-        self.project_default_function_node_selector = {"test-project": "node-selector"}
 
     def _generate_runtime(
         self, set_resources: bool = True
@@ -443,36 +443,140 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
-    def test_with_node_selector(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    @pytest.mark.parametrize(
+        "project_node_selector,config_node_selector,function_node_selector,driver_node_selector,executor_node_selector",
+        [
+            # All parameters are empty
+            ({}, {}, {}, {}, {}),
+            # Only project node selector is defined
+            ({"project-label": "project-val"}, {}, {}, {}, {}),
+            # Only config node selector is defined
+            ({}, {"config-label": "config-val"}, {}, {}, {}),
+            # Only function node selector is defined
+            ({}, {}, {"function-label": "function-val"}, {}, {}),
+            # Only driver node selector is defined
+            ({}, {}, {}, {"driver-label": "driver-val"}, {}),
+            # Only executor node selector is defined
+            ({}, {}, {}, {}, {"executor-label": "executor-val"}),
+            # Project and function node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {},
+                {"function-label": "function-val"},
+                {},
+                {},
+            ),
+            # Driver and executor node selectors are defined
+            (
+                {},
+                {},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Project, config, and function node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {"config-label": "config-val"},
+                {"function-label": "function-val"},
+                {},
+                {},
+            ),
+            # Project, driver, and executor node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Config, driver, and executor node selectors are defined
+            (
+                {},
+                {"config-label": "config-val"},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Function, driver, and executor node selectors are defined
+            (
+                {},
+                {},
+                {"function-label": "function-val"},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # All node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {"config-label": "config-val"},
+                {"function-label": "function-val"},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+        ],
+    )
+    def test_with_node_selector(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        project_node_selector,
+        config_node_selector,
+        function_node_selector,
+        driver_node_selector,
+        executor_node_selector,
+    ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
         )
 
-        node_selector = {
-            "label-1": "val1",
-            "label-2": "val2",
-        }
-        executor_node_selector = {"executor": "node_selector"}
-        driver_node_selector = {"driver": "node_selector"}
+        run_db = mlrun.get_run_db()
+        project = run_db.get_project(self.project)
+        project.spec.default_function_node_selector = project_node_selector
+        run_db.store_project(self.project, project)
 
-        runtime.with_node_selection(node_selector=node_selector)
-        runtime.spec.executor_node_selector = executor_node_selector
-        runtime.spec.driver_node_selector = driver_node_selector
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(config_node_selector).encode("utf-8")
+        )
+
+        runtime.with_node_selection(node_selector=function_node_selector)
+        runtime.with_executor_node_selection(node_selector=executor_node_selector)
+        runtime.with_driver_node_selection(node_selector=driver_node_selector)
 
         self.execute_function(runtime)
         body = self._get_custom_object_creation_body()
 
         self._assert_merged_node_selectors(
             body,
-            mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, node_selector
-            ),
-            mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, driver_node_selector
-            ),
-            mlrun.utils.helpers.merge_with_precedence(
-                self.project_default_function_node_selector, executor_node_selector
-            ),
+            {},
+            {
+                **config_node_selector,
+                **project_node_selector,
+                **(driver_node_selector or function_node_selector),
+            },
+            {
+                **config_node_selector,
+                **project_node_selector,
+                **(executor_node_selector or function_node_selector),
+            },
+        )
+
+    def test_explicit_node_selector_for_function_applied_correctly(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        function_node_selector = {"function-label": "function-val"}
+        # This test verifies that directly setting the node selector on the runtime object,
+        # instead of using the `with_node_selection` method, correctly applies the function node selector
+        # to the driver and executor. It also confirms that this direct setting does not affect the application spec.
+        runtime.spec.node_selector = function_node_selector
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+        self._assert_merged_node_selectors(
+            body, {}, function_node_selector, function_node_selector
         )
 
     def test_run_with_host_path_volume(

@@ -73,8 +73,23 @@ class LRUTest(unittest.TestCase):
         self.assertTrue(info.misses == 0)
         self.assertTrue(info.currsize == 0)
 
+        lru = server.api.utils.lru_cache.LRUCache(
+            self._func_getter2, maxsize=3, ignore_args_for_hash=[0]
+        )
+        lru("not_important", 1)
+        self.assertTrue(lru.cached("not_important", 1))
+        self.assertTrue(lru.cached("not_at_all_important", 1))
+        self.assertFalse(lru.cached("not_important", 2))
+
     def _func_getter(self, arg, increment=False, decrement=False):
         result = int(arg)
+        if increment:
+            result += 1
+        if decrement:
+            result -= 1
+
+    def _func_getter2(self, arg1, arg2, increment=False, decrement=False):
+        result = int(arg2)
         if increment:
             result += 1
         if decrement:

@@ -54,10 +54,13 @@ def extra_requirements() -> dict[str, list[str]]:
         "plotly": ["plotly~=5.4, <5.12.0"],
         # used to generate visualization nuclio/serving graph steps
         "graphviz": ["graphviz~=0.20.0"],
-        # google-cloud is mainly used for QA, that is why we are not including it in complete
         "google-cloud": [
             "google-cloud-storage==2.14.0",
             "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
+            # google-cloud-bigquery[bqstorage] requires google-cloud-bigquery-storage >= 2.6.0, but older (<2.17)
+            # versions of google-cloud-bigquery-storage runs into an issue
+            # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
+            "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
         ],
         "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
@@ -80,8 +83,7 @@ def extra_requirements() -> dict[str, list[str]]:
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
-    # see above why we are excluding google-cloud
-    exclude_from_complete = ["bokeh", "google-cloud"]
+    exclude_from_complete = ["bokeh"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )

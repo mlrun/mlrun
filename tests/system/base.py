@@ -320,11 +320,17 @@ class TestMLRunSystem:
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["plotly"].startswith(str(output_path))
-        assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf@{uid}"
-        assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model@{uid}"
+        assert (
+            run_outputs["mydf"]
+            == f"store://artifacts/{project}/{name}_mydf:latest@{uid}"
+        )
+        assert (
+            run_outputs["model"]
+            == f"store://artifacts/{project}/{name}_model:latest@{uid}"
+        )
         assert (
             run_outputs["html_result"]
-            == f"store://artifacts/{project}/{name}_html_result@{uid}"
+            == f"store://artifacts/{project}/{name}_html_result:latest@{uid}"
         )
         if accuracy:
             assert run_outputs["accuracy"] == accuracy

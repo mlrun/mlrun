@@ -708,12 +708,12 @@ class V3IOTSDBConnector(TSDBConnector):
         if not df.empty:
             df.rename(
                 columns={
-                    f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+                    f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
                 },
                 inplace=True,
             )
-            df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"] = df[
-                f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+            df[mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP] = df[
+                mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP
             ].map(lambda last_request: datetime.fromtimestamp(last_request))
 
         return df
@@ -804,7 +804,7 @@ class V3IOTSDBConnector(TSDBConnector):
         if not df.empty:
             df.rename(
                 columns={
-                    f"last({mm_schemas.ResultData.RESULT_KIND})": f"{mm_schemas.ResultData.RESULT_KIND}"
+                    f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND
                 },
                 inplace=True,
             )

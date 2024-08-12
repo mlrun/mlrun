@@ -163,22 +163,7 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
 
 def test_create_artifact(db: Session, unversioned_client: TestClient):
     _create_project(unversioned_client, prefix="v1")
-    data = {
-        "kind": "artifact",
-        "metadata": {
-            "description": "",
-            "labels": {},
-            "key": "some-key",
-            "project": PROJECT,
-            "tree": "some-tree",
-        },
-        "spec": {
-            "db_key": "some-key",
-            "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "memory://aaa/aaa",
-        },
-        "status": {},
-    }
+    data = _generate_artifact_body(tree="some-tree")
     url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT)
     resp = unversioned_client.post(
         url,
@@ -283,6 +268,38 @@ def test_delete_artifact_data_default_deletion_strategy(
         delete_artifact_data.assert_not_called()
         delete_artifact_data.reset_mock()
         assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_artifact_with_uid(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client)
+
+    # create an artifact
+    data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+
+    # get the artifact to extract the created uid
+    artifacts_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+
+    # delete the artifact by uid
+    artifact_uid = artifacts[0]["metadata"]["uid"]
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_uid = url + f"?object-uid={artifact_uid}"
+    resp = unversioned_client.delete(url_with_uid)
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+    # verify the artifact was deleted
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 0
 
 
 @pytest.mark.parametrize(
@@ -416,22 +433,7 @@ def test_list_artifacts_with_limits(
     _create_project(unversioned_client, prefix="v1")
 
     for i in range(list_limit + 1):
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api"},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body()
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -459,22 +461,7 @@ def test_list_artifacts_with_producer_uri(
     producer_uri_2 = f"{PROJECT}/def"
     producer_uris = [producer_uri_1, producer_uri_1, producer_uri_2, ""]
     for producer_uri in producer_uris:
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body(producer={"kind": "api", "uri": producer_uri})
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -928,3 +915,37 @@ def _create_project(
     resp = client.post(url, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
+
+
+def _generate_artifact_body(
+    key=KEY,
+    project=PROJECT,
+    tree=None,
+    tag=None,
+    body=None,
+    producer=None,
+):
+    tree = tree or str(uuid.uuid4())
+    producer = producer or {"kind": "api", "uri": "my-uri:3000"}
+    data = {
+        "kind": "artifact",
+        "metadata": {
+            "description": "",
+            "labels": {},
+            "key": key,
+            "project": project,
+            "tree": tree,
+        },
+        "spec": {
+            "db_key": key,
+            "producer": producer,
+            "target_path": "memory://aaa/aaa",
+        },
+        "status": {},
+    }
+    if tag:
+        data["metadata"]["tag"] = tag
+    if body:
+        data["spec"] = {"body": body}
+
+    return data

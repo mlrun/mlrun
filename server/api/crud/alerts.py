@@ -182,6 +182,7 @@ class Alerts(
                 send_notification = True
 
             active = False
+            update_state = True
             if send_notification:
                 state["count"] += 1
                 logger.debug("Sending notifications for alert", name=alert.name)
@@ -189,6 +190,7 @@ class Alerts(
 
                 if alert.reset_policy == "auto":
                     self.reset_alert(session, alert.project, alert.name)
+                    update_state = False
                 else:
                     active = True
                     self._get_alert_state_cached().cache_replace(
@@ -206,14 +208,9 @@ class Alerts(
                     active=active,
                 )
 
-            self._states[alert.id] = state_obj
-
-        else:
-            logger.debug(
-                "The entity of the alert does not match the one in event",
-                name=alert.name,
-                event=event_data.entity.ids[0],
-            )
+            if update_state:
+                # we don't want to update the state if reset_alert() was called, as we will override the reset
+                self._states[alert.id] = state_obj
 
     def populate_event_cache(self, session: sqlalchemy.orm.Session):
         try:
@@ -361,7 +358,8 @@ class Alerts(
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert)
 
-    def _delete_notifications(self, alert: mlrun.common.schemas.AlertConfig):
+    @staticmethod
+    def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:
             server.api.api.utils.delete_notification_params_secret(
                 alert.project, notification.notification

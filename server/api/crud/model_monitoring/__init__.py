@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# flake8: noqa: F401 - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .helpers import get_stream_path
 from .model_endpoints import ModelEndpoints

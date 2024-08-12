@@ -10,7 +10,7 @@ For batch ingestion the feature store supports dataframes and files (i.e. csv & 
 The files can reside on S3, NFS, SQL (for example, MYSQL), Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 
 For real time ingestion the source can be http, Kafka, MySQL, or V3IO stream, etc.
-When defining a source, it maps to nuclio event triggers. <br>
+When defining a source, it maps to Nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
@@ -26,6 +26,30 @@ You can also create a custom `source` to access various databases or data source
 | {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
 | [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+
+## Snowflake source
+```{admonition} Note
+# An example of SnowflakeSource ingest:
+
+os.environ["SNOWFLAKE_PASSWORD"] = "*****"
+source = SnowflakeSource(
+    "snowflake_source_for_ingest",
+    query=f"select * from {source_table} order by ID limit {number_of_rows}",
+    schema="schema",
+    url="url", 
+    user="user", 
+    database="db",
+    warehouse="warehouse",
+)
+ 
+feature_set = mlrun.feature_store.FeatureSet("my_fs", entities=[fs.Entity('KEY')], engine="spark")
+df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
+  run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
+
+# Notice that by default, Snowflake converts to uppercase name of columns ingested to it.
+# The feature-set entity, timestamp_key and label_coumnt must have similar case to the source, 
+# othewise the ingest will fail with MLRunInvalidArgumentError exception.
+```
 
 ## Kafka source
 
@@ -133,16 +157,16 @@ NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
 
-| Class name                                                                                                    | Description                                            | storey | spark | pandas |
-| --------------------------------------------------                                                            | -------------------------------------------------------| ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                          | Y      | Y     | Y      |
-| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.        | Y      | N     | N |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.                    | Y      | Y     | Y      |
-| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.         | Y      | N     | N      |
-| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key .       | Y      | Y     | Y      |
-| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key. | Y      | Y     | N      |
-| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.      | Y      | N     | Y      |
+| Class name                                    | Description                                                             | storey | spark | pandas |
+| ----------------------------------------------| ------------------------------------------------------------------------| ---    | ---   | ---    |
+| {py:meth}`~mlrun.datastore.CSVTarget`        |Offline. Writes events to a CSV file.                                     | Y      | Y     | Y      |
+| [Kafka target](#kafka-target)                |Offline. Writes all incoming events into a Kafka stream.                  | Y      | N     | N |
+| [ParquetTarget](#parquet-target)             |Offline. The Parquet target storage driver, used to materialize feature set/vector data into parquet files.| Y      | Y     | Y      |
+| [SnowflakeTarget](#snowflake-target)         |Offline. Write events into tables within the Snowflake data warehouse.    | N      | Y      | N    |
+| {py:meth}`~mlrun.datastore.StreamSource`     |Offline. Writes all incoming events into a V3IO stream.                   | Y      | N     | N      |
+| [NoSqlTarget](#nosql-target)                 |Online. Persists the data in V3IO table to its associated storage by key. | Y      | Y     | Y      |
+| [RedisNoSqlTarget](#redisnosql-target)       |Online. Persists the data in Redis table to its associated storage by key.| Y      | Y     | N      |
+| [SqlTarget](#sql-target)                     |Online. Persists the data in SQL table to its associated storage by key.  | Y      | N     | Y      |
 
 
 ## Kafka target
@@ -163,7 +187,7 @@ target = KafkaTarget(path="ds://profile-name")
 
 
 
-## Parquet Target
+## Parquet target
 
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
 The Parquet file is ideal for fetching large sets of data for training.
@@ -203,6 +227,20 @@ For example:
 Disable partitioning with:
 - `ParquetTarget(partitioned=False)`
 
+## Snowflake target
+
+`SnowflakeTarget` parameters:
+- `name`
+- `user` (snowflake user)
+- `warehouse` (snowflake warehouse)
+- `url` (in the format: <account_name>.<region>.snowflakecomputing.com)
+- `database`
+- `db_schema`
+- `table_name`
+
+In addition, you need to set up this env parameter:
+`SNOWFLAKE_PASSWORD`
+
 ## NoSql target
 
 The {py:meth}`~mlrun.datastore.NoSqlTarget` is a V3IO key-value based target. It is the default target for online (real-time) data. 
@@ -219,8 +257,8 @@ See also [Redis data store profile](#redis-data-store-profile).
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The RedisNoSqlTarget accepts the path parameter in the form: `<redis|rediss>://<host>[:port]`
-For example: `rediss://localhost:6379` creates a redis target, where:
-   - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)
+For example: `rediss://localhost:6379` creates a Redis target, where:
+   - The client/server protocol (`rediss`) is TLS protected (vs. `redis` if no TLS is established)
    - The server location is localhost port 6379.
 - If the path parameter is not set, it tries to fetch it from the MLRUN_REDIS__URL environment variable.
 - You cannot pass the username/password as part of the URL. If you want to provide the username/password, use secrets as:
@@ -228,7 +266,7 @@ For example: `rediss://localhost:6379` creates a redis target, where:
 - Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore `RedisNoSqlTarget` and `NoSqlTarget` cannot be used as two targets of the same feature set.
     
-The K8s secrets are not available when executing locally (from the sdk). Therefore, if RedisNoSqlTarget with secret is used, 
+The K8s secrets are not available when executing locally (from the SDK). Therefore, if RedisNoSqlTarget with secret is used, 
 You must add the secret as an env-var.
 
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
@@ -257,7 +295,7 @@ Do not use SQL reserved words as entity names. See more details in [Keywords and
 For currently supported versions of SQLAlchemy, see [extra-requirements.txt](https://github.com/mlrun/mlrun/blob/development/extras-requirements.txt).
 See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/index.html).
 ```
-The {py:meth}`~mlrun.datastore.SQLSource` online target supports storey but does not support Spark. Aggregations are not supported.<br>
+The {py:meth}`~mlrun.datastore.SQLTarget` online target supports storey but does not support Spark. Aggregations are not supported.<br>
 To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 

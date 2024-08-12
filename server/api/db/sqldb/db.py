@@ -212,7 +212,8 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        run = self._get_run(session, uid, project, iter, with_for_update=True)
+        # Do not lock run as it may cause deadlocks
+        run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
         if not run:
             run = Run(
@@ -917,7 +918,9 @@ class SQLDB(DBInterface):
             .group_by(ArtifactV2.Tag.name)
         )
         if category:
-            query = self._add_artifact_category_query(category, query)
+            query = self._add_artifact_category_query(category, query).with_hint(
+                ArtifactV2, "USE INDEX (idx_project_kind)"
+            )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
@@ -991,6 +994,15 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
+        if not artifacts_keys:
+            logger.debug(
+                "No artifacts to tag",
+                project=project,
+                tag=tag_name,
+                artifacts=artifacts,
+            )
+            return
+
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,
@@ -1698,7 +1710,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project
@@ -1911,29 +1923,42 @@ class SQLDB(DBInterface):
             )
             return
 
+        # remove trailing slashes from the URL
+        url = url.rstrip("/")
+
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == mlrun.common.types.Operation.ADD:
+        updated = False
+        if (
+            operation == mlrun.common.types.Operation.ADD
+            and url not in existing_invocation_urls
+        ):
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url not in existing_invocation_urls:
-                existing_invocation_urls.append(url)
+            updated = True
+            existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        elif operation == mlrun.common.types.Operation.REMOVE:
+        elif (
+            operation == mlrun.common.types.Operation.REMOVE
+            and url in existing_invocation_urls
+        ):
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url in existing_invocation_urls:
-                struct["status"]["external_invocation_urls"].remove(url)
-        function.struct = struct
-        self._upsert(session, [function])
+            updated = True
+            struct["status"]["external_invocation_urls"].remove(url)
+
+        # update the function record only if the external invocation URLs were updated
+        if updated:
+            function.struct = struct
+            self._upsert(session, [function])
 
     def _get_function(
         self,
@@ -2238,7 +2263,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
@@ -2488,22 +2513,22 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        objects_to_upsert = [project_record]
 
-        project_summary = self.get_project_summary(
-            session, project_record.name, raise_on_not_found=False
+        objects_to_store = [project_record]
+        self._append_project_summary(project, objects_to_store)
+        self._upsert(session, objects_to_store)
+
+    @staticmethod
+    def _append_project_summary(project, objects_to_store):
+        summary = mlrun.common.schemas.ProjectSummary(
+            name=project.metadata.name,
         )
-        if not project_summary:
-            summary = mlrun.common.schemas.ProjectSummary(
-                name=project.metadata.name,
-            )
-            project_summary = ProjectSummary(
-                project=project.metadata.name,
-                summary=summary.dict(),
-                updated=datetime.now(timezone.utc),
-            )
-            objects_to_upsert.append(project_summary)
-        self._upsert(session, objects_to_upsert)
+        project_summary = ProjectSummary(
+            project=project.metadata.name,
+            summary=summary.dict(),
+            updated=datetime.now(timezone.utc),
+        )
+        objects_to_store.append(project_summary)
 
     @retry_on_conflict
     def store_project(
@@ -2569,8 +2594,8 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
+        self._delete_project_summary(session, name)
         self._delete(session, Project, name=name)
-        self._delete(session, ProjectSummary, project=name)
 
     def list_projects(
         self,
@@ -2617,7 +2642,6 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        raise_on_not_found: bool = True,
     ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,
@@ -2625,8 +2649,6 @@ class SQLDB(DBInterface):
             project=project,
         ).one_or_none()
         if not project_summary_record:
-            if not raise_on_not_found:
-                return None
             raise mlrun.errors.MLRunNotFoundError(
                 f"Project summary not found: {project=}"
             )
@@ -2676,17 +2698,54 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        # Do the whole operation in a single transaction
-        with session.no_autoflush:
-            self._query(session, ProjectSummary).delete()
-            for project_summary_schema in project_summaries:
-                project_summary = ProjectSummary(
-                    project=project_summary_schema.name,
-                    summary=project_summary_schema.dict(),
-                    updated=datetime.now(timezone.utc),
-                )
-                session.add(project_summary)
-            session.commit()
+        """
+        This method updates the summaries of projects that have associated projects in the database
+        and removes project summaries that no longer have associated projects.
+        """
+
+        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
+
+        # Create a query for project summaries with associated projects
+        existing_summaries_query = (
+            session.query(ProjectSummary)
+            .outerjoin(Project, Project.name == ProjectSummary.project)
+            .filter(ProjectSummary.project.in_(summary_dicts.keys()))
+        )
+
+        associated_summaries = existing_summaries_query.filter(
+            Project.id.is_not(None)
+        ).all()
+
+        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
+
+        # Update the summaries of projects that have associated projects
+        for project_summary in associated_summaries:
+            project_summary.summary = summary_dicts.get(project_summary.project)
+            project_summary.updated = datetime.now(timezone.utc)
+            session.add(project_summary)
+
+        # To avoid race conditions where a project might be deleted after its summary is queried
+        # but before the transaction completes, we delete project summaries that do not have
+        # any associated projects.
+        if orphaned_summaries:
+            projects_names = [summary.project for summary in orphaned_summaries]
+            logger.debug(
+                "Deleting project summaries that do not have associated projects",
+                projects=projects_names,
+            )
+
+            for summary in orphaned_summaries:
+                session.delete(summary)
+
+        self._commit(session, associated_summaries + orphaned_summaries)
+
+    def _delete_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Deleting project summary from DB", name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     async def get_project_resources_counters(
         self,
@@ -2750,7 +2809,8 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
-    def _calculate_functions_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_functions_counters(session) -> dict[str, int]:
         functions_count_per_project = (
             session.query(Function.project, func.count(distinct(Function.name)))
             .group_by(Function.project)
@@ -2761,8 +2821,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
+    @staticmethod
     def _calculate_schedules_counters(
-        self, session
+        session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
@@ -2809,7 +2870,8 @@ class SQLDB(DBInterface):
             project_to_schedule_pending_workflows_count,
         )
 
-    def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_feature_sets_counters(session) -> dict[str, int]:
         feature_sets_count_per_project = (
             session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
             .group_by(FeatureSet.project)
@@ -2848,8 +2910,9 @@ class SQLDB(DBInterface):
             project_to_files_count[file_artifact.project] += 1
         return project_to_files_count
 
+    @staticmethod
     def _calculate_runs_counters(
-        self, session
+        session,
     ) -> tuple[
         dict[str, int],
         dict[str, int],
@@ -4411,7 +4474,8 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore)
 
-    def _commit(self, session, objects, ignore=False):
+    @staticmethod
+    def _commit(session, objects, ignore=False):
         def _try_commit_obj():
             try:
                 session.commit()
@@ -5086,7 +5150,7 @@ class SQLDB(DBInterface):
             self._get_alert_record_by_id(session, alert_id)
         )
 
-    def enrich_alert(self, session, alert: AlertConfig):
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         state = self.get_alert_state(session, alert.id)
         alert.state = (
             mlrun.common.schemas.AlertActiveState.ACTIVE
@@ -5186,9 +5250,9 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         last_updated: datetime,
-        count: typing.Union[int, None] = None,
+        count: typing.Optional[int] = None,
         active: bool = False,
-        obj: dict = None,
+        obj: typing.Optional[dict] = None,
     ):
         alert = self.get_alert(session, project, name)
         state = self.get_alert_state(session, alert.id)

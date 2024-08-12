@@ -50,7 +50,7 @@ The call analysis workflow includes multiple steps for which all of the main fun
    * `topic: str` &mdash; The general subject of the call out of a given list of topics.
    * `summary: str` &mdash; The summary of the entire call in few sentences.
    * `concern_addressed: bool` &mdash; Whether the client's concern was addressed at the end of the call. Can be one of {yes, no}.
-   * `customer_tone: str` &mdash; The general customer tone durring the call. Can be one of {positive, neutral, negative}.
+   * `customer_tone: str` &mdash; The general customer tone during the call. Can be one of {positive, neutral, negative}.
    * `agent_tone: str` &mdash; The general agent tone during the call. Can be one of {positive, neutral, negative}.   
    * `upsale_attempted: bool` &mdash; Whether the agent tried to upsell the client during the call.
    * `upsale_success: bool` - Whether the upsell attempt was successful.
@@ -61,7 +61,7 @@ The call analysis workflow includes multiple steps for which all of the main fun
    * `active_listening: int` &mdash; The level of active listening on the part of the agent from 1 to 5.
    * `customization: int` &mdash; How closely the agent responded to the client's needs from 1 to 5.
 
-6. [**Postprocess analysis answers**](https://github.com/mlrun/demo-call-center/blob/main/src/calls_analysis/postprocessing.py) - A project function used to postprocess the LLM's answers before updating them into the DB.
+6. [**Post-process analysis answers**](https://github.com/mlrun/demo-call-center/blob/main/src/calls_analysis/postprocessing.py) - A project function used to post-process the LLM's answers before updating them into the DB.
  
 Between each step, there is a call for the function [**Update Calls**](https://github.com/mlrun/demo-call-center/blob/main/src/calls_analysis/db_management.py) that updates the calls DB with the newly collected data and status.
 
@@ -76,9 +76,9 @@ In the beginning of the workflow:
 
 After the workflow completion:
 
-| Call ID   | Client ID | Agent ID | Date      | Time    | Status  | Audio File | Transcription File | Anonymized File | Topic     | Summary  | Concern Addressed | Client Tone | Agent Tone | Upsale Attempted | Upsale Success | Empathy | Perfossialism | Kindeness | Effective Communication | Active Listening | Customization |
-| :-------- | :-------- | :------- | :-------- | :------ | :------ | :--------- | :----------------- | :-------------- | :-------- | :------- | :---------------: | :---------: | :--------: | :--------------: | :------------: | :-----: | :-----------: | :-------: | :---------------------: | :------------------: | :-----------: |
-|123456     | 123456    |AG123     |2023-10-30 |14:12:17 |Analyzed |123.wav     |123.txt             |123.txt.         |Some topic |A summary |True               |Positive.    |Positive.   |False             |True            |3        |4              |5          |4                        |3                      |4              || :--------- | :-------- |
+| Call ID | Client ID | Agent ID | Date       | Time     | Status   | Audio File | Transcription File | Anonymized File | Topic      | Summary   | Concern Addressed | Client Tone | Agent Tone | Upscale Attempted | Upsale Success | Empathy | Professionalism | Kindness | Effective Communication | Active Listening | Customization |
+|:--------|:----------|:---------|:-----------|:---------|:---------|:-----------|:-------------------|:----------------|:-----------|:----------|:-----------------:|:-----------:|:----------:|:-----------------:|:--------------:|:-------:|:---------------:|:--------:|:-----------------------:|:----------------:|:-------------:|
+| 123456  | 123456    | AG123    | 2023-10-30 | 14:12:17 | Analyzed | 123.wav    | 123.txt            | 123.txt.        | Some topic | A summary |       True        |  Positive.  | Positive.  |       False       |      True      |    3    |        4        |    5     |            4            |        3         |       4       || :--------- | :-------- |
 
 Note that the original data was simply metadata in a database as well as the audio recordings themselves. After the LLM processing pipeline, there is well structured data that can be used in a variety of downstream tasks and applications.
 

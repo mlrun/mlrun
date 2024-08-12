@@ -350,7 +350,7 @@ class KVStoreBase(StoreBase):
             table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: json.dumps(event)}
+            attributes = {metric_name: self._encode_field(json.dumps(event))}
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -408,14 +408,14 @@ class KVStoreBase(StoreBase):
 
         """
         try:
-            data = self.client.kv.get(
+            response = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
                     project_name=self.project
                 ),
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
+            return response.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
             logger.debug("Error while getting last analyzed time", err=err)
             raise mlrun.errors.MLRunNotFoundError(

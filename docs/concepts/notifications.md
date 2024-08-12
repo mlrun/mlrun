@@ -34,7 +34,7 @@ However, there are several special cases where the notification is sent locally 
 These cases are:
 - Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines For Pipelines for more details.)
-- Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
+- Dask: Dask runs are always local (against a remote Dask cluster), so the notifications are sent locally as well.
 
 > **Disclaimer:** Notifications of local runs aren't persisted.
 
@@ -59,10 +59,10 @@ Currently, the supported notification kinds and their params are as follows:
   - `token`: The git token to use for the git notification.
   - `repo`: The git repo to which to send the notification.
   - `issue`: The git issue to which to send the notification.
-  - `merge_request`: In gitlab (as opposed to github), merge requests and issues are separate entities. 
+  - `merge_request`: In GitLab (as opposed to GitHub), merge requests and issues are separate entities. 
                      If using merge request, the issue will be ignored, and vice versa.
   - `server`: The git server to which to send the notification.
-  - `gitlab`: (bool) Whether the git server is gitlab or not.
+  - `gitlab`: (bool) Whether the git server is GitLab or not.
 - `webhook`:
   - `url`: The webhook url to which to send the notification.
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).

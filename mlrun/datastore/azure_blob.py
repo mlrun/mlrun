@@ -27,10 +27,6 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
 
-MAX_CONCURRENCY = 100
-MAX_BLOCKSIZE = 1024 * 1024 * 4
-MAX_SINGLE_PUT_SIZE = 1024 * 1024 * 8  # for BlobServiceClient only.
-
 
 class AzureBlobStore(DataStore):
     using_bucket = True
@@ -38,21 +34,20 @@ class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
-        self.max_concurrency = MAX_CONCURRENCY
-        self.max_blocksize = MAX_BLOCKSIZE
-        self.max_single_put_size = MAX_SINGLE_PUT_SIZE
+        self.max_concurrency = 100
+        self.max_blocksize = 1024 * 1024 * 4
+        self.max_single_put_size = 1024 * 1024 * 8  # for BlobServiceClient only
 
     @property
     def filesystem(self):
         """return fsspec file system object, if supported"""
-        if self._filesystem:
-            return self._filesystem
-        self.create_filesystem_and_client()
+        if not self._filesystem or not self._service_client:
+            self.create_filesystem_and_client()
         return self._filesystem
 
     @property
     def service_client(self):
-        if not self._filesystem or self._service_client:
+        if not self._filesystem or not self._service_client:
             self.create_filesystem_and_client()
         return self._service_client
 
@@ -71,7 +66,7 @@ class AzureBlobStore(DataStore):
             blocksize=self.max_blocksize,
             **storage_options,
         )
-        self.do_connect(storage_options)
+        self._do_connect(storage_options)
 
     def get_storage_options(self):
         res = dict(
@@ -93,15 +88,13 @@ class AzureBlobStore(DataStore):
         )
         return self._sanitize_storage_options(res)
 
-    def do_connect(self, storage_options):
-        """Connect to the BlobServiceClient, using user-specified connection details.
-        Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
+    def _do_connect(self, storage_options):
+        # Connect to the BlobServiceClient, using user-specified connection details.
+        # Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
+        # Raises MLRunInvalidArgumentError if none of the connection details are available
+        # based on do_connect in AzureBlobFileSystem:
+        # https://github.com/fsspec/adlfs/blob/7f06dbdd410224047df09d0ef9e5e9913c64bf7d/adlfs/spec.py#L468
 
-        Raises
-        ------
-        ValueError if none of the connection details are available
-        """
-        # based on do_connect in AzureBlobFileSystem.
         from azure.identity import ClientSecretCredential
 
         if (
@@ -162,12 +155,14 @@ class AzureBlobStore(DataStore):
                         max_single_put_size=self.max_single_put_size,
                     )
             else:
-                raise ValueError(
-                    "Must provide either a connection_string or account_name with credentials!!"
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Must provide either a connection_string or account_name with credentials"
                 )
 
         except Exception as e:
-            raise ValueError(f"unable to connect to account for {e}")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"unable to connect to account for {e}"
+            )
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")

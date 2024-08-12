@@ -40,9 +40,9 @@ Batch inputs can be used in various stages and applications of gen AI:
 - Data preprocessing &mdash; Batch inputs are used in the preprocessing stage to prepare data for training, fow example, data cleansing, file format conversion, and handling sensitive data to ensure the quality and consistency of the input data.
 
 Batch input that looks like: </br>
-[[1,2,3, "jhk",], [5,2,9, "tsc"]]</br>
+```[[1,2,3, "jhk",], [5,2,9, "tsc"]]```</br>
 would give output like:</br>
-[11, 8.6], [0, 0.87]
+```[11, 8.6], [0, 0.87]```
 
 
 **Need examples**

@@ -95,12 +95,13 @@ class AzureBlobStore(DataStore):
         return self._service_client
 
     def _do_connect(self):
-        # Connect to the BlobServiceClient, using user-specified connection details.
-        # Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
-        # Raises MLRunInvalidArgumentError if none of the connection details are available
-        # based on do_connect in AzureBlobFileSystem:
-        # https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422
-
+        """
+        Connect to the BlobServiceClient, using user-specified connection details.
+        Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
+        Raises MLRunInvalidArgumentError if none of the connection details are available
+        based on do_connect in AzureBlobFileSystem:
+        https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422
+        """
         from azure.identity import ClientSecretCredential
 
         storage_options = self.storage_options

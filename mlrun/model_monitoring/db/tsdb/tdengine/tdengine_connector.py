@@ -272,13 +272,22 @@ class TDEngineConnector(TSDBConnector):
             ],
         ],
     ]:
+        timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
+        columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
         if type == "metrics":
             table = mm_schemas.TDEngineSuperTables.METRICS
             name = mm_schemas.MetricData.METRIC_NAME
+            columns += [name, mm_schemas.MetricData.METRIC_VALUE]
             df_handler = self.df_to_metrics_values
         elif type == "results":
             table = mm_schemas.TDEngineSuperTables.APP_RESULTS
             name = mm_schemas.ResultData.RESULT_NAME
+            columns += [
+                name,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_KIND,
+            ]
             df_handler = self.df_to_results_values
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -298,7 +307,8 @@ class TDEngineConnector(TSDBConnector):
             start=start,
             end=end,
             filter_query=filter_query,
-            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            timestamp_column=timestamp_column,
+            columns=columns,
         )
 
         df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(

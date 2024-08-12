@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from mlrun.genai.client import Client
 from mlrun.genai.config import config
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
-from mlrun.genai.schema import QueryItem, Document
+from mlrun.genai.schema import Document, QueryItem
 
 app = FastAPI()
 
@@ -83,7 +83,9 @@ async def ingest(
             path = line.strip()
             if path and not path.startswith("#"):
                 loader_obj = get_loader_obj(path, loader_type=loader)
-                data_loader.load(loader_obj, metadata=metadata, version=document.version)
+                data_loader.load(
+                    loader_obj, metadata=metadata, version=document.version
+                )
 
     else:
         loader_obj = get_loader_obj(document.path, loader_type=loader)

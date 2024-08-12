@@ -311,4 +311,5 @@ class Document(BaseWithVerMetadata):
     project_id: Optional[str] = None
     origin: Optional[str] = None
 
+
 # =============================================================================================

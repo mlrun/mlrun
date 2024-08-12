@@ -254,6 +254,15 @@ class ApplicationRuntime(RemoteRuntime):
                     "Application sidecar spec must include a command if args are provided"
                 )
 
+    def prepare_image_for_deploy(self):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            logger.warning(
+                "Application runtime requires loading the source into the application image. "
+                f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
+            )
+            self.spec.build.load_source_on_run = False
+        super().prepare_image_for_deploy()
+
     def deploy(
         self,
         project="",
@@ -349,9 +358,13 @@ class ApplicationRuntime(RemoteRuntime):
         )
 
     def with_source_archive(
-        self, source, workdir=None, pull_at_runtime=True, target_dir=None
+        self,
+        source,
+        workdir=None,
+        pull_at_runtime: bool = False,
+        target_dir: str = None,
     ):
-        """load the code from git/tar/zip archive at runtime or build
+        """load the code from git/tar/zip archive at build
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
@@ -359,13 +372,20 @@ class ApplicationRuntime(RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
-        :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
+        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
         :param target_dir:      target dir on runtime pod or repo clone / archive extraction
         """
+        if pull_at_runtime:
+            logger.warning(
+                f"{pull_at_runtime=} is currently not supported for application runtime "
+                "and will be overridden to False",
+                pull_at_runtime=pull_at_runtime,
+            )
+
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
-            pull_at_runtime=pull_at_runtime,
+            pull_at_runtime=False,
             target_dir=target_dir,
         )
 
@@ -549,6 +569,13 @@ class ApplicationRuntime(RemoteRuntime):
                 "Use spec.command and spec.args to specify the application entrypoint",
                 command=self.spec.command,
                 args=self.spec.args,
+            )
+
+        if self.spec.build.source in [".", "./"]:
+            logger.info(
+                "The application is configured to use the project's source. "
+                "Application runtime requires loading the source into the application image. "
+                "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)

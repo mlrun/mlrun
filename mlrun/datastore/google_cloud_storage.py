@@ -25,7 +25,7 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
 WORKERS = 8
-CHUNK_SIZE = 32 * 1024 * 1024
+CHUNK_SIZE = 10 * 1024 * 1024
 
 
 class GoogleCloudStorageStore(DataStore):

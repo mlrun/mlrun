@@ -279,9 +279,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
         )
 
-    def test_snowflake_target_in_to_dataframe(self, passthrough):
+    def test_snowflake_target_to_dataframe(self):
         if self.run_local:
-            pytest.skip("test_snowflake_target_in_to_dataframe run in remote run only")
+            pytest.skip("test_snowflake_target_to_dataframe run in remote run only")
 
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
@@ -289,7 +289,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             name="snowflake_feature_set",
             entities=[fstore.Entity("ID")],
             engine="spark",
-            passthrough=passthrough,
         )
         source = SnowflakeSource(
             "snowflake_source_for_ingest",
@@ -319,12 +318,23 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         run_config = fstore.RunConfig(
             local=self.run_local, kind=None if self.run_local else "remote-spark"
         )
+
+        get_offline_table = f"get_offline_table_{self.current_time}"
+        target = SnowflakeTarget(
+            "snowflake_target_for_get_offline_features",
+            table_name=get_offline_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
         result = vector.get_offline_features(
             engine="spark",
             with_indexes=True,
             spark_service=self.spark_service,
             run_config=run_config,
-            target=None if self.run_local else ParquetTarget(),
+            target=None if self.run_local else target,
         )
-        # TODO use pytest.raise...
-        result.to_dataframe()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="to_dataframe does not support Snowflake target type",
+        ):
+            result.to_dataframe()

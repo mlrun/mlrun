@@ -181,6 +181,10 @@ class RemoteVectorResponse:
         file_format = kwargs.get("format")
         if not file_format:
             file_format = self.run.status.results["target"]["kind"]
+        if self.run.status.results["target"]["kind"] == "snowflake":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "to_dataframe does not support Snowflake target type"
+            )
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )

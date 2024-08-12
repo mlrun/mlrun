@@ -856,6 +856,7 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["avg"],
         )
+        df.dropna(inplace=True)
         return df
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.m

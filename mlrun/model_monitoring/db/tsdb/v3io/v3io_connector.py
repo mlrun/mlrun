@@ -89,6 +89,19 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         self.tables[mm_schemas.V3IOTSDBTables.EVENTS] = events_path
 
+        errors_table_full_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=self.project,
+            kind=mm_schemas.FileTargetKind.EVENTS,
+        )
+        (
+            _,
+            _,
+            errors_path,
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            errors_table_full_path
+        )
+        self.tables[mm_schemas.V3IOTSDBTables.ERRORS] = errors_path
+
         monitoring_application_full_path = (
             mlrun.mlconf.get_model_monitoring_file_target_path(
                 project=self.project,
@@ -160,7 +173,6 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
-
         # Write latency per prediction, labeled by endpoint ID only
         graph.add_step(
             "storey.TSDBTarget",
@@ -171,7 +183,10 @@ class V3IOTSDBConnector(TSDBConnector):
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
-            columns=[mm_schemas.EventFieldType.LATENCY],
+            columns=[
+                mm_schemas.EventFieldType.LATENCY,
+                mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
+            ],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
@@ -254,6 +269,47 @@ class V3IOTSDBConnector(TSDBConnector):
 
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
+
+    def handel_model_error(
+        self,
+        graph,
+        tsdb_batching_max_events: int = 10,
+        tsdb_batching_timeout_secs: int = 300,
+        **kwargs,
+    ):
+        graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ErrorExtractor",
+            name="error_extractor",
+        )
+        graph.add_step(
+            "storey.Filter",
+            "FilterIfNotError",
+            after="error_extractor",
+            _fn="(event is not None)",
+        )
+
+        graph.add_step(
+            "storey.TSDBTarget",
+            name="tsdb_error",
+            after="FilterIfNotError",
+            path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.ERRORS]}",
+            rate="1/s",
+            time_col=mm_schemas.EventFieldType.TIMESTAMP,
+            container=self.container,
+            v3io_frames=self.v3io_framesd,
+            infer_columns_from_data=True,
+            columns=[
+                mm_schemas.EventFieldType.MODEL_ERROR,
+            ],
+            index_cols=[
+                mm_schemas.EventFieldType.ENDPOINT_ID,
+            ],
+            aggr="count",
+            aggr_granularity="1h",
+            max_events=tsdb_batching_max_events,
+            flush_after_seconds=tsdb_batching_timeout_secs,
+            key=mm_schemas.EventFieldType.ENDPOINT_ID,
+        )
 
     def write_application_event(
         self,
@@ -627,7 +683,176 @@ class V3IOTSDBConnector(TSDBConnector):
             ),  # pyright: ignore[reportArgumentType]
         )
 
-    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
+    def get_last_request(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ):
+        """
+        :param endpoint_ids:
+        :param start:
+        :param end:
+        :return:
+        """
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            start=start,
+            end=end,
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            agg_funcs=["last"],
+        )
+
+        df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"].map(
+            lambda last_request: datetime.fromtimestamp(last_request)
+        )
+
+        return df
+
+    def get_drift_status(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "now-24h",
+        end: Union[datetime, str] = "now",
+    ) -> tuple[float, pd.Series]:
+        """
+
+        :param endpoint_ids:
+        :param start:
+        :param end:
+        :return:
+        """
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            start=start,
+            end=end,
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            agg_funcs=["max"],
+        )
+        df.reset_index(inplace=True)
+        df.columns = [
+            col[len("last(") : -1] if "last(" in col else col for col in df.columns
+        ]
+        drift_status = df.iloc[df[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
+        return drift_status[f"{mm_schemas.ResultData.RESULT_STATUS}"], drift_status
+
+    def get_metrics_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+
+        :param endpoint_id:
+        :param start:
+        :param end:
+        :return:
+        """
+
+        df = self._get_records(
+            table=mm_schemas.V3IOTSDBTables.METRICS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.MetricData.METRIC_VALUE],
+            filter_query=f"endpoint_id=='{endpoint_id}'",
+            agg_funcs=["last"],
+        )
+
+        df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"])
+        return df
+
+    def get_results_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+
+        :param endpoint_id:
+        :param start:
+        :param end:
+        :return:
+        """
+
+        df = self._get_records(
+            table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.ResultData.RESULT_KIND,
+            ],
+            filter_query=f"endpoint_id=='{endpoint_id}'",
+            agg_funcs=["last"],
+        )
+        df.rename(
+            columns={
+                f"last({mm_schemas.ResultData.RESULT_KIND})": f"{mm_schemas.ResultData.RESULT_KIND}"
+            }
+        )
+        return df
+
+    def get_error_count(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ):
+        """
+        :param endpoint_ids:
+        :param start:
+        :param end:
+        :return:
+        """
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.FileTargetKind.ERRORS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.EventFieldType.MODEL_ERROR],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            agg_funcs=["count"],
+        )
+        df.rename(
+            columns={f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"}
+        )
+        return df
+
+    def get_avg_latency(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ):
+        """
+        :param endpoint_ids:
+        :param start:
+        :param end:
+        :return:
+        """
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.FileTargetKind.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.EventFieldType.LATENCY],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            agg_funcs=["avg"],
+        )
+        return df
+
+    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.m
     #
     # def read_prediction_metric_for_endpoint_if_exists(
     #     self, endpoint_id: str

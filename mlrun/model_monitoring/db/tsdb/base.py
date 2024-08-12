@@ -60,6 +60,14 @@ class TSDBConnector(ABC):
         pass
 
     @abstractmethod
+    def handel_model_error(self, graph, **kwargs):
+        """
+
+        :param graph:
+        :return:
+        """
+
+    @abstractmethod
     def write_application_event(
         self,
         event: dict,

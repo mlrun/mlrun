@@ -170,10 +170,31 @@ class EventStreamProcessor:
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
 
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+
+        tsdb_connector.handel_model_error(
+            graph,
+            tsdb_batching_max_events=self.tsdb_batching_max_events,
+            tsdb_batching_timeout_secs=self.tsdb_batching_timeout_secs,
+        )
+
+        # TODO : uncomment after TDEngine handel_model_error implementation
+        # def apply_error_filter():
+        #     graph.add_step(
+        #         "storey.Filter",
+        #         "FilterError",
+        #         _fn="(event.get('error') is None)",
+        #     )
+        #
+        # apply_error_filter()
         # Process endpoint event: splitting into sub-events and validate event data
+
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
+                # after="FilterError", TODO : uncomment after TDEngine handel_model_error implementation
                 full_event=True,
                 project=self.project,
             )
@@ -295,9 +316,6 @@ class EventStreamProcessor:
 
         apply_storey_sample_window()
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
-        )
         tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         # Parquet branch
@@ -598,6 +616,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.PREDICTION: prediction,
                     EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
                     EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
+                        self.last_request[endpoint_id]
+                    ).timestamp(),
                     EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),

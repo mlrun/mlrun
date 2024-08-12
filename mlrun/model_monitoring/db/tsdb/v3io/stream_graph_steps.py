@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from datetime import datetime
 from typing import Any
+
+import storey
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
@@ -134,3 +136,22 @@ class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
             else:
                 unpacked[key] = new_event[key]
         return unpacked if unpacked else None
+
+
+class ErrorExtractor(mlrun.feature_store.steps.MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        error = event.get("error")
+        if error:
+            timestamp = datetime.fromisoformat(event.get("when"))
+            endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
+            return storey.Event(
+                body={
+                    EventFieldType.MODEL_ERROR: error,
+                    EventFieldType.ENDPOINT_ID: endpoint_id,
+                    EventFieldType.TIMESTAMP: timestamp,
+                },
+                key=endpoint_id,
+            )

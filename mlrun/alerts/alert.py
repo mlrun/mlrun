@@ -55,13 +55,13 @@ class AlertConfig(ModelObj):
         created: str = None,
         count: int = None,
     ):
-        """
-        Alert config object
+        """Alert config object
 
         Example::
-        
-            # create an alert on endpoint_id, which will be triggered to slack if there is a
-            # "data_drift_detected" event 3 times in the next hour.
+
+            # create an alert on endpoint_id, which will be triggered to slack if there is a "data_drift_detected" event
+            # 3 times in the next hour.
+
             from mlrun.alerts import AlertConfig
             import mlrun.common.schemas.alert as alert_objects
 

@@ -246,11 +246,9 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
             )
-        columns = []
-        for column in query_result.fields:
-            columns.append(column.name())
 
-        return pd.DataFrame(query_result, columns=columns)
+        df_columns = [field.name() for field in query_result.fields]
+        return pd.DataFrame(query_result, columns=df_columns)
 
     def read_metrics_data(
         self,

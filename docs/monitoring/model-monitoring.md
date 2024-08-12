@@ -9,22 +9,6 @@ This page gives an overview of the model monitoring user flow. See complete exam
 If you are using the CE version, see {ref}`legacy-model-monitoring`.
 ```
 
-
-The stream function examines 
-the log entry, processes it into statistics which are then written to the statistics databases (parquet file, time series database and key value database). 
-The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
-to the same target. You can use `get_offline_features` to read the data from that feature set. 
-
-In parallel, an MLRun job runs, reading the parquet files and performing drift analysis. The drift analysis data is stored so 
-that the user can retrieve it in the Iguazio UI or in a Grafana dashboard
-
-
-When you enable model monitoring, you effectively deploy three components:
-- application controller function: handles the monitoring processing and the triggers the apps that trigger the writer. The controller is a scheduled batch job whose frequency is determined by `base_period`. 
-- stream function: monitors the log of the data stream. It is triggered when a new log entry is detected. The monitored data is used to create real-time dashboards, detect drift, and analyze performance.
-- writer function: writes to the database and outputs alerts.
-
-
 In this section:
 - [APIs](#apis)
 - [Enable model monitoring](#enable-model-monitoring)
@@ -63,7 +47,7 @@ You can modify the frequency with the parameter `base_period`.
 To change the `base_period`, call `update_model_monitoring_controller`. 
 
 ```python
-project.enable_model_monitoring(base_period=1)
+project.enable_model_monitoring(base_period=20)
 ```
 ## Log the model with training data
 
@@ -160,9 +144,8 @@ See the [Model monitoring and drift detection tutorial](../tutorials/05-model-mo
 ## Invoke the model again
 
 The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
-window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
-The controller checks the Parquet DB every 10 minutes (or non-default 
-`base_period`) and streams any new data to the app.
+window closed and therefore the data contains the full monitoring window. The controller checks the Parquet DB every 10 minutes 
+(or higher number, user-configurable), and streams any new data to the app.
 
 
 ```python

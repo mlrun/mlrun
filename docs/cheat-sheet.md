@@ -650,7 +650,7 @@ batch_run = project.run_function(
 ```
 
 ## Model monitoring and drift detection
-Docs: {ref}`monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
+Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
 
 ### Real-time drift detection
 

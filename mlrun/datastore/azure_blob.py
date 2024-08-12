@@ -34,61 +34,66 @@ class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
+        self._storage_options = None
         self.max_concurrency = 100
         self.max_blocksize = 1024 * 1024 * 4
         self.max_single_put_size = 1024 * 1024 * 8  # for BlobServiceClient only
 
     @property
-    def filesystem(self):
-        """return fsspec file system object, if supported"""
-        if not self._filesystem or not self._service_client:
-            self.create_filesystem_and_client()
-        return self._filesystem
+    def storage_options(self):
+        if not self._storage_options:
+            res = dict(
+                account_name=self._get_secret_or_env("account_name")
+                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
+                account_key=self._get_secret_or_env("account_key")
+                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY"),
+                connection_string=self._get_secret_or_env("connection_string")
+                or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
+                tenant_id=self._get_secret_or_env("tenant_id")
+                or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
+                client_id=self._get_secret_or_env("client_id")
+                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
+                client_secret=self._get_secret_or_env("client_secret")
+                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
+                sas_token=self._get_secret_or_env("sas_token")
+                or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
+                credential=self._get_secret_or_env("credential"),
+            )
+            self._storage_options = self._sanitize_storage_options(res)
+        return self._storage_options
 
     @property
-    def service_client(self):
-        if not self._filesystem or not self._service_client:
-            self.create_filesystem_and_client()
-        return self._service_client
-
-    def create_filesystem_and_client(self):
+    def filesystem(self):
+        """return fsspec file system object, if supported"""
         try:
             import adlfs  # noqa
         except ImportError as exc:
             raise ImportError("Azure adlfs not installed") from exc
-        # Creates with the same storage options to avoid credential differences.
-        storage_options = self.get_storage_options()
-        # in order to support az and wasbs kinds.
-        filesystem_class = get_filesystem_class(protocol=self.kind)
-        self._filesystem = makeDatastoreSchemaSanitizer(
-            filesystem_class,
-            using_bucket=self.using_bucket,
-            blocksize=self.max_blocksize,
-            **storage_options,
-        )
-        self._do_connect(storage_options)
 
-    def get_storage_options(self):
-        res = dict(
-            account_name=self._get_secret_or_env("account_name")
-            or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
-            account_key=self._get_secret_or_env("account_key")
-            or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY"),
-            connection_string=self._get_secret_or_env("connection_string")
-            or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
-            tenant_id=self._get_secret_or_env("tenant_id")
-            or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
-            client_id=self._get_secret_or_env("client_id")
-            or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
-            client_secret=self._get_secret_or_env("client_secret")
-            or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
-            sas_token=self._get_secret_or_env("sas_token")
-            or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
-            credential=self._get_secret_or_env("credential"),
-        )
-        return self._sanitize_storage_options(res)
+        if not self._filesystem:
+            storage_options = self.storage_options()
+            # in order to support az and wasbs kinds.
+            filesystem_class = get_filesystem_class(protocol=self.kind)
+            self._filesystem = makeDatastoreSchemaSanitizer(
+                filesystem_class,
+                using_bucket=self.using_bucket,
+                blocksize=self.max_blocksize,
+                **storage_options,
+            )
+        return self._filesystem
 
-    def _do_connect(self, storage_options):
+    @property
+    def service_client(self):
+        try:
+            import azure  # noqa
+        except ImportError as exc:
+            raise ImportError("Azure not installed") from exc
+
+        if not self._service_client:
+            self._do_connect()
+        return self._service_client
+
+    def _do_connect(self):
         # Connect to the BlobServiceClient, using user-specified connection details.
         # Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
         # Raises MLRunInvalidArgumentError if none of the connection details are available
@@ -97,13 +102,15 @@ class AzureBlobStore(DataStore):
 
         from azure.identity import ClientSecretCredential
 
+        storage_options = self.storage_options
+        credential_from_client_id = None
         if (
             storage_options.get("credential") is None
             and storage_options.get("account_key") is None
             and storage_options.get("sas_token") is None
             and storage_options.get("client_id") is not None
         ):
-            storage_options["credential"] = ClientSecretCredential(
+            credential_from_client_id = ClientSecretCredential(
                 tenant_id=storage_options.get("tenant_id"),
                 client_id=storage_options.get("client_id"),
                 client_secret=storage_options.get("client_secret"),
@@ -121,7 +128,7 @@ class AzureBlobStore(DataStore):
                 )
 
                 creds = [
-                    storage_options.get("credential"),
+                    credential_from_client_id or storage_options.get("credential"),
                     storage_options.get("account_key"),
                 ]
                 if any(creds):
@@ -236,7 +243,7 @@ class AzureBlobStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.get_storage_options()
+        st = self.storage_options()
         service = "blob"
         primary_url = None
         if st.get("connection_string"):

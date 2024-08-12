@@ -723,7 +723,7 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "now-24h",
         end: Union[datetime, str] = "now",
-    ) -> tuple[float, pd.Series]:
+    ) -> pd.DataFrame:
         """
 
         :param endpoint_ids:
@@ -742,12 +742,11 @@ class V3IOTSDBConnector(TSDBConnector):
             agg_funcs=["max"],
         )
         if not df.empty:
-            df.reset_index(inplace=True)
             df.columns = [
                 col[len("max(") : -1] if "max(" in col else col for col in df.columns
             ]
-            drift_status = df.iloc[df[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
-            return drift_status[f"{mm_schemas.ResultData.RESULT_STATUS}"], drift_status
+            drift_status = df.loc[df.reset_index().groupby([f"{mm_schemas.EventFieldType.ENDPOINT_ID}"])[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
+            return drift_status
 
     def get_metrics_metadata(
         self,

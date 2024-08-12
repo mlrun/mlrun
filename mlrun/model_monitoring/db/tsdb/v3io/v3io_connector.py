@@ -705,15 +705,16 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["last"],
         )
-        df.rename(
-            columns={
-                f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
-            },
-            inplace=True,
-        )
-        df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"] = df[
-            f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
-        ].map(lambda last_request: datetime.fromtimestamp(last_request))
+        if not df.empty:
+            df.rename(
+                columns={
+                    f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+                },
+                inplace=True,
+            )
+            df[f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"] = df[
+                f"{mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP}"
+            ].map(lambda last_request: datetime.fromtimestamp(last_request))
 
         return df
 
@@ -740,12 +741,13 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["max"],
         )
-        df.reset_index(inplace=True)
-        df.columns = [
-            col[len("max(") : -1] if "max(" in col else col for col in df.columns
-        ]
-        drift_status = df.iloc[df[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
-        return drift_status[f"{mm_schemas.ResultData.RESULT_STATUS}"], drift_status
+        if not df.empty:
+            df.reset_index(inplace=True)
+            df.columns = [
+                col[len("max(") : -1] if "max(" in col else col for col in df.columns
+            ]
+            drift_status = df.iloc[df[f"{mm_schemas.ResultData.RESULT_STATUS}"].idxmax()]
+            return drift_status[f"{mm_schemas.ResultData.RESULT_STATUS}"], drift_status
 
     def get_metrics_metadata(
         self,
@@ -769,8 +771,8 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id=='{endpoint_id}'",
             agg_funcs=["last"],
         )
-
-        df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True)
+        if not df.empty:
+            df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True)
         return df
 
     def get_results_metadata(
@@ -797,12 +799,13 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id=='{endpoint_id}'",
             agg_funcs=["last"],
         )
-        df.rename(
-            columns={
-                f"last({mm_schemas.ResultData.RESULT_KIND})": f"{mm_schemas.ResultData.RESULT_KIND}"
-            },
-            inplace=True,
-        )
+        if not df.empty:
+            df.rename(
+                columns={
+                    f"last({mm_schemas.ResultData.RESULT_KIND})": f"{mm_schemas.ResultData.RESULT_KIND}"
+                },
+                inplace=True,
+            )
         return df
 
     def get_error_count(
@@ -828,9 +831,10 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["count"],
         )
-        df.rename(
-            columns={f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"}
-        )
+        if not df.empty:
+            df.rename(
+                columns={f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"}
+            )
         return df
 
     def get_avg_latency(
@@ -856,7 +860,8 @@ class V3IOTSDBConnector(TSDBConnector):
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["avg"],
         )
-        df.dropna(inplace=True)
+        if not df.empty:
+            df.dropna(inplace=True)
         return df
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.m

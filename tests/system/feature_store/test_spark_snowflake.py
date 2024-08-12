@@ -278,3 +278,53 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         pd.testing.assert_frame_equal(
             sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
         )
+
+    def test_snowflake_target_in_to_dataframe(self, passthrough):
+        if self.run_local:
+            pytest.skip("test_snowflake_target_in_to_dataframe run in remote run only")
+
+        number_of_rows = 10
+        result_table = f"result_{self.current_time}"
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+            engine="spark",
+            passthrough=passthrough,
+        )
+        source = SnowflakeSource(
+            "snowflake_source_for_ingest",
+            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
+            schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=result_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        self.generate_snowflake_source_table()
+        self.tables_to_drop.append(result_table)
+        feature_set.ingest(
+            source,
+            targets=[target],
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(
+                local=self.run_local,
+            ),
+        )
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
+        )
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
+        result = vector.get_offline_features(
+            engine="spark",
+            with_indexes=True,
+            spark_service=self.spark_service,
+            run_config=run_config,
+            target=None if self.run_local else ParquetTarget(),
+        )
+        # TODO use pytest.raise...
+        result.to_dataframe()

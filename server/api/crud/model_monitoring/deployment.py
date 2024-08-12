@@ -422,7 +422,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-
+        function.spec.max_replicas = 1
         # Enrich runtime with the required configurations
         server.api.api.utils.apply_enrichment_and_validation_on_function(
             function, self.auth_info
@@ -502,7 +502,7 @@ class MonitoringDeployment:
                     project=self.project
                 ),
             )
-        ).respond()  # writer
+        )  # writer
 
         # Set the project to the serving function
         function.metadata.project = self.project
@@ -942,8 +942,13 @@ class MonitoringDeployment:
                 )
 
                 try:
+                    # if the stream path is in the users directory, we need to use pipelines access key to delete it
                     v3io_client.stream.delete(
-                        container, stream_path, access_key=access_key
+                        container,
+                        stream_path,
+                        access_key=mlrun.mlconf.get_v3io_access_key()
+                        if container.startswith("users")
+                        else access_key,
                     )
                     logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:

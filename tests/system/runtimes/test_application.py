@@ -16,6 +16,7 @@ import io
 import os
 import sys
 
+import mlrun.runtimes
 import tests.system.base
 
 
@@ -27,6 +28,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         super().custom_setup()
         self._vizro_app_code_filename = "vizro_app.py"
         self._files_to_upload = [self._vizro_app_code_filename]
+        self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
     def test_deploy_application(self):
         self._upload_code_to_cluster()
@@ -86,11 +88,47 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         # make sure the build was skipped
         assert "(info) Skipping build" in output
 
-    def _create_vizro_application(self, name="vizro-app", app_image=None):
+    def test_deploy_application_from_project_source(self):
+        self._upload_code_to_cluster()
+
+        # pull_at_runtime is not supported and should be overridden
+        self.project.set_source(self._source, pull_at_runtime=True)
+        self.project.save()
+
+        self._logger.debug("Creating application")
+        function, source = self._create_vizro_application(with_repo=True)
+
+        self._logger.debug("Deploying vizro application")
+        function.deploy(with_mlrun=False)
+
+        assert function.invoke("/", verify=False)
+
+    def test_deploy_reverse_proxy_base_image(self):
+        tests.system.base.TestMLRunSystem._logger.debug(
+            "Deploying reverse proxy base image"
+        )
+        mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
+        assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+
+        # deploy an application and expect it to use the reverse proxy image
+        function, source = self._create_vizro_application()
+
+        self._logger.debug("Deploying vizro application")
+        function.deploy(with_mlrun=False)
+
+        assert (
+            function.status.container_image
+            == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+        )
+
+    def _create_vizro_application(
+        self, name="vizro-app", app_image=None, with_repo: bool = False
+    ):
         function = self.project.set_function(
             name=name,
             kind="application",
             requirements=["vizro", "gunicorn", "Werkzeug==2.2.2"],
+            with_repo=with_repo,
         )
         function.set_internal_application_port(8050)
         function.spec.command = "gunicorn"
@@ -101,15 +139,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             "--log-level",
             "debug",
         ]
-        source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
         if app_image:
             function.spec.image = app_image
-        else:
-            function.with_source_archive(
-                source=source,
-                pull_at_runtime=False,
-            )
-        return function, source
+        elif not with_repo:
+            function.with_source_archive(source=self._source)
+        return function, self._source
 
     @staticmethod
     def _deploy_application_with_stdout_capture(function):

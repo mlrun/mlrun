@@ -622,5 +622,5 @@ def _create_model_monitoring_function_base(
         name="PushToMonitoringWriter",
         project=project,
         writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-    ).respond()
+    )
     return func_obj

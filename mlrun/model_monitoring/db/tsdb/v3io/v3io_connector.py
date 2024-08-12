@@ -741,11 +741,11 @@ class V3IOTSDBConnector(TSDBConnector):
             columns=[mm_schemas.ResultData.RESULT_STATUS],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["max"],
-            group_by="endpoint_id"
+            group_by="endpoint_id",
         )
         if not df.empty:
             df.columns = [
-                col[len("max("): -1] if "max(" in col else col for col in df.columns
+                col[len("max(") : -1] if "max(" in col else col for col in df.columns
             ]
         return df
 
@@ -772,7 +772,9 @@ class V3IOTSDBConnector(TSDBConnector):
             agg_funcs=["last"],
         )
         if not df.empty:
-            df.drop(columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True)
+            df.drop(
+                columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True
+            )
         return df
 
     def get_results_metadata(
@@ -833,7 +835,9 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         if not df.empty:
             df.rename(
-                columns={f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"}
+                columns={
+                    f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"
+                }
             )
         return df
 

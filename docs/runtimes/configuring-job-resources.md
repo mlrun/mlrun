@@ -350,7 +350,7 @@ while still incorporating any additional labels defined at the service level:
 
 The resulting configuration for the function is:
 ```python
-{"region": "us-central1", "zone": "us-east1", "gpu": "true", "arch": "amd64"}.
+{"region": "us-central1", "zone": "us-east1", "gpu": "true", "arch": "amd64"}
 ```
 
 ### Overriding node selectors

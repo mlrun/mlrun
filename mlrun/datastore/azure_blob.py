@@ -71,14 +71,13 @@ class AzureBlobStore(DataStore):
             raise ImportError("Azure adlfs not installed") from exc
 
         if not self._filesystem:
-            storage_options = self.storage_options()
             # in order to support az and wasbs kinds.
             filesystem_class = get_filesystem_class(protocol=self.kind)
             self._filesystem = makeDatastoreSchemaSanitizer(
                 filesystem_class,
                 using_bucket=self.using_bucket,
                 blocksize=self.max_blocksize,
-                **storage_options,
+                **self.storage_options,
             )
         return self._filesystem
 

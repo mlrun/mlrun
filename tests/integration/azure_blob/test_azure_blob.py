@@ -261,13 +261,12 @@ class TestAzureBlob:
         response = upload_data_item.get()
         assert response.decode() == self.test_string
 
-    @pytest.mark.parametrize("use_datastore_profile", (True, False))
-    def test_large_upload(self, use_datastore_profile):
+    def test_large_upload(self):
         # Time-consuming test, so every authentication method is checked in test_blob_upload, which is faster.
 
         self.setup_before_test(
-            use_datastore_profile=use_datastore_profile,
-            auth_method="fsspec_conn_str" if use_datastore_profile else "env_conn_str",
+            use_datastore_profile=False,
+            auth_method="env_conn_str",
         )
         data_item = mlrun.run.get_dataitem(self.object_url)
         file_size = 1024 * 1024 * 100

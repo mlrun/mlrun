@@ -577,7 +577,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         Delete secrets from a kubernetes secret object
         :param secret_name: the project secret name
-        :param secrets:     the secrets to delete
+        :param secrets:     the secrets to delete. If None, all secrets will be deleted
         :param namespace:   k8s namespace
         :return: returns the action if the secret was deleted or updated, None if nothing changed
         """
@@ -615,6 +615,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 for key, value in k8s_secret.data.items()
                 if key not in secrets
             }
+        elif secrets is None:
+            # Delete all secrets
+            secret_data = {}
         else:
             secret_data = k8s_secret.data.copy()
 

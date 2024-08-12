@@ -69,11 +69,11 @@ class Client:
         return response["data"]
 
     def get_session(self, session_id):
-        response = self.post_request(f"session/{session_id}")
+        response = self.post_request(f"sessions/{session_id}")
         return response
 
     def get_user(self, username):
-        response = self.post_request(f"user/{username}")
+        response = self.post_request(f"users/{username}")
         return response["data"]
 
     def create_session(

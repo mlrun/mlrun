@@ -42,8 +42,8 @@ class SessionStore:
         """Save the session and conversation to the database"""
         if event.session_id:
             self.client.update_session(
-                name=event.session_id,
-                state=event.state,
+                id=event.session_id,
+                # state=event.state,
                 history=event.conversation.to_list(),
             )
 

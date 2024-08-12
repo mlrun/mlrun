@@ -152,13 +152,15 @@ class PromptConfig(BaseModel):
 # from llmapps.controller.model import ChatSession
 
 metadata_fields = [
+    "id",
     "name",
     "description",
     "labels",
-    "owner_name",
+    "owner_id",
     "created",
     "updated",
     "version",
+    "project_id",
 ]
 
 
@@ -274,10 +276,19 @@ class Base(BaseModel):
 
 class BaseWithMetadata(Base):
     name: str
+    id: Optional[str] = None
     description: Optional[str] = None
     labels: Optional[Dict[str, Union[str, None]]] = None
     created: Optional[Union[str, datetime]] = None
     updated: Optional[Union[str, datetime]] = None
+
+
+class BaseWithOwner(BaseWithMetadata):
+    owner_id: Optional[str] = None
+
+
+class BaseWithVerMetadata(BaseWithOwner):
+    version: Optional[str] = ""
 
 
 class ChatSession(BaseWithMetadata):
@@ -293,5 +304,11 @@ class ChatSession(BaseWithMetadata):
     def to_conversation(self):
         return Conversation.from_list(self.history)
 
+
+class Document(BaseWithVerMetadata):
+    _top_level_fields = ["path", "origin"]
+    path: str
+    project_id: Optional[str] = None
+    origin: Optional[str] = None
 
 # =============================================================================================

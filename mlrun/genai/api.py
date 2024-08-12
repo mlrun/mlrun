@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from mlrun.genai.client import Client
 from mlrun.genai.config import config
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
-from mlrun.genai.schema import QueryItem
+from mlrun.genai.schema import QueryItem, Document
 
 app = FastAPI()
 
@@ -56,32 +56,38 @@ async def get_auth_user(
     if x_username:
         return AuthInfo(username=x_username, token=token)
     else:
-        return AuthInfo(username="yhaviv@gmail.com", token=token)
+        return AuthInfo(username="guest@example.com", token=token)
 
 
-@router.post("/collections/{collection}/{loader}/ingest")
+@router.post("/data_sources/{data_source_name}/ingest")
 async def ingest(
-    collection: str,
+    data_source_name: str,
+    database_kwargs: dict,
     loader: str,
-    path: str,
     metadata: dict = None,
-    version: str = None,
+    document: Document = None,
     from_file: bool = False,
 ):
     """Ingest documents into the vector database"""
-    data_loader = get_data_loader(config, client=client, collection_name=collection)
+    data_loader = get_data_loader(
+        config=config,
+        client=client,
+        data_source_name=data_source_name,
+        database_kwargs=database_kwargs,
+    )
+
     if from_file:
-        with open(path, "r") as fp:
+        with open(document.path, "r") as fp:
             lines = fp.readlines()
         for line in lines:
             path = line.strip()
             if path and not path.startswith("#"):
                 loader_obj = get_loader_obj(path, loader_type=loader)
-                data_loader.load(loader_obj, metadata=metadata, version=version)
+                data_loader.load(loader_obj, metadata=metadata, version=document.version)
 
     else:
-        loader_obj = get_loader_obj(path, loader_type=loader)
-        data_loader.load(loader_obj, metadata=metadata, version=version)
+        loader_obj = get_loader_obj(document.path, loader_type=loader)
+        data_loader.load(loader_obj, metadata=metadata, version=document.version)
     return {"status": "ok"}
 
 

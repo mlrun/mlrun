@@ -130,21 +130,21 @@ def get_llm(config: AppConfig, llm_args: dict = None):
 
 def get_vector_db(
     config: AppConfig,
-    collection_name: str = None,
+    data_source_name: str = None,
     vector_store_args: dict = None,
 ):
     """Get a vector database instance.
 
     Args:
         config: An AppConfig instance.
-        collection_name: The name of the collection to use (if not default).
+        data_source_name: The name of the collection to use (if not default).
         vector_store_args: class_name and arguments to pass to the vector store class (None will use the config).
     """
     embeddings = get_embedding_function(config=config)
     vector_store_args = vector_store_args or config.default_vector_store
     vector_store_args = vector_store_args.copy()
-    if collection_name:
-        vector_store_args["collection_name"] = collection_name
+    if data_source_name:
+        vector_store_args["collection_name"] = data_source_name
     vector_store_args["embedding_function"] = embeddings
     return get_object_from_dict(vector_store_args, vector_db_shortcuts)
 

@@ -120,9 +120,9 @@ def test_store_secret(k8s_helper, secret_data, secrets, expected_data, expected_
         ),
         (
             {"key1": "value1", "key2": "value2"},
-            None,
-            None,
-            {"key1": "value1", "key2": "value2"},
+            None,  # delete all secrets
+            mlrun.common.schemas.SecretEventActions.deleted,
+            {},
         ),
         (
             {"key1": "value1", "key2": "value2"},

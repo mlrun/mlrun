@@ -23,27 +23,29 @@ class SessionStore:
         self.client = client
 
     def read_state(self, event: PipelineEvent):
-        event.username = event.username or "guest"
-        event.user = self.client.get_user(event.username)
-        if event.session_id:
-            resp = self.client.get_session(event.session_id)["data"]
+        event.user = self.client.get_user(username=event.username, email=event.username)
+        event.username = event.user["name"] or "guest"
+        if event.session_name:
+            resp = self.client.get_session(event.session_name, user_name=event.username)
             if resp:
                 chat_session = ChatSession(**resp)
                 event.session = chat_session
-                event.state = chat_session.state
                 event.conversation = chat_session.to_conversation()
             else:
-                self.client.create_session(
-                    name=event.session_id,
+                resp = self.client.create_session(
+                    name=event.session_name,
                     username=event.username or "guest",
+                    workflow_id=event.workflow_id,
                 )
+                event.session = resp["data"]
 
     def save(self, event: PipelineEvent):
         """Save the session and conversation to the database"""
-        if event.session_id:
+        if event.session_name:
             self.client.update_session(
-                id=event.session_id,
-                # state=event.state,
+                name=event.session_name,
+                username=event.username,
+                workflow_id=event.workflow_id,
                 history=event.conversation.to_list(),
             )
 

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 import requests
 
@@ -68,52 +69,46 @@ class Client:
         response = self.post_request(f"collection/{name}")
         return response["data"]
 
-    def get_session(self, session_id):
-        response = self.post_request(f"sessions/{session_id}")
-        return response
+    def get_session(self, name: str, user_name: str):
+        response = self.post_request(f"users/{user_name}/sessions/{name}")
+        return response["data"]
 
-    def get_user(self, username):
-        response = self.post_request(f"users/{username}")
+    def get_user(self, username: str = "", email: str = None):
+        params = {}
+        if email:
+            params["email"] = email
+        response = self.post_request(f"users/{username}", params=params)
         return response["data"]
 
     def create_session(
         self,
         name,
         username=None,
-        agent_name=None,
+        workflow_id=None,
         history=None,
-        features=None,
-        state=None,
     ):
         chat_session = {
             "name": name,
-            "username": username,
-            "agent_name": agent_name,
-            "history": history,
-            "features": features,
-            "state": state,
+            "workflow_id": workflow_id,
+            "history": history or [],
         }
-        response = self.post_request("session", data=chat_session, method="POST")
-        return response["success"]
+        response = self.post_request(f"users/{username}/sessions/{name}", data=chat_session, method="POST")
+        return response
 
     def update_session(
         self,
         name,
         username=None,
-        agent_name=None,
+        workflow_id=None,
         history=None,
-        features=None,
-        state=None,
     ):
         chat_session = {
             "name": name,
-            "username": username or self.username,
-            "agent_name": agent_name,
             "history": history,
-            "features": features,
-            "state": state,
+            "workflow_id": workflow_id,
         }
-        response = self.post_request(f"session/{name}", data=chat_session, method="PUT")
+        username = username or self.username
+        response = self.post_request(f"users/{username}/sessions/{name}", data=chat_session, method="PUT")
         return response["success"]
 
 

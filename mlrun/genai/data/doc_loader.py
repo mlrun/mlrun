@@ -126,14 +126,13 @@ class DataLoader:
 
 def get_data_loader(
     config: AppConfig,
-    client,
     data_source_name: str = None,
     database_kwargs: dict = None,
 ) -> DataLoader:
     """Get a data loader instance."""
     vector_db = get_vector_db(
         config,
-        data_source_name=data_source_name,
+        collection_name=data_source_name,
         vector_store_args=database_kwargs,
     )
     return DataLoader(config, vector_store=vector_db)

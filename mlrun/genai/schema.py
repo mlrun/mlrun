@@ -32,10 +32,9 @@ class ChatRole(str, Enum):
 class Message(BaseModel):
     role: ChatRole
     content: str
-    html: Optional[str] = None
+    extra_data: Optional[dict] = None
     sources: Optional[List[dict]] = None
-    rating: Optional[int] = None
-    suggestion: Optional[str] = None
+    human_feedback: Optional[str] = None
 
 
 class Conversation(BaseModel):
@@ -62,14 +61,22 @@ class Conversation(BaseModel):
         # return cls.model_validate({"messages": data or []})
 
 
+class WorkflowType(str, Enum):
+    ingestion = "ingestion"
+    application = "application"
+    data_processing = "data-processing"
+    training = "training"
+    evaluation = "evaluation"
+
+
 class PipelineEvent:
     """A pipeline event."""
 
     def __init__(
-        self, query=None, username=None, session_id=None, db_session=None, **kwargs
+        self, query=None, username=None, session_name=None, db_session=None, workflow_id=None, **kwargs
     ):
         self.username = username
-        self.session_id = session_id
+        self.session_name = session_name
         self.original_query = query
         self.query = query
         self.kwargs = kwargs
@@ -79,18 +86,20 @@ class PipelineEvent:
         self.results = {}
         self.state = {}
         self.conversation: Conversation = Conversation()
+        self.workflow_id = workflow_id
 
         self.db_session = db_session  # SQL db session (from FastAPI)
 
     def to_dict(self):
         return {
             "username": self.username,
-            "session_id": self.session_id,
+            "session_name": self.session_name,
             "query": self.query,
             "kwargs": self.kwargs,
             "results": self.results,
             "state": self.state,
             "conversation": self.conversation.to_list(),
+            "workflow_id": self.workflow_id,
         }
 
     def __getitem__(self, item):
@@ -111,7 +120,7 @@ class TerminateResponse(BaseModel):
 
 class QueryItem(BaseModel):
     question: str
-    session_id: Optional[str] = None
+    session_name: Optional[str] = None
     filter: Optional[List[Tuple[str, str]]] = None
     collection: Optional[str] = None
 
@@ -292,14 +301,11 @@ class BaseWithVerMetadata(BaseWithOwner):
 
 
 class ChatSession(BaseWithMetadata):
-    _extra_fields = ["history", "features", "state", "agent_name"]
-    _top_level_fields = ["username"]
+    _extra_fields = ["history"]
+    _top_level_fields = ["workflow_id"]
 
-    username: Optional[str] = None
-    agent_name: Optional[str] = None
+    workflow_id: str
     history: Optional[List[Message]] = []
-    features: Optional[dict[str, str]] = None
-    state: Optional[dict[str, str]] = None
 
     def to_conversation(self):
         return Conversation.from_list(self.history)
@@ -310,6 +316,17 @@ class Document(BaseWithVerMetadata):
     path: str
     project_id: Optional[str] = None
     origin: Optional[str] = None
+
+
+class Workflow(BaseWithVerMetadata):
+    _top_level_fields = ["workflow_type"]
+
+    workflow_type: WorkflowType
+    deployment: str
+    project_id: Optional[str] = None
+    workflow_function: Optional[str] = None
+    configuration: Optional[dict] = None
+    graph: Optional[dict] = None
 
 
 # =============================================================================================

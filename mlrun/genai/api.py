@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from mlrun.genai.client import Client
 from mlrun.genai.config import config
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
-from mlrun.genai.schema import Document, QueryItem
+from mlrun.genai.schema import Document, QueryItem, Workflow
 
 app = FastAPI()
 
@@ -71,7 +71,6 @@ async def ingest(
     """Ingest documents into the vector database"""
     data_loader = get_data_loader(
         config=config,
-        client=client,
         data_source_name=data_source_name,
         database_kwargs=database_kwargs,
     )
@@ -93,10 +92,11 @@ async def ingest(
     return {"status": "ok"}
 
 
-@router.post("/pipeline/{name}/run")
-async def run_pipeline(
+@router.post("/workflows/{name}/infer")
+async def infer_workflow(
     request: Request,
     name: str,
+    workflow: Workflow,
     item: QueryItem,
     auth=Depends(get_auth_user),
 ):
@@ -106,8 +106,9 @@ async def run_pipeline(
         raise ValueError("app_server not found in app")
     event = {
         "username": auth.username,
-        "session_id": item.session_id,
+        "session_name": item.session_name,
         "query": item.question,
+        "workflow_id": workflow.id,
     }
     resp = app_server.run_pipeline(name, event)
     print(f"resp: {resp}")

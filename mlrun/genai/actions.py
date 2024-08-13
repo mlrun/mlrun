@@ -29,15 +29,14 @@ class IngestItem(BaseModel):
     version: Optional[str] = None
 
 
-def ingest(client, collection_name, item: IngestItem):
+def ingest(collection_name, item: IngestItem):
     """This is the data ingestion command"""
     logger.debug(
         f"Running Data Ingestion: collection_name={collection_name}, path={item.path}, loader={item.loader}"
     )
     data_loader = get_data_loader(
         config,
-        client=client,
-        collection_name=collection_name,
+        data_source_name=collection_name,
     )
     loader_obj = get_loader_obj(item.path, loader_type=item.loader)
     data_loader.load(loader_obj, metadata=item.metadata, version=item.version)

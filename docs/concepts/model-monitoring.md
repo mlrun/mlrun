@@ -17,7 +17,7 @@ out-of-the-box analysis of:
    statistics are computed once every 10 minutes (or more, configurable). See more details in <a href="https://www.iguazio.com/glossary/concept-drift/" target="_blank">Concept Drift</a>.
 - **Operational performance**: The overall health of the system. This applies to data (e.g., whether all the
   expected data arrives to the model) as well as the model (e.g., response time and throughput). 
-- **User-provided applications**L On top of the out-of-the-box analyses, you can easily create model-monitoring applications 
+- **User-provided applications**: On top of the out-of-the-box analyses, you can easily create model-monitoring applications 
 of your own to detect drifts and anomalies in a customized way.
 
 You can set up notifications on various channels once an issue is detected. For example, notification
@@ -35,5 +35,6 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 ../model-monitoring/index
 ../model-monitoring/model-monitoring
 ../model-monitoring/monitoring-models
-../model-monitoring/legacy-mm
 ```
+
+See also {ref}`genai-mmonitor`.

@@ -31,7 +31,8 @@ Table of Contents
    development/index
    deployment/index
    projects/ci-cd-automate
-   concepts/model-monitoring
+   model-monitoring/legacy-mm
+   
    
    
 .. toctree::
@@ -41,6 +42,7 @@ Table of Contents
    projects/project
    runtimes/functions
    concepts/data
+   concepts/model-monitoring
    feature-store/feature-store
    concepts/runs-workflows
    serving/serving-graph

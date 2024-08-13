@@ -2,9 +2,10 @@
 # Model monitoring for Gen AI
 
 Gen AI model monitoring focuses on tracking the performance of algorithms that generate new outputs based on the data they have been trained on. 
-Model monitoring ensures high-quality and relevant generated content. 
-Key aspects of generative AI model monitoring include:
-- Output quality &mdash; Ensuring that the generated content, such as text, images, video, or data, is of high quality and relevance.
+Model monitoring ensures high-quality and relevant generated content. See the {ref}`overall description of model monitoring <model-monitoring-overview>`.
+
+Model monitoring for generative AI includes:
+- Monitoring output quality &mdash; Ensuring that the generated content, such as text, images, video, or data, is of high quality and relevance.
 - Coherence and consistency &mdash; Monitoring the coherence and consistency of the generated outputs to ensure they make sense and are contextually appropriate.
 - Compliance and risk management &mdash; Ensuring that the generated content complies with regulatory requirements and does not pose any risks, especially in sensitive industries like finance and healthcare.
 - Calibrating data combinations &mdash; Adjusting the combinations of data used to train the generative algorithms to produce lifelike and credible outputs.
@@ -22,8 +23,6 @@ Multi-port predictions can be applied in several ways:
 - Ensemble methods &mdash; Multiple models are combined to make predictions, and each model's output can be considered a separate port. The final prediction is often an aggregation of these individual outputs.
 - Time series forecasting &mdash; In time series analysis, multi-port predictions can be used to forecast multiple future time points simultaneously, providing a more comprehensive view of future trends.
 
-**Need examples**
-
 ## Batch inputs
 
 Batch inputs involve grouping multiple input sequences or data points together and processing them as a single batch. This method is commonly used in the training of 
@@ -39,20 +38,13 @@ Batch inputs can be used in various stages and applications of gen AI:
 - Inference &mdash; In the inference phase, batch inputs enable the model to generate multiple outputs at once, which is particularly useful for applications requiring high throughput, such as generating large volumes of text or images.
 - Data preprocessing &mdash; Batch inputs are used in the preprocessing stage to prepare data for training, fow example, data cleansing, file format conversion, and handling sensitive data to ensure the quality and consistency of the input data.
 
+You can pass a few strings in one batch.
+Batch input that looks like: </br>
+```[[1,2,3], [5,2,9]]```</br>
+would give output like:</br>
+```[11, 0.6], [0, 0.87]```
+
 Batch input that looks like: </br>
 ```[[1,2,3, "jhk",], [5,2,9, "tsc"]]```</br>
 would give output like:</br>
 ```[11, 8.6], [0, 0.87]```
-
-
-**Need examples**
-
-
-
-**In this section**
-
-```{toctree}
-:maxdepth: 1
-
-
-```

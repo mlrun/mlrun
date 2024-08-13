@@ -169,6 +169,18 @@ class EventStreamProcessor:
             mlrun.serving.states.RootFlowStep,
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
+        # split the graph between event with error vs valid event
+        graph.add_step(
+            "storey.Filter",
+            "FilterError",
+            _fn="(event.get('error') is None)",
+        )
+
+        graph.add_step(
+            "storey.Filter",
+            "ForwardError",
+            _fn="(event.get('error') is not None)",
+        )
 
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
@@ -180,21 +192,11 @@ class EventStreamProcessor:
             tsdb_batching_timeout_secs=self.tsdb_batching_timeout_secs,
         )
 
-        # TODO : uncomment after TDEngine handel_model_error implementation
-        # def apply_error_filter():
-        #     graph.add_step(
-        #         "storey.Filter",
-        #         "FilterError",
-        #         _fn="(event.get('error') is None)",
-        #     )
-        #
-        # apply_error_filter()
         # Process endpoint event: splitting into sub-events and validate event data
-
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
-                # after="FilterError", TODO : uncomment after TDEngine handel_model_error implementation
+                after="FilterError",
                 full_event=True,
                 project=self.project,
             )

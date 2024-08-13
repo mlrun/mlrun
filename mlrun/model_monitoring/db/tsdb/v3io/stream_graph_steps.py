@@ -14,8 +14,6 @@
 from datetime import datetime
 from typing import Any
 
-import storey
-
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
@@ -145,16 +143,13 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
 
     def do(self, event):
         error = event.get("error")
-        logger.info("[DAVID] In ErrorExtractor")
+        logger.info("[DAVID] In ErrorExtractor", error=str(error))
         if error:
             logger.info("Write error to errors tsdb table")
             timestamp = datetime.fromisoformat(event.get("when"))
             endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
-            return storey.Event(
-                body={
-                    EventFieldType.MODEL_ERROR: error,
-                    EventFieldType.ENDPOINT_ID: endpoint_id,
-                    EventFieldType.TIMESTAMP: timestamp,
-                },
-                key=endpoint_id,
-            )
+            return {
+                EventFieldType.MODEL_ERROR: str(error),
+                EventFieldType.ENDPOINT_ID: endpoint_id,
+                EventFieldType.TIMESTAMP: timestamp,
+            }

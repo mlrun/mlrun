@@ -33,7 +33,7 @@ _TSDB_RATE = "1/s"
 _CONTAINER = "users"
 
 
-def _is_no_schema_error(exc: v3io_frames.ReadError) -> bool:
+def _is_no_schema_error(exc: v3io_frames.Error) -> bool:
     """
     In case of a nonexistent TSDB table - a `v3io_frames.ReadError` error is raised.
     Check if the error message contains the relevant string to verify the cause.
@@ -280,24 +280,18 @@ class V3IOTSDBConnector(TSDBConnector):
         graph.add_step(
             "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ErrorExtractor",
             name="error_extractor",
-        )
-        graph.add_step(
-            "storey.Filter",
-            "FilterIfNotError",
-            after="error_extractor",
-            _fn="(event is not None)",
+            after="ForwardError",
         )
 
         graph.add_step(
             "storey.TSDBTarget",
             name="tsdb_error",
-            after="FilterIfNotError",
+            after="error_extractor",
             path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.ERRORS]}",
             rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,
             v3io_frames=self.v3io_framesd,
-            infer_columns_from_data=True,
             columns=[
                 mm_schemas.EventFieldType.MODEL_ERROR,
             ],
@@ -493,7 +487,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 step=sliding_window_step,
                 **kwargs,
             )
-        except v3io_frames.ReadError as err:
+        except v3io_frames.Error as err:
             if _is_no_schema_error(err):
                 return pd.DataFrame()
             else:

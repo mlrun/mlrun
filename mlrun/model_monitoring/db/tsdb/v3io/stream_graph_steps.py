@@ -140,13 +140,14 @@ class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
 
 class ErrorExtractor(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
+        """
+        Prepare the event for insertion into the errors TSDB table.
+        """
         super().__init__(**kwargs)
 
     def do(self, event):
         error = event.get("error")
-        logger.info("[DAVID] In ErrorExtractor", error=str(error))
         if error:
-            logger.info("Write error to errors tsdb table")
             timestamp = datetime.fromisoformat(event.get("when"))
             endpoint_id = event[EventFieldType.ENDPOINT_ID]
             event = {
@@ -155,5 +156,5 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
                 EventFieldType.TIMESTAMP: timestamp,
                 EventFieldType.ERROR_COUNT: 1.0,
             }
-            logger.info(event)
+            logger.info("Write error to errors TSDB table", event=event)
             return event

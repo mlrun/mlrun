@@ -157,7 +157,7 @@ class TDEngineConnector(TSDBConnector):
             after="ProcessBeforeTDEngine",
         )
 
-    def handel_model_error(self, graph, **kwargs):
+    def handel_model_error(self, graph, **kwargs) -> None:
         pass
 
     def delete_tsdb_resources(self):

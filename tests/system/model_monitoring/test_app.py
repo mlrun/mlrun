@@ -204,8 +204,8 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            ds_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(ds_tsdb, ep_id, "drift_status", 2.0)
+            rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
+            cls._check_valid_tsdb_result(rs_tsdb, ep_id, "result_status", 2.0)
 
             if last_request:
                 lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
@@ -228,14 +228,6 @@ class _V3IORecordsChecker:
         assert (
             df[df["endpoint_id"] == ep_id][result_name].item() == result_value
         ), f"The {result_name} is different than expected for {ep_id}"
-
-    @classmethod
-    def _test_tsdb_record(cls, ep_id: str, last_request: datetime) -> None:
-        tsdb_results = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
-        assert not tsdb_results.empty, "No TSDB data"
-        assert (
-            tsdb_results.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -385,7 +377,7 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v123123"
+    project_name = "test-app-flow-v12317"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
     error_count = 10

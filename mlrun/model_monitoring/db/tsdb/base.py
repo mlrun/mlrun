@@ -48,7 +48,7 @@ class TSDBConnector(ABC):
         self.project = project
 
     @abstractmethod
-    def apply_monitoring_stream_steps(self, graph):
+    def apply_monitoring_stream_steps(self, graph) -> None:
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
         different key metric dictionaries. This data is being used by the monitoring dashboards in
@@ -61,11 +61,10 @@ class TSDBConnector(ABC):
         pass
 
     @abstractmethod
-    def handel_model_error(self, graph, **kwargs):
+    def handel_model_error(self, graph, **kwargs) -> None:
         """
-
-        :param graph:
-        :return:
+        Adds a branch to the stream pod graph to handle events that
+        arrive with errors from the model server and saves them to the error TSDB table.
         """
 
     @abstractmethod
@@ -198,7 +197,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ):
         """
-        Fetches data from the predictions tsdb table and returns the most recent request
+        Fetches data from the predictions TSDB table and returns the most recent request
         timestamp for each specified endpoint.
 
         :param endpoint_ids:    A list of model endpoint identifiers.
@@ -217,7 +216,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
         """
-        Fetches data from the app-results tsdb table and returns the highest status among all
+        Fetches data from the app-results TSDB table and returns the highest status among all
         the result in the last 24 hours for each specified endpoint.
 
         :param endpoint_ids:    A list of model endpoint identifiers.
@@ -237,7 +236,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
         """
-        Fetches distinct metrics metadata from the metrics tsdb table for a specified model endpoint.
+        Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
 
         :param endpoint_id:        The model endpoint identifier.
         :param start:              The start time of the query.
@@ -255,7 +254,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
         """
-        Fetches distinct results metadata from the app-results tsdb table for a specified model endpoint.
+        Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
 
         :param endpoint_id:        The model endpoint identifier.
         :param start:              The start time of the query.
@@ -273,7 +272,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ):
         """
-        Fetches data from the error tsdb table and returns the error count for each specified endpoint.
+        Fetches data from the error TSDB table and returns the error count for each specified endpoint.
 
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.
@@ -291,7 +290,7 @@ class TSDBConnector(ABC):
         end: Union[datetime, str] = "now",
     ):
         """
-        Fetches data from the predictions tsdb table and returns the average latency for each specified endpoint
+        Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
 
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.

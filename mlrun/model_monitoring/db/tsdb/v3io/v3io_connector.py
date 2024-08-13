@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
 from typing import Literal, Optional, Union
 
@@ -276,7 +276,7 @@ class V3IOTSDBConnector(TSDBConnector):
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60,
         **kwargs,
-    ):
+    ) -> None:
         graph.add_step(
             "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ErrorExtractor",
             name="error_extractor",
@@ -695,14 +695,18 @@ class V3IOTSDBConnector(TSDBConnector):
         if not df.empty:
             df.rename(
                 columns={
-                    f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
+                    f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": mm_schemas.EventFieldType.LAST_REQUEST,
                     f"last({mm_schemas.EventFieldType.LATENCY})": f"last_{mm_schemas.EventFieldType.LATENCY}",
                 },
                 inplace=True,
             )
-            df[mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP] = df[
+            df[mm_schemas.EventFieldType.LAST_REQUEST] = df[
                 mm_schemas.EventFieldType.LAST_REQUEST
-            ].map(lambda last_request: datetime.fromtimestamp(last_request))
+            ].map(
+                lambda last_request: datetime.fromtimestamp(
+                    last_request, tz=timezone.utc
+                )
+            )
 
         return df
 

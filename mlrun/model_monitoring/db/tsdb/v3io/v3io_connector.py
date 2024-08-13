@@ -274,7 +274,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         graph,
         tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 300,
+        tsdb_batching_timeout_secs: int = 60,
         **kwargs,
     ):
         graph.add_step(
@@ -287,7 +287,7 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.TSDBTarget",
             name="tsdb_error",
             after="error_extractor",
-            path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.ERRORS]}",
+            path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.ERRORS]}",
             rate="1/s",
             time_col=mm_schemas.EventFieldType.TIMESTAMP,
             container=self.container,

@@ -169,16 +169,24 @@ class EventStreamProcessor:
             mlrun.serving.states.RootFlowStep,
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
+        graph.add_step(
+            "ExtractEndpointID",
+            "extract_endpoint",
+            full_event=True,
+        )
+
         # split the graph between event with error vs valid event
         graph.add_step(
             "storey.Filter",
             "FilterError",
+            after="extract_endpoint",
             _fn="(event.get('error') is None)",
         )
 
         graph.add_step(
             "storey.Filter",
             "ForwardError",
+            after="extract_endpoint",
             _fn="(event.get('error') is not None)",
         )
 
@@ -188,8 +196,6 @@ class EventStreamProcessor:
 
         tsdb_connector.handel_model_error(
             graph,
-            tsdb_batching_max_events=self.tsdb_batching_max_events,
-            tsdb_batching_timeout_secs=self.tsdb_batching_timeout_secs,
         )
 
         # Process endpoint event: splitting into sub-events and validate event data
@@ -406,6 +412,35 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         return e
 
 
+class ExtractEndpointID(mlrun.feature_store.steps.MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, full_event):
+        # Getting model version and function uri from event
+        # and use them for retrieving the endpoint_id
+        function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
+        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
+            return None
+
+        model = full_event.body.get(EventFieldType.MODEL)
+        if not is_not_none(model, [EventFieldType.MODEL]):
+            return None
+
+        version = full_event.body.get(EventFieldType.VERSION)
+        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
+
+        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
+            function_uri=function_uri,
+            versioned_model=versioned_model,
+        )
+
+        endpoint_id = str(endpoint_id)
+        full_event.body[EventFieldType.ENDPOINT_ID] = endpoint_id
+        full_event.body[EventFieldType.VERSIONED_MODEL] = versioned_model
+        return full_event
+
+
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         """
@@ -479,28 +514,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
     def do(self, full_event):
         event = full_event.body
 
-        # Getting model version and function uri from event
-        # and use them for retrieving the endpoint_id
-        function_uri = event.get(EventFieldType.FUNCTION_URI)
-        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
-            return None
-
-        model = event.get(EventFieldType.MODEL)
-        if not is_not_none(model, [EventFieldType.MODEL]):
-            return None
-
-        version = event.get(EventFieldType.VERSION)
-        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
-
-        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
-            function_uri=function_uri,
-            versioned_model=versioned_model,
-        )
-
-        endpoint_id = str(endpoint_id)
-
-        event[EventFieldType.VERSIONED_MODEL] = versioned_model
-        event[EventFieldType.ENDPOINT_ID] = endpoint_id
+        versioned_model = event[EventFieldType.VERSIONED_MODEL]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        function_uri = event[EventFieldType.FUNCTION_URI]
 
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)

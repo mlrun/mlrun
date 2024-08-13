@@ -236,7 +236,6 @@ class TestGoogleCloudStorage:
         ],
     )
     def test_large_upload(self, use_datastore_profile, setup_by):
-        # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile)
         data_item = mlrun.run.get_dataitem(self._object_url)
         file_size = 1024 * 1024 * 100

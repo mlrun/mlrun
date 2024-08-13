@@ -41,12 +41,6 @@ The SDK supports these alert operations:
 - {py:func}`~mlrun.projects.MlrunProject.list_alert_templates` &mdash; Retrieve the list of all alert templates.
 - {py:func}`~mlrun.projects.MlrunProject.list_alerts_configs` &mdash; Retrieve the list of alerts of a project.
 
-## Alert templates
-Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
-predefined templates that can be used with MLRun applications. 
-If you use non-MLRun applications (for example, with model monitoring), you must configure an application-specific alert. 
-The templates are cross-project objects. When generating an alert, you must assign the project to it. 
-See the {py:meth}`alert template parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 
 ## Predefined alerts
 The predefined alert types are:
@@ -63,7 +57,7 @@ The predefined alert types are:
 - FAILED &mdash; The job failed.
 
 
-## Creating an alert without a template
+## Creating an alert
 You can select an alert type for a specific model, for example "drift detection" for a given model. You must specify 
 the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). 
 You can configure Git, Slack, and webhook notifications. 
@@ -107,14 +101,20 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 
 project.store_alert_config(alert_data)
 ```
+## Alert templates
+Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
+predefined templates that can be used with MLRun applications. 
+If you use non-MLRun applications (for example, with model monitoring), you must configure an application-specific alert. 
+The templates are cross-project objects. When generating an alert, you must assign the project to it. 
+See the {py:meth}`alert template parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 
 ## Creating an alert with a template
 
 When you use a template, you only need to supply:
 - name: str
 - project: str
-- entity: EventEntity from the list in [Alert templates](#alert-templates)
-- {py:func}`~mlrun.common.schemas.notification.NotificationKind`
+- {py:class}`mlrun.common.schemas.alert.EventKind`
+- {py:class}`~mlrun.common.schemas.notification.NotificationKind`
 
 See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 

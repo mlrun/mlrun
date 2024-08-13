@@ -294,6 +294,7 @@ class V3IOTSDBConnector(TSDBConnector):
             v3io_frames=self.v3io_framesd,
             columns=[
                 mm_schemas.EventFieldType.MODEL_ERROR,
+                mm_schemas.EventFieldType.ERROR_COUNT,
             ],
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -823,16 +824,18 @@ class V3IOTSDBConnector(TSDBConnector):
             table=mm_schemas.FileTargetKind.ERRORS,
             start=start,
             end=end,
-            columns=[mm_schemas.EventFieldType.MODEL_ERROR],
+            columns=[mm_schemas.EventFieldType.ERROR_COUNT],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
             agg_funcs=["count"],
         )
         if not df.empty:
             df.rename(
                 columns={
-                    f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"
-                }
+                    f"count({mm_schemas.EventFieldType.ERROR_COUNT})": mm_schemas.EventFieldType.ERROR_COUNT
+                },
+                inplace=True,
             )
+            df.dropna(inplace=True)
         return df
 
     def get_avg_latency(

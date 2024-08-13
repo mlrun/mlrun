@@ -153,6 +153,7 @@ class ErrorExtractor(mlrun.feature_store.steps.MapClass):
                 EventFieldType.MODEL_ERROR: str(error),
                 EventFieldType.ENDPOINT_ID: endpoint_id,
                 EventFieldType.TIMESTAMP: timestamp,
+                EventFieldType.ERROR_COUNT: 1.0,
             }
             logger.info(event)
             return event

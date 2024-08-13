@@ -257,6 +257,7 @@ class V2ModelServer(StepToDict):
                 "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
+                "timestamp": start.isoformat(sep=" ", timespec="microseconds"),
             }
             if self.version:
                 response["model_version"] = self.version

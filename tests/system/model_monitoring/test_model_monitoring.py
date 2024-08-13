@@ -1180,7 +1180,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image = "docker.io/eyaligu/mlrun:unstablev8"
+    image: Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

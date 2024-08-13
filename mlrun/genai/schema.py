@@ -73,7 +73,13 @@ class PipelineEvent:
     """A pipeline event."""
 
     def __init__(
-        self, query=None, username=None, session_name=None, db_session=None, workflow_id=None, **kwargs
+        self,
+        query=None,
+        username=None,
+        session_name=None,
+        db_session=None,
+        workflow_id=None,
+        **kwargs,
     ):
         self.username = username
         self.session_name = session_name

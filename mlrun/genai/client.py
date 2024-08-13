@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 
 import requests
 
@@ -92,7 +91,9 @@ class Client:
             "workflow_id": workflow_id,
             "history": history or [],
         }
-        response = self.post_request(f"users/{username}/sessions/{name}", data=chat_session, method="POST")
+        response = self.post_request(
+            f"users/{username}/sessions/{name}", data=chat_session, method="POST"
+        )
         return response
 
     def update_session(
@@ -108,7 +109,9 @@ class Client:
             "workflow_id": workflow_id,
         }
         username = username or self.username
-        response = self.post_request(f"users/{username}/sessions/{name}", data=chat_session, method="PUT")
+        response = self.post_request(
+            f"users/{username}/sessions/{name}", data=chat_session, method="PUT"
+        )
         return response["success"]
 
 

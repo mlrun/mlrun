@@ -268,7 +268,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
-            replace_creds=True,
+            replace_creds=True,  # remove once ML-7501 is resolved
         )
 
         iris = load_iris()
@@ -1180,7 +1180,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image = "docker.io/eyaligu/mlrun:unstablev8"
 
     @classmethod
     def custom_setup_class(cls) -> None:

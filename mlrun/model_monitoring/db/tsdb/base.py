@@ -205,7 +205,7 @@ class TSDBConnector(ABC):
         :param start:           The start time for the query.
         :param end:             The end time for the query.
 
-        :return: A pd.DataFrame containing the columns [endpoint_id, last_request_timestamp, last_latency].
+        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency].
         If an endpoint has not been invoked within the specified time range, it will not appear in the result.
         """
 

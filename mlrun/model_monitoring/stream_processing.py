@@ -414,6 +414,9 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
 
 class ExtractEndpointID(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
+        """
+        Generate a model endpoint ID based on the event parameters and attach it to the event.
+        """
         super().__init__(**kwargs)
 
     def do(self, full_event):

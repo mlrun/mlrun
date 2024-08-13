@@ -299,8 +299,6 @@ class V3IOTSDBConnector(TSDBConnector):
             index_cols=[
                 mm_schemas.EventFieldType.ENDPOINT_ID,
             ],
-            aggr="count",
-            aggr_granularity="1h",
             max_events=tsdb_batching_max_events,
             flush_after_seconds=tsdb_batching_timeout_secs,
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
@@ -684,12 +682,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ):
-        """
-        :param endpoint_ids:
-        :param start:
-        :param end:
-        :return:
-        """
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -704,6 +696,7 @@ class V3IOTSDBConnector(TSDBConnector):
             df.rename(
                 columns={
                     f"last({mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP})": mm_schemas.EventFieldType.LAST_REQUEST_TIMESTAMP,
+                    f"last({mm_schemas.EventFieldType.LATENCY})": f"last_{mm_schemas.EventFieldType.LATENCY}",
                 },
                 inplace=True,
             )
@@ -719,13 +712,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "now-24h",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        """
-
-        :param endpoint_ids:
-        :param start:
-        :param end:
-        :return:
-        """
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -750,14 +736,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        """
-
-        :param endpoint_id:
-        :param start:
-        :param end:
-        :return:
-        """
-
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.METRICS,
             start=start,
@@ -778,14 +756,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        """
-
-        :param endpoint_id:
-        :param start:
-        :param end:
-        :return:
-        """
-
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,
@@ -811,12 +781,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ):
-        """
-        :param endpoint_ids:
-        :param start:
-        :param end:
-        :return:
-        """
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -844,12 +808,6 @@ class V3IOTSDBConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ):
-        """
-        :param endpoint_ids:
-        :param start:
-        :param end:
-        :return:
-        """
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -864,34 +822,3 @@ class V3IOTSDBConnector(TSDBConnector):
         if not df.empty:
             df.dropna(inplace=True)
         return df
-
-    # Note: this function serves as a reference for checking the TSDB for the existence of a metric.m
-    #
-    # def read_prediction_metric_for_endpoint_if_exists(
-    #     self, endpoint_id: str
-    # ) -> Optional[mm_schemas.ModelEndpointMonitoringMetric]:
-    #     """
-    #     Read the count of the latency column in the predictions table for the given endpoint_id.
-    #     We just want to check if there is any data for this endpoint_id.
-    #     """
-    #     query = self._get_sql_query(
-    #         endpoint_id=endpoint_id,
-    #         table_path=self.tables[mm_schemas.FileTargetKind.PREDICTIONS],
-    #         columns=[f"count({mm_schemas.EventFieldType.LATENCY})"],
-    #     )
-    #     try:
-    #         logger.debug("Checking TSDB", project=self.project, query=query)
-    #         df: pd.DataFrame = self._frames_client.read(
-    #             backend=_TSDB_BE, query=query, start="0", end="now"
-    #         )
-    #     except v3io_frames.ReadError as err:
-    #         if _is_no_schema_error(err):
-    #             logger.debug(
-    #                 "No predictions yet", project=self.project, endpoint_id=endpoint_id
-    #             )
-    #             return
-    #         else:
-    #             raise
-    #
-    #     if not df.empty:
-    #         return get_invocations_metric(self.project)

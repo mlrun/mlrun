@@ -377,9 +377,9 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v12317"
+    project_name = "test-app-flow-v2"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "docker.io/davesh0812/mlrun:1.7.0"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod
@@ -560,14 +560,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         num_events: int,
         with_training_set: bool = True,
     ) -> datetime:
-        for i in range(cls.error_count // 2):
-            try:
-                serving_fn.invoke(
-                    f"v2/models/{cls.model_name}_{with_training_set}/infer",
-                    json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
-                )
-            except Exception:
-                pass
         result = serving_fn.invoke(
             f"v2/models/{cls.model_name}_{with_training_set}/infer",
             json.dumps({"inputs": [[0.0] * cls.num_features] * num_events}),
@@ -578,6 +570,22 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             len(result["outputs"]) == num_events
         ), "Outputs length does not match inputs"
         return datetime.fromisoformat(result["timestamp"])
+
+    @classmethod
+    def _infer_with_error(
+        cls,
+        serving_fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+        *,
+        with_training_set: bool = True,
+    ):
+        for i in range(cls.error_count):
+            try:
+                serving_fn.invoke(
+                    f"v2/models/{cls.model_name}_{with_training_set}/infer",
+                    json.dumps({"inputs": [[0.0] * (cls.num_features + 1)]}),
+                )
+            except Exception:
+                pass
 
     @classmethod
     def _get_model_endpoint_id(cls) -> str:
@@ -665,15 +673,18 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._infer(
             serving_fn, num_events=self.num_events, with_training_set=with_training_set
         )
+
+        self._infer_with_error(serving_fn, with_training_set=with_training_set)
         # mark the first window as "done" with another request
         time.sleep(
             self.app_interval_seconds
             + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
             + 2
         )
-        last_request = self._infer(
-            serving_fn, num_events=1, with_training_set=with_training_set
-        )
+        for i in range(10):
+            last_request = self._infer(
+                serving_fn, num_events=1, with_training_set=with_training_set
+            )
         # wait for the completed window to be processed
         time.sleep(1.2 * self.app_interval_seconds)
 

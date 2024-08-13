@@ -384,11 +384,11 @@ When setting a node selector for the application, it only applies to the driver 
 significance to setting it for the application itself (since the only pods created are for the driver and executor). 
 The logic is:
    - Application Node Selector: Always remains empty.
-   - Driver Node Selector: If no specific `driver_node_selector` is defined, the application node selector is used. 
+   - Driver Node Selector: If no specific `driver_node_selector` is defined, the runtime node selector is used. 
 If a specific `driver_node_selector` is defined, it takes precedence. After selecting the appropriate driver node selector, 
 a merge with precedence is performed with the project and MLRun config levels.
    - Executor Node Selector: Follows the same logic as the driver node selector. If no specific `executor_node_selector` is defined, 
-the application node selector is used. If a specific `executor_node_selector` is defined, it takes precedence. 
+the runtime node selector is used. If a specific `executor_node_selector` is defined, it takes precedence. 
 A merge with precedence is then performed with the project and MLRun config levels.
 
 This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 

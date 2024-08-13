@@ -32,9 +32,8 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 ```{toctree}
 :maxdepth: 1
 
-../monitoring/index
-../monitoring/model-monitoring
-../monitoring/monitoring-models
-../monitoring/model-monitoring-deployment
-../monitoring/legacy-model-monitoring
+../model-monitoring/index
+../model-monitoring/model-monitoring
+../model-monitoring/monitoring-models
+../model-monitoring/legacy-mm
 ```

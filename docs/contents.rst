@@ -31,6 +31,7 @@ Table of Contents
    development/index
    deployment/index
    projects/ci-cd-automate
+   concepts/model-monitoring
    
    
 .. toctree::
@@ -43,8 +44,7 @@ Table of Contents
    feature-store/feature-store
    concepts/runs-workflows
    serving/serving-graph
-   concepts/monitoring
-   
+      
      
 .. toctree::
    :maxdepth: 1

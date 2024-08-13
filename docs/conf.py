@@ -175,6 +175,13 @@ redirects = {
     "monitoring/initial-setup-configuration": "monitoring/model-monitoring-deployment.html",
     "tutorials/05-batch-infer": "tutorials/06-batch-infer.html",
     "tutorials/06-model-monitoring": "tutorials/05-model-monitoring.html",
+    "monitoring/models": "../model-monitoring/monitoring-models.html",
+    "monitoring/monitoring": "../model-monitoring.html",
+    "monitoring/monitoring-deployment": "../model-monitoring/model-monitoring-deployment.html",
+    "monitoring/models": "../model-monitoring/monitoring-models.html",
+    "monitoring/legacy-model-monitoring": "../model-monitoring/legacy-model-monitoring.html",
+    "concepts/monitoring": "model-monitoring.html",
+    "monitoring/index": "../model-monitoring/index.html",
 }
 
 smartquotes = False

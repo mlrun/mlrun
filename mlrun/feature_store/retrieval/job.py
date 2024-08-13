@@ -17,6 +17,7 @@ import uuid
 import mlrun
 import mlrun.common.constants as mlrun_constants
 from mlrun.config import config as mlconf
+from mlrun.datastore.targets import kind_to_driver
 from mlrun.model import DataTargetBase, new_task
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.utils import logger
@@ -179,11 +180,14 @@ class RemoteVectorResponse:
                         columns.remove(drop_col)
 
         file_format = kwargs.get("format")
+        target_kind = self.run.status.results["target"]["kind"]
         if not file_format:
-            file_format = self.run.status.results["target"]["kind"]
-        if self.run.status.results["target"]["kind"] == "snowflake":
+            file_format = target_kind
+
+        target_class = kind_to_driver.get(target_kind)
+        if target_class and not target_class.support_storey:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "to_dataframe does not support Snowflake target type"
+                f"to_dataframe does not support targets that do not support storey engine. Target kind: {target_kind}"
             )
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs

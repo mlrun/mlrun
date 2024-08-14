@@ -357,8 +357,8 @@ The resulting configuration for the function is:
 
 You can override and ignore node selectors defined at the project level or service level from the function level 
 by using an empty key (a key with no value), thereby completely canceling a specific node selector label. For example, if:
-- The project level defines {"zone": "us-west1", "arch": "amd64"}
-- The function level specifies {"zone": "", "gpu": "true"}
+- The project level defines `{"zone": "us-west1", "arch": "amd64"}`
+- The function level specifies `{"zone": "", "gpu": "true"}`
 
 The zone label from the project level is completely removed, and the resulting configuration for the function is:
 ```

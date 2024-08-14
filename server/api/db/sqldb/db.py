@@ -5112,10 +5112,13 @@ class SQLDB(DBInterface):
             alert_record.id,
             alert.project,
         )
+        self._create_alert_state(session, alert_record)
 
+        return self._transform_alert_config_record_to_schema(alert_record)
+
+    def _create_alert_state(self, session, alert_record):
         state = AlertState(count=0, parent_id=alert_record.id)
         self._upsert(session, [state])
-        return self._transform_alert_config_record_to_schema(alert_record)
 
     def delete_alert(self, session, project: str, name: str):
         self._delete(session, AlertConfig, project=project, name=name)
@@ -5155,6 +5158,7 @@ class SQLDB(DBInterface):
             else mlrun.common.schemas.AlertActiveState.INACTIVE
         )
         alert.count = state.count
+        alert.created = state.created
 
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()

@@ -1,8 +1,6 @@
 (model-monitoring-des)=
 # Model monitoring description
 
-In v1.6.0. MLRun introduced a {ref}`new paradigm of model monitoring <model-monitoring>`. 
-The {ref}`legacy mode <legacy-model-monitoring>` is currently supported only for the CE version of MLRun.
 
 ## Architecture
 

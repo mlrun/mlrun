@@ -44,19 +44,19 @@ The SDK supports these alert operations:
 
 ## Predefined alerts
 The predefined alert types are:
-- DATA_DRIFT_DETECTED &mdash; A detected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
-- DATA_DRIFT_SUSPECTED &mdash; A suspected change in model input data that potentially leads to model performance degradation. See {ref}`monitoring-overview`.
-- CONCEPT_DRIFT_DETECTED &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
-- CONCEPT_DRIFT_SUSPECTED &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). See {ref}`monitoring-overview`.
-- MODEL_PERFORMANCE_DETECTED &mdash; A detected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
-- MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. See {ref}`monitoring-overview`.
+- DATA_DRIFT_DETECTED &mdash; A detected change in model input data that potentially leads to model performance degradation. 
+- DATA_DRIFT_SUSPECTED &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- CONCEPT_DRIFT_DETECTED &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- CONCEPT_DRIFT_SUSPECTED &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- MODEL_PERFORMANCE_DETECTED &mdash; A detected change of the overall model performance and/or feature-level performance. 
+- MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. 
 - MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
 - MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
 - MM_APP_ANOMALY_DETECTED &mdash; An alert based on user-defined metrics/results.
 - MM_APP_ANOMALY_SUSPECTED &mdash; An alert based on user-defined metrics/results.
 - FAILED &mdash; The job failed.
 
-
+See {ref}`monitoring-overview` for more details on drift and performance.
 ## Creating an alert
 You can select an alert type for a specific model, for example "drift detection" for a given model. You must specify 
 the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). 
@@ -113,8 +113,8 @@ See the {py:meth}`alert template parameters<mlrun.common.schemas.alert.AlertTemp
 When you use a template, you only need to supply:
 - name: str
 - project: str
-- {py:class}`mlrun.common.schemas.alert.EventKind`
-- {py:class}`~mlrun.common.schemas.notification.NotificationKind`
+- entity: EventEntity
+- NotificationKind: a list of at least one notification.
 
 See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 

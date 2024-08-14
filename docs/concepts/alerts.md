@@ -58,8 +58,8 @@ The predefined alert types are:
 
 See {ref}`monitoring-overview` for more details on drift and performance.
 ## Creating an alert
-You can select an alert type for a specific model, for example "drift detection" for a given model. You must specify 
-the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). 
+You can select an alert type for a specific model, for example "drift detection" for a given model. You can optionally specify 
+the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). If not specified, it uses the defaults.
 You can configure Git, Slack, and webhook notifications. 
 See the {py:meth}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`.
 

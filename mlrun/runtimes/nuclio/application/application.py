@@ -284,6 +284,7 @@ class ApplicationRuntime(RemoteRuntime):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
         Once the image is built, the function is deployed.
+
         :param project:                 Project name
         :param tag:                     Function tag
         :param verbose:                 Set True for verbose logging

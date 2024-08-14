@@ -102,6 +102,16 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_count=1
         )
 
+        # send events again to make sure alert does not trigger, since it is active already
+        for _ in range(alert2["criteria"].count):
+            self._post_event(
+                project_name, alert2["event_name"], alert2["entity"]["kind"]
+            )
+        alert = self._get_alerts(project_name, created_alert2.name)
+        self._validate_alert(
+            alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_count=1
+        )
+
         # reset the alert and trigger the event again and validate that the state is inactive
         self._reset_alert(project_name, created_alert2.name)
         self._post_event(project_name, alert2["event_name"], alert2["entity"]["kind"])

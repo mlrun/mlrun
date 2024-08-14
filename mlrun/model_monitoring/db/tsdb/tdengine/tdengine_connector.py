@@ -394,7 +394,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         pass
 
     def get_drift_status(
@@ -426,7 +426,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         pass
 
     def get_avg_latency(
@@ -434,7 +434,7 @@ class TDEngineConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         pass
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.

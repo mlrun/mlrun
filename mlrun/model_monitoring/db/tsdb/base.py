@@ -196,7 +196,7 @@ class TSDBConnector(ABC):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
         timestamp for each specified endpoint.
@@ -271,7 +271,7 @@ class TSDBConnector(ABC):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         """
         Fetches data from the error TSDB table and returns the error count for each specified endpoint.
 
@@ -289,7 +289,7 @@ class TSDBConnector(ABC):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         """
         Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
 

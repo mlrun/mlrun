@@ -688,7 +688,7 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -715,7 +715,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 )
             )
 
-        return df
+        return df.reset_index(drop=True)
 
     def get_drift_status(
         self,
@@ -739,7 +739,7 @@ class V3IOTSDBConnector(TSDBConnector):
             df.columns = [
                 col[len("max(") : -1] if "max(" in col else col for col in df.columns
             ]
-        return df
+        return df.reset_index(drop=True)
 
     def get_metrics_metadata(
         self,
@@ -759,7 +759,7 @@ class V3IOTSDBConnector(TSDBConnector):
             df.drop(
                 columns=[f"last({mm_schemas.MetricData.METRIC_VALUE})"], inplace=True
             )
-        return df
+        return df.reset_index(drop=True)
 
     def get_results_metadata(
         self,
@@ -784,14 +784,14 @@ class V3IOTSDBConnector(TSDBConnector):
                 },
                 inplace=True,
             )
-        return df
+        return df.reset_index(drop=True)
 
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -811,14 +811,14 @@ class V3IOTSDBConnector(TSDBConnector):
                 inplace=True,
             )
             df.dropna(inplace=True)
-        return df
+        return df.reset_index(drop=True)
 
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
-    ):
+    ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
@@ -832,4 +832,4 @@ class V3IOTSDBConnector(TSDBConnector):
         )
         if not df.empty:
             df.dropna(inplace=True)
-        return df
+        return df.reset_index(drop=True)

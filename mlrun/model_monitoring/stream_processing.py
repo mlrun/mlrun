@@ -413,13 +413,13 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
 
 
 class ExtractEndpointID(mlrun.feature_store.steps.MapClass):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """
         Generate the model endpoint ID based on the event parameters and attach it to the event.
         """
         super().__init__(**kwargs)
 
-    def do(self, full_event):
+    def do(self, full_event) -> typing.Union[storey.Event, None]:
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)

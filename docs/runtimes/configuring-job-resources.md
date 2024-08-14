@@ -344,9 +344,9 @@ To illustrate this logic, consider the following cases:
 
 Here's an example that demonstrates how the function-level configuration overrides the project-level configuration, 
 while still incorporating any additional labels defined at the service level:
-- The service level defines node selectors like {"region": "us-central1", "gpu": "False", "arch": "arm64"},
-- The project level defines node selectors like {"zone": "us-west1", "arch": "amd64"},
-- The function level specifies {"zone": "us-east1", "gpu": "true"}.
+- The service level defines node selectors like `{"region": "us-central1", "gpu": "False", "arch": "arm64"}`,
+- The project level defines node selectors like `{"zone": "us-west1", "arch": "amd64"}`,
+- The function level specifies `{"zone": "us-east1", "gpu": "true"}`.
 
 The resulting configuration for the function is:
 ```python

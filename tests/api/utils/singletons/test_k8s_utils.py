@@ -17,6 +17,7 @@ import unittest.mock
 import pytest
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
@@ -50,7 +51,7 @@ def k8s_helper():
     ],
 )
 def test_get_logger_pods_label_selector(
-    monkeypatch, run_type, mpi_version, extra_selector
+    k8s_helper, monkeypatch, run_type, mpi_version, extra_selector
 ):
     monkeypatch.setattr(
         server.api.runtime_handlers.mpijob,
@@ -59,7 +60,6 @@ def test_get_logger_pods_label_selector(
     )
     uid = "test-uid"
     project = "test-project"
-    namespace = "test-namespace"
     selector = (
         f"{mlrun_constants.MLRunInternalLabels.mlrun_class},"
         f"{mlrun_constants.MLRunInternalLabels.project}={project},"
@@ -68,11 +68,12 @@ def test_get_logger_pods_label_selector(
     if extra_selector:
         selector += f",{extra_selector}"
 
-    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)
-    k8s_helper.list_pods.assert_called_once_with(namespace, selector=selector)
+    k8s_helper.list_pods.assert_called_once_with(
+        k8s_helper.namespace, selector=selector
+    )
 
 
 @pytest.mark.parametrize(
@@ -106,3 +107,58 @@ def test_store_secret(k8s_helper, secret_data, secrets, expected_data, expected_
     if expected_data:
         data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
         assert data == expected_data
+
+
+@pytest.mark.parametrize(
+    "k8s_secret_data, secrets_data, expected_action, expected_secret_data",
+    [
+        (
+            {"key1": "value1", "key2": "value2"},
+            [],
+            None,
+            {"key1": "value1", "key2": "value2"},
+        ),
+        (
+            {"key1": "value1", "key2": "value2"},
+            None,  # delete all secrets
+            mlrun.common.schemas.SecretEventActions.deleted,
+            {},
+        ),
+        (
+            {"key1": "value1", "key2": "value2"},
+            ["key3"],
+            None,
+            {"key1": "value1", "key2": "value2"},
+        ),
+        (None, ["key1"], mlrun.common.schemas.SecretEventActions.deleted, {}),
+        ({}, ["key1"], mlrun.common.schemas.SecretEventActions.deleted, {}),
+        (
+            {"key1": "value1"},
+            ["key1"],
+            mlrun.common.schemas.SecretEventActions.deleted,
+            {},
+        ),
+        (
+            {"key1": "value1", "key2": "value2"},
+            ["key1"],
+            mlrun.common.schemas.SecretEventActions.updated,
+            {"key2": "value2"},
+        ),
+    ],
+)
+def test_delete_secrets(
+    k8s_helper, k8s_secret_data, secrets_data, expected_action, expected_secret_data
+):
+    k8s_secret_mock = unittest.mock.MagicMock(data=k8s_secret_data)
+    k8s_helper.v1api.read_namespaced_secret.return_value = k8s_secret_mock
+
+    result = k8s_helper.delete_secrets("my-secret", secrets_data)
+    assert result == expected_action
+
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
+        "my-secret", k8s_helper.namespace
+    )
+
+    if expected_action == mlrun.common.schemas.SecretEventActions.updated:
+        data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
+        assert data == expected_secret_data

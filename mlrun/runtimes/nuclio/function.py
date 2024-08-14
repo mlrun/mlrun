@@ -689,7 +689,7 @@ class RemoteRuntime(KubeResource):
             "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
         )
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
@@ -706,6 +706,10 @@ class RemoteRuntime(KubeResource):
         Enables nuclio's default http trigger creation
         """
         self.spec.disable_default_http_trigger = False
+
+    def skip_image_enrichment(self):
+        # make sure the API does not enrich the base image if the function is not a python function
+        return self.spec.nuclio_runtime and "python" not in self.spec.nuclio_runtime
 
     def _get_state(
         self,

@@ -43,6 +43,7 @@ async def test_process_event_no_cache(
         severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
         entities=entity,
         trigger=mlrun.common.schemas.alert.AlertTrigger(events=[event_kind]),
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.MANUAL,
         notifications=[
             {
                 "notification": {

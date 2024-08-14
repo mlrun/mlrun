@@ -835,11 +835,56 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def store_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
     def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def list_alerts(
+        self, session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_alert(
+        self, session, project: str, name: str
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def get_alert_by_id(
+        self, session, alert_id: int
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def delete_alert(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def store_alert_state(
+        self,
+        session,
+        project: str,
+        name: str,
+        last_updated: datetime,
+        count: typing.Optional[int] = None,
+        active: bool = False,
+        obj: typing.Optional[dict] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
         pass
 
     @abstractmethod

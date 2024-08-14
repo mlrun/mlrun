@@ -2429,12 +2429,9 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values_count": len(main_table_identifier_values),
+            "main_table_identifier_values": main_table_identifier_values,
         }
-        if deletions_count != len(main_table_identifier_values):
-            logger.warning("Removed less rows than expected from table", **log_kwargs)
-        else:
-            logger.debug("Removed rows from table", **log_kwargs)
+        logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
         return deletions_count
 

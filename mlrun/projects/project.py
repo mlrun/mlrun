@@ -18,7 +18,6 @@ import glob
 import http
 import importlib.util as imputil
 import json
-import os.path
 import pathlib
 import shutil
 import tempfile
@@ -616,7 +615,7 @@ def _run_project_setup(
             project.save()
     else:
         logger.warn(
-            f"skipping setup, setup() handler was not found in {os.path.basename(setup_file_path)}"
+            f"skipping setup, setup() handler was not found in {path.basename(setup_file_path)}"
         )
     return project
 

@@ -65,6 +65,7 @@ class TSDBConnector(ABC):
         """
         Adds a branch to the stream pod graph to handle events that
         arrive with errors from the model server and saves them to the error TSDB table.
+        The first step that generates by this method should come after `ForwardError` step.
         """
 
     @abstractmethod

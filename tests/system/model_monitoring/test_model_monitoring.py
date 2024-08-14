@@ -268,6 +268,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            replace_creds=True,  # remove once ML-7501 is resolved
         )
 
         iris = load_iris()
@@ -1094,6 +1095,12 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
+        # Set the model monitoring credentials
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
     @classmethod
     def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:

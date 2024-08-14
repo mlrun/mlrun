@@ -1176,7 +1176,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
             self.spec.node_name = node_name
         if node_selector is not None:
             self.spec.node_selector = node_selector
-        if affinity:
+        if affinity is not None:
             self.spec.affinity = affinity
         if tolerations is not None:
             self.spec.tolerations = tolerations

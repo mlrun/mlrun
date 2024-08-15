@@ -29,8 +29,6 @@ Chat History:
 
 Follow Up Input: {question}
 
-Begin!
-
 Standalone request:
 """
 
@@ -55,6 +53,7 @@ class RefineQuery(ChainRunner):
         resp = self._chain.invoke(
             {"question": event.query, "chat_history": chat_history}
         )
+        logger.debug(f"Refined question: {resp}")
         return {"answer": resp}
 
 

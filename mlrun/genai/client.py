@@ -92,7 +92,7 @@ class Client:
             "history": history or [],
         }
         response = self.post_request(
-            f"users/{username}/sessions/{name}", data=chat_session, method="POST"
+            f"users/{username}/sessions", data=chat_session, method="POST"
         )
         return response
 

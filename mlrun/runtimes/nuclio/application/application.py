@@ -169,7 +169,7 @@ class ApplicationStatus(NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway = api_gateway or None
+        self.api_gateway: typing.Optional[APIGateway] = api_gateway or None
         self.url = url or None
 
 

@@ -193,6 +193,7 @@ class Alerts(
                     update_state = False
                 else:
                     active = True
+                    state["active"] = True
                     self._get_alert_state_cached().cache_replace(
                         state, session, alert.id
                     )

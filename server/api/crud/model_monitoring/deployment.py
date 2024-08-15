@@ -149,9 +149,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
         """
 
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.STREAM,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.STREAM} function",
@@ -193,9 +196,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
         """
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
@@ -241,9 +247,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
         """
 
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.WRITER} function",
@@ -518,39 +527,37 @@ class MonitoringDeployment:
 
         return function
 
-    def _check_if_already_deployed(
-        self, function_name: str, overwrite: bool = False
-    ) -> bool:
+    def _get_function_state(
+        self,
+        function_name: str,
+    ) -> typing.Optional[str]:
         """
-         If overwrite equal False the method check the desired function is all ready deployed
-
         :param function_name:   The name of the function to check.
-        :param overwrite:       If true, overwrite the existing model monitoring controller.
-                                By default, False.
 
-        :return:                True if the function is already deployed, otherwise False.
+        :return:                Function state if deployed, else None.
         """
-        if not overwrite:
-            logger.info(
-                f"Checking if {function_name} is already deployed",
-                project=self.project,
-            )
-            try:
-                # validate that the function has not yet been deployed
+        logger.info(
+            f"Checking if {function_name} is already deployed",
+            project=self.project,
+        )
+        try:
+            # validate that the function has not yet been deployed
+            state, _, _, _, _, _ = (
                 mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                     name=function_name,
                     project=self.project,
                     tag="",
                     auth_info=self.auth_info,
                 )
-                logger.info(
-                    f"Detected {function_name} function already deployed",
-                    project=self.project,
-                )
-                return True
-            except mlrun.errors.MLRunNotFoundError:
-                pass
-        return False
+            )
+            logger.info(
+                f"Detected {function_name} function already deployed",
+                project=self.project,
+                state=state,
+            )
+            return state
+        except mlrun.errors.MLRunNotFoundError:
+            pass
 
     def deploy_histogram_data_drift_app(
         self, image: str, overwrite: bool = False
@@ -561,9 +568,12 @@ class MonitoringDeployment:
         :param image:       The image on with the function will run.
         :param overwrite:   If True, the function will be overwritten.
         """
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            )
+            != "ready"
         ):
             logger.info("Preparing the histogram data drift function")
             func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
@@ -747,7 +757,7 @@ class MonitoringDeployment:
         )
         tasks: list[mlrun.common.schemas.BackgroundTask] = []
         for function_name in function_to_delete:
-            if self._check_if_already_deployed(function_name):
+            if self._get_function_state(function_name):
                 task = await run_in_threadpool(
                     server.api.db.session.run_function_with_new_db_session,
                     MonitoringDeployment._create_monitoring_function_deletion_background_task,

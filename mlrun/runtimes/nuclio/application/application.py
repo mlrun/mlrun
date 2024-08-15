@@ -607,6 +607,11 @@ class ApplicationRuntime(RemoteRuntime):
             spec, "spec.build.functionSourceCode"
         )
         function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
+        logger_level_key = "spec.loggerSinks"
+        if not function.spec.config.get(logger_level_key):
+            function.set_config(
+                logger_level_key, [{"level": "info", "sink": "myStdoutLoggerSink"}]
+            )
 
     def _configure_application_sidecar(self):
         # Save the application image in the status to allow overriding it with the reverse proxy entry point

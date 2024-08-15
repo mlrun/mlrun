@@ -44,22 +44,27 @@ You can create your own model monitoring applications, for LLMs, gen AI, deep-le
 Projects are used to group functions that use the same model monitoring application. You first need to create a project for aspecific application. 
 Then you disable the default app, enable your customer app, and create and run the functions. 
 
-See the:
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. See:
 - User flow example **in ??????**.
 - Custom apps in **?????**.
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different.
+
 
 
 
 
 ## Model and model monitoring endpoints 
 
-Each unique combination of runtime function (a deployed Nuclio function) and model has an endpoint and a corresponding {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`. 
+Each unique combination of serving function (a deployed Nuclio function) and each model in the model serving function
+has a corresponding {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
+The model endpoint is related to a feature set that manages the model endpoint statistics.
+
 All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
 The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
 Metrics are grouped under their applications. After you select the metrics and the timeframe, you get a histogram showing the number of occurrences/values range, and a timeline 
-graph of the metric and the threshold. Any alerts are shown in the upper-right corner of the metrics box. For example:
+graph of the metric and the threshold. Any alerts are shown in the upper-right corner of the metrics box. 
+
+For example:
 
 <img src="../_static/images/mm_metrics.png" width="700" >
 

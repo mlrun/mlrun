@@ -28,7 +28,7 @@ You can also create a custom `source` to access various databases or data source
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Snowflake source
-```{admonition} Note
+```python
 # An example of SnowflakeSource ingest:
 
 os.environ["SNOWFLAKE_PASSWORD"] = "*****"

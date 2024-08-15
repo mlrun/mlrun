@@ -67,14 +67,7 @@ Currently, the supported notification kinds and their params are as follows:
   - `url`: The webhook url to which to send the notification.
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
   - `headers`: (dict) The http headers to send with the notification.
-  - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
-                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
-					 Results would look like 
-					 ```
-					 {
-                       "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
-                     }
-					 ```
+  - `override_body`: (dict) The body to send with the notification. 
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
                   The default is set to `True`.
 - `console` (no params, local only)
@@ -96,6 +89,31 @@ notification = mlrun.model.Notification(
 )
 function.run(handler=handler, notifications=[notification])
 ```
+To addd run details to the notification:
+```python
+notifications_func = [
+    mlrun.model.Notification.from_dict(
+        {
+            "kind": "webhook",
+            "name": "Test",
+            "severity": "info",
+            "when": ["error","completed"],
+            "condition": "",
+            "params": {
+                "url": webhook_test,
+                "method": "POST",
+                "override_body": {"message":"Run Completed {{ runs }}" }
+            },
+        }]
+```
+
+The results look like:
+```
+{
+  "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
+}
+```
+
 
 ## Configuring notifications for pipelines
 To set notifications on pipelines, supply the notifications in the run method of either the project or the pipeline.

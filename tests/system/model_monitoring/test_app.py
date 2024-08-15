@@ -1349,3 +1349,18 @@ class TestMonitoredServings(TestMLRunSystem):
             image=self.image or "mlrun/mlrun",
             wait_for_deployment=True,
         )
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
+        )
+        # check that all the function are still deployed
+        all_functions = mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]
+        for name in all_functions:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "ready"

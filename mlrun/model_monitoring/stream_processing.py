@@ -194,7 +194,7 @@ class EventStreamProcessor:
             project=self.project, secret_provider=secret_provider
         )
 
-        tsdb_connector.handel_model_error(
+        tsdb_connector.handle_model_error(
             graph,
         )
 

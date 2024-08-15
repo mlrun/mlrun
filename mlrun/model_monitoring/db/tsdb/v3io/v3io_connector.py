@@ -270,7 +270,7 @@ class V3IOTSDBConnector(TSDBConnector):
         apply_storey_filter()
         apply_tsdb_target(name="tsdb3", after="FilterNotNone")
 
-    def handel_model_error(
+    def handle_model_error(
         self,
         graph,
         tsdb_batching_max_events: int = 10,

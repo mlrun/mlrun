@@ -61,7 +61,7 @@ class TSDBConnector(ABC):
         pass
 
     @abstractmethod
-    def handel_model_error(self, graph, **kwargs) -> None:
+    def handle_model_error(self, graph, **kwargs) -> None:
         """
         Adds a branch to the stream pod graph to handle events that
         arrive with errors from the model server and saves them to the error TSDB table.
@@ -218,7 +218,7 @@ class TSDBConnector(ABC):
     ) -> pd.DataFrame:
         """
         Fetches data from the app-results TSDB table and returns the highest status among all
-        the result in the last 24 hours for each specified endpoint.
+        the result in the provided time range, which by default is 24 hours, for each specified endpoint.
 
         :param endpoint_ids:    A list of model endpoint identifiers.
         :param start:           The start time for the query.

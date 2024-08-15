@@ -808,9 +808,7 @@ class Spark3Runtime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
-        from mlrun.run import new_function
-
-        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
+        sj = mlrun.new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
         # setting required resources

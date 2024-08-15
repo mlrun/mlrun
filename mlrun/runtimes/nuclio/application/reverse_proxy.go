@@ -51,7 +51,6 @@ func Handler(context *nuclio.Context, event nuclio.Event) (interface{}, error) {
     reverseProxy.ServeHTTP(recorder, httpRequest)
 
     // send request to sidecar
-    context.Logger.DebugWith("Forwarding request to sidecar", "sidecarUrl", sidecarUrl, "query", httpRequest.URL.Query())
     response := recorder.Result()
 
     headers := make(map[string]interface{})

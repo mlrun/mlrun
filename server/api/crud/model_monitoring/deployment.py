@@ -431,7 +431,7 @@ class MonitoringDeployment:
             function=function,
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
-
+        function.spec.max_replicas = 1
         # Enrich runtime with the required configurations
         server.api.api.utils.apply_enrichment_and_validation_on_function(
             function, self.auth_info

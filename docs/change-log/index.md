@@ -21,29 +21,26 @@
 |ML-5287|You can now configure {ref}`alerts` for model monitoring.|
 |ML-5459|Model monitoring data-path now supports LLM/deep-learning models **add details/link**|
 |ML-5851|Model monitoring does not require V3IO. See the {ref}`<example using a NoSql target>`. **add link**|
-|ML-6119|APIs for model monitoring view per endpoint **add details/link**|
+|ML-6119|New APIs for model monitoring view per endpoint **add details/link**|
 |ML-5460|The model monitoring now has a per-endpoint view that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.**add details/link**|
-
-
-
 
 ### Projects
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-2585|When deleting a project, you can also [delete its artifacts](..store/artifacts.html##deleting-artifacts).|
+|ML-2585|When deleting a project, you can also [delete its artifacts](../store/artifacts.html#deleting-artifacts).|
 |ML-3874|Node selector can now be [defined in the project spec](../runtimes/configuring-job-resources.html#node-selection).|
 
 ### Runtimes
-
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2652|Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.html#api-gateway).|
-|ML-4601|New {ref}`application <application type runtime>` where you can run provide an image (for example a web-app) that runs as a deployment. |
+|ML-4601|New {ref}`application runtime <application type runtime>` where you can run provide an image (for example a web-app) that runs as a deployment. |
+
 
 ### Workflows
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6885|You can now add run details by using `{{ runs }}` in the `override_body` section in notifications. See [Notifications kinds](../concepts/notifications.html#notification-kinds).|
+|ML-6885|You can now add run details to the notification by using `{{ runs }}` in the `override_body` section in notifications. See [Configuring Notifications For Runs](../concepts/notifications.html#configuring-notifications-for-runs).|
 
 
 
@@ -62,21 +59,31 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules.  <img src="../_static/images/cross-project-view.png" width="500" >|
-|ML-5140|Pagination improvements **add details**|
+|ML-5140|UI: Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
 
 ### Data store
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5726|Add support for [Hadoop/hdfs datastore](..store/datastore.html#hdfs-data-store-profile).|
-|ML-5656|Add [Snowflake as offline target store](../feature-store/sources-targets.html#snowflake-target).|
+|ML-5726|Add support for [Hadoop/hdfs datastore](../store/datastore.html#hdfs-data-store-profile).|
+
 
 ### Feature store
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-3303|Optimized the parquet read when the partitioning is on fields other than the timestamp.|
 |ML-5656|Add [Snowflake as an offline target store](../feature-store/sources-targets.html#snowflake-target)|
+
+### Notifications
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-6644|Explicit control of [Pipeline Started notification configuration](/concepts/notifications.html#configuring-notifications-for-pipelines).|
+
+### Infrastructure
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-6808|You can now run MLRun using an external MySQL service.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -99,7 +106,7 @@
 |ML-3143/ML-3432|Can now delete remote functions from the DB with both the SDK and the UI.|
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-4248|You can now run a serving function with a large number of models.|
-|ML-4346|A local run that was created via get_or_create_ctx can be marked as complete using commit() method.|
+|ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5774|UI: Improved speed of Querying for pipelines of specific projects in the Pipelines page.|
@@ -110,14 +117,17 @@
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
 |ML-6839|   **Is it in v1.7?** (change in scheduling behaviour!!)|
 |ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
-|ML-6602/6556|You can now specify a uid when running `artifacts.get_model`.|
-|ML-6644||
+|ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
-|ML-6991||
-|ML-7103||
+|ML-6991|**waiting for [ML-7413](https://iguazio.atlassian.net/browse/ML-7413)|
+|ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
 |ML-7135|Fixed Upgrading to mlrun if the `spec.build` was saved incorrectly.|
-|ML-7203|Function yaml is no longer created twice during a scheduled workflow trigger.|
-|ML-7270||
+|ML-7162|UI: Erroneous "“No data matches…” messages no longer appear.|
+|ML-7203|**Is it in 1.7?** Function yaml is no longer created twice during a scheduled workflow trigger.|
+|ML-7226|Exception now raised when using use KFP engine with `pass schedule` argument, which is not supported with the KFP engine.|
+|ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
+|ML-7270|**Is it in 1.7?** |
+
 
 ## v1.6.4 (2 July 2024)
 

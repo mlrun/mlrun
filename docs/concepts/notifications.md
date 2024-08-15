@@ -89,19 +89,22 @@ notification = mlrun.model.Notification(
 )
 function.run(handler=handler, notifications=[notification])
 ```
-To addd run details to the notification:
+To add run details to the notification:
 ```python
-notification = mlrun.model.Notification.from_dict(
-    "kind": "webhook",
-    "name": "Test",
-    "severity": "info",
-    "when": ["error","completed"],
-    "condition": "",
-    "params": {
-        "url": webhook_test,
-        "method": "POST",
-        "override_body": {"message":"Run Completed {{ runs }}" }
-)
+notifications_func = [
+    mlrun.model.Notification.from_dict(
+        {
+            "kind": "webhook",
+            "name": "Test",
+            "severity": "info",
+            "when": ["error","completed"],
+            "condition": "",
+            "params": {
+                "url": webhook_test,
+                "method": "POST",
+                "override_body": {"message":"Run Completed {{ runs }}" }
+            },
+        )]
 ```
 
 The results look like:

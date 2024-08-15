@@ -17,7 +17,7 @@ You can also create a custom `source` to access various databases or data source
 | Class name                                                                                       | Description                                                   | storey | spark | pandas |
 | --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
 | {py:meth}`~mlrun.datastore.BigQuerySource`                                                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
-| SnowFlakeSource                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
+| [SnowFlakeSource](#snowflake-source)                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
 | [SQLSource](#sql-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
 | {py:meth}`~mlrun.datastore.CSVSource`                                                            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
@@ -28,26 +28,32 @@ You can also create a custom `source` to access various databases or data source
 | {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Snowflake source
+An example of SnowflakeSource ingest:
 ```python
-# An example of SnowflakeSource ingest:
-
 os.environ["SNOWFLAKE_PASSWORD"] = "*****"
 source = SnowflakeSource(
     "snowflake_source_for_ingest",
     query=f"select * from {source_table} order by ID limit {number_of_rows}",
     schema="schema",
-    url="url", 
-    user="user", 
+    url="url",
+    user="user",
     database="db",
     warehouse="warehouse",
 )
- 
-feature_set = mlrun.feature_store.FeatureSet("my_fs", entities=[fs.Entity('KEY')], engine="spark")
-df = fs.ingest(feature_set, source=source, targets=[ParquetTarget()], \
-  run_config=mlrun.feature_store.RunConfig(local=False),spark_context=spark_context)
+
+feature_set = mlrun.feature_store.FeatureSet(
+    "my_fs", entities=[fs.Entity("KEY")], engine="spark"
+)
+df = fs.ingest(
+    feature_set,
+    source=source,
+    targets=[ParquetTarget()],
+    run_config=mlrun.feature_store.RunConfig(local=False),
+    spark_context=spark_context,
+)
 
 # Notice that by default, Snowflake converts to uppercase name of columns ingested to it.
-# The feature-set entity, timestamp_key and label_coumnt must have similar case to the source, 
+# The feature-set entity, timestamp_key and label_coumnt must have similar case to the source,
 # othewise the ingest will fail with MLRunInvalidArgumentError exception.
 ```
 

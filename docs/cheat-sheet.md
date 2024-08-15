@@ -590,6 +590,23 @@ log_with_returns_run = my_func.run(
 ```
 
 ### Automatic logging
+# Auto logging dataset basic example
+```python
+import pandas
+
+
+def func(col: list):
+    df = pandas.DataFrame({"col": col})
+    return df
+
+
+function.run(
+    handler="func",
+    params={"col": [1, 2, 3, 4, 5, 6, 7]},
+    returns=["df:dataset"],
+    local=True,
+)
+```
 
 ```python
 # Auto logging for ML frameworks

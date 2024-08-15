@@ -1328,3 +1328,38 @@ class TestMonitoredServings(TestMLRunSystem):
         assert res_dict[
             "has_all_the_events"
         ], f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."
+
+    def test_enable_model_monitoring_after_failure(self) -> None:
+        self.function_name = "test-function"
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+        with pytest.raises(
+            mlrun.runtimes.utils.RunError,
+            match="Function .* deployment failed",
+        ):
+            self.project.enable_model_monitoring(
+                image="nonexistent-image:1.0.0",
+                wait_for_deployment=True,
+            )
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+            wait_for_deployment=True,
+        )
+        self.project.enable_model_monitoring(
+            image=self.image or "mlrun/mlrun",
+        )
+        # check that all the function are still deployed
+        all_functions = mm_constants.MonitoringFunctionNames.list() + [
+            mm_constants.HistogramDataDriftApplicationConstants.NAME
+        ]
+        for name in all_functions:
+            func = self.project.get_function(
+                key=name,
+                ignore_cache=True,
+            )
+            func._get_db().get_nuclio_deploy_status(func, verbose=False)
+            assert func.status.state == "ready"

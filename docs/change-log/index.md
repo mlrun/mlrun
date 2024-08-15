@@ -11,7 +11,6 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-
 ## v1.6.4 (30 June 2024)
 
 ### UI

@@ -607,10 +607,12 @@ class ApplicationRuntime(RemoteRuntime):
             spec, "spec.build.functionSourceCode"
         )
         function.spec.nuclio_runtime = mlrun.utils.get_in(spec, "spec.runtime")
-        logger_level_key = "spec.loggerSinks"
-        if not function.spec.config.get(logger_level_key):
+
+        # default the reverse proxy logger level to info
+        logger_sinks_key = "spec.loggerSinks"
+        if not function.spec.config.get(logger_sinks_key):
             function.set_config(
-                logger_level_key, [{"level": "info", "sink": "myStdoutLoggerSink"}]
+                logger_sinks_key, [{"level": "info", "sink": "myStdoutLoggerSink"}]
             )
 
     def _configure_application_sidecar(self):

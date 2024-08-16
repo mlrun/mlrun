@@ -31,6 +31,7 @@ def current_version():
 
 # -- Project information -----------------------------------------------------
 
+
 project = "mlrun"
 copyright = "2023, Iguazio"
 author = "Iguazio"
@@ -43,7 +44,6 @@ version = version[: version.rfind(".")]
 
 # The full version, including alpha/beta/rc tags
 release = current_version()
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -76,6 +76,16 @@ templates_path = [
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
 language = "en"
+
+linkcheck_ignore = {
+    r'https:\/\/github\.com\/.*\/.*#L\d+-L\d+',
+    # linkcheck doesn't work well with relative paths which contain anchor, so ignore them
+    r'^.*\.html#.*$',
+    r'^\./[^/]+\.html#.*$',
+    r'^\.\./[^/]+\.html#.*$',
+
+}
+linkcheck_anchors = True
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.

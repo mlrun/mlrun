@@ -160,7 +160,7 @@ All of the Grafana dashboards are described in {ref}`monitoring-models`.
 
 ## Batch infer model-monitoring
 
-You can use the batch function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_2/))
+You can use the batch function (stored in the [function hub](https://www.mlrun.org/hub/functions/master/batch_inference_v2/))
 to evaluate data against your logged model **without disturbing the model**, for example a one-time evaluation of new data.  
 
 See more in the [model monitoring tutorial](../tutorials/05-model-monitoring.html#batch-infer-model-monitoring).

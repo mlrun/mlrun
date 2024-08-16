@@ -31,6 +31,20 @@ jobs:
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-check
+  docs_linkcheck:
+    name: Check for broken links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+      - name: Install dependencies
+        run: |
+          pip install -r docs/requirements.txt
+      - name: Check for broken links
+        env:
+          FORCE_COLOR: 1  # Force color output
+        run: make linkcheck
   lint:
     name: Lint docs
     runs-on: ubuntu-latest

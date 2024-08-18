@@ -745,8 +745,8 @@ def code_to_function(
 
     if kind == RuntimeKinds.application:
         raise MLRunInvalidArgumentError(
-            "Code to function is not supported for application runtime. "
-            "Code can be specified via project/function source."
+            "Embedding a code file is not supported for application runtime. "
+            "Code files should be specified via project/function source."
         )
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)

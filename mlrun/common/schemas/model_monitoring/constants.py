@@ -53,9 +53,11 @@ class EventFieldType:
     PREDICTIONS = "predictions"
     NAMED_PREDICTIONS = "named_predictions"
     ERROR_COUNT = "error_count"
+    MODEL_ERROR = "model_error"
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    LAST_REQUEST_TIMESTAMP = "last_request_timestamp"
     METRIC = "metric"
     METRICS = "metrics"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
@@ -217,6 +219,7 @@ class FileTargetKind:
     APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
     MONITORING_APPLICATION = "monitoring_application"
+    ERRORS = "errors"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -240,6 +243,7 @@ class V3IOTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
     EVENTS = "events"
+    ERRORS = "errors"
 
 
 class TDEngineSuperTables(MonitoringStrEnum):

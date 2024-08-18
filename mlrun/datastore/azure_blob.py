@@ -133,34 +133,17 @@ class AzureBlobStore(DataStore):
                 )
             elif client_name is not None:
                 account_url = f"https://{client_name}.blob.core.windows.net"
-
-                creds = [
-                    credential_from_client_id or credential,
-                    account_key,
-                ]
-                if any(creds):
-                    first_cred = [item for item in creds if item is not None][0]
-                    self._service_client = BlobServiceClient(
-                        account_url=account_url,
-                        credential=first_cred,
-                        max_block_size=self.max_blocksize,
-                        max_single_put_size=self.max_single_put_size,
-                    )
-                elif sas_token is not None:
+                cred = credential_from_client_id or credential or account_key
+                if not cred and sas_token is not None:
                     if not sas_token.startswith("?"):
                         sas_token = f"?{sas_token}"
-                    self._service_client = BlobServiceClient(
-                        account_url=account_url + sas_token,
-                        max_block_size=self.max_blocksize,
-                        max_single_put_size=self.max_single_put_size,
-                    )
-                else:
-                    # Fall back to anonymous login, and assume public container
-                    self._service_client = BlobServiceClient(
-                        account_url=account_url,
-                        max_block_size=self.max_blocksize,
-                        max_single_put_size=self.max_single_put_size,
-                    )
+                    account_url = account_url + sas_token
+                self._service_client = BlobServiceClient(
+                    account_url=account_url,
+                    credential=cred,
+                    max_block_size=self.max_blocksize,
+                    max_single_put_size=self.max_single_put_size,
+                )
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Must provide either a connection_string or account_name with credentials"

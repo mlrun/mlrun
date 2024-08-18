@@ -169,7 +169,7 @@ class ApplicationStatus(NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway = api_gateway or None
+        self.api_gateway: typing.Optional[APIGateway] = api_gateway or None
         self.url = url or None
 
 
@@ -284,6 +284,7 @@ class ApplicationRuntime(RemoteRuntime):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
         Once the image is built, the function is deployed.
+
         :param project:                 Project name
         :param tag:                     Function tag
         :param verbose:                 Set True for verbose logging

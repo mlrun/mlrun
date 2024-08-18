@@ -139,21 +139,18 @@ class AzureBlobStore(DataStore):
                     account_key,
                 ]
                 if any(creds):
-                    first_cred = next(item for item in creds if item is not None)
+                    first_cred = [item for item in creds if item is not None][0]
                     self._service_client = BlobServiceClient(
-                            account_url=account_url,
-                            credential=first_cred,
-                            _location_mode="primary",
-                            max_block_size=self.max_blocksize,
-                            max_single_put_size=self.max_single_put_size,
-                        )
+                        account_url=account_url,
+                        credential=first_cred,
+                        max_block_size=self.max_blocksize,
+                        max_single_put_size=self.max_single_put_size,
+                    )
                 elif sas_token is not None:
                     if not sas_token.startswith("?"):
                         sas_token = f"?{sas_token}"
                     self._service_client = BlobServiceClient(
                         account_url=account_url + sas_token,
-                        credential=None,
-                        _location_mode="primary",
                         max_block_size=self.max_blocksize,
                         max_single_put_size=self.max_single_put_size,
                     )

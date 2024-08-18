@@ -590,7 +590,7 @@ log_with_returns_run = my_func.run(
 ```
 
 ### Automatic logging
-# Auto logging dataset basic example
+#### Auto-logging a dataset: basic example
 ```python
 import pandas as pd
 
@@ -619,8 +619,8 @@ my_func.run(
 )
 ```
 
+#### Auto logging for ML frameworks
 ```python
-# Auto logging for ML frameworks
 from mlrun.frameworks.sklearn import apply_mlrun
 
 apply_mlrun(model=model, model_name="my_model", x_test=X_test, y_test=y_test)

@@ -96,8 +96,8 @@ class AzureBlobStore(DataStore):
 
     def _do_connect(self):
         """
-        Connect to the BlobServiceClient, using user-specified connection details.
-        Tries connection string first, then credential, then account key, SAS token, and finally anonymous login.
+
+        Creates a client for azure.
         Raises MLRunInvalidArgumentError if none of the connection details are available
         based on do_connect in AzureBlobFileSystem:
         https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422

@@ -442,6 +442,9 @@ class MLFlowTracker(Tracker):
         # Prepare the archive path:
         model_uri = pathlib.Path(model_uri)
         archive_path = pathlib.Path(tmp_path) / f"{model_uri.stem}.zip"
+        if not os.path.exists(model_uri):
+            local_path = mlflow.artifacts.download_artifacts(artifact_uri=str(model_uri))
+            model_uri = pathlib.Path(local_path)
 
         # TODO add progress bar for the case of large files
         # Zip the artifact:

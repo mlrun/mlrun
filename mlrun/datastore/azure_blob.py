@@ -105,33 +105,38 @@ class AzureBlobStore(DataStore):
         from azure.identity import ClientSecretCredential
 
         storage_options = self.storage_options
+        connection_string = storage_options.get("connection_string")
+        client_name = storage_options.get("account_name")
+        account_key = storage_options.get("account_key")
+        sas_token = storage_options.get("sas_token")
+        client_id = storage_options.get("client_id")
+        credential = storage_options.get("credential")
+
         credential_from_client_id = None
         if (
-            storage_options.get("credential") is None
-            and storage_options.get("account_key") is None
-            and storage_options.get("sas_token") is None
-            and storage_options.get("client_id") is not None
+            credential is None
+            and account_key is None
+            and sas_token is None
+            and client_id is not None
         ):
             credential_from_client_id = ClientSecretCredential(
                 tenant_id=storage_options.get("tenant_id"),
-                client_id=storage_options.get("client_id"),
+                client_id=client_id,
                 client_secret=storage_options.get("client_secret"),
             )
         try:
-            if storage_options.get("connection_string") is not None:
+            if connection_string is not None:
                 self._service_client = BlobServiceClient.from_connection_string(
-                    conn_str=storage_options["connection_string"],
+                    conn_str=connection_string,
                     max_block_size=self.max_blocksize,
                     max_single_put_size=self.max_single_put_size,
                 )
-            elif storage_options.get("account_name") is not None:
-                account_url: str = (
-                    f"https://{storage_options['account_name']}.blob.core.windows.net"
-                )
+            elif client_name is not None:
+                account_url: str = f"https://{client_name}.blob.core.windows.net"
 
                 creds = [
-                    credential_from_client_id or storage_options.get("credential"),
-                    storage_options.get("account_key"),
+                    credential_from_client_id or credential,
+                    account_key,
                 ]
                 if any(creds):
                     self._service_client = [
@@ -145,10 +150,9 @@ class AzureBlobStore(DataStore):
                         for cred in creds
                         if cred is not None
                     ][0]
-                elif storage_options.get("sas_token") is not None:
-                    sas_token = storage_options.get("sas_token")
+                elif sas_token is not None:
                     if not sas_token.startswith("?"):
-                        sas_token = f"?{storage_options.get('sas_token')}"
+                        sas_token = f"?{sas_token}"
                     self._service_client = BlobServiceClient(
                         account_url=account_url + sas_token,
                         credential=None,

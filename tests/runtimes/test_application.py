@@ -264,8 +264,8 @@ def test_application_from_local_file_validation():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         project.set_function(func=str(func_path), name="my-app", kind="application")
     assert str(exc.value) == (
-        "Code to function is not supported for application runtime. "
-        "Code can be specified via project/function source."
+        "Embedding a code file is not supported for application runtime. "
+        "Code files should be specified via project/function source."
     )
 
 

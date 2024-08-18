@@ -734,7 +734,10 @@ class RouterStep(TaskStep):
             route = TaskStep(class_name, class_args, handler=handler)
         route.function = function or route.function
 
-        self.context.logger.debug(f"_routes length", routes_len = len(self._routes))
+        if len(self._routes) == 4500:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The maximum allowed routes are 4500"
+            )
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route

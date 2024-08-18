@@ -84,6 +84,9 @@ _task_step_fields = [
 ]
 
 
+MAX_ALLOWED_NUM_OF_STEPS = 4500
+
+
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
     class_args = deepcopy(class_args)
     class_args["model_path"] = model_path
@@ -734,9 +737,9 @@ class RouterStep(TaskStep):
             route = TaskStep(class_name, class_args, handler=handler)
         route.function = function or route.function
 
-        if len(self._routes) == 4500:
+        if len(self._routes) >= MAX_ALLOWED_NUM_OF_STEPS:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"The maximum allowed routes are 4500"
+                f"The maximum allowed number of steps is {MAX_ALLOWED_NUM_OF_STEPS}"
             )
         route = self._routes.update(key, route)
         route.set_parent(self)

@@ -132,7 +132,7 @@ class AzureBlobStore(DataStore):
                     max_single_put_size=self.max_single_put_size,
                 )
             elif client_name is not None:
-                account_url: str = f"https://{client_name}.blob.core.windows.net"
+                account_url = f"https://{client_name}.blob.core.windows.net"
 
                 creds = [
                     credential_from_client_id or credential,

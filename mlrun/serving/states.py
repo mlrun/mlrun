@@ -733,6 +733,8 @@ class RouterStep(TaskStep):
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
         route.function = function or route.function
+
+        self.context.logger.debug(f"_routes length", routes_len = len(self._routes))
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route

@@ -165,7 +165,6 @@ class AzureBlobStore(DataStore):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Must provide either a connection_string or account_name with credentials"
                 )
-
         except Exception as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"unable to connect to account for {e}"

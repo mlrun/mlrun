@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import http
 from collections.abc import Iterator
 from typing import NamedTuple, Optional
 from unittest.mock import Mock, patch
@@ -177,7 +178,9 @@ class TestBatchInterval:
     @pytest.fixture(autouse=True)
     def mock_kv() -> Iterator[None]:
         mock = Mock(spec=["kv"])
-        mock.kv.get = Mock(side_effect=HttpResponseError)
+        mock.kv.get = Mock(
+            side_effect=HttpResponseError(status_code=http.HTTPStatus.NOT_FOUND)
+        )
         with patch(
             "mlrun.utils.v3io_clients.get_v3io_client",
             return_value=mock,

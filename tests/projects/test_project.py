@@ -1239,7 +1239,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
 
 def test_function_receives_project_default_image():
-    func_path = "./assets/handler.py"
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
@@ -1247,8 +1247,13 @@ def test_function_receives_project_default_image():
     # Without a project default image, set_function with file-path in context and repo for remote kind must get an image
     with pytest.raises(ValueError, match="image must be provided"):
         proj1.set_source("git://mock.git", pull_at_runtime=False)
+        # Specify the relative path for the file to be considered in the project's context
         proj1.set_function(
-            func=func_path, name="func", kind="job", handler="myhandler", with_repo=True
+            func="./assets/handler.py",
+            name="func",
+            kind="job",
+            handler="myhandler",
+            with_repo=True,
         )
 
     proj1.set_default_image(default_image)

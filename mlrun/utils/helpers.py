@@ -41,7 +41,7 @@ import semver
 import yaml
 from dateutil import parser
 from mlrun_pipelines.models import PipelineRun
-from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun

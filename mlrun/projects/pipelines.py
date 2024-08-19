@@ -810,6 +810,7 @@ class _RemoteRunner(_PipelineRunner):
                 ),
                 namespace=namespace,
                 notifications=notifications,
+                send_start_notification=send_start_notification,
             )
             if workflow_spec.schedule:
                 logger.info(
@@ -1007,6 +1008,7 @@ def load_and_run(
     load_only: bool = False,
     wait_for_completion: bool = False,
     project_context: str = None,
+    send_start_notification: bool = True,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1093,6 +1095,7 @@ def load_and_run(
         cleanup_ttl=cleanup_ttl,
         engine=engine,
         local=local,
+        send_start_notification=send_start_notification,
     )
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)

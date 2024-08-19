@@ -42,6 +42,7 @@ class WorkflowRequest(pydantic.BaseModel):
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
     notifications: typing.Optional[list[Notification]] = None
+    send_start_notification: typing.Optional[bool] = None
 
 
 class WorkflowResponse(pydantic.BaseModel):

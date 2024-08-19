@@ -203,6 +203,9 @@ async def submit_workflow(
         ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
+            send_start_notification = getattr(
+                workflow_request, "send_start_notification", True
+            )
             await run_in_threadpool(
                 server.api.crud.WorkflowRunners().schedule,
                 runner=workflow_runner,
@@ -210,6 +213,7 @@ async def submit_workflow(
                 workflow_request=updated_request,
                 db_session=db_session,
                 auth_info=auth_info,
+                send_start_notification=send_start_notification,
             )
             status = "scheduled"
 

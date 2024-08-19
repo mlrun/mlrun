@@ -693,6 +693,7 @@ class NopDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list["mlrun.model.Notification"] = None,
+        send_start_notification: bool = True,
     ) -> "mlrun.common.schemas.WorkflowResponse":
         pass
 

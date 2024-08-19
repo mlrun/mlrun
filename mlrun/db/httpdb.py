@@ -3989,19 +3989,21 @@ class HTTPRunDB(RunDBInterface):
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> mlrun.common.schemas.WorkflowResponse:
         """
         Submitting workflow for a remote execution.
 
-        :param project:         project name
-        :param name:            workflow name
-        :param workflow_spec:   the workflow spec to execute
-        :param arguments:       arguments for the workflow
-        :param artifact_path:   artifact target path of the workflow
-        :param source:          source url of the project
-        :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
-        :param namespace:       kubernetes namespace if other than default
-        :param notifications:   list of notifications to send when workflow execution is completed
+        :param project:                  project name
+        :param name:                     workflow name
+        :param workflow_spec:            the workflow spec to execute
+        :param arguments:                arguments for the workflow
+        :param artifact_path:            artifact target path of the workflow
+        :param source:                   source url of the project
+        :param run_name:                 run name to override the default: 'workflow-runner-<workflow name>'
+        :param namespace:                kubernetes namespace if other than default
+        :param notifications:            list of notifications to send when workflow execution is completed
+        :param send_start_notification:  whether to send a notification when the workflow execution starts
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -4021,6 +4023,7 @@ class HTTPRunDB(RunDBInterface):
             "source": source,
             "run_name": run_name,
             "namespace": namespace,
+            "send_start_notification": send_start_notification,
         }
         if isinstance(
             workflow_spec,

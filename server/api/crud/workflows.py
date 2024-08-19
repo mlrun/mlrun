@@ -77,15 +77,17 @@ class WorkflowRunners(
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         db_session: Session = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
+        send_start_notification: bool = True,
     ):
         """
         Schedule workflow runner.
 
-        :param runner:              workflow runner function object
-        :param project:             MLRun project
-        :param workflow_request:    contains the workflow spec, that will be scheduled
-        :param db_session:          session that manages the current dialog with the database
-        :param auth_info:           auth info of the request
+        :param runner:                   workflow runner function object
+        :param project:                  MLRun project
+        :param workflow_request:         contains the workflow spec, that will be scheduled
+        :param db_session:               session that manages the current dialog with the database
+        :param auth_info:                auth info of the request
+        :param send_start_notification:  if True, will send a notification when the workflow starts
         """
         labels = {
             mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
@@ -96,6 +98,7 @@ class WorkflowRunners(
             project=project,
             workflow_request=workflow_request,
             labels=labels,
+            send_start_notification=send_start_notification,
         )
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
@@ -131,6 +134,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         labels: dict[str, str],
+        send_start_notification: bool = True,
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
@@ -169,6 +173,7 @@ class WorkflowRunners(
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
+                    send_start_notification=send_start_notification,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,

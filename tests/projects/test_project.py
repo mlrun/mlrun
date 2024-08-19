@@ -27,6 +27,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.alerts.alert
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -2312,6 +2313,27 @@ def test_workflow_path_with_project_workdir():
     project.spec.workdir = "./workdir"
     path = workflow_spec.get_source_file(project.spec.get_code_path())
     assert path == "./context/./workdir/workflow.py"
+
+
+@pytest.mark.parametrize(
+    "alert_name_in_config, alert_name_as_func_param",
+    [
+        (None, None),
+        (None, ""),
+        ("", None),
+        ("", ""),
+    ],
+)
+def test_store_alert_config_missing_alert_name_in_config(
+    alert_name_in_config, alert_name_as_func_param
+):
+    project_name = "dummy-project"
+    project = mlrun.new_project(project_name, save=False)
+    alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
+    ):
+        project.store_alert_config(alert_data, alert_name=alert_name_as_func_param)
 
 
 class TestModelMonitoring:

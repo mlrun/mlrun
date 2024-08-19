@@ -615,7 +615,7 @@ class DataItem:
         """
         if not is_jupyter:
             logger.warning(
-                "Jupyter/IPython was not detected, .show() will only display inside Jupyter"
+                "Jupyter was not detected. `.show()` displays only inside Jupyter."
             )
             return
 

@@ -2324,7 +2324,7 @@ def test_workflow_path_with_project_workdir():
         ("", ""),
     ],
 )
-def test_store_alert_config_missing_alert_name_in_config(
+def test_store_alert_config_missing_alert_name(
     alert_name_in_config, alert_name_as_func_param
 ):
     project_name = "dummy-project"

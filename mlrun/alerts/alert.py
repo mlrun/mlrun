@@ -136,10 +136,6 @@ class AlertConfig(ModelObj):
         if template:
             self._apply_template(template)
 
-    def validate_required_fields(self):
-        if not self.name:
-            raise mlrun.errors.MLRunBadRequestError("Alert name must be provided")
-
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
     ):

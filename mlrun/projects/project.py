@@ -4061,7 +4061,7 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def store_alert_config(
-        self, alert_data: AlertConfig, alert_name=None
+        self, alert_data: AlertConfig, alert_name: str = None
     ) -> AlertConfig:
         """
         Create/modify an alert.
@@ -4071,8 +4071,10 @@ class MlrunProject(ModelObj):
         :return: the created/modified alert.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if alert_name is None:
-            alert_name = alert_data.name
+        alert_name = alert_name or alert_data.name
+        if not alert_name:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
+
         if alert_data.project is not None and alert_data.project != self.metadata.name:
             logger.warn(
                 "Project in alert does not match project in operation",

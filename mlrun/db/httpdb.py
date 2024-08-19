@@ -4224,7 +4224,6 @@ class HTTPRunDB(RunDBInterface):
             if isinstance(alert_data, AlertConfig)
             else AlertConfig.from_dict(alert_data)
         )
-        alert_instance.validate_required_fields()
 
         alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)

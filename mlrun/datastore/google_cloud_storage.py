@@ -16,10 +16,11 @@ import os
 from pathlib import Path
 
 from fsspec.registry import get_filesystem_class
+from google.cloud.storage import Client, transfer_manager
 
 import mlrun.errors
 from mlrun.utils import logger
-from google.cloud.storage import Client, transfer_manager
+
 from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
@@ -33,6 +34,7 @@ class GoogleCloudStorageStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         self._storage_client = None
+        self._storage_options = None
         self.workers = WORKERS
         self.chunk_size = CHUNK_SIZE
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
@@ -52,14 +54,7 @@ class GoogleCloudStorageStore(DataStore):
             ) from exc
 
         # Creates with the same storage options to avoid credential differences.
-        storage_options = self.get_storage_options()
         # in order to support az and wasbs kinds.
-        filesystem_class = get_filesystem_class(protocol=self.kind)
-        self._filesystem = makeDatastoreSchemaSanitizer(
-            filesystem_class,
-            using_bucket=self.using_bucket,
-            **storage_options,
-        )
         credentials = self._filesystem.credentials.credentials
         self._storage_client = Client(credentials=credentials)
 
@@ -67,10 +62,18 @@ class GoogleCloudStorageStore(DataStore):
     def filesystem(self):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
-            self.create_filesystem_and_client()
+            filesystem_class = get_filesystem_class(protocol=self.kind)
+            self._filesystem = makeDatastoreSchemaSanitizer(
+                filesystem_class,
+                using_bucket=self.using_bucket,
+                **self.storage_options,
+            )
         return self._filesystem
 
-    def get_storage_options(self):
+    @property
+    def storage_options(self):
+        if self._storage_options:
+            return self._storage_options
         credentials = self._get_secret_or_env(
             "GCP_CREDENTIALS"
         ) or self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
@@ -85,12 +88,13 @@ class GoogleCloudStorageStore(DataStore):
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
-            return self._sanitize_storage_options(dict(token=token))
+            self._storage_options = self._sanitize_storage_options(dict(token=token))
         else:
             logger.info(
                 "No GCS credentials available - auth will rely on auto-discovery of credentials"
             )
-            return self._sanitize_storage_options(None)
+            self._storage_options = self._sanitize_storage_options(None)
+        return self._storage_options
 
     def _make_path(self, key):
         key = key.strip("/")
@@ -192,7 +196,7 @@ class GoogleCloudStorageStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.get_storage_options()
+        st = self.storage_options()
         if "token" in st:
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):

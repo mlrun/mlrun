@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from datetime import datetime
 from typing import Any
 
 import mlrun.feature_store.steps
@@ -20,6 +20,7 @@ from mlrun.common.schemas.model_monitoring import (
     EventKeyMetrics,
     EventLiveStats,
 )
+from mlrun.utils import logger
 
 
 def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
@@ -134,3 +135,24 @@ class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
             else:
                 unpacked[key] = new_event[key]
         return unpacked if unpacked else None
+
+
+class ErrorExtractor(mlrun.feature_store.steps.MapClass):
+    def __init__(self, **kwargs):
+        """
+        Prepare the event for insertion into the errors TSDB table.
+        """
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        error = event.get("error")
+        timestamp = datetime.fromisoformat(event.get("when"))
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        event = {
+            EventFieldType.MODEL_ERROR: str(error),
+            EventFieldType.ENDPOINT_ID: endpoint_id,
+            EventFieldType.TIMESTAMP: timestamp,
+            EventFieldType.ERROR_COUNT: 1.0,
+        }
+        logger.info("Write error to errors TSDB table", event=event)
+        return event

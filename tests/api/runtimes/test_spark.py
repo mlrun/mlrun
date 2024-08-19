@@ -447,23 +447,39 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         "project_node_selector,config_node_selector,function_node_selector,driver_node_selector,executor_node_selector",
         [
             # All parameters are empty
-            ({}, {}, {}, {}, {}),
+            ({}, {}, {}, None, None),
             # Only project node selector is defined
-            ({"project-label": "project-val"}, {}, {}, {}, {}),
+            ({"project-label": "project-val"}, {}, {}, None, None),
             # Only config node selector is defined
-            ({}, {"config-label": "config-val"}, {}, {}, {}),
+            ({}, {"config-label": "config-val"}, {}, None, None),
             # Only function node selector is defined
-            ({}, {}, {"function-label": "function-val"}, {}, {}),
+            ({}, {}, {"function-label": "function-val"}, None, None),
             # Only driver node selector is defined
-            ({}, {}, {}, {"driver-label": "driver-val"}, {}),
+            ({}, {}, {}, {"driver-label": "driver-val"}, None),
             # Only executor node selector is defined
-            ({}, {}, {}, {}, {"executor-label": "executor-val"}),
+            ({}, {}, {}, None, {"executor-label": "executor-val"}),
             # Project and function node selectors are defined
             (
                 {"project-label": "project-val"},
                 {},
                 {"function-label": "function-val"},
+                None,
+                None,
+            ),
+            # Function selector is defined and overridden in driver
+            (
                 {},
+                {},
+                {"function-label": "function-val"},
+                {},
+                None,
+            ),
+            # Function selector is defined and overridden in executors
+            (
+                {},
+                {},
+                {"function-label": "function-val"},
+                None,
                 {},
             ),
             # Driver and executor node selectors are defined
@@ -479,8 +495,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 {"project-label": "project-val"},
                 {"config-label": "config-val"},
                 {"function-label": "function-val"},
-                {},
-                {},
+                None,
+                None,
             ),
             # Project, driver, and executor node selectors are defined
             (
@@ -552,12 +568,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             {
                 **config_node_selector,
                 **project_node_selector,
-                **(driver_node_selector or function_node_selector),
+                **(
+                    function_node_selector
+                    if driver_node_selector is None
+                    else driver_node_selector
+                ),
             },
             {
                 **config_node_selector,
                 **project_node_selector,
-                **(executor_node_selector or function_node_selector),
+                **(
+                    function_node_selector
+                    if executor_node_selector is None
+                    else executor_node_selector
+                ),
             },
         )
 

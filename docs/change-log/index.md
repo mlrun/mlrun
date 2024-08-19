@@ -1,6 +1,5 @@
 (change-log)=
 # Change log
-
 - [v1.6.4](#v1-6-4-30-june-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -11,7 +10,7 @@
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
- 
+
 ## v1.6.4 (30 June 2024)
 
 ### UI

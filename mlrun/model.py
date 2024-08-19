@@ -1789,6 +1789,11 @@ class RunObject(RunTemplate):
 
         return state
 
+    def abort(self):
+        """abort the run"""
+        db = mlrun.get_run_db()
+        db.abort_run(self.metadata.uid, self.metadata.project)
+
     @staticmethod
     def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):
         if tag:

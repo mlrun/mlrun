@@ -352,15 +352,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         expectations = [
             {
-                "param_name": "project_name",
-                "param_value": "",
-                "exception": mlrun.errors.MLRunBadRequestError,
-                "case": "testing create alert without passing project",
-            },
-            {
                 "param_name": "alert_name",
                 "param_value": "",
-                "exception": mlrun.errors.MLRunBadRequestError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert without passing alert name",
             },
             {

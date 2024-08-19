@@ -4070,11 +4070,11 @@ class MlrunProject(ModelObj):
         :param alert_name: The name of the alert.
         :return: the created/modified alert.
         """
+        if not alert_data:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         alert_name = alert_name or alert_data.name
-        if not alert_name:
-            raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
-
         if alert_data.project is not None and alert_data.project != self.metadata.name:
             logger.warn(
                 "Project in alert does not match project in operation",

@@ -2316,24 +2316,16 @@ def test_workflow_path_with_project_workdir():
 
 
 @pytest.mark.parametrize(
-    "alert_name_in_config, alert_name_as_func_param",
-    [
-        (None, None),
-        (None, ""),
-        ("", None),
-        ("", ""),
-    ],
+    "alert_data",
+    [None, ""],
 )
-def test_store_alert_config_missing_alert_name(
-    alert_name_in_config, alert_name_as_func_param
-):
+def test_store_alert_config_missing_alert_data(alert_data):
     project_name = "dummy-project"
     project = mlrun.new_project(project_name, save=False)
-    alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
     with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
     ):
-        project.store_alert_config(alert_data, alert_name=alert_name_as_func_param)
+        project.store_alert_config(alert_data=alert_data)
 
 
 class TestModelMonitoring:

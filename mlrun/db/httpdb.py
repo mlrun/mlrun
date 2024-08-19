@@ -4216,6 +4216,9 @@ class HTTPRunDB(RunDBInterface):
         :param project:    The project that the alert belongs to.
         :returns:          The created/modified alert.
         """
+        if not alert_data:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
@@ -4224,6 +4227,9 @@ class HTTPRunDB(RunDBInterface):
             if isinstance(alert_data, AlertConfig)
             else AlertConfig.from_dict(alert_data)
         )
+        # The validation must be here because the user can call this function directly
+        # via `mlrun.get_run_db().store_alert_config()`
+        alert_instance.validate_required_fields()
 
         alert_data = alert_instance.to_dict()
         body = _as_json(alert_data)

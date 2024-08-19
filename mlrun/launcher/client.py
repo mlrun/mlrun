@@ -131,7 +131,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(run.to_dict())
 
-        if mlrun.utils.is_ipython and mlrun.mlconf.ipython_widget:
+        if mlrun.utils.is_jupyter and mlrun.mlconf.ipython_widget:
             results_tbl.show()
             print()
             ui_url = mlrun.utils.get_ui_url(project, uid)

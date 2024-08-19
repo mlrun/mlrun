@@ -30,7 +30,7 @@ from deprecated import deprecated
 import mlrun.config
 import mlrun.errors
 from mlrun.errors import err_to_str
-from mlrun.utils import StorePrefix, is_ipython, logger
+from mlrun.utils import StorePrefix, is_jupyter, logger
 
 from .store_resources import is_store_uri, parse_store_uri
 from .utils import filter_df_start_end_time, select_columns_from_df
@@ -613,7 +613,7 @@ class DataItem:
 
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'
         """
-        if not is_ipython:
+        if not is_jupyter:
             logger.warning(
                 "Jupyter/IPython was not detected, .show() will only display inside Jupyter"
             )

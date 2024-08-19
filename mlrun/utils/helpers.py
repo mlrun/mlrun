@@ -133,18 +133,25 @@ def is_legacy_artifact(artifact):
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
-is_ipython = False
+is_ipython = False  # is IPython terminal, including Jupyter
+is_jupyter = False  # is Jupyter notebook/lab terminal
 try:
-    import IPython
+    import IPython.core.getipython
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (cant show html)
-    if ipy and "Terminal" not in str(type(ipy)):
-        is_ipython = True
-except ImportError:
+    ipy = IPython.core.getipython.get_ipython()
+
+    is_ipython = ipy is not None
+    is_jupyter = (
+        is_ipython
+        # not IPython
+        and "Terminal" not in str(type(ipy))
+    )
+
+    del ipy
+except ModuleNotFoundError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
+if is_jupyter and config.nest_asyncio_enabled in ["1", "True"]:
     # bypass Jupyter asyncio bug
     import nest_asyncio
 

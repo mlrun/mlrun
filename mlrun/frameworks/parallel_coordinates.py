@@ -215,7 +215,7 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
                 fp.write("</body></html>")
             else:
                 fp.write(html)
-    if show or (show is None and mlrun.utils.is_ipython):
+    if show or (show is None and mlrun.utils.is_jupyter):
         display(HTML(html))
         if runs_list and len(runs_list) <= max_table_rows:
             display(HTML(html_table))

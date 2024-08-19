@@ -65,13 +65,7 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
-from ..utils import (
-    is_ipython,
-    is_relative_path,
-    is_yaml_path,
-    logger,
-    update_in,
-)
+from ..utils import is_jupyter, is_relative_path, is_yaml_path, logger, update_in
 from ..utils.clones import (
     add_credentials_git_remote_url,
     clone_git,
@@ -2410,7 +2404,7 @@ class MlrunProject(ModelObj):
         ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if is_ipython:
+            if is_jupyter:
                 from IPython import get_ipython
 
                 kernel = get_ipython()

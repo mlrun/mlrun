@@ -163,7 +163,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         # Write latency per prediction, labeled by endpoint ID only
         graph.add_step(
-            "storey.TSDBTarget",
+            "mlrun.datastore.TSDBStoreyTarget",
             name="tsdb_predictions",
             after="MapFeatureNames",
             path=f"{self.container}/{self.tables[mm_schemas.FileTargetKind.PREDICTIONS]}",
@@ -205,7 +205,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         def apply_tsdb_target(name, after):
             graph.add_step(
-                "storey.TSDBTarget",
+                "mlrun.datastore.TSDBStoreyTarget",
                 name=name,
                 after=after,
                 path=f"{self.container}/{self.tables[mm_schemas.V3IOTSDBTables.EVENTS]}",

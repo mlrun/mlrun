@@ -47,7 +47,6 @@ from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
-    parse_kafka_url,
     select_columns_from_df,
 )
 
@@ -924,8 +923,9 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
+        target_path = self.get_target_path()
         if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
-            self.get_target_path()
+            target_path
         ):
             partition_cols = []
 
@@ -933,25 +933,16 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        store, path_in_store, target_path = self._get_store_and_path()
-
-        storage_options = store.get_storage_options()
-        if storage_options and self.storage_options:
-            storage_options = merge(storage_options, self.storage_options)
-        else:
-            storage_options = storage_options or self.storage_options
-
         step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.ParquetTarget",
+            class_name="mlrun.datastore.ParquetStoreyTarget",
             path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,
@@ -1105,17 +1096,16 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, path_in_store, target_path = self._get_store_and_path()
+        target_path = self.get_target_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.CSVTarget",
+            class_name="mlrun.datastore.CSVStoreyTarget",
             path=target_path,
             columns=column_list,
             header=True,
             index_cols=key_columns,
-            storage_options=store.get_storage_options(),
             **self.attributes,
         )
 
@@ -1351,7 +1341,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             name=self.name or self.writer_step_name,
             after=after,
             graph_shape="cylinder",
-            class_name="storey.NoSqlTarget",
+            class_name="mlrun.datastore.NoSqlStoreyTarget",
             columns=column_list,
             table=table,
             **self.attributes,
@@ -1486,48 +1476,51 @@ class NoSqlTarget(NoSqlBaseTarget):
         return df
 
 
+def redis_get_server_endpoint(path):
+    endpoint, uri = parse_path(path)
+    endpoint = endpoint or mlrun.mlconf.redis.url
+    if endpoint.startswith("ds://"):
+        datastore_profile = datastore_profile_read(endpoint)
+        if not datastore_profile:
+            raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+        if datastore_profile.type != "redis":
+            raise ValueError(
+                f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+            )
+        endpoint = datastore_profile.url_with_credentials()
+    else:
+        parsed_endpoint = urlparse(endpoint)
+        if parsed_endpoint.username or parsed_endpoint.password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Provide Redis username and password only via secrets"
+            )
+        credentials_prefix = mlrun.get_secret_or_env(key="CREDENTIALS_PREFIX")
+        user = mlrun.get_secret_or_env(
+            "REDIS_USER", default="", prefix=credentials_prefix
+        )
+        password = mlrun.get_secret_or_env(
+            "REDIS_PASSWORD", default="", prefix=credentials_prefix
+        )
+        host = parsed_endpoint.hostname
+        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+        scheme = parsed_endpoint.scheme
+        if user or password:
+            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+        else:
+            endpoint = f"{scheme}://{host}:{port}"
+    return endpoint, uri
+
+
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
-    # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
-    # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
-    # Then look for username and password at REDIS_xxx secrets
-    def _get_server_endpoint(self):
-        endpoint, uri = parse_path(self.get_target_path())
-        endpoint = endpoint or mlrun.mlconf.redis.url
-        if endpoint.startswith("ds://"):
-            datastore_profile = datastore_profile_read(endpoint)
-            if not datastore_profile:
-                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
-            if datastore_profile.type != "redis":
-                raise ValueError(
-                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
-                )
-            endpoint = datastore_profile.url_with_credentials()
-        else:
-            parsed_endpoint = urlparse(endpoint)
-            if parsed_endpoint.username or parsed_endpoint.password:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Provide Redis username and password only via secrets"
-                )
-            user = self._get_credential("REDIS_USER", "")
-            password = self._get_credential("REDIS_PASSWORD", "")
-            host = parsed_endpoint.hostname
-            port = parsed_endpoint.port if parsed_endpoint.port else "6379"
-            scheme = parsed_endpoint.scheme
-            if user or password:
-                endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
-            else:
-                endpoint = f"{scheme}://{host}:{port}"
-        return endpoint, uri
-
     def get_table_object(self):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = self._get_server_endpoint()
+        endpoint, uri = redis_get_server_endpoint(self.get_target_path())
 
         return Table(
             uri,
@@ -1536,7 +1529,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = self._get_server_endpoint()
+        endpoint, uri = redis_get_server_endpoint(self.get_target_path())
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1568,6 +1561,44 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
         return df
 
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        table = self._resource.uri
+        column_list = self._get_column_list(
+            features=features,
+            timestamp_key=None,
+            key_columns=key_columns,
+            with_type=True,
+        )
+        if not self.columns:
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
+
+        graph.add_step(
+            path=self.get_target_path(),
+            name=self.name or self.writer_step_name,
+            after=after,
+            graph_shape="cylinder",
+            class_name="mlrun.datastore.RedisNoSqlStoreyTarget",
+            columns=column_list,
+            table=table,
+            **self.attributes,
+        )
+
 
 class StreamTarget(BaseStoreTarget):
     kind = TargetTypes.stream
@@ -1586,29 +1617,22 @@ class StreamTarget(BaseStoreTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
-        from storey import V3ioDriver
-
         key_columns = list(key_columns.keys())
-        store, path_in_store, path = self._get_store_and_path()
-        if not path:
-            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
-        endpoint, uri = parse_path(path)
-        storage_options = store.get_storage_options()
-        access_key = storage_options.get("v3io_access_key")
+
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
+        stream_path = self.get_target_path()
+        if not stream_path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
         graph.add_step(
             name=self.name or "StreamTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.StreamTarget",
+            class_name="mlrun.datastore.StreamStoreyTarget",
             columns=column_list,
-            storage=V3ioDriver(
-                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
-            ),
-            stream_path=uri,
+            stream_path=stream_path,
             **self.attributes,
         )
 
@@ -1697,21 +1721,9 @@ class KafkaTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        if self.path and self.path.startswith("ds://"):
-            datastore_profile = datastore_profile_read(self.path)
-            attributes = datastore_profile.attributes()
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
-            topic = datastore_profile.topic
-        else:
-            attributes = copy(self.attributes)
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
-            topic, brokers = parse_kafka_url(self.get_target_path(), brokers)
+        path = self.get_target_path()
 
-        if not topic:
+        if not path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "KafkaTarget requires a path (topic)"
             )
@@ -1720,11 +1732,10 @@ class KafkaTarget(BaseStoreTarget):
             name=self.name or "KafkaTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.KafkaTarget",
+            class_name="mlrun.datastore.KafkaStoreyTarget",
             columns=column_list,
-            topic=topic,
-            brokers=brokers,
-            **attributes,
+            path=path,
+            attributes=self.attributes,
         )
 
     def as_df(
@@ -1774,7 +1785,7 @@ class TSDBTarget(BaseStoreTarget):
 
         graph.add_step(
             name=self.name or "TSDBTarget",
-            class_name="storey.TSDBTarget",
+            class_name="mlrun.datastore.TSDBStoreyTarget",
             after=after,
             graph_shape="cylinder",
             path=uri,
@@ -2073,7 +2084,7 @@ class SQLTarget(BaseStoreTarget):
             name=self.name or "SqlTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.NoSqlTarget",
+            class_name="mlrun.datastore.NoSqlStoreyTarget",
             columns=column_list,
             header=True,
             table=table,

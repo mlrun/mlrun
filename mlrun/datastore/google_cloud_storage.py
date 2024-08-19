@@ -134,7 +134,7 @@ class GoogleCloudStorageStore(DataStore):
         # Multiple upload limitation recommendations as described in
         # https://cloud.google.com/storage/docs/multipart-uploads#storage-upload-object-chunks-python
 
-        if file_size < self.chunk_size:
+        if file_size <= self.chunk_size:
             self.filesystem.put_file(src_path, united_path, overwrite=True)
             return
 

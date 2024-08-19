@@ -1411,11 +1411,7 @@ def is_running_in_jupyter_notebook() -> bool:
     Check if the code is running inside a Jupyter Notebook.
     :return: True if running inside a Jupyter Notebook, False otherwise.
     """
-    import IPython
-
-    ipy = IPython.get_ipython()
-    # if its IPython terminal, it isn't a Jupyter ipython
-    return ipy and "Terminal" not in str(type(ipy))
+    return is_jupyter
 
 
 def create_ipython_display():

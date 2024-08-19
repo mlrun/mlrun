@@ -1142,9 +1142,9 @@ class Config:
 
     def get_model_monitoring_file_target_path(
         self,
-        project: str = "",
-        kind: str = "",
-        target: str = "online",
+        project: str,
+        kind: str,
+        target: typing.Literal["online", "offline"] = "online",
         artifact_path: typing.Optional[str] = None,
         function_name: typing.Optional[str] = None,
         **kwargs,

@@ -184,16 +184,17 @@ class _ApplicationErrorHandler(StepToDict):
 
         logger.info("Generating event for the error")
         event_data = mlrun.common.schemas.Event(
-            kind=alert_objects.EventKind.FAILED,
+            kind=alert_objects.EventKind.MM_APP_APPLICATION_FAILED,
             entity={
-                "kind": alert_objects.EventEntityKind.JOB,
+                "kind": alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION,
                 "project": self.project,
-                "ids": [event.body.endpoint_id],
+                "ids": [f"{self.project}_{event.body.application_name}"],
             },
             value_dict={
                 "Error": event.error,
                 "Timestamp": event.timestamp,
                 "Application Class": event.body.application_name,
+                "Endpoint ID": event.body.endpoint_id,
             },
         )
 

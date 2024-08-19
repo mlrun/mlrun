@@ -19,7 +19,7 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 from mlrun.utils import logger
-
+from google.cloud.storage import Client, transfer_manager
 from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
@@ -33,7 +33,6 @@ class GoogleCloudStorageStore(DataStore):
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         self._storage_client = None
-        self._transfer_manager = None
         self.workers = WORKERS
         self.chunk_size = CHUNK_SIZE
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
@@ -51,7 +50,6 @@ class GoogleCloudStorageStore(DataStore):
             raise ImportError(
                 "Google gcsfs not installed, run pip install gcsfs"
             ) from exc
-        from google.cloud.storage import Client, transfer_manager
 
         # Creates with the same storage options to avoid credential differences.
         storage_options = self.get_storage_options()
@@ -64,8 +62,6 @@ class GoogleCloudStorageStore(DataStore):
         )
         credentials = self._filesystem.credentials.credentials
         self._storage_client = Client(credentials=credentials)
-        # to avoid importing transfer_manager later:
-        self._transfer_manager = transfer_manager
 
     @property
     def filesystem(self):
@@ -154,7 +150,7 @@ class GoogleCloudStorageStore(DataStore):
             return
 
         try:
-            self._transfer_manager.upload_chunks_concurrently(
+            transfer_manager.upload_chunks_concurrently(
                 src_path, blob, chunk_size=self.chunk_size, max_workers=self.workers
             )
         except Exception as upload_chunks_concurrently_exception:

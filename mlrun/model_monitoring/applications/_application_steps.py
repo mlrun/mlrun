@@ -17,6 +17,7 @@ from typing import Optional
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
 import mlrun.serving
@@ -164,3 +165,39 @@ class _PrepareMonitoringEvent(StepToDict):
         )
         context.__class__ = MonitoringApplicationContext
         return context
+
+
+class _ApplicationErrorHandler(StepToDict):
+    def __init__(self, project: str, name: Optional[str] = None):
+        self.project = project
+        self.name = name or "ApplicationErrorHandler"
+
+    def do(self, event):
+        """
+        Handle model monitoring application error. This step will generate an event, describing the error.
+
+        :param event: Application event.
+        :return: Application event.
+        """
+
+        logger.error(f"Error in application step: {event}")
+
+        logger.info("Generating event for the error")
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind.FAILED,
+            entity={
+                "kind": alert_objects.EventEntityKind.JOB,
+                "project": self.project,
+                "ids": [event.body.endpoint_id],
+            },
+            value_dict={
+                "Error": event.error,
+                "Timestamp": event.timestamp,
+                "Application Class": event.body.application_name,
+            },
+        )
+
+        mlrun.get_run_db().generate_event(
+            name="ModelMonitoringApplicationError", event_data=event_data
+        )
+        logger.info("Event generated successfully")

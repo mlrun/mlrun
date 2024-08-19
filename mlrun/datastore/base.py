@@ -608,7 +608,7 @@ class DataItem:
         )
         return df
 
-    def show(self, format=None):
+    def show(self, format: Optional[str] = None) -> None:
         """show the data object content in Jupyter
 
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'

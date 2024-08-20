@@ -335,6 +335,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="to_dataframe does not support targets that do not support storey engine. Target kind: snowflake",
+            match="to_dataframe does not support targets that do not support pandas engine. Target kind: snowflake",
         ):
             result.to_dataframe()

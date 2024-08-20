@@ -185,9 +185,9 @@ class RemoteVectorResponse:
             file_format = target_kind
 
         target_class = kind_to_driver.get(target_kind)
-        if target_class and not target_class.support_storey:
+        if target_class and not target_class.support_pandas:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"to_dataframe does not support targets that do not support storey engine. Target kind: {target_kind}"
+                f"to_dataframe does not support targets that do not support pandas engine. Target kind: {target_kind}"
             )
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs

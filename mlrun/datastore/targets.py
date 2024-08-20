@@ -390,7 +390,9 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_pandas = False
     support_append = False
+
 
     def __init__(
         self,
@@ -819,7 +821,9 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_pandas = True
     support_append = True
+
 
     def __init__(
         self,
@@ -1084,6 +1088,7 @@ class CSVTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_pandas = True
 
     @staticmethod
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
@@ -1575,6 +1580,7 @@ class StreamTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_pandas = False
     support_append = True
 
     def add_writer_step(
@@ -1834,6 +1840,7 @@ class CustomTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -1869,6 +1876,7 @@ class CustomTarget(BaseStoreTarget):
 class DFTarget(BaseStoreTarget):
     kind = TargetTypes.dataframe
     support_storey = True
+    support_pandas = True
 
     def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
@@ -1931,6 +1939,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,

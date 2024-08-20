@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from typing import Any, NamedTuple, NewType, Optional, cast
 
 import nuclio
+from botocore.exceptions import ClientError as BotoClientError
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -129,7 +130,12 @@ class _BatchWindow:
         except (
             mlrun.errors.MLRunNotFoundError,  # V3ioStore, InMemoryStore
             FileNotFoundError,  # FileStore
-        ):
+            BotoClientError,  # S3Store
+        ) as err:
+            if isinstance(err, BotoClientError):
+                # accept only "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
+                if err.response["Error"]["Code"] != "NoSuchKey":
+                    raise
             last_analyzed = self._init_last_analyzed()
             schedules = _Schedules({self._application: last_analyzed})
             logger.info(

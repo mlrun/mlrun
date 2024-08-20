@@ -181,6 +181,9 @@ class _ApplicationErrorHandler(StepToDict):
         """
 
         logger.error(f"Error in application step: {event}")
+        print('[EYAL]: application name:', event.body.application_name)
+        print('[EYAL]: event entity :', f"{self.project}_{event.body.application_name}")
+        print('[EYAL]: application body:', event.body.to_dict())
 
         logger.info("Generating event for the error")
         event_data = mlrun.common.schemas.Event(

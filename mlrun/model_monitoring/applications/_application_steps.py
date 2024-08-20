@@ -187,7 +187,7 @@ class _ApplicationErrorHandler(StepToDict):
 
         logger.info("Generating event for the error")
         event_data = mlrun.common.schemas.Event(
-            kind=alert_objects.EventKind.MM_APP_APPLICATION_FAILED,
+            kind=alert_objects.EventKind.MM_APP_FAILED,
             entity={
                 "kind": alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 "project": self.project,
@@ -202,6 +202,6 @@ class _ApplicationErrorHandler(StepToDict):
         )
 
         mlrun.get_run_db().generate_event(
-            name=alert_objects.EventKind.MM_APP_APPLICATION_FAILED, event_data=event_data
+            name=alert_objects.EventKind.MM_APP_FAILED, event_data=event_data
         )
         logger.info("Event generated successfully")

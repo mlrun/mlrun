@@ -69,7 +69,7 @@ pre_defined_templates = [
         summary="An invalid event has been detected in the model monitoring application",
         severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
         trigger={
-            "events": [mlrun.common.schemas.alert.EventKind.MM_APP_APPLICATION_FAILED]
+            "events": [mlrun.common.schemas.alert.EventKind.MM_APP_FAILED]
         },
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ),

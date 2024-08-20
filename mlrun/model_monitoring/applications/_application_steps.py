@@ -186,7 +186,7 @@ class _ApplicationErrorHandler(StepToDict):
         event_data = mlrun.common.schemas.Event(
             kind=alert_objects.EventKind.MM_APP_APPLICATION_FAILED,
             entity={
-                "kind": alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION,
+                "kind": alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 "project": self.project,
                 "ids": [f"{self.project}_{event.body.application_name}"],
             },

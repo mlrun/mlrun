@@ -590,9 +590,37 @@ log_with_returns_run = my_func.run(
 ```
 
 ### Automatic logging
-
+#### Auto-logging a dataset: basic example
 ```python
-# Auto logging for ML frameworks
+import pandas as pd
+
+
+def func(col: list) -> pd.DataFrame:
+    df = pd.DataFrame({"col": col})
+    return df
+
+
+def func_2(df: pd.DataFrame) -> int:
+    return int(df.sum()[0])
+
+
+run1 = my_func.run(
+    handler="func",
+    params={"col": [1, 2, 3, 4, 5, 6, 7]},
+    returns=["df:dataset"],
+    local=True,
+)
+
+my_func.run(
+    handler="func_2",
+    inputs={"df": run1.outputs["df"]},
+    returns=["sum"],
+    local=True,
+)
+```
+
+#### Auto logging for ML frameworks
+```python
 from mlrun.frameworks.sklearn import apply_mlrun
 
 apply_mlrun(model=model, model_name="my_model", x_test=X_test, y_test=y_test)

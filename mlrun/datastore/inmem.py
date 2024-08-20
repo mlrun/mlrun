@@ -17,6 +17,7 @@ from io import BytesIO, StringIO
 import pandas as pd
 
 import mlrun
+import mlrun.utils.helpers
 
 from .base import DataStore, FileStats
 
@@ -35,7 +36,9 @@ class InMemoryStore(DataStore):
 
     def _get_item(self, key):
         if key not in self._items:
-            raise ValueError(f"item {key} not found in memory store")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"item {key} not found in memory store"
+            )
         return self._items[key]
 
     def get(self, key, size=None, offset=0):

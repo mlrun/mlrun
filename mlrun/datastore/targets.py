@@ -760,6 +760,8 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
+        if not self.support_pandas:
+            raise NotImplementedError()
         mlrun.utils.helpers.additional_filters_warning(
             additional_filters, self.__class__
         )
@@ -1297,7 +1299,7 @@ class SnowflakeTarget(BaseStoreTarget):
         **kwargs,
     ):
         raise mlrun.errors.MLRunRuntimeError(
-            f"{type(self).__name__} does not support storey engine"
+            f"{type(self).__name__} does not support pandas engine"
         )
 
     @property
@@ -1370,19 +1372,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_dask_options(self):
         return {"format": "csv"}
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1618,19 +1607,6 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
 
 class KafkaTarget(BaseStoreTarget):
     """
@@ -1733,19 +1709,6 @@ class KafkaTarget(BaseStoreTarget):
             **attributes,
         )
 
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
     def purge(self):
         pass
 
@@ -1789,19 +1752,6 @@ class TSDBTarget(BaseStoreTarget):
             columns=column_list,
             **self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs

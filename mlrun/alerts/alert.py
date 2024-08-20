@@ -28,6 +28,8 @@ class AlertConfig(ModelObj):
         "severity",
         "reset_policy",
         "state",
+        "count",
+        "created",
     ]
     _fields_to_serialize = ModelObj._fields_to_serialize + [
         "entities",
@@ -54,6 +56,68 @@ class AlertConfig(ModelObj):
         created: str = None,
         count: int = None,
     ):
+        """Alert config object
+
+        Example::
+
+            # create an alert on endpoint_id, which will be triggered to slack if there is a "data_drift_detected" event
+            # 3 times in the next hour.
+            from mlrun.alerts import AlertConfig
+            import mlrun.common.schemas.alert as alert_objects
+
+            entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+            entity_id = get_default_result_instance_fqn(endpoint_id)
+            event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+            notification = mlrun.model.Notification(
+                kind="slack",
+                name="slack_notification",
+                message="drift was detected",
+                severity="warning",
+                when=["now"],
+                condition="failed",
+                secret_params={
+                    "webhook": "https://hooks.slack.com/",
+                },
+            ).to_dict()
+
+            alert_data = AlertConfig(
+                project="my-project",
+                name="drift-alert",
+                summary="a drift was detected",
+                severity=alert_objects.AlertSeverity.LOW,
+                entities=alert_objects.EventEntities(
+                    kind=entity_kind, project="my-project", ids=[entity_id]
+                ),
+                trigger=alert_objects.AlertTrigger(events=[event_name]),
+                criteria=alert_objects.AlertCriteria(count=3, period="1h"),
+                notifications=[alert_objects.AlertNotification(notification=notification)],
+            )
+            project.store_alert_config(alert_data)
+
+        :param project:        name of the project to associate the alert with
+        :param name:           name of the alert
+        :param template:       optional parameter that allows to create an alert based on a predefined template.
+                               you can pass either an AlertTemplate object or a string (the template name).
+                               if a template is used, many fields of the alert will be auto-generated based on the
+                               template. however, you still need to provide the following fields:
+                               `name`, `project`, `entity`, `notifications`
+        :param description:    description of the alert
+        :param summary:        summary of the alert, will be sent in the generated notifications
+        :param severity:       severity of the alert
+        :param trigger:        the events that will trigger this alert, may be a simple trigger based on events or
+                               complex trigger which is based on a prometheus alert
+        :param criteria:       when the alert will be triggered based on the specified number of events within the
+                               defined time period.
+        :param reset_policy:   when to clear the alert. May be "manual" for manual reset of the alert, or
+                               "auto" if the criteria contains a time period
+        :param notifications:  list of notifications to invoke once the alert is triggered
+        :param entities:       entities that the event relates to. The entity object will contain fields that uniquely
+                               identify a given entity in the system
+        :param id:             internal id of the alert (user should not supply it)
+        :param state:          state of the alert, may be active/inactive (user should not supply it)
+        :param created:        when the alert is created (user should not supply it)
+        :param count:          internal counter of the alert (user should not supply it)
+        """
         self.project = project
         self.name = name
         self.description = description

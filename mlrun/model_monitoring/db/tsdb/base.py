@@ -15,8 +15,10 @@
 import typing
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Union
 
 import pandas as pd
+import pydantic
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.helpers
@@ -46,7 +48,7 @@ class TSDBConnector(ABC):
         self.project = project
 
     @abstractmethod
-    def apply_monitoring_stream_steps(self, graph):
+    def apply_monitoring_stream_steps(self, graph) -> None:
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
         different key metric dictionaries. This data is being used by the monitoring dashboards in
@@ -57,6 +59,14 @@ class TSDBConnector(ABC):
         - custom_metrics (user-defined metrics)
         """
         pass
+
+    @abstractmethod
+    def handle_model_error(self, graph, **kwargs) -> None:
+        """
+        Adds a branch to the stream pod graph to handle events that
+        arrive with errors from the model server and saves them to the error TSDB table.
+        The first step that generates by this method should come after `ForwardError` step.
+        """
 
     @abstractmethod
     def write_application_event(
@@ -180,6 +190,117 @@ class TSDBConnector(ABC):
         :return:                   Metric values object or no data object.
         """
 
+    @abstractmethod
+    def get_last_request(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches data from the predictions TSDB table and returns the most recent request
+        timestamp for each specified endpoint.
+
+        :param endpoint_ids:    A list of model endpoint identifiers.
+        :param start:           The start time for the query.
+        :param end:             The end time for the query.
+
+        :return: A pd.DataFrame containing the columns [endpoint_id, last_request, last_latency].
+        If an endpoint has not been invoked within the specified time range, it will not appear in the result.
+        """
+
+    @abstractmethod
+    def get_drift_status(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "now-24h",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches data from the app-results TSDB table and returns the highest status among all
+        the result in the provided time range, which by default is the last 24 hours, for each specified endpoint.
+
+        :param endpoint_ids:    A list of model endpoint identifiers.
+        :param start:           The start time for the query.
+        :param end:             The end time for the query.
+
+        :return: A pd.DataFrame containing the columns [result_status, endpoint_id].
+        If an endpoint has not been monitored within the specified time range (last 24 hours),
+        it will not appear in the result.
+        """
+
+    @abstractmethod
+    def get_metrics_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoint.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+
+        :return: A pd.DataFrame containing all distinct metrics for the specified endpoint within the given time range.
+        Containing the columns [application_name, metric_name, endpoint_id]
+        """
+
+    @abstractmethod
+    def get_results_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches distinct results metadata from the app-results TSDB table for a specified model endpoint.
+
+        :param endpoint_id:        The model endpoint identifier.
+        :param start:              The start time of the query.
+        :param end:                The end time of the query.
+
+        :return: A pd.DataFrame containing all distinct results for the specified endpoint within the given time range.
+        Containing the columns [application_name, result_name, result_kind, endpoint_id]
+        """
+
+    @abstractmethod
+    def get_error_count(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches data from the error TSDB table and returns the error count for each specified endpoint.
+
+        :param endpoint_ids:    A list of model endpoint identifiers.
+        :param start:           The start time for the query.
+        :param end:             The end time for the query.
+
+        :return: A pd.DataFrame containing the columns [error_count, endpoint_id].
+        If an endpoint have not raised error within the specified time range, it will not appear in the result.
+        """
+
+    @abstractmethod
+    def get_avg_latency(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        """
+        Fetches data from the predictions TSDB table and returns the average latency for each specified endpoint
+
+        :param endpoint_ids:    A list of model endpoint identifiers.
+        :param start:           The start time for the query.
+        :param end:             The end time for the query.
+
+        :return: A pd.DataFrame containing the columns [avg_latency, endpoint_id].
+        If an endpoint has not been invoked within the specified time range, it will not appear in the result.
+        """
+
     @staticmethod
     def df_to_metrics_values(
         *,
@@ -289,19 +410,27 @@ class TSDBConnector(ABC):
             full_name = mlrun.model_monitoring.helpers._compose_full_name(
                 project=project, app=app_name, name=name
             )
-            metrics_values.append(
-                mm_schemas.ModelEndpointMonitoringResultValues(
-                    full_name=full_name,
-                    result_kind=result_kind,
-                    values=list(
-                        zip(
-                            sub_df.index,
-                            sub_df[mm_schemas.ResultData.RESULT_VALUE],
-                            sub_df[mm_schemas.ResultData.RESULT_STATUS],
-                        )
-                    ),  # pyright: ignore[reportArgumentType]
+            try:
+                metrics_values.append(
+                    mm_schemas.ModelEndpointMonitoringResultValues(
+                        full_name=full_name,
+                        result_kind=result_kind,
+                        values=list(
+                            zip(
+                                sub_df.index,
+                                sub_df[mm_schemas.ResultData.RESULT_VALUE],
+                                sub_df[mm_schemas.ResultData.RESULT_STATUS],
+                            )
+                        ),  # pyright: ignore[reportArgumentType]
+                    )
                 )
-            )
+            except pydantic.ValidationError:
+                logger.exception(
+                    "Failed to convert data-frame into `ModelEndpointMonitoringResultValues`",
+                    full_name=full_name,
+                    sub_df_json=sub_df.to_json(),
+                )
+                raise
             del metrics_without_data[full_name]
 
         for metric in metrics_without_data.values():

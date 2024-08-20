@@ -38,10 +38,7 @@ from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
 from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
-from .utils import (
-    event_id_key,
-    event_path_key,
-)
+from .utils import event_id_key, event_path_key
 
 
 class _StreamContext:
@@ -71,15 +68,15 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
+            self.stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
-                stream_uri = log_stream.format(project=project)
+                self.stream_uri = log_stream.format(project=project)
 
             stream_args = parameters.get("stream_args", {})
 
-            self.output_stream = get_stream_pusher(stream_uri, **stream_args)
+            self.output_stream = get_stream_pusher(self.stream_uri, **stream_args)
 
 
 class GraphServer(ModelObj):

@@ -901,7 +901,6 @@ def _generate_event_on_failed_runs(
         event_data = mlrun.common.schemas.Event(
             kind=alert_objects.EventKind.FAILED, entity=entity, value_dict=event_value
         )
-        mlrun.get_run_db().generate_event(alert_objects.EventKind.FAILED, event_data)
 
         server.api.crud.Events().process_event(
             session=db_session,

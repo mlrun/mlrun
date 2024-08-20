@@ -600,6 +600,10 @@ def _run_project_setup(
     if hasattr(mod, "setup"):
         try:
             project = getattr(mod, "setup")(project)
+            if not project or not isinstance(project, mlrun.projects.MlrunProject):
+                raise ValueError(
+                    "MLRun project_setup:setup() must return a project object"
+                )
         except Exception as exc:
             logger.error(
                 "Failed to run project_setup script",
@@ -610,7 +614,9 @@ def _run_project_setup(
         if save:
             project.save()
     else:
-        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
+        logger.warn(
+            f"skipping setup, setup() handler was not found in {path.basename(setup_file_path)}"
+        )
     return project
 
 
@@ -2967,6 +2973,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3003,6 +3010,8 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
+        :param send_start_notification:
+                          Send a notification when the workflow starts
 
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -3080,6 +3089,7 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
+            send_start_notification=send_start_notification,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:

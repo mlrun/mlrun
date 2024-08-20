@@ -26,7 +26,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
-from sklearn.datasets import load_diabetes, load_iris
+from sklearn.datasets import load_diabetes, load_iris, make_classification
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
@@ -267,6 +268,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
             stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
             tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+            replace_creds=True,  # remove once ML-7501 is resolved
         )
 
         iris = load_iris()
@@ -1093,6 +1095,12 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
     def custom_setup(self) -> None:
         mlrun.runtimes.utils.global_context.set(None)
+        # Set the model monitoring credentials
+        self.project.set_model_monitoring_credentials(
+            endpoint_store_connection=mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
 
     @classmethod
     def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
@@ -1255,3 +1263,59 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
         sleep(130)
 
         self._test_v3io_tsdb_record()
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+@pytest.mark.model_monitoring
+class TestModelEndpointWithManyFeatures(TestMLRunSystem):
+    """Log a model with 500 features and validate the model endpoint feature stats."""
+
+    project_name = "pr-many-features-model-monitoring"
+
+    @pytest.mark.parametrize(
+        "with_sql_target",
+        [
+            True,
+            False,
+        ],
+    )
+    def test_model_endpoint_with_many_features(self, with_sql_target: bool) -> None:
+        project = self.project
+
+        project.set_model_monitoring_credentials(
+            endpoint_store_connection=_MLRUN_MODEL_MONITORING_DB
+            if with_sql_target
+            else mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection,
+            stream_path=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
+            tsdb_connection=mlrun.mlconf.model_endpoint_monitoring.tsdb_connection,
+        )
+
+        # Generate a model with 500 features
+        x, y = make_classification(n_samples=1000, n_features=500, random_state=42)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x, y, train_size=0.8, test_size=0.2, random_state=42
+        )
+        model = LinearRegression()
+        model.fit(x_train, y_train)
+        x_test = pd.DataFrame(x_test, columns=[f"column_{i}" for i in range(500)])
+        y_test = pd.DataFrame(y_test, columns=["label"])
+        training_set = pd.concat([x_test, y_test], axis=1)
+
+        model_obj = project.log_model(
+            key="model",
+            body=pickle.dumps(model),
+            model_file="model.pkl",
+            training_set=training_set,
+            label_column="label",
+        )
+
+        # Generate a model endpoint
+        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+            project=project.name,
+            model_path=model_obj.uri,
+            function_name="dummy_func",
+            model_endpoint_name="dummy_ep",
+        )
+
+        assert len(model_endpoint.status.feature_stats) == 501

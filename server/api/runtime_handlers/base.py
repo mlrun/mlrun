@@ -181,7 +181,11 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = bool(crd_group and crd_version and crd_plural)
-        project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
+        project_run_uid_map = self._list_runs_for_monitoring(
+            db,
+            db_session,
+            states=mlrun.common.runtimes.constants.RunStates.non_terminal_states(),
+        )
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
         stale_runs = []
@@ -721,6 +725,10 @@ class BaseRuntimeHandler(ABC):
         """
         return False, None, None
 
+    def _is_terminal_state(self, runtime_resource: dict) -> bool:
+        phase = runtime_resource.get("status", {}).get("phase")
+        return phase in PodPhases.terminal_phases()
+
     def _update_ui_url(
         self,
         db: DBInterface,
@@ -1223,6 +1231,7 @@ class BaseRuntimeHandler(ABC):
             db_session,
             project="*",
             states=states,
+            labels=f"{mlrun_constants.MLRunInternalLabels.kind}={self.kind}",
             last_update_time_from=last_update_time_from,
         )
         project_run_uid_map = {}
@@ -1292,6 +1301,12 @@ class BaseRuntimeHandler(ABC):
             return
 
         run = project_run_uid_map.get(project, {}).get(uid)
+        if not run:
+            # We filter runs in terminal states so if the runtime resource is also in terminal state,
+            # there is nothing to do
+            if self._is_terminal_state(runtime_resource):
+                return
+
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=True, uid=uid
         )

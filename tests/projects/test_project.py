@@ -538,6 +538,32 @@ def test_project_with_setup(context, op):
 
 
 @pytest.mark.parametrize(
+    "setup_file_contents, exception",
+    [
+        (b"def setup(project): return 5", pytest.raises(Exception)),
+        (b"def setup(project): pass", pytest.raises(Exception)),
+        (b"def setup(project): return None", pytest.raises(Exception)),
+        (b"def setup(project): return project", does_not_raise()),
+    ],
+)
+def test_project_setup_must_return_project_object(
+    context, setup_file_contents, exception
+):
+    mlrun_project = mlrun.new_project(context=context, name="projset", save=False)
+    with tempfile.NamedTemporaryFile(dir=context, delete=False, suffix=".py") as fp:
+        fp.write(setup_file_contents)
+
+        # ensure the file is written, so the setup will be imported properly
+        fp.flush()
+        with exception as exc:
+            mlrun.projects.project._run_project_setup(
+                mlrun_project, fp.name, save=False
+            )
+        if exc:
+            assert "must return a project object" in str(exc.value)
+
+
+@pytest.mark.parametrize(
     "sync,expected_num_of_funcs, save",
     [
         (

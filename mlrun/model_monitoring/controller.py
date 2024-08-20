@@ -18,7 +18,7 @@ import json
 import os
 import re
 from collections.abc import Iterator
-from typing import NamedTuple, Optional, Union, cast
+from typing import Any, NamedTuple, NewType, Optional, Union, cast
 
 import nuclio
 
@@ -37,6 +37,10 @@ from mlrun.utils import datetime_now, logger
 
 _UTF_8 = "utf-8"
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
+
+
+# `Schedules` is a dictionary of registered application name as keys and Unix timestamp as value
+_Schedules = NewType("_Schedules", dict[str, int])
 
 
 class _Interval(NamedTuple):
@@ -83,7 +87,7 @@ class _BatchWindow:
         # the same model endpoint.
         self._schedules, self._start = self._get_schedules_and_last_analyzed()
 
-    def _update_db(self, schedules: dict[str, int]) -> None:
+    def _update_db(self, schedules: _Schedules) -> None:
         self._db.put(json.dumps(schedules))
 
     def _init_last_analyzed(self) -> int:
@@ -102,20 +106,20 @@ class _BatchWindow:
             self._stop - first_period_in_seconds,
         )
 
-    def _get_schedules_and_last_analyzed(self) -> tuple[dict[str, int], int]:
+    def _get_schedules_and_last_analyzed(self) -> tuple[_Schedules, int]:
         try:
             content = self._db.get(encoding=_UTF_8)
             try:
                 schedules = json.loads(content)
-                try:
-                    return schedules, schedules[self._application]
-                except KeyError:
+                if self._application in schedules:
+                    return _Schedules(schedules), schedules[self._application]
+                else:
                     last_analyzed = self._init_last_analyzed()
-                    schedules.update({self._application: last_analyzed})
+                    schedules.update(_Schedules({self._application: last_analyzed}))
             except json.JSONDecodeError:
                 # Using the earliest safe time to avoid TSDB misorders
                 last_analyzed = self._stop
-                schedules = {self._application: last_analyzed}
+                schedules = _Schedules({self._application: last_analyzed})
                 logger.warning(
                     "The monitoring schedules file is corrupted, resetting it "
                     "with the last request as last_analyzed.",
@@ -125,7 +129,7 @@ class _BatchWindow:
                 )
         except mlrun.errors.MLRunNotFoundError:
             last_analyzed = self._init_last_analyzed()
-            schedules = {self._application: last_analyzed}
+            schedules = _Schedules({self._application: last_analyzed})
             logger.info(
                 "The monitoring schedules file does not exist for this endpoint, creating it.",
                 path=self._db.url,
@@ -141,8 +145,7 @@ class _BatchWindow:
             application=self._application,
             last_analyzed=last_analyzed,
         )
-
-        self._schedules.update({self._application: last_analyzed})
+        self._schedules.update(_Schedules({self._application: last_analyzed}))
         self._update_db(self._schedules)
 
     def get_intervals(self) -> Iterator[_Interval]:

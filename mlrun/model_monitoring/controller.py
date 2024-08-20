@@ -16,9 +16,8 @@ import concurrent.futures
 import datetime
 import json
 import os
-import re
 from collections.abc import Iterator
-from typing import Any, NamedTuple, NewType, Optional, Union, cast
+from typing import Any, NamedTuple, NewType, Optional, cast
 
 import nuclio
 
@@ -179,32 +178,13 @@ class _BatchWindow:
 
 
 class _BatchWindowGenerator:
-    def __init__(self, batch_dict: Union[dict, str]) -> None:
+    def __init__(self, batch_dict: dict[str, int]) -> None:
         """
         Initialize a batch window generator object that generates batch window objects
         for the monitoring functions.
         """
         self._batch_dict = batch_dict
-        self._norm_batch_dict()
         self._timedelta = self._get_timedelta()
-
-    def _norm_batch_dict(self) -> None:
-        # TODO: This will be removed once the job params can be parsed with different types
-        # Convert batch dict string into a dictionary
-        if isinstance(self._batch_dict, str):
-            self._parse_batch_dict_str()
-
-    def _parse_batch_dict_str(self) -> None:
-        """Convert batch dictionary string into a valid dictionary"""
-        characters_to_remove = "{} "
-        pattern = "[" + characters_to_remove + "]"
-        # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", self._batch_dict).split(",")
-        # Initialize the dictionary of batch interval ranges
-        self._batch_dict = {}
-        for pair in batch_list:
-            pair_list = pair.split(":")
-            self._batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _get_timedelta(self) -> int:
         """Get the timedelta in seconds from the batch dictionary"""
@@ -285,9 +265,7 @@ class MonitoringApplicationController:
 
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=json.loads(
-                mlrun.get_secret_or_env(
-                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-                )
+                cast(str, os.getenv(mm_constants.EventFieldType.BATCH_INTERVALS_DICT))
             )
         )
 
@@ -492,7 +470,10 @@ class MonitoringApplicationController:
             stream_uri = get_stream_path(project=project, function_name=app_name)
 
             logger.info(
-                f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
+                "Pushing data to application stream",
+                endpoint_id=endpoint_id,
+                app_name=app_name,
+                stream_uri=stream_uri,
             )
             get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
                 [data]

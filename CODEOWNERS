@@ -211,7 +211,7 @@ mlrun/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
 mlrun/common/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
 mlrun/model_monitoring/db/tsdb/tdengine/** @Eyal-Danieli
 
-# framewarks, packagers and trackers are owned by mle team
-# mlrun/frameworks/** @mlrun/mle
-# mlrun/package/** @mlrun/mle
-# mlrun/track/** @mlrun/mle
+# framewarks, packagers and trackers are owned by guy1992l
+mlrun/frameworks/** @guy1992l
+mlrun/package/** @guy1992l
+mlrun/track/** @guy1992l

@@ -18,11 +18,9 @@ from typing import Optional, TypeVar, Union
 from .mysql import ApplicationMetricsTable as MySQLApplicationMetricsTable
 from .mysql import ApplicationResultTable as MySQLApplicationResultTable
 from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
-from .mysql import MonitoringSchedulesTable as MySQLMonitoringSchedulesTable
 from .sqlite import ApplicationMetricsTable as SQLiteApplicationMetricsTable
 from .sqlite import ApplicationResultTable as SQLiteApplicationResultTable
 from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
-from .sqlite import MonitoringSchedulesTable as SQLiteMonitoringSchedulesTable
 
 MySQLTableType = TypeVar("MySQLTableType")
 SQLiteTableType = TypeVar("SQLiteTableType")
@@ -62,10 +60,4 @@ _get_application_metrics_table = partial(
     _get_sql_table,
     mysql_table=MySQLApplicationMetricsTable,
     sqlite_table=SQLiteApplicationMetricsTable,
-)
-
-_get_monitoring_schedules_table = partial(
-    _get_sql_table,
-    mysql_table=MySQLMonitoringSchedulesTable,
-    sqlite_table=SQLiteMonitoringSchedulesTable,
 )

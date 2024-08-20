@@ -202,6 +202,6 @@ class _ApplicationErrorHandler(StepToDict):
         )
 
         mlrun.get_run_db().generate_event(
-            name="ModelMonitoringApplicationError", event_data=event_data
+            name=alert_objects.EventKind.MM_APP_APPLICATION_FAILED, event_data=event_data
         )
         logger.info("Event generated successfully")

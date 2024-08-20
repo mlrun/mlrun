@@ -43,7 +43,7 @@ class EventKind(StrEnum):
     SYSTEM_PERFORMANCE_SUSPECTED = "system_performance_suspected"
     MM_APP_ANOMALY_DETECTED = "mm_app_anomaly_detected"
     MM_APP_ANOMALY_SUSPECTED = "mm_app_anomaly_suspected"
-    MM_APP_APPLICATION_FAILED = "mm_app_application_failed"
+    MM_APP_APPLICATION_FAILED = "mm_app_failed"
     FAILED = "failed"
 
 

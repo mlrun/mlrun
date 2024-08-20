@@ -19,7 +19,7 @@ import pytest
 import mlrun
 
 
-class TestFileStore:
+class TestInMemoryStore:
     def test_put_stat_delete(self):
         key = f"/path/file_{uuid.uuid4()}.txt"
         object_url = f"memory://{key}"
@@ -28,7 +28,10 @@ class TestFileStore:
         data_item.put(test_text)
         assert data_item.stat().size == len(test_text)
         data_item.delete()
-        with pytest.raises(ValueError, match=f"item {key} not found in memory store"):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError,
+            match=f"item {key} not found in memory store",
+        ):
             data_item.stat()
 
     def test_rm_file_not_found(self):

@@ -39,7 +39,9 @@ from mlrun.model_monitoring.controller import (
     _Interval,
 )
 from mlrun.model_monitoring.helpers import (
+    _BatchDict,
     _get_monitoring_time_window_from_controller_run,
+    batch_dict2timedelta,
     get_invocations_fqn,
     update_model_endpoint_last_request,
 )
@@ -477,3 +479,9 @@ class TestBumpModelEndpointLastRequest:
 
 def test_get_invocations_fqn() -> None:
     assert get_invocations_fqn("project") == "project.mlrun-infra.metric.invocations"
+
+
+def test_batch_dict2timedelta() -> None:
+    assert batch_dict2timedelta(
+        _BatchDict(minutes=32, hours=0, days=4)
+    ) == datetime.timedelta(minutes=32, days=4), "Different timedelta than expected"

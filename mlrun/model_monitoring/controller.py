@@ -127,7 +127,10 @@ class _BatchWindow:
                     content=content,
                     last_analyzed=last_analyzed,
                 )
-        except mlrun.errors.MLRunNotFoundError:
+        except (
+            mlrun.errors.MLRunNotFoundError,  # V3ioStore, InMemoryStore
+            FileNotFoundError,  # FileStore
+        ):
             last_analyzed = self._init_last_analyzed()
             schedules = _Schedules({self._application: last_analyzed})
             logger.info(

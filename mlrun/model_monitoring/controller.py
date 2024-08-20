@@ -39,7 +39,7 @@ _UTF_8 = "utf-8"
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 
 
-# `Schedules` is a dictionary of registered application name as keys and Unix timestamp as value
+# `Schedules` is a dictionary of registered application name as key and Unix timestamp as value
 _Schedules = NewType("_Schedules", dict[str, int])
 
 
@@ -94,7 +94,7 @@ class _BatchWindow:
         logger.info(
             "No last analyzed time was found for this endpoint and application, as this is "
             "probably the first time this application is running. Initializing last analyzed "
-            "to the latest between first request time or last update time minus one day.",
+            "to the latest between first request time or last update time minus one day",
             application=self._application,
             first_request=self._first_request,
             last_updated=self._stop,
@@ -122,7 +122,7 @@ class _BatchWindow:
                 schedules = _Schedules({self._application: last_analyzed})
                 logger.warning(
                     "The monitoring schedules file is corrupted, resetting it "
-                    "with the last request as last_analyzed.",
+                    "with the last request as last_analyzed",
                     path=self._db.url,
                     content=content,
                     last_analyzed=last_analyzed,
@@ -134,7 +134,7 @@ class _BatchWindow:
             last_analyzed = self._init_last_analyzed()
             schedules = _Schedules({self._application: last_analyzed})
             logger.info(
-                "The monitoring schedules file does not exist for this endpoint, creating it.",
+                "The monitoring schedules file does not exist for this endpoint, creating it",
                 path=self._db.url,
             )
 

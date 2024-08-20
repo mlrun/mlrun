@@ -194,13 +194,6 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
-class SchedulingKeys:
-    LAST_ANALYZED = "last_analyzed"
-    ENDPOINT_ID = "endpoint_id"
-    APPLICATION_NAME = "application_name"
-    UID = "uid"
-
-
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"

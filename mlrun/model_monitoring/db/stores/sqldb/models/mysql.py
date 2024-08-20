@@ -26,7 +26,6 @@ from .base import (
     ApplicationMetricsBaseTable,
     ApplicationResultBaseTable,
     ModelEndpointsBaseTable,
-    MonitoringSchedulesBaseTable,
 )
 
 Base = declarative_base()
@@ -92,12 +91,3 @@ class ApplicationMetricsTable(
     Base, _ApplicationResultOrMetric, ApplicationMetricsBaseTable
 ):
     pass
-
-
-class MonitoringSchedulesTable(Base, MonitoringSchedulesBaseTable):
-    @declared_attr
-    def endpoint_id(self):
-        return Column(
-            String(40),
-            ForeignKey(f"{EventFieldType.MODEL_ENDPOINTS}.{EventFieldType.UID}"),
-        )

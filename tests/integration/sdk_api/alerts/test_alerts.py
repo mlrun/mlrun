@@ -254,9 +254,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         notification = mlrun.model.Notification(
             kind="slack",
             name="slack_drift",
-            message="Ay caramba!",
-            severity="warning",
-            when=["now"],
             secret_params={
                 "webhook": "https://hooks.slack.com/services/",
             },
@@ -445,9 +442,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "notification": {
                     "kind": "slack",
                     "name": "slack_jobs",
-                    "message": "Ay ay ay!",
-                    "severity": "warning",
-                    "when": ["now"],
                     "condition": "failed",
                     "secret_params": {
                         "webhook": "https://hooks.slack.com/services/",
@@ -458,9 +452,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "notification": {
                     "kind": "git",
                     "name": "git_jobs",
-                    "message": "Ay ay ay!",
-                    "severity": "warning",
-                    "when": ["now"],
                     "condition": "failed",
                     "params": {
                         "repo": "some-repo",
@@ -682,9 +673,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "notification": {
                         "kind": "slack",
                         "name": "slack_drift",
-                        "message": "Ay caramba!",
-                        "severity": "warning",
-                        "when": ["now"],
                         "secret_params": {
                             "webhook": "https://hooks.slack.com/services/",
                         },

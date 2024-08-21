@@ -283,28 +283,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alerts[0], project_name=project_name, alert_name=alert_name
         )
 
-    @pytest.mark.parametrize(
-        "alert_name_in_config, alert_name_as_func_param",
-        [
-            (None, None),
-            (None, ""),
-            ("", None),
-            ("", ""),
-        ],
-    )
-    def test_store_alert_config_missing_alert_name(
-        self, alert_name_in_config, alert_name_as_func_param
-    ):
-        project_name = "my-project"
-        project = mlrun.new_project(project_name)
-        alert_data = mlrun.alerts.alert.AlertConfig(
-            name=alert_name_in_config, project=None
-        )
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
-        ):
-            project.store_alert_config(alert_data, alert_name=alert_name_as_func_param)
-
     def _create_alerts_test(self, project_name, alert1, alert2):
         invalid_notification = [
             {

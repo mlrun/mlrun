@@ -3155,7 +3155,7 @@ class MlrunProject(ModelObj):
         """
         if self.spec.default_function_node_selector:
             try:
-                mlrun.utils.validate_node_selectors(node_selectors=self.spec.default_function_node_selecto)
+                mlrun.utils.validate_node_selectors(node_selectors=self.spec.default_function_node_selector)
             except mlrun.errors.MLRunInvalidArgumentError as e:
                 new_message = f"Project can't be saved, invalid node selectors defined: {e}"
                 raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e

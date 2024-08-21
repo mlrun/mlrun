@@ -70,10 +70,6 @@ This example illustrates a Slack notification for drift detection on a model end
 notification = mlrun.model.Notification(
     kind="slack",
     name="slack_notification",
-    message="A drift was detected",
-    severity="warning",
-    when=["now"],
-    condition="failed",
     secret_params={
         "webhook": "https://hooks.slack.com/",
     },
@@ -109,10 +105,6 @@ This example illustrates a Slack notification for a job failure:
 notification = mlrun.model.Notification(
     kind="slack",
     name="slack_notification",
-    message="Running a job has failed",
-    severity="warning",
-    when=["now"],
-    condition="failed",
     secret_params={
         "webhook": "https://hooks.slack.com/",
     },

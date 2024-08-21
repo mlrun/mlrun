@@ -62,9 +62,8 @@ def extra_requirements() -> dict[str, list[str]]:
             # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
             "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
+            "gcsfs>=2023.9.2, <2024.4",
         ],
-        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
             # because confluent kafka supports avro format by default

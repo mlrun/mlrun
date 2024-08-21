@@ -64,9 +64,15 @@ class TDEngineConnector(TSDBConnector):
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
-            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
+                self.database
+            ),
         }
 
     def create_tables(self):

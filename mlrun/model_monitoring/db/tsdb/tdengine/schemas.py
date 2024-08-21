@@ -57,11 +57,12 @@ class TDEngineSchema:
         super_table: str,
         columns: dict[str, str],
         tags: dict[str, str],
+        database: Optional[str],
     ):
         self.super_table = super_table
         self.columns = columns
         self.tags = tags
-        self.database = _MODEL_MONITORING_DATABASE
+        self.database = database or _MODEL_MONITORING_DATABASE
 
     def _create_super_table_query(self) -> str:
         columns = ", ".join(f"{col} {val}" for col, val in self.columns.items())
@@ -188,53 +189,54 @@ class TDEngineSchema:
 
 @dataclass
 class AppResultTable(TDEngineSchema):
-    super_table = mm_schemas.TDEngineSuperTables.APP_RESULTS
-    columns = {
-        mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
-        mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
-        mm_schemas.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
-        mm_schemas.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
-        mm_schemas.ResultData.CURRENT_STATS: _TDEngineColumn.BINARY_10000,
-    }
-
-    tags = {
-        mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
-        mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
-        mm_schemas.WriterEvent.APPLICATION_NAME: _TDEngineColumn.BINARY_64,
-        mm_schemas.ResultData.RESULT_NAME: _TDEngineColumn.BINARY_64,
-        mm_schemas.ResultData.RESULT_KIND: _TDEngineColumn.INT,
-    }
-    database = _MODEL_MONITORING_DATABASE
+    def __init__(self, database: Optional[str] = None):
+        super_table = mm_schemas.TDEngineSuperTables.APP_RESULTS
+        columns = {
+            mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
+            mm_schemas.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
+            mm_schemas.ResultData.CURRENT_STATS: _TDEngineColumn.BINARY_10000,
+        }
+        tags = {
+            mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.APPLICATION_NAME: _TDEngineColumn.BINARY_64,
+            mm_schemas.ResultData.RESULT_NAME: _TDEngineColumn.BINARY_64,
+            mm_schemas.ResultData.RESULT_KIND: _TDEngineColumn.INT,
+        }
+        super().__init__(super_table, columns, tags, database)
 
 
 @dataclass
 class Metrics(TDEngineSchema):
-    super_table = mm_schemas.TDEngineSuperTables.METRICS
-    columns = {
-        mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
-        mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
-        mm_schemas.MetricData.METRIC_VALUE: _TDEngineColumn.FLOAT,
-    }
-
-    tags = {
-        mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
-        mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
-        mm_schemas.WriterEvent.APPLICATION_NAME: _TDEngineColumn.BINARY_64,
-        mm_schemas.MetricData.METRIC_NAME: _TDEngineColumn.BINARY_64,
-    }
-    database = _MODEL_MONITORING_DATABASE
+    def __init__(self, database: Optional[str] = None):
+        super_table = mm_schemas.TDEngineSuperTables.METRICS
+        columns = {
+            mm_schemas.WriterEvent.END_INFER_TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.MetricData.METRIC_VALUE: _TDEngineColumn.FLOAT,
+        }
+        tags = {
+            mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.APPLICATION_NAME: _TDEngineColumn.BINARY_64,
+            mm_schemas.MetricData.METRIC_NAME: _TDEngineColumn.BINARY_64,
+        }
+        super().__init__(super_table, columns, tags, database)
 
 
 @dataclass
 class Predictions(TDEngineSchema):
-    super_table = mm_schemas.TDEngineSuperTables.PREDICTIONS
-    columns = {
-        mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
-        mm_schemas.EventFieldType.LATENCY: _TDEngineColumn.FLOAT,
-        mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_10000,
-    }
-    tags = {
-        mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
-        mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
-    }
-    database = _MODEL_MONITORING_DATABASE
+    def __init__(self, database: Optional[str] = None):
+        super_table = mm_schemas.TDEngineSuperTables.PREDICTIONS
+        columns = {
+            mm_schemas.EventFieldType.TIME: _TDEngineColumn.TIMESTAMP,
+            mm_schemas.EventFieldType.LATENCY: _TDEngineColumn.FLOAT,
+            mm_schemas.EventKeyMetrics.CUSTOM_METRICS: _TDEngineColumn.BINARY_10000,
+        }
+        tags = {
+            mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,
+            mm_schemas.WriterEvent.ENDPOINT_ID: _TDEngineColumn.BINARY_64,
+        }
+        super().__init__(super_table, columns, tags, database)

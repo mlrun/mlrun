@@ -510,12 +510,6 @@ class ApplicationRuntime(RemoteRuntime):
         if not method:
             method = "POST" if body else "GET"
 
-        # Determine the correct keyword argument for the body
-        if isinstance(body, dict):
-            http_client_kwargs["json"] = body
-        elif isinstance(body, (str, bytes)):
-            http_client_kwargs["data"] = body
-
         return self.status.api_gateway.invoke(
             method=method,
             headers=headers,

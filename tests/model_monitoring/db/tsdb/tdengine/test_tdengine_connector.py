@@ -56,7 +56,8 @@ def test_write_application_event(connector):
         "start_infer_time": start_infer_time,
         "end_infer_time": end_infer_time,
         "result_status": result_status,
-        "current_stats": "",
+        # make sure we can write apostrophes (ML-7535)
+        "current_stats": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,
     }
     connector.create_tables()

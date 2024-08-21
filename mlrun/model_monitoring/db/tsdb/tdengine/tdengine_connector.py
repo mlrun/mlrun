@@ -115,10 +115,14 @@ class TDEngineConnector(TSDBConnector):
             subtable=table_name, values=event
         )
         self._connection.execute(create_table_query)
-        insert_table_query = table._insert_subtable_query(
-            subtable=table_name, values=event
+
+        insert_statement = table._insert_subtable_query(
+            self._connection,
+            subtable=table_name,
+            values=event,
         )
-        self._connection.execute(insert_table_query)
+        insert_statement.add_batch()
+        insert_statement.execute()
 
     def apply_monitoring_stream_steps(self, graph):
         """

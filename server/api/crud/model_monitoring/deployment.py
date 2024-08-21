@@ -889,11 +889,18 @@ class MonitoringDeployment:
             background_task_name=background_task_name,
         )
         if delete_app_stream_resources:
-            MonitoringDeployment._delete_model_monitoring_stream_resources(
-                project=project,
-                function_names=[function_name],
-                access_key=access_key,
-            )
+            try:
+                MonitoringDeployment._delete_model_monitoring_stream_resources(
+                    project=project,
+                    function_names=[function_name],
+                    access_key=access_key,
+                )
+            except mlrun.errors.MLRunInvalidArgumentError:
+                logger.warning(
+                    "Can't delete stream resources, you may need to delete them manually",
+                    project_name=project,
+                    function=function_name,
+                )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -999,6 +1006,11 @@ class MonitoringDeployment:
                     "Kafka model monitoring topics not found, probably not created",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
+                )
+            except kafka.errors.NoBrokersAvailable as e:
+                # Raise an error that will be caught by the called and skip the deletion of the stream
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Can't delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
                 )
         else:
             logger.warning(

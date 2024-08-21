@@ -544,7 +544,12 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-
+            except mlrun.errors.MLRunInvalidArgumentError:
+                logger.warning(
+                    "Failed to delete TSDB resources, you may need to delete them manually",
+                    project=project_name,
+                )
+                tsdb_connector = None
             except mlrun.errors.MLRunInvalidMMStoreType:
                 # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
                 if not mlrun.mlconf.is_ce_mode():
@@ -556,7 +561,6 @@ class ModelEndpoints:
                     tsdb_connector = None
             if tsdb_connector:
                 tsdb_connector.delete_tsdb_resources()
-
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,
             db_session=db_session,

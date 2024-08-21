@@ -6,12 +6,14 @@ Alerts are a mechanism for informing you about possible problem situations.
 {ref}`notifications` are used to notify you or the system of an alert.
 
 **In this section**
-- [Configuration](#configuration)
+- [Configuration of alert behavior](#configuration-of-alert-behavior)
 - [SDK](#sdk)
+- [Predefined events](#predefined-eventseventkind)
+- [Creating an alert](#creating-an-alert)
+- [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
-- [Predefined alerts](#predefined-alerts)
 - [Creating an alert without a template](#creating-an-alert-with-a-template)
-- [Creating an alert with a template](#creating-an-alert-without-a-template)
+
 
 **See also**
 ```{toctree}
@@ -106,33 +108,33 @@ project.store_alert_config(alert_data)
 This example illustrates a Slack notification for a job failure:
 ```python
 notification = mlrun.model.Notification(
-            kind="slack",
-            name="slack_notification",
-            message="Running a job has failed",
-            severity="warning",
-            when=["now"],
-            condition="failed",
-            secret_params={
-                "webhook": "https://hooks.slack.com/",
-            },
-        ).to_dict()
+    kind="slack",
+    name="slack_notification",
+    message="Running a job has failed",
+    severity="warning",
+    when=["now"],
+    condition="failed",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
+).to_dict()
 notifications = [alert_objects.AlertNotification(notification=notification)]
-alert_name="failure_alert"
-alert_summary="Running a job has failed"
+alert_name = "failure_alert"
+alert_summary = "Running a job has failed"
 entity_kind = alert_objects.EventEntityKind.JOB
 event_name = alert_objects.EventKind.FAILED
-run_id="run-id"
+run_id = "run-id"
 alert_data = mlrun.alerts.alert.AlertConfig(
-            project=project_name,
-            name=alert_name,
-            summary=alert_summary,
-            severity=alert_objects.AlertSeverity.HIGH,
-            entities=alert_objects.EventEntities(
-                kind=entity_kind, project=project_name, ids=[run_id]
-            ),
-            trigger=alert_objects.AlertTrigger(events=[event_name]),
-            notifications=notifications,
-        )
+    project=project_name,
+    name=alert_name,
+    summary=alert_summary,
+    severity=alert_objects.AlertSeverity.HIGH,
+    entities=alert_objects.EventEntities(
+        kind=entity_kind, project=project_name, ids=[run_id]
+    ),
+    trigger=alert_objects.AlertTrigger(events=[event_name]),
+    notifications=notifications,
+)
 project.store_alert_config(alert_data)
 ```
 

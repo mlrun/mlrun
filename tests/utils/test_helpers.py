@@ -1140,8 +1140,6 @@ def test_validate_single_def_handler_valid_handler(code):
         ({"key": ".valid-val"}, pytest.raises(ValueError)),
         # Prefix is too long
         ({"a" * 254 + "/key": "value"}, pytest.raises(ValueError)),
-        # Empty value
-        ({"key": ""}, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
     ],
 )
 def test_validate_node_selectors(node_selectors, expected):

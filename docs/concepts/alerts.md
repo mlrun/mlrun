@@ -171,6 +171,7 @@ See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTempl
 This example illustrates a Slack notification for a job failure alert, using the predefined system template "JobFailed":
 
 ```python
+
 job_fail_template = project.get_alert_template("JobFailed")
 alert_from_template = mlrun.alerts.alert.AlertConfig(
     project=project_name,
@@ -185,4 +186,14 @@ entities = alert_objects.EventEntities(
 alert_from_template.with_entities(entities=entities)
 alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
+
+notification = mlrun.model.Notification(
+kind="slack",
+name="slack_notification",
+secret_params={
+"webhook": "https://hooks.slack.com/",
+},
+).to_dict()
+
+notifications = [alert_objects.AlertNotification(notification=notification)]
 ```

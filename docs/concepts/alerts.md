@@ -175,8 +175,6 @@ entities = alert_objects.EventEntities(
     ids=[run_id],
 )
 alert_from_template.with_entities(entities=entities)
-alert_from_template.with_notifications(notifications=notifications)
-project.store_alert_config(alert_from_template)
 
 notification = mlrun.model.Notification(
     kind="slack",
@@ -187,4 +185,9 @@ notification = mlrun.model.Notification(
 ).to_dict()
 
 notifications = [alert_objects.AlertNotification(notification=notification)]
+
+alert_from_template.with_notifications(notifications=notifications)
+
+project.store_alert_config(alert_from_template)
+
 ```

@@ -6,13 +6,13 @@ Alerts are a mechanism for informing you about possible problem situations.
 {ref}`notifications` are used to notify you or the system of an alert.
 
 **In this section**
-- [Configuration of alert behavior](#configuration-of-alert-behavior)
+- [System configuration](#system-configuration)
 - [SDK](#sdk)
-- [Predefined events](#predefined-eventseventkind)
+- [Predefined events](#predefined-events-eventkind)
 - [Creating an alert](#creating-an-alert)
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
-- [Creating an alert without a template](#creating-an-alert-with-a-template)
+- [Creating an alert with a template](#creating-an-alert-with-a-template)
 
 
 **See also**
@@ -22,9 +22,8 @@ Alerts are a mechanism for informing you about possible problem situations.
 drift-detection-alert
 ```
 
-## Configuration of alert behavior
-These are the variables that control the basic alert behavior: 
-
+## System configuration 
+These variables control the basic alert behavior: 
 - `alerts.mode` &mdash; Enables/disables the feature. Enabled by default.
 - `alerts.max_allowed` &mdash; Maximum number of alerts allowed to be configured, by default 10000. Any new alerts above this limit return an error.
 - `alerts.max_criteria_count` &mdash; Maximum number of events. By default, 100.
@@ -164,14 +163,14 @@ When using a pre-defined template, you only need to supply:
 - entity: EventEntity
 - NotificationKind: a list of at least one notification
 
-Do not confgure: summary, severity, trigger, or reset policy.
+`summary`, `severity`, `trigger`, and `reset policy`, are pre-configured in the template.  
+You can customize one or more of these fields when creating an alert from a template.
 
 See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 
 This example illustrates a Slack notification for a job failure alert, using the predefined system template "JobFailed":
 
 ```python
-
 job_fail_template = project.get_alert_template("JobFailed")
 alert_from_template = mlrun.alerts.alert.AlertConfig(
     project=project_name,
@@ -188,11 +187,11 @@ alert_from_template.with_notifications(notifications=notifications)
 project.store_alert_config(alert_from_template)
 
 notification = mlrun.model.Notification(
-kind="slack",
-name="slack_notification",
-secret_params={
-"webhook": "https://hooks.slack.com/",
-},
+    kind="slack",
+    name="slack_notification",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
 ).to_dict()
 
 notifications = [alert_objects.AlertNotification(notification=notification)]

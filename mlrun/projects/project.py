@@ -4061,7 +4061,7 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def store_alert_config(
-        self, alert_data: AlertConfig, alert_name: str = None
+        self, alert_data: AlertConfig, alert_name: typing.Optional[str] = None
     ) -> AlertConfig:
         """
         Create/modify an alert.

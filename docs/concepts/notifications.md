@@ -97,14 +97,16 @@ notifications_func = [
             "kind": "webhook",
             "name": "Test",
             "severity": "info",
-            "when": ["error","completed"],
+            "when": ["error", "completed"],
             "condition": "",
             "params": {
                 "url": webhook_test,
                 "method": "POST",
-                "override_body": {"message":"Run Completed {{ runs }}" }
+                "override_body": {"message": "Run Completed {{ runs }}"},
             },
-        )]
+        }
+    ),
+]
 ```
 
 The results look like:

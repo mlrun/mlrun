@@ -151,8 +151,8 @@ myst_all_links_external = True
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.4.0",
-    "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
+    "ceversion": "v1.6.4",
+    "releasedocumentation": "docs.mlrun.org/en/v1.6.4/index.html",
 }
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.

@@ -89,6 +89,5 @@ Some services do not support security context yet:
 
 install/local-docker
 install/kubernetes
-install/aws-install
 install/remote
 ```

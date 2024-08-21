@@ -1163,6 +1163,38 @@ class KafkaSource(OnlineSource):
             "to a Spark dataframe is not possible, as this operation is not supported by Spark"
         )
 
+    def create_topics(
+        self,
+        num_partitions: int = 4,
+        replication_factor: int = 1,
+        topics: list[str] = None,
+    ):
+        """
+        Create Kafka topics with the specified number of partitions and replication factor.
+
+        :param num_partitions:      number of partitions for the topics
+        :param replication_factor:  replication factor for the topics
+        :param topics:              list of topic names to create, if None,
+                                    the topics will be taken from the source attributes
+        """
+        from kafka.admin import KafkaAdminClient, NewTopic
+
+        brokers = self.attributes.get("brokers")
+        if not brokers:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "brokers must be specified in the KafkaSource attributes"
+            )
+        kafka_admin = KafkaAdminClient(bootstrap_servers=brokers)
+        topics = topics or self.attributes.get("topics")
+        if not topics:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "topics must be specified in the KafkaSource attributes"
+            )
+        new_topics = [
+            NewTopic(topic, num_partitions, replication_factor) for topic in topics
+        ]
+        kafka_admin.create_topics(new_topics)
+
 
 class SQLSource(BaseSourceDriver):
     kind = "sqldb"

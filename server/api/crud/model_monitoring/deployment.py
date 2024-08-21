@@ -299,7 +299,11 @@ class MonitoringDeployment:
                 stream_source = mlrun.datastore.sources.KafkaSource(
                     brokers=brokers,
                     topics=[topic],
+                    attributes={
+                        "max_workers": 2
+                    },  # according to nuclio docs suggestion
                 )
+                stream_source.create_topics(num_partitions=4, replication_factor=1)
                 function = stream_source.add_nuclio_trigger(function)
 
             if not mlrun.mlconf.is_ce_mode():

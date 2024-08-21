@@ -872,6 +872,10 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
 
+        invalid_node_selector = {"label-3": "val=3"}
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            function.with_node_selection(node_selector=invalid_node_selector)
+
         node_selector = {
             "label-3": "val3",
             "label-4": "val4",

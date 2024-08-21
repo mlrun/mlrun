@@ -600,6 +600,10 @@ def _run_project_setup(
     if hasattr(mod, "setup"):
         try:
             project = getattr(mod, "setup")(project)
+            if not project or not isinstance(project, mlrun.projects.MlrunProject):
+                raise ValueError(
+                    "MLRun project_setup:setup() must return a project object"
+                )
         except Exception as exc:
             logger.error(
                 "Failed to run project_setup script",
@@ -610,7 +614,9 @@ def _run_project_setup(
         if save:
             project.save()
     else:
-        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
+        logger.warn(
+            f"skipping setup, setup() handler was not found in {path.basename(setup_file_path)}"
+        )
     return project
 
 

@@ -41,6 +41,9 @@ class AzureBlobStore(DataStore):
         self._service_client = None
         self._storage_options = None
 
+    def get_storage_options(self):
+        return self.storage_options
+
     @property
     def storage_options(self):
         if not self._storage_options:

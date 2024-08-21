@@ -96,6 +96,9 @@ class GoogleCloudStorageStore(DataStore):
             self._storage_options = self._sanitize_storage_options(None)
         return self._storage_options
 
+    def get_storage_options(self):
+        return self.storage_options
+
     def _make_path(self, key):
         key = key.strip("/")
         path = Path(self.endpoint, key).as_posix()

@@ -457,6 +457,17 @@ def resolve_node_selectors(
             project_node_selector=project_node_selector,
             config_node_selector=config_node_selector,
         )
+        try:
+            mlrun.utils.validate_node_selectors(
+                {
+                    **config_node_selector,
+                    **project_node_selector,
+                    **instance_node_selector,
+                }
+            )
+        except mlrun.errors.MLRunInvalidArgumentError as e:
+            message = f"Validation failed for node selectors defined at the function, project or service level: {e}"
+            raise mlrun.errors.MLRunInvalidArgumentError(message) from e
         return mlrun.utils.helpers.merge_dicts_with_precedence(
             config_node_selector,
             project_node_selector,

@@ -252,9 +252,6 @@ def new_project(
         project.spec.description = description
 
     if default_function_node_selector:
-        # mlrun.utils.validate_node_selectors()
-        # for key, val in default_function_node_selector.items():
-        #     project.spec.default_function_node_selector[key] = val
         project.spec.default_function_node_selector = default_function_node_selector
 
     if parameters:
@@ -3164,16 +3161,6 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
-        if self.spec.default_function_node_selector:
-            try:
-                mlrun.utils.validate_node_selectors(
-                    node_selectors=self.spec.default_function_node_selector
-                )
-            except mlrun.errors.MLRunInvalidArgumentError as e:
-                new_message = (
-                    f"Project can't be saved, invalid node selectors defined: {e}"
-                )
-                raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
         self.export(filepath)
         self.save_to_db(store)
         return self

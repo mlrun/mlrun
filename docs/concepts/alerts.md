@@ -3,7 +3,7 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
-{ref}`notifications` are used to notify you or the system of an alert, such as through slack, git or webhook.
+{ref}`notifications` are used to notify you or the system of an alert.
 
 **In this section**
 - [Configuration](#configuration)
@@ -20,7 +20,7 @@ Alerts are a mechanism for informing you about possible problem situations.
 drift-detection-alert
 ```
 
-## Configuration
+## Configuration of alert behavior
 These are the variables that control the basic alert behavior: 
 
 - `alerts.mode` &mdash; Enables/disables the feature. Enabled by default.
@@ -42,26 +42,26 @@ The SDK supports these alert operations:
 - {py:func}`~mlrun.projects.MlrunProject.list_alerts_configs` &mdash; Retrieve the list of alerts of a project.
 
 
-## Predefined alerts
-The predefined alert types are:
-- DATA_DRIFT_DETECTED &mdash; A detected change in model input data that potentially leads to model performance degradation. 
-- DATA_DRIFT_SUSPECTED &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
-- CONCEPT_DRIFT_DETECTED &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- CONCEPT_DRIFT_SUSPECTED &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- MODEL_PERFORMANCE_DETECTED &mdash; A detected change of the overall model performance and/or feature-level performance. 
-- MODEL_PERFORMANCE_SUSPECTED &mdash; A suspected change of the overall model performance and/or feature-level performance. 
-- MODEL_SERVING_PERFORMANCE_DETECTED &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- MODEL_SERVING_PERFORMANCE_SUSPECTED &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- MM_APP_ANOMALY_DETECTED &mdash; An alert based on user-defined metrics/results.
-- MM_APP_ANOMALY_SUSPECTED &mdash; An alert based on user-defined metrics/results.
-- FAILED &mdash; The job failed.
+## Predefined events (`EventKind`)
+The predefined event types are:
+- `data_drift_detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
+- `data_drift_suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- `concept_drift_detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `concept_drift_suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `model_performance_detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
+- `model_performance_suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
+- `model_serving_performance_detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `model_serving_performance_suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `mm_app_anomaly_detected` &mdash; An alert based on user-defined metrics/results.
+- `mm_app_anomaly_suspected` &mdash; An alert based on user-defined metrics/results.
+- `failed` &mdash; The job failed.
 
 See {ref}`monitoring-overview` for more details on drift and performance.
+
 ## Creating an alert
-You can select an alert type for a specific model, for example "drift detection" for a given model. You can optionally specify 
-the frequency of alerts, and the criteria for alerts (how many times in what time window, etc.). If not specified, it uses the defaults.
-You can configure Git, Slack, and webhook notifications. 
-See the {py:meth}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`.
+You can select an event type for a specific model, for example `data_drift_suspected`, for a given model. You can optionally specify 
+the frequency of events, and the criteria for events (how many times in what time window, etc.). If not specified, it uses the defaults. 
+See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. You can configure Git, Slack, and webhook notifications for the alert. 
 
 This example illustrates a Slack notification for drift detection on a model endpoint:
 
@@ -101,6 +101,51 @@ alert_data = mlrun.alerts.alert.AlertConfig(
 
 project.store_alert_config(alert_data)
 ```
+
+
+This example illustrates a Slack notification for a job failure:
+```python
+notification = mlrun.model.Notification(
+            kind="slack",
+            name="slack_notification",
+            message="Running a job has failed",
+            severity="warning",
+            when=["now"],
+            condition="failed",
+            secret_params={
+                "webhook": "https://hooks.slack.com/",
+            },
+        ).to_dict()
+notifications = [alert_objects.AlertNotification(notification=notification)]
+alert_name="failure_alert"
+alert_summary="Running a job has failed"
+entity_kind = alert_objects.EventEntityKind.JOB
+event_name = alert_objects.EventKind.FAILED
+run_id="run-id"
+alert_data = mlrun.alerts.alert.AlertConfig(
+            project=project_name,
+            name=alert_name,
+            summary=alert_summary,
+            severity=alert_objects.AlertSeverity.HIGH,
+            entities=alert_objects.EventEntities(
+                kind=entity_kind, project=project_name, ids=[run_id]
+            ),
+            trigger=alert_objects.AlertTrigger(events=[event_name]),
+            notifications=notifications,
+        )
+project.store_alert_config(alert_data)
+```
+
+## Alert reset policy
+
+The {py:class}`mlrun.common.schemas.alert.ResetPolicy` specifies when to clear the alert and change the alert's status from active to inactive. When an alert 
+becomes inactive, its notifications cease. When it is re-activated, notifications are renewed.
+The `ResetPolicy` options are:
+- manual &mdash; for manual reset of the alert
+- auto &mdash; if the criteria contains a time period such that the alert is reset once there are no more invocations in the relevant time window.
+
+
+
 ## Alert templates
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
 predefined templates that can be used with MLRun applications. 
@@ -110,11 +155,14 @@ See the {py:meth}`alert template parameters<mlrun.common.schemas.alert.AlertTemp
 
 ## Creating an alert with a template
 
-When you use a template, you only need to supply:
+The system has a few pre-defined templates: `JobFailed`, `DataDriftDetected`, `DataDriftSuspected`.
+When using a pre-defined template, you only need to supply:
 - name: str
 - project: str
 - entity: EventEntity
-- NotificationKind: a list of at least one notification.
+- NotificationKind: a list of at least one notification
+
+Do not confgure: summary, severity, trigger, or reset policy.
 
 See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 

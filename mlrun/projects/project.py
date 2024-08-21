@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+from copy import deepcopy
 import getpass
 import glob
 import http
@@ -252,8 +253,9 @@ def new_project(
 
     if default_function_node_selector:
         # mlrun.utils.validate_node_selectors()
-        for key, val in default_function_node_selector.items():
-            project.spec.default_function_node_selector[key] = val
+        # for key, val in default_function_node_selector.items():
+        #     project.spec.default_function_node_selector[key] = val
+        project.spec.default_function_node_selector = default_function_node_selector
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
@@ -1048,7 +1050,7 @@ class ProjectSpec(ModelObj):
     @default_function_node_selector.setter
     def default_function_node_selector(self, node_selector):
         mlrun.utils.validate_node_selectors(node_selectors=node_selector)
-        self._default_function_node_selector = node_selector
+        self._default_function_node_selector = deepcopy(node_selector)
 
     @property
     def build(self) -> ImageBuilder:

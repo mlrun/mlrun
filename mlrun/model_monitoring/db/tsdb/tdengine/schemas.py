@@ -83,7 +83,7 @@ class TDEngineSchema:
         super_table: str,
         columns: dict[str, _TDEngineColumn],
         tags: dict[str, str],
-        database: Optional[str],
+        database: Optional[str] = None,
     ):
         self.super_table = super_table
         self.columns = columns

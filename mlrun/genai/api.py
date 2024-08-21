@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from mlrun.genai.client import Client
 from mlrun.genai.config import config
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
-from mlrun.genai.schema import Document, QueryItem, Workflow
+from mlrun.genai.schemas import Document, QueryItem, Workflow
 
 app = FastAPI()
 
@@ -104,11 +104,12 @@ async def infer_workflow(
     app_server = request.app.extra.get("app_server")
     if not app_server:
         raise ValueError("app_server not found in app")
+
     event = {
         "username": auth.username,
-        "session_name": item.session_name,
+        "session_id": item.session_id,
         "query": item.question,
-        "workflow_id": workflow.id,
+        "workflow_id": workflow.uid,
     }
     resp = app_server.run_pipeline(name, event)
     print(f"resp: {resp}")

@@ -16,6 +16,7 @@ import requests
 
 from mlrun.genai.config import config, logger
 from mlrun.utils.helpers import dict_to_json
+from mlrun.genai.schemas import ChatSession
 
 
 class Client:
@@ -29,9 +30,6 @@ class Client:
     ):
         # Construct the URL
         url = f"{self.base_url}/api/{path}"
-        logger.debug(
-            f"Sending {method} request to {url}, params: {params}, data: {data}"
-        )
         kw = {
             key: value
             for key, value in (
@@ -49,6 +47,9 @@ class Client:
                 {k: v for k, v in params.items() if v is not None} if params else None
             )
         # Make the request
+        logger.debug(
+            f"Sending {method} request to {url}, params: {params}, data: {data}"
+        )
         response = requests.request(
             method,
             url,
@@ -68,8 +69,8 @@ class Client:
         response = self.post_request(f"collection/{name}")
         return response["data"]
 
-    def get_session(self, name: str, user_name: str):
-        response = self.post_request(f"users/{user_name}/sessions/{name}")
+    def get_session(self, uid: str, user_name: str):
+        response = self.post_request(f"users/{user_name}/sessions/{uid}")
         return response["data"]
 
     def get_user(self, username: str = "", email: str = None):
@@ -82,12 +83,14 @@ class Client:
     def create_session(
         self,
         name,
+        user_id,
         username=None,
         workflow_id=None,
         history=None,
     ):
         chat_session = {
             "name": name,
+            "owner_id": user_id,
             "workflow_id": workflow_id,
             "history": history or [],
         }
@@ -98,19 +101,13 @@ class Client:
 
     def update_session(
         self,
-        name,
-        username=None,
-        workflow_id=None,
+        chat_session: ChatSession,
+        username: str,
         history=None,
     ):
-        chat_session = {
-            "name": name,
-            "history": history,
-            "workflow_id": workflow_id,
-        }
-        username = username or self.username
+        chat_session.history = history or []
         response = self.post_request(
-            f"users/{username}/sessions/{name}", data=chat_session, method="PUT"
+            f"users/{username}/sessions/{chat_session.name}", data=chat_session.to_dict(), method="PUT"
         )
         return response["success"]
 

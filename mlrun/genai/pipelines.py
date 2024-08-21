@@ -15,7 +15,7 @@
 import mlrun
 from mlrun import serving
 from mlrun.genai.config import config as default_config
-from mlrun.genai.schema import ApiDictResponse
+from mlrun.genai.schemas import APIDictResponse
 from mlrun.genai.sessions import get_session_store
 from mlrun.utils import get_caller_globals
 
@@ -157,8 +157,7 @@ class AppPipeline:
             server.wait_for_completion()
             raise e
 
-        print("resp: ", resp)
-        return ApiDictResponse(
+        return APIDictResponse(
             success=True,
             data={
                 "answer": resp.results["answer"],

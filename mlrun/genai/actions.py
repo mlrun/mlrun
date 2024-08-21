@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from mlrun.genai.config import config, logger
 from mlrun.genai.data.doc_loader import get_data_loader, get_loader_obj
-from mlrun.genai.schema import ApiResponse
+from mlrun.genai.schemas import APIResponse
 
 
 class IngestItem(BaseModel):
@@ -40,7 +40,7 @@ def ingest(collection_name, item: IngestItem):
     )
     loader_obj = get_loader_obj(item.path, loader_type=item.loader)
     data_loader.load(loader_obj, metadata=item.metadata, version=item.version)
-    return ApiResponse(success=True)
+    return APIResponse(success=True)
 
 
 def transcribe_file(file_handler):
@@ -48,4 +48,4 @@ def transcribe_file(file_handler):
     logger.debug("Transcribing file")
     text = openai.Audio.transcribe("whisper-1", file_handler)
     print(text)
-    return ApiResponse(success=True, data=text)
+    return APIResponse(success=True, data=text)

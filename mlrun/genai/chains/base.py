@@ -16,7 +16,7 @@ import asyncio
 
 import storey
 
-from mlrun.genai.schema import PipelineEvent
+from mlrun.genai.schemas import WorkflowEvent
 
 
 class ChainRunner(storey.Flow):
@@ -24,10 +24,10 @@ class ChainRunner(storey.Flow):
         super().__init__(**kwargs)
         self._is_async = asyncio.iscoroutinefunction(self._run)
 
-    def _run(self, event: PipelineEvent):
+    def _run(self, event: WorkflowEvent):
         raise NotImplementedError()
 
-    def __call__(self, event: PipelineEvent):
+    def __call__(self, event: WorkflowEvent):
         return self._run(event)
 
     def post_init(self, mode="sync"):
@@ -62,7 +62,7 @@ class SessionLoader(storey.Flow):
         else:
             element = self._get_event_or_body(event)
             if isinstance(element, dict):
-                element = PipelineEvent(**element)
+                element = WorkflowEvent(**element)
 
             self.context.session_store.read_state(element)
             mapped_event = self._user_fn_output_to_event(event, element)
@@ -82,7 +82,7 @@ class HistorySaver(ChainRunner):
         self.question_key = question_key
         self.save_sources = save_sources
 
-    async def _run(self, event: PipelineEvent):
+    async def _run(self, event: WorkflowEvent):
         question = (
             event.results[self.question_key]
             if self.question_key

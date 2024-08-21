@@ -251,6 +251,7 @@ def new_project(
         project.spec.description = description
 
     if default_function_node_selector:
+        # mlrun.utils.validate_node_selectors()
         for key, val in default_function_node_selector.items():
             project.spec.default_function_node_selector[key] = val
 
@@ -865,7 +866,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
-        self.default_function_node_selector = default_function_node_selector or {}
+        self._default_function_node_selector = default_function_node_selector
 
     @property
     def source(self) -> str:
@@ -1039,6 +1040,15 @@ class ProjectSpec(ModelObj):
     def remove_artifact(self, key):
         if key in self._artifacts:
             del self._artifacts[key]
+
+    @property
+    def default_function_node_selector(self):
+        return self._default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, node_selector):
+        mlrun.utils.validate_node_selectors(node_selectors=node_selector)
+        self._default_function_node_selector = node_selector or {}
 
     @property
     def build(self) -> ImageBuilder:
@@ -3153,12 +3163,12 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
-        if self.spec.default_function_node_selector:
-            try:
-                mlrun.utils.validate_node_selectors(node_selectors=self.spec.default_function_node_selector)
-            except mlrun.errors.MLRunInvalidArgumentError as e:
-                new_message = f"Project can't be saved, invalid node selectors defined: {e}"
-                raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
+        # if self.spec.default_function_node_selector:
+        #     try:
+        #         mlrun.utils.validate_node_selectors(node_selectors=self.spec.default_function_node_selector)
+        #     except mlrun.errors.MLRunInvalidArgumentError as e:
+        #         new_message = f"Project can't be saved, invalid node selectors defined: {e}"
+        #         raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
         self.export(filepath)
         self.save_to_db(store)
         return self

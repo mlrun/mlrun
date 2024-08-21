@@ -393,7 +393,6 @@ class BaseStoreTarget(DataTargetBase):
     support_pandas = False
     support_append = False
 
-
     def __init__(
         self,
         name: str = "",
@@ -825,7 +824,6 @@ class ParquetTarget(BaseStoreTarget):
     support_dask = True
     support_pandas = True
     support_append = True
-
 
     def __init__(
         self,

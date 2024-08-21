@@ -26,7 +26,9 @@ class SessionStore:
         event.user = self.client.get_user(username=event.username, email=event.username)
         event.username = event.user["name"] or "guest"
         if not event.session and event.session_id:
-            resp = self.client.get_session(uid=event.session_id, user_name=event.username)
+            resp = self.client.get_session(
+                uid=event.session_id, user_name=event.username
+            )
             chat_session = ChatSession(**resp)
             event.session = chat_session
             event.conversation = chat_session.to_conversation()

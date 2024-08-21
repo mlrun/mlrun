@@ -15,8 +15,8 @@
 import requests
 
 from mlrun.genai.config import config, logger
-from mlrun.utils.helpers import dict_to_json
 from mlrun.genai.schemas import ChatSession
+from mlrun.utils.helpers import dict_to_json
 
 
 class Client:
@@ -107,7 +107,9 @@ class Client:
     ):
         chat_session.history = history or []
         response = self.post_request(
-            f"users/{username}/sessions/{chat_session.name}", data=chat_session.to_dict(), method="PUT"
+            f"users/{username}/sessions/{chat_session.name}",
+            data=chat_session.to_dict(),
+            method="PUT",
         )
         return response["success"]
 

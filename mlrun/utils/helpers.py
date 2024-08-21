@@ -1727,28 +1727,33 @@ def validate_node_selectors(node_selectors: dict) -> None:
     node_selectors = node_selectors or {}
     for key, value in node_selectors.items():
         # Split key into prefix and name if applicable
-        prefix, name = key.split('/', 1) if '/' in key else ("", key)
+        prefix, name = key.split("/", 1) if "/" in key else ("", key)
 
         # Validate Kubernetes name format
         if not re.compile(mlrun.utils.regex.k8s_label_pattern).match(name):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid Kubernetes name '{name}' in key '{key}'. "
                 "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'.")
+                "be up to 63 characters long, and may contain '-', '_', and '.'."
+            )
 
         # Validate Kubernetes prefix format (if present)
-        if prefix and not re.compile(mlrun.utils.regex.k8s_label_prefix_pattern).match(prefix):
+        if prefix and not re.compile(mlrun.utils.regex.k8s_label_prefix_pattern).match(
+            prefix
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid Kubernetes prefix '{prefix}' in key '{key}'. "
                 "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
-                "be up to 253 characters long, and may contain '-', and '.'.")
+                "be up to 253 characters long, and may contain '-', and '.'."
+            )
 
         # Validate Kubernetes value format
         if not re.compile(mlrun.utils.regex.k8s_label_pattern).match(value):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid Kubernetes value '{value}' for key '{key}'. "
                 "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'.")
+                "be up to 63 characters long, and may contain '-', '_', and '.'."
+            )
 
 
 def _reload(module, max_recursion_depth):

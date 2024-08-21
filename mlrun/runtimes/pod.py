@@ -215,7 +215,7 @@ class KubeResourceSpec(FunctionSpec):
             image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
         )
         self.node_name = node_name
-        self._node_selector = node_selector
+        self._node_selector = node_selector or {}
         self._affinity = affinity
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
@@ -281,7 +281,7 @@ class KubeResourceSpec(FunctionSpec):
     @node_selector.setter
     def node_selector(self, node_selector):
         mlrun.utils.validate_node_selectors(node_selectors=node_selector)
-        self._node_selector = node_selector or {}
+        self._node_selector = node_selector
 
     @property
     def resources(self) -> dict:

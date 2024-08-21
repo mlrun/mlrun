@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-from copy import deepcopy
 import getpass
 import glob
 import http
@@ -26,6 +25,7 @@ import typing
 import uuid
 import warnings
 import zipfile
+from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
@@ -1315,7 +1315,6 @@ class MlrunProject(ModelObj):
 
     @default_function_node_selector.setter
     def default_function_node_selector(self, default_function_node_selector):
-        mlrun.utils.validate_node_selectors(default_function_node_selector)
         self.spec.default_function_node_selector = default_function_node_selector
 
     @property
@@ -3165,12 +3164,16 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
-        # if self.spec.default_function_node_selector:
-        #     try:
-        #         mlrun.utils.validate_node_selectors(node_selectors=self.spec.default_function_node_selector)
-        #     except mlrun.errors.MLRunInvalidArgumentError as e:
-        #         new_message = f"Project can't be saved, invalid node selectors defined: {e}"
-        #         raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
+        if self.spec.default_function_node_selector:
+            try:
+                mlrun.utils.validate_node_selectors(
+                    node_selectors=self.spec.default_function_node_selector
+                )
+            except mlrun.errors.MLRunInvalidArgumentError as e:
+                new_message = (
+                    f"Project can't be saved, invalid node selectors defined: {e}"
+                )
+                raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
         self.export(filepath)
         self.save_to_db(store)
         return self

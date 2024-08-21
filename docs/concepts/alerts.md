@@ -189,5 +189,4 @@ notifications = [alert_objects.AlertNotification(notification=notification)]
 alert_from_template.with_notifications(notifications=notifications)
 
 project.store_alert_config(alert_from_template)
-
 ```

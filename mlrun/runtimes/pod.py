@@ -275,7 +275,7 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     @property
-    def node_selector(self) :
+    def node_selector(self):
         return self._node_selector
 
     @node_selector.setter

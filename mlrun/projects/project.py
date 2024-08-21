@@ -866,7 +866,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
-        self._default_function_node_selector = default_function_node_selector
+        self._default_function_node_selector = default_function_node_selector or {}
 
     @property
     def source(self) -> str:
@@ -1048,7 +1048,7 @@ class ProjectSpec(ModelObj):
     @default_function_node_selector.setter
     def default_function_node_selector(self, node_selector):
         mlrun.utils.validate_node_selectors(node_selectors=node_selector)
-        self._default_function_node_selector = node_selector or {}
+        self._default_function_node_selector = node_selector
 
     @property
     def build(self) -> ImageBuilder:

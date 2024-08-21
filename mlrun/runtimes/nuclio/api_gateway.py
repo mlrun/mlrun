@@ -386,7 +386,7 @@ class APIGateway(ModelObj):
         headers: dict = None,
         credentials: Optional[tuple[str, str]] = None,
         path: Optional[str] = None,
-        body: typing.Union[str, bytes, dict] = None,
+        body: Optional[Union[str, bytes, dict]] = None,
         **kwargs,
     ):
         """

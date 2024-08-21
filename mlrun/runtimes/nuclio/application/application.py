@@ -515,6 +515,7 @@ class ApplicationRuntime(RemoteRuntime):
             headers=headers,
             credentials=credentials,
             path=path,
+            body=body,
             **http_client_kwargs,
         )
 

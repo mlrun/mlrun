@@ -65,6 +65,10 @@ def values_to_column(values, column_type):
     if column_type == _TDEngineColumn.BINARY_10000:
         return taosws.binary_to_column(values)
 
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"unsupported column type '{column_type}'"
+    )
+
 
 @dataclass
 class TDEngineSchema:

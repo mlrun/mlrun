@@ -3170,6 +3170,16 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
+        if self.spec.default_function_node_selector:
+            try:
+                mlrun.utils.validate_node_selectors(
+                    node_selectors=self.spec.default_function_node_selector
+                )
+            except mlrun.errors.MLRunInvalidArgumentError as e:
+                new_message = (
+                    f"Project can't be saved, invalid node selectors defined: {e}"
+                )
+                raise mlrun.errors.MLRunInvalidArgumentError(new_message) from e
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if store:
             return db.store_project(self.metadata.name, self.to_dict())

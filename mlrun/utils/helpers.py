@@ -1748,7 +1748,7 @@ def validate_node_selectors(node_selectors: dict) -> None:
             )
 
         # Validate Kubernetes value format
-        if not re.compile(mlrun.utils.regex.k8s_label_pattern).match(value):
+        if value and not re.compile(mlrun.utils.regex.k8s_label_pattern).match(value):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Invalid Kubernetes value '{value}' for key '{key}'. "
                 "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "

@@ -51,9 +51,6 @@ def test_summary_formatter(summary, project, alert_name, entity_id, expected_str
     notification = mlrun.common.schemas.Notification(
         kind="slack",
         name="slack_drift",
-        message="Ay caramba!",
-        severity="warning",
-        when=["now"],
         secret_params={
             "webhook": "https://hooks.slack.com/services/",
         },

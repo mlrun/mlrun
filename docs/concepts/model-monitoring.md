@@ -35,6 +35,7 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 ../model-monitoring/index
 ../model-monitoring/model-monitoring
 ../model-monitoring/monitoring-models
+../concepts/alerts
 ```
 
 See also {ref}`genai-mmonitor`.

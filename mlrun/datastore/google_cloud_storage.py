@@ -49,7 +49,7 @@ class GoogleCloudStorageStore(DataStore):
         )
         return self._filesystem
 
-    def get_credentials(self):
+    def _get_credentials(self):
         credentials = self._get_secret_or_env(
             "GCP_CREDENTIALS"
         ) or self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
@@ -72,7 +72,7 @@ class GoogleCloudStorageStore(DataStore):
             return self._sanitize_storage_options(None)
 
     def get_storage_options(self):
-        credentials = self.get_credentials()
+        credentials = self._get_credentials()
         # due to caching problem from gcsfs==2024.3.1, ML-7636.
         credentials["use_listings_cache"] = False
         return credentials
@@ -144,7 +144,7 @@ class GoogleCloudStorageStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.get_credentials()
+        st = self._get_credentials()
         if "token" in st:
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):

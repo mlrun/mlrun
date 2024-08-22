@@ -122,6 +122,11 @@ class ApplicationSpec(NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
         )
+
+        # Override default min/max replicas (don't assume application is stateless)
+        self.min_replicas = min_replicas or 1
+        self.max_replicas = max_replicas or 1
+
         self.internal_application_port = (
             internal_application_port
             or mlrun.mlconf.function.application.default_sidecar_internal_port
@@ -476,7 +481,7 @@ class ApplicationRuntime(RemoteRuntime):
     def invoke(
         self,
         path: str,
-        body: typing.Union[str, bytes, dict] = None,
+        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: str = None,
         headers: dict = None,
         dashboard: str = "",
@@ -504,11 +509,13 @@ class ApplicationRuntime(RemoteRuntime):
 
         if not method:
             method = "POST" if body else "GET"
+
         return self.status.api_gateway.invoke(
             method=method,
             headers=headers,
             credentials=credentials,
             path=path,
+            body=body,
             **http_client_kwargs,
         )
 

@@ -105,7 +105,7 @@ class LangChainModelServer(V2ModelServer):
         inputs = request.get("inputs", [])
         usage = request.get("usage", "predict")
         generation_kwargs = (
-                request.get("generation_kwargs", None) or self.generation_kwargs
+            request.get("generation_kwargs", None) or self.generation_kwargs
         )
         if usage == "predict":
             return self.model.invoke(input=inputs[0], config=generation_kwargs)

@@ -16,7 +16,6 @@ import os
 import pathlib
 import subprocess
 from subprocess import PIPE, Popen
-import asyncio
 
 import pytest
 
@@ -99,7 +98,8 @@ def test_ollama(ollama_fixture):
     assert predict_result
     print("ollama predict successful predict_result", predict_result)
     invoke_result = server.test(
-        "/v2/models/ollama-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
+        "/v2/models/ollama-langchain-model/predict",
+        {"inputs": ["how old are you?"], "usage": "invoke"},
     )
     assert invoke_result
     print("ollama invoke successful invoke_result", invoke_result)
@@ -165,12 +165,14 @@ def test_openai():
     )
     server = serving_func.to_mock_server()
     predict_result = server.test(
-        "/v2/models/openai-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
+        "/v2/models/openai-langchain-model/predict",
+        {"inputs": ["how old are you?"], "usage": "invoke"},
     )
     assert predict_result
     print("openai predict successful predict_result", predict_result)
     invoke_result = server.test(
-        "/v2/models/openai-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
+        "/v2/models/openai-langchain-model/predict",
+        {"inputs": ["how old are you?"], "usage": "invoke"},
     )
     assert invoke_result
     print("openai invoke successful invoke_result", invoke_result)
@@ -182,7 +184,9 @@ def test_openai():
             "usage": "invoke",
         },
     )
-    assert invoke_result_params and len(invoke_result_params["outputs"].split(" ")) <= 10
+    assert (
+        invoke_result_params and len(invoke_result_params["outputs"].split(" ")) <= 10
+    )
     batch_result = server.test(
         "/v2/models/openai-langchain-model/predict",
         {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
@@ -241,13 +245,21 @@ def test_huggingface():
     print("huggingface successful predict predict_result", predict_result)
     invoke_result1 = server.test(
         "/v2/models/huggingface-langchain-model/predict",
-        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}, "usage": "invoke"},
+        {
+            "inputs": ["how old are you?"],
+            "config": {"max_new_tokens": 10},
+            "usage": "invoke",
+        },
     )
     assert invoke_result1 and len(invoke_result1["outputs"].split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result1)
     invoke_result2 = server.test(
         "/v2/models/huggingface-langchain-model/predict",
-        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}, "usage": "invoke"},
+        {
+            "inputs": ["how old are you?"],
+            "config": {"max_new_tokens": 10},
+            "usage": "invoke",
+        },
     )
     assert invoke_result2 and len(invoke_result2["outputs"].split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result2)

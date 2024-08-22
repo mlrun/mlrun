@@ -72,10 +72,10 @@ class GoogleCloudStorageStore(DataStore):
             return self._sanitize_storage_options(None)
 
     def get_storage_options(self):
-        credentials = self._get_credentials()
-        # due to caching problem from gcsfs==2024.3.1, ML-7636.
-        credentials["use_listings_cache"] = False
-        return credentials
+        storage_options = self._get_credentials()
+        # due to caching problem introduced in gcsfs 2024.3.1 (ML-7636)
+        storage_options["use_listings_cache"] = False
+        return storage_options
 
     def _make_path(self, key):
         key = key.strip("/")

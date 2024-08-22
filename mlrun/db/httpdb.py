@@ -4227,8 +4227,8 @@ class HTTPRunDB(RunDBInterface):
             if isinstance(alert_data, AlertConfig)
             else AlertConfig.from_dict(alert_data)
         )
-        # The validation must be here because the user can call this function directly
-        # via `mlrun.get_run_db().store_alert_config()`
+        # Validation is necessary here because users can directly invoke this function
+        # through `mlrun.get_run_db().store_alert_config()`.
         alert_instance.validate_required_fields()
 
         alert_data = alert_instance.to_dict()

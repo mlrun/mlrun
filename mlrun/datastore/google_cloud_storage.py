@@ -45,6 +45,7 @@ class GoogleCloudStorageStore(DataStore):
         self._filesystem = makeDatastoreSchemaSanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
+            use_listings_cache=False,
             **self.get_storage_options(),
         )
         return self._filesystem

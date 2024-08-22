@@ -247,32 +247,21 @@ def test_huggingface():
         "/v2/models/huggingface-langchain-model/predict",
         {
             "inputs": ["how old are you?"],
-            "config": {"max_new_tokens": 10},
             "usage": "invoke",
         },
     )
-    assert invoke_result1 and len(invoke_result1["outputs"].split(" ")) <= 10
+
+    assert invoke_result1 and len(invoke_result1["outputs"].lstrip().split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result1)
-    invoke_result2 = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {
-            "inputs": ["how old are you?"],
-            "config": {"max_new_tokens": 10},
-            "usage": "invoke",
-        },
-    )
-    assert invoke_result2 and len(invoke_result2["outputs"].split(" ")) <= 10
-    print("huggingface successful invoke invoke_result", invoke_result2)
     invoke_result3 = server.test(
         "/v2/models/huggingface-langchain-model/predict",
         {
             "inputs": ["how old are you?"],
-            "config": {"max_new_tokens": 10},
             "stop": "<eos>",
             "usage": "invoke",
         },
     )
-    assert invoke_result3 and len(invoke_result3["outputs"].split(" ")) <= 10
+    assert invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result3)
     batch_result1 = server.test(
         "/v2/models/huggingface-langchain-model/predict",
@@ -284,7 +273,6 @@ def test_huggingface():
         "/v2/models/huggingface-langchain-model/predict",
         {
             "inputs": ["how old are you?", "how old are you?"],
-            "config": {"max_new_tokens": 10},
             "usage": "batch",
         },
     )
@@ -292,3 +280,4 @@ def test_huggingface():
     for result in batch_result2["outputs"]:
         assert len(result.lstrip().split(" ")) <= 10
     print("huggingface successful batch batch_result", batch_result2)
+

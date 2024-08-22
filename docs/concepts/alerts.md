@@ -65,7 +65,7 @@ You can optionally specify the frequency of the alert through the criteria field
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
 
-This example illustrates a Slack notification for drift detection on a model endpoint:
+This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 
 ```python
 notification = mlrun.model.Notification(

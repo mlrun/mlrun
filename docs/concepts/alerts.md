@@ -119,6 +119,7 @@ alert_name = "failure_alert"
 alert_summary = "Running a job has failed"
 entity_kind = alert_objects.EventEntityKind.JOB
 event_name = alert_objects.EventKind.FAILED
+# the job's run id that we want to track
 run_id = "run-id"
 alert_data = mlrun.alerts.alert.AlertConfig(
     project=project_name,

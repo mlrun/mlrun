@@ -348,6 +348,8 @@ fn.with_priority_class(name="igz-workload-medium")
 
 #### Node selection
 
+Can be configured on the function and the service. See [Node selection](./runtimes/configuring-job-resources.html#node-selection).
+
 ```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
 ```

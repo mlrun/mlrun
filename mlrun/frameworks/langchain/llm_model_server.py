@@ -32,8 +32,8 @@ class LangChainModelServer(V2ModelServer):
 
     * invoke
     * batch
-    * ainvoke
-    * abatch
+    * ainvoke (TBD)
+    * abatch (TBD)
     * stream (TBD)
     * astream (TBD)
     This class can serve a LangChain chain or llm:
@@ -84,98 +84,49 @@ class LangChainModelServer(V2ModelServer):
         self.model = getattr(langchain_community.llms, self.llm)(**self.init_kwargs)
 
     def predict(
-        self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
+        self,
+        request: Dict[str, Any],
     ):
         """
-        Predict the output of the model.
+        Predict the output of the model, can use the following usages:
+
+        * predict
+        * invoke
+        * batch
+        * ainvoke (TBD)
+        * abatch (TBD)
+
+        Upon receiving a request, the model will use the "usage" key to determine the usage of the model, and will
+        return the model's prediction accordingly.
+
         :param request:           The request to the model. The input to the model will be read from the "inputs" key.
-        :param generation_kwargs: The generation arguments to use while generating response.
         :return:                  The model's prediction on the given input.
         """
         inputs = request.get("inputs", [])
-        generation_kwargs = generation_kwargs or self.generation_kwargs
-        return self.model.invoke(input=inputs[0], config=generation_kwargs)
-
-    def op_invoke(
-        self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
-    ):
-        """
-        Invoke the model. (Same as predict)
-        :param request:           The request to the model. The input to the model will be read from the "body.inputs"
-                                  key.
-        :param generation_kwargs: The generation arguments to use while generating response.
-        :return:                  The model's prediction on the given input.
-        """
-        request = request.body
-        inputs = request.get("inputs", [])
-        config = request.get("config", None)
-        stop = request.get("stop", None)
-        generation_kwargs = generation_kwargs or self.generation_kwargs
-        return self.model.invoke(
-            input=inputs[0], config=config, stop=stop, **generation_kwargs
+        usage = request.get("usage", "predict")
+        generation_kwargs = (
+                request.get("generation_kwargs", None) or self.generation_kwargs
         )
-
-    def op_batch(
-        self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
-    ):
-        """
-        Invoke the model in batch.
-        :param request:           The request to the model. The input to the model will be read from the "body.inputs"
-                                  key.
-        :param generation_kwargs: The generation arguments to use while generating response.
-        :return:                  The model's prediction on the given input.
-        """
-        request = request.body
-        inputs = request.get("inputs", [])
-        config = request.get("config", None)
-        return_exceptions = request.get("return_exceptions", None)
-        generation_kwargs = generation_kwargs or self.generation_kwargs
-        return self.model.batch(
-            inputs=inputs,
-            config=config,
-            return_exceptions=return_exceptions,
-            **generation_kwargs,
-        )
-
-    def op_ainvoke(
-        self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
-    ):
-        """
-        Invoke the model asynchronously.
-        :param request:           The request to the model. The input to the model will be read from the "body.inputs"
-                                  key.
-        :param generation_kwargs: The generation arguments to use while generating response.
-        :return:                  The model's prediction on the given input.
-        """
-        request = request.body
-        inputs = request.get("inputs", [])
-        config = request.get("config", None)
-        stop = request.get("stop", None)
-        generation_kwargs = generation_kwargs or self.generation_kwargs
-        response = self.model.ainvoke(
-            input=inputs, config=config, stop=stop, **generation_kwargs
-        )
-        return response
-
-    def op_abatch(
-        self, request: Dict[str, Any], generation_kwargs: Dict[str, Any] = None
-    ):
-        """
-        Invoke the model asynchronously in batches.
-        :param request:           The request to the model. The input to the model will be read from the "body.inputs"
-                                  key.
-        :param generation_kwargs: The generation arguments to use while generating response.
-        :return:                  The model's prediction on the given input.
-        """
-        request = request.body
-        inputs = request.get("inputs", [])
-        config = request.get("config", None)
-        return_exceptions = request.get("return_exceptions", None)
-        generation_kwargs = generation_kwargs or self.generation_kwargs
-        response = self.model.abatch(
-            inputs=inputs,
-            config=config,
-            return_exceptions=return_exceptions,
-            **generation_kwargs,
-        )
-        return response
+        if usage == "predict":
+            return self.model.invoke(input=inputs[0], config=generation_kwargs)
+        elif usage == "invoke":
+            config = request.get("config", None)
+            stop = request.get("stop", None)
+            return self.model.invoke(
+                input=inputs[0], config=config, stop=stop, **generation_kwargs
+            )
+        elif usage == "batch":
+            config = request.get("config", None)
+            return_exceptions = request.get("return_exceptions", None)
+            return self.model.batch(
+                inputs=inputs,
+                config=config,
+                return_exceptions=return_exceptions,
+                **generation_kwargs,
+            )
+        elif usage == "ainvoke":
+            raise NotImplementedError("ainvoke is not implemented")
+        elif usage == "abatch":
+            raise NotImplementedError("abatch is not implemented")
+        else:
+            raise ValueError(f"Unknown usage: {usage}")

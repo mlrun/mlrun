@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import os
 import pathlib
 import subprocess
 from subprocess import PIPE, Popen
+import asyncio
 
 import pytest
 
@@ -99,59 +99,40 @@ def test_ollama(ollama_fixture):
     assert predict_result
     print("ollama predict successful predict_result", predict_result)
     invoke_result = server.test(
-        "/v2/models/ollama-langchain-model/invoke", {"inputs": ["how old are you?"]}
+        "/v2/models/ollama-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
     )
     assert invoke_result
     print("ollama invoke successful invoke_result", invoke_result)
+    invoke_result_params = server.test(
+        "/v2/models/ollama-langchain-model/predict",
+        {
+            "inputs": ["how old are you?"],
+            "stop": ["<eos>"],
+            "generation_kwargs": {"num_predict": 10, "temperature": 0.000001},
+            "usage": "invoke",
+        },
+    )
+    assert invoke_result_params
+    assert len(invoke_result_params["outputs"].split(" ")) <= 10
+    print("ollama invoke with params successful result", invoke_result_params)
     batch_result = server.test(
-        "/v2/models/ollama-langchain-model/batch",
-        {"inputs": ["how old are you?", "how old are you?"]},
+        "/v2/models/ollama-langchain-model/predict",
+        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
     )
     assert batch_result
     print("ollama batch successful batch_result", batch_result)
-
-
-@pytest.mark.skipif(ollama_check_skip(), reason="OpenAI API credentials not set")
-@pytest.mark.asyncio
-async def test_ollama_async(ollama_fixture):
-    """
-    Test the langchain model server with an ollama model asynchronously
-    """
-    project = mlrun.get_or_create_project(
-        name="ollama-model-server-example", context="./"
+    batch_result_params = server.test(
+        "/v2/models/ollama-langchain-model/predict",
+        {
+            "inputs": ["how old are you?", "how old are you?"],
+            "generation_kwargs": {"num_predict": 10},
+            "usage": "batch",
+        },
     )
-    serving_func = project.set_function(
-        func=langchain_model_server_path,
-        name="ollama-langchain-model-server",
-        kind="serving",
-        image="mlrun/mlrun",
-    )
-    serving_func.add_model(
-        "ollama-langchain-model",
-        llm="Ollama",
-        class_name="LangChainModelServer",
-        init_kwargs={"model": _OLLAMA_MODEL},
-        model_path=".",
-    )
-    server = serving_func.to_mock_server()
-    ainvoke_result = await asyncio.gather(
-        server.test(
-            "/v2/models/ollama-langchain-model/ainvoke",
-            {"inputs": ["how old are you?"]},
-        )
-    )
-    ainvoke_result = ainvoke_result[0]
-    assert ainvoke_result
-    print("ollama ainvoke successful ainvoke_result", ainvoke_result)
-    abatch_result = await asyncio.gather(
-        server.test(
-            "/v2/models/ollama-langchain-model/abatch",
-            {"inputs": ["how old are you?", "how old are you?"]},
-        )
-    )
-    abatch_result = abatch_result[0]
-    assert abatch_result
-    print("ollama abatch successful abatch_result", abatch_result)
+    assert batch_result_params
+    for result in batch_result_params["outputs"]:
+        assert len(result.split(" ")) <= 10
+    print("ollama batch with params successful batch_result", batch_result_params)
 
 
 def skip_openai():
@@ -184,64 +165,42 @@ def test_openai():
     )
     server = serving_func.to_mock_server()
     predict_result = server.test(
-        "/v2/models/openai-langchain-model/predict", {"inputs": ["how old are you?"]}
+        "/v2/models/openai-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
     )
     assert predict_result
     print("openai predict successful predict_result", predict_result)
     invoke_result = server.test(
-        "/v2/models/openai-langchain-model/invoke", {"inputs": ["how old are you?"]}
+        "/v2/models/openai-langchain-model/predict", {"inputs": ["how old are you?"], "usage": "invoke"}
     )
     assert invoke_result
     print("openai invoke successful invoke_result", invoke_result)
+    invoke_result_params = server.test(
+        "/v2/models/openai-langchain-model/predict",
+        {
+            "inputs": ["how old are you?"],
+            "generation_kwargs": {"max_tokens": 10},
+            "usage": "invoke",
+        },
+    )
+    assert invoke_result_params and len(invoke_result_params["outputs"].split(" ")) <= 10
     batch_result = server.test(
-        "/v2/models/openai-langchain-model/batch",
-        {"inputs": ["how old are you?", "how old are you?"]},
+        "/v2/models/openai-langchain-model/predict",
+        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
     )
     assert batch_result
     print("openai batch successful batch_result", batch_result)
-
-
-@pytest.mark.skipif(skip_openai(), reason="OpenAI API credentials not set")
-@pytest.mark.asyncio
-async def test_openai_async():
-    """
-    Test the langchain model server with an openai model asynchronously
-    """
-    project = mlrun.get_or_create_project(
-        name="openai-model-server-example", context="./"
+    batch_result_params = server.test(
+        "/v2/models/openai-langchain-model/predict",
+        {
+            "inputs": ["how old are you?", "how old are you?"],
+            "generation_kwargs": {"max_tokens": 10},
+            "usage": "batch",
+        },
     )
-    serving_func = project.set_function(
-        func=langchain_model_server_path,
-        name="openai-langchain-model-server",
-        kind="serving",
-        image="mlrun/mlrun",
-    )
-    serving_func.add_model(
-        "openai-langchain-model",
-        class_name="LangChainModelServer",
-        llm="OpenAI",
-        init_kwargs={"model": _OPENAI_MODEL},
-        model_path=".",
-    )
-    server = serving_func.to_mock_server()
-    ainvoke_result = await asyncio.gather(
-        server.test(
-            "/v2/models/openai-langchain-model/ainvoke",
-            {"inputs": ["how old are you?"]},
-        )
-    )
-    ainvoke_result = ainvoke_result[0]
-    assert ainvoke_result
-    print("openai ainvoke successful ainvoke_result", ainvoke_result)
-    abatch_result = await asyncio.gather(
-        server.test(
-            "/v2/models/openai-langchain-model/abatch",
-            {"inputs": ["how old are you?", "how old are you?"]},
-        )
-    )
-    abatch_result = abatch_result[0]
-    assert abatch_result
-    print("openai abatch successful abatch_result", abatch_result)
+    assert batch_result_params
+    for result in batch_result_params["outputs"]:
+        assert len(result.split(" ")) <= 10
+    print("openai batch with params successful batch_result", batch_result_params)
 
 
 def test_huggingface():
@@ -281,111 +240,43 @@ def test_huggingface():
     assert predict_result
     print("huggingface successful predict predict_result", predict_result)
     invoke_result1 = server.test(
-        "/v2/models/huggingface-langchain-model/invoke",
-        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
+        "/v2/models/huggingface-langchain-model/predict",
+        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}, "usage": "invoke"},
     )
-    assert invoke_result1
+    assert invoke_result1 and len(invoke_result1["outputs"].split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result1)
     invoke_result2 = server.test(
-        "/v2/models/huggingface-langchain-model/invoke",
-        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
+        "/v2/models/huggingface-langchain-model/predict",
+        {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}, "usage": "invoke"},
     )
-    assert invoke_result2
+    assert invoke_result2 and len(invoke_result2["outputs"].split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result2)
     invoke_result3 = server.test(
-        "/v2/models/huggingface-langchain-model/invoke",
+        "/v2/models/huggingface-langchain-model/predict",
         {
             "inputs": ["how old are you?"],
             "config": {"max_new_tokens": 10},
             "stop": "<eos>",
+            "usage": "invoke",
         },
     )
-    assert invoke_result3
+    assert invoke_result3 and len(invoke_result3["outputs"].split(" ")) <= 10
     print("huggingface successful invoke invoke_result", invoke_result3)
     batch_result1 = server.test(
-        "/v2/models/huggingface-langchain-model/batch",
-        {"inputs": ["how old are you?", "how old are you?"]},
+        "/v2/models/huggingface-langchain-model/predict",
+        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
     )
     assert batch_result1
     print("huggingface successful batch batch_result", batch_result1)
     batch_result2 = server.test(
-        "/v2/models/huggingface-langchain-model/batch",
+        "/v2/models/huggingface-langchain-model/predict",
         {
             "inputs": ["how old are you?", "how old are you?"],
             "config": {"max_new_tokens": 10},
+            "usage": "batch",
         },
     )
     assert batch_result2
+    for result in batch_result2["outputs"]:
+        assert len(result.lstrip().split(" ")) <= 10
     print("huggingface successful batch batch_result", batch_result2)
-
-
-@pytest.mark.asyncio
-async def test_huggingface_async():
-    """
-    Test the langchain model server with a huggingface model asynchronously
-    """
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-
-    model_id = _HUGGINGFACE_MODEL
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(model_id)
-    pipe = pipeline(
-        "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=10
-    )
-
-    project = mlrun.get_or_create_project(
-        name="huggingface-model-server-example", context="./"
-    )
-    serving_func = project.set_function(
-        func=langchain_model_server_path,
-        name="huggingface-langchain-model-server",
-        kind="serving",
-        image="mlrun/mlrun",
-    )
-    serving_func.add_model(
-        "huggingface-langchain-model",
-        class_name="LangChainModelServer",
-        llm="HuggingFacePipeline",
-        init_kwargs={"pipeline": pipe},
-        model_path=".",
-    )
-    server = serving_func.to_mock_server()
-    ainvoke_result1 = await asyncio.gather(
-        server.test(
-            "/v2/models/huggingface-langchain-model/ainvoke",
-            {"inputs": ["how old are you?"]},
-        )
-    )
-    ainvoke_result1 = ainvoke_result1[0]
-    assert ainvoke_result1
-    print("huggingface successful ainvoke ainvoke_result", ainvoke_result1)
-    ainvoke_result2 = await asyncio.gather(
-        server.test(
-            "/v2/models/huggingface-langchain-model/ainvoke",
-            {"inputs": ["how old are you?"], "config": {"max_new_tokens": 10}},
-        )
-    )
-    ainvoke_result2 = ainvoke_result2[0]
-    assert ainvoke_result2
-    print("huggingface successful ainvoke ainvoke_result", ainvoke_result2)
-    abatch_result1 = await asyncio.gather(
-        server.test(
-            "/v2/models/huggingface-langchain-model/abatch",
-            {"inputs": ["how old are you?", "how old are you?"]},
-        )
-    )
-    abatch_result1 = abatch_result1[0]
-    assert abatch_result1
-    print("huggingface successful abatch abatch_result", abatch_result1)
-    abatch_result2 = await asyncio.gather(
-        server.test(
-            "/v2/models/huggingface-langchain-model/abatch",
-            {
-                "inputs": ["how old are you?", "how old are you?"],
-                "config": {"max_new_tokens": 10},
-            },
-        )
-    )
-    abatch_result2 = abatch_result2[0]
-    assert abatch_result2
-    print("huggingface successful abatch abatch_result", abatch_result2)

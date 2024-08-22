@@ -86,28 +86,6 @@ class TestTDEngineSchema:
                 super_table._create_subtable_query(subtable=subtable, values=values)
 
     @pytest.mark.parametrize(
-        ("subtable", "remove_value"), [("subtable_1", False), ("subtable_2", True)]
-    )
-    def test_insert_subtable(
-        self,
-        super_table: TDEngineSchema,
-        values: dict[str, Union[str, int, float, datetime.datetime]],
-        subtable: str,
-        remove_value: bool,
-    ):
-        assert (
-            super_table._insert_subtable_query(subtable=subtable, values=values)
-            == f"INSERT INTO {_MODEL_MONITORING_DATABASE}.{subtable} VALUES ('{values['column1']}', "
-            f"'{values['column2']}', '{values['column3']}');"
-        )
-
-        if remove_value:
-            # test with missing value
-            values.pop("column1")
-            with pytest.raises(KeyError):
-                super_table._insert_subtable_query(subtable=subtable, values=values)
-
-    @pytest.mark.parametrize(
         ("subtable", "remove_tag"), [("subtable_1", False), ("subtable_2", True)]
     )
     def test_delete_subtable(

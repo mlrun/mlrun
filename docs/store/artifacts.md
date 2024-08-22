@@ -135,7 +135,7 @@ Example artifact URLs:
 ## Deleting artifacts
 
 
-Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You delete artifacts from a specific project 
+Artifacts are comprised of two parts: an artifact object that points to the artifact data; and the artifact data (files). You can delete artifacts from a specific project 
 and choose what you want to delete. You cannot delete artifacts of type: ModelArtifact, DirArtifact, and DatasetArtifact that has more than one file. 
 Deleting artifact data is supported for V3IO, Google, Azure, DBFS, Filestore, and S3. 
 

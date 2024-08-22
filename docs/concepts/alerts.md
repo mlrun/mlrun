@@ -81,6 +81,7 @@ endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
 endpoint_id = endpoints[0].metadata.uid
 # generate a unique ID for the EventEntity
 result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
+# construct a list of notifications to be included in the alert config
 notifications = [alert_objects.AlertNotification(notification=notification)]
 alert_name = "drift_alert"
 alert_summary = "A drift was detected"

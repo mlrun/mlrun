@@ -100,6 +100,7 @@ alert_data = mlrun.alerts.alert.AlertConfig(
     notifications=notifications,
 )
 
+# and finally store the alert config in the project
 project.store_alert_config(alert_data)
 ```
 

@@ -68,6 +68,7 @@ You can configure Git, Slack, and webhook notifications for the alert.
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 
 ```python
+# define the slack notification object
 notification = mlrun.model.Notification(
     kind="slack",
     name="slack_notification",

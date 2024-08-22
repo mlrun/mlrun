@@ -23,7 +23,7 @@ from google.oauth2 import service_account
 import mlrun.errors
 from mlrun.utils import logger
 
-from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
@@ -70,7 +70,7 @@ class GoogleCloudStorageStore(DataStore):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
             filesystem_class = get_filesystem_class(protocol=self.kind)
-            self._filesystem = makeDatastoreSchemaSanitizer(
+            self._filesystem = make_datastore_schema_sanitizer(
                 filesystem_class,
                 using_bucket=self.using_bucket,
                 **self.storage_options,

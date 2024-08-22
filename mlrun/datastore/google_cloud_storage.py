@@ -16,7 +16,9 @@ import os
 from pathlib import Path
 
 from fsspec.registry import get_filesystem_class
+from google.auth.credentials import Credentials
 from google.cloud.storage import Client, transfer_manager
+from google.oauth2 import service_account
 
 import mlrun.errors
 from mlrun.utils import logger
@@ -38,22 +40,30 @@ class GoogleCloudStorageStore(DataStore):
 
     @property
     def storage_client(self):
-        if not self._filesystem or self._storage_client:
-            self.create_filesystem_and_client()
-        return self._storage_client
+        if self._storage_client:
+            return self._storage_client
 
-    def create_filesystem_and_client(self):
-        try:
-            import gcsfs  # noqa
-        except ImportError as exc:
-            raise ImportError(
-                "Google gcsfs not installed, run pip install gcsfs"
-            ) from exc
-
-        # use the same storage options to avoid credential differences
-        # in order to support az and wasbs kinds
-        credentials = self._filesystem.credentials.credentials
+        token = self._get_credentials().get("token")
+        access = "https://www.googleapis.com/auth/devstorage.full_control"
+        if isinstance(token, str):
+            if os.path.exists(token):
+                credentials = service_account.Credentials.from_service_account_file(
+                    token, scopes=[access]
+                )
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "gcsfs authentication file not found!"
+                )
+        elif isinstance(token, dict):
+            credentials = service_account.Credentials.from_service_account_info(
+                token, scopes=[access]
+            )
+        elif isinstance(token, Credentials):
+            credentials = token
+        else:
+            raise ValueError("Token format not understood")
         self._storage_client = Client(credentials=credentials)
+        return self._storage_client
 
     @property
     def filesystem(self):

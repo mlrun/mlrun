@@ -280,4 +280,3 @@ def test_huggingface():
     for result in batch_result2["outputs"]:
         assert len(result.lstrip().split(" ")) <= 10
     print("huggingface successful batch batch_result", batch_result2)
-

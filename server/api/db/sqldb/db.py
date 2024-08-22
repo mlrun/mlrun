@@ -5567,7 +5567,7 @@ class SQLDB(DBInterface):
                 or mlrun.common.schemas.NotificationSeverity.INFO
             )
             notification.when = ",".join(notification_model.when or [])
-            notification.condition = notification_model.condition
+            notification.condition = notification_model.condition or ""
             notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (

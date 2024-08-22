@@ -105,7 +105,7 @@ project.store_alert_config(alert_data)
 ```
 
 
-This example illustrates a Slack notification for a job failure:
+This example illustrates creating an alert with a Slack notification for a job failure, with a defined criteria, which means that the alert will be triggered once this job fails for 3 times in the next 10 minutes:
 ```python
 notification = mlrun.model.Notification(
     kind="slack",

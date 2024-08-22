@@ -18,7 +18,6 @@ from io import StringIO
 from typing import Optional, Union
 
 import taosws
-from taosws import TaosStmt
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.types
@@ -113,7 +112,7 @@ class TDEngineSchema:
         connection: taosws.Connection,
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
-    ) -> TaosStmt:
+    ) -> taosws.TaosStmt:
         stmt = connection.statement()
         question_marks = ", ".join("?" * len(self.columns))
         stmt.prepare(f"INSERT INTO ? VALUES ({question_marks});")

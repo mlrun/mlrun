@@ -76,7 +76,7 @@ project.set_function(
     name="train_model", func="train_model.py", kind="job", image="mlrun/mlrun"
 )
 
-# Add aworkflow (pipeline) to the project
+# Add a workflow (pipeline) to the project
 project.set_workflow(name="training_pipeline", workflow_path="straining_pipeline.py")
 
 # Save the project and generate the project.yaml file

@@ -49,12 +49,6 @@
 |-------|----------------------------------------------------------------------------|
 |ML-6015|Storey/Nuclio serving graph: supports designating a step as multiprocess**add details/link**|
 
-
-### Infrastructure
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-3143/3432|When deleting a remote function, both in the UI and SDK, the Nuclio function (pod) is also deleted.|
-
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -103,11 +97,15 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2223|Can now deploy a function when notebook names contain "." |
-|ML-3143/ML-3432|Can now delete remote functions from the DB with both the SDK and the UI.|
+|ML-3143/ML-3432|Can now delete remote (Nuclio) functions from the DB with both the SDK and the UI.|
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
+|ML-3804|A serving step with no class now inherits parameters from the function spec. |
 |ML-4248|You can now run a serving function with a large number of models.|
+|ML-4442|Monitoring can be added after a model is deployed without (`set_tracking()` was not set on the serving function).|
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
+|ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking does not require a specific workflow. |
+|ML-5079|Cannot now update git remote with `project.create_remote()`.| 
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5774|UI: Improved speed of Querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
@@ -209,6 +207,7 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-4758|Heavy projects can be deleted successfully.| 
 |ML-5808|Fix selecting the project-owner user.|
 |ML-5907|"Invite New Members" now returns the full list of users when there are 100+ users in system.|
 |ML-5749, 6037|After the user removes ownership of the currently displayed project, the UI redirects to the Projects page.|
@@ -284,6 +283,7 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-76|Artifacts submitted from a git based project can now be received (after changing the HEAD git commit of the project between different log_artifact calls) .|
 |ML-1373|Incorrect service names do not result in stuck pods during ContainerCreating.|
 |ML-1835|The index record is not duplicated in the datasets metadata. | 
 |ML-3714|Runs that complete successfully do not show errors in Kubeflow. |
@@ -291,6 +291,7 @@
 |ML-4093|Documentation: Improved description of [handlers](../runtimes/create-and-use-functions.html#using-set-function) and {ref}`functions`. |
 |ML-4370|Hyper-param and single runs no longer generate artifacts with the same name. |
 |ML-4563|Local jobs can now be aborted in the UI. |
+|ML-4585|The `mlrun/mlrun` image now supports mpijob. | 
 |ML-4613|UI: Fixed the map type hint in the Batch Inference Parameters. |
 |ML-4642|The UI no longer gets stuck when there is a high number of query results. | 
 |ML-4678|When tagging a specific version of a model using the SDK, it does not clear the tags from the rest of the versions.|
@@ -299,6 +300,10 @@
 |ML-4608|The artifact `db_key` is now forwarded when registering an artifact.|
 |ML-4617|Fixed error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector.|
 |ML-4714|Logs are not truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  |
+|ML-4810|Can now rerun a job when the "mlrun/client_version" label has "+" in its value. | 
+|ML-4821|Very big projects are deleted successfully.|
+|ML-4855|MLRun now supports TensorFlow up to 2.15.0.|
+|ML-4858|After aborting a job/run from the UI, the logs are populated.|
 |ML-4922|Preview and Metadata tabs now indicate when there are more columns that are not displayed.|
 |ML-4967|The **Deploy** button in the **Project > Models** page now creates a new endpoint/serving function.|
 |ML-4992|Fixed starting a spark job from source archive (using `with_source_archive()`).|
@@ -309,6 +314,7 @@
 |ML-5089|When trying to delete a running job, an error opens that a running job cannot be deleted and it needs to be aborted first.|
 |ML-5091|Monitoring does not recreate a deleted run. |                                   |
 |ML-5146|Resolved OOM issues by reducing the memory footprint when monitoring runs. |
+|ML-5175|For Nuclio runtimes, MLRun is now installed together with user requirements, to account for MLRun dependencies. | 
 |ML-5481|You can now use `build_image` using the project source. See the example in [build_image](../projects/run-build-deploy.html#build-image).|
 |ML-5576|FeatureSet can now ingest data that contains single quotes.|
 |ML-5746|Labels no longer create partial projects that cannot be deleted.|
@@ -1039,7 +1045,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID| Description|Workaround |Opened in |
 |--------|----------------------------------------------------------------|-----------------------------------------|-----------|
-|ML-76|In rare cases (after changing the HEAD git commit of the project between different log_artifact calls) artifacts submitted from a git based project can't be received. |NA|v0.5.5|
 |ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.|NA|v1.0.0|
 |ML-2030|Need a way to move artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
 |ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. |NA|v1.0.0|
@@ -1058,31 +1063,21 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA | v1.3.0|
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
-|ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source. | v1.4.0 |	
 |ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4166|Project yaml file that is very large cannot be stored.    |Do not embed the artifact object in the project yaml. | v1.4.0 |
 |ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |  | v1.4.0|
-|ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
 |ML-4582|Custom packagers cannot be added to projects created previous to v1.4.0 | NA | v1.6.0|
-|ML-4585|The `mlrun/mlrun` image does not support mpijob. | Create your own image that includes mpijob.  | v1.5.0 |
 |ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. |NA|v1.5.0|
 |NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
 |ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.|NA|v1.4.1|
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
-|ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
 |ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
-|ML-4810|Cannot rerun a job when the "mlrun/client_version" label has "+" in its value. | Ensure the "mlrun/client_version" label does not include "+". | v1.6.0 |
-|ML-4821|In some cases, deleting a very big project fails with a timeout due to the time required to delete the project resources.|Delete the project again  | NA | v1.5.0 | 
 |ML-4857|Local runs can be aborted in the UI, though the actual execution continues.|NA | v1.5.0 |
-|ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |NL-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). |NA| v1.4.1|
-|ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking requires a specific workflow. |See [Enable model monitoring](../monitoring/initial-setup-configuration.html#enabling-model-monitoring). |v1.6.0|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
-|ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
-|ML-5175|For Nuclio runtimes, MLRun must be installed together with user requirements, to account for MLRun dependencies. | Include MLRun in the requirements, for example <img src="../_static/images/ml-5175.png" width="700" >| v1.6.0|
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
@@ -1097,7 +1092,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | You can build your own images with newer CUDA for a later release of PyTorch. |                 v1.5.0|   
-|ML-4855|MLRun supports TensorFlow up to 2.13.1.
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 |ML-5669|When using mlrun.mlrun image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.html#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  

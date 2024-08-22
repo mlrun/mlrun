@@ -248,6 +248,7 @@ def test_huggingface():
         {
             "inputs": ["how old are you?"],
             "usage": "invoke",
+            "generation_kwargs": {"return_full_text": False},
         },
     )
 
@@ -259,6 +260,7 @@ def test_huggingface():
             "inputs": ["how old are you?"],
             "stop": "<eos>",
             "usage": "invoke",
+            "generation_kwargs": {"return_full_text": False},
         },
     )
     assert invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
@@ -274,6 +276,7 @@ def test_huggingface():
         {
             "inputs": ["how old are you?", "how old are you?"],
             "usage": "batch",
+            "generation_kwargs": {"return_full_text": False},
         },
     )
     assert batch_result2

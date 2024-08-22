@@ -60,9 +60,10 @@ The predefined event types are:
 See {ref}`monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
-You can select an event type for a specific model, for example `data_drift_suspected`, for a given model. You can optionally specify 
-the frequency of events, and the criteria for events (how many times in what time window, etc.). If not specified, it uses the defaults. 
-See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. You can configure Git, Slack, and webhook notifications for the alert. 
+When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any one from the predefined events above.
+You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.).. If not specified, it uses the default.
+See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
+You can configure Git, Slack, and webhook notifications for the alert. 
 
 This example illustrates a Slack notification for drift detection on a model endpoint:
 

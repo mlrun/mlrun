@@ -96,7 +96,6 @@ alert_data = mlrun.alerts.alert.AlertConfig(
         kind=entity_kind, project=project_name, ids=[result_endpoint]
     ),
     trigger=alert_objects.AlertTrigger(events=[event_name]),
-    criteria=None,
     notifications=notifications,
 )
 

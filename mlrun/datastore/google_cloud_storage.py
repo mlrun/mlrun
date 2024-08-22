@@ -74,6 +74,13 @@ class GoogleCloudStorageStore(DataStore):
     def storage_options(self):
         if self._storage_options:
             return self._storage_options
+        credentials = self.get_credentials()
+        # due to caching problem from gcsfs==2024.3.1, ML-7636.
+        credentials["use_listings_cache"] = False
+        self._storage_options = credentials
+        return self._storage_options
+
+    def get_credentials(self):
         credentials = self._get_secret_or_env(
             "GCP_CREDENTIALS"
         ) or self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
@@ -88,13 +95,12 @@ class GoogleCloudStorageStore(DataStore):
             except json.JSONDecodeError:
                 # If it's not json, handle it as a filename
                 token = credentials
-            self._storage_options = self._sanitize_storage_options(dict(token=token))
+            return self._sanitize_storage_options(dict(token=token))
         else:
             logger.info(
                 "No GCS credentials available - auth will rely on auto-discovery of credentials"
             )
-            self._storage_options = self._sanitize_storage_options(None)
-        return self._storage_options
+            return self._sanitize_storage_options(None)
 
     def get_storage_options(self):
         return self.storage_options
@@ -194,12 +200,12 @@ class GoogleCloudStorageStore(DataStore):
 
     def rm(self, path, recursive=False, maxdepth=None):
         path = self._make_path(path)
-        self.filesystem.exists(path)
-        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        if self.filesystem.exists(path):
+            self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
     def get_spark_options(self):
         res = {}
-        st = self.storage_options()
+        st = self.get_credentials()
         if "token" in st:
             res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
             if isinstance(st["token"], str):

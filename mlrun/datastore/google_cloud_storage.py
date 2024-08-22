@@ -25,9 +25,6 @@ from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
-WORKERS = 8
-CHUNK_SIZE = 32 * 1024 * 1024
-
 
 class GoogleCloudStorageStore(DataStore):
     using_bucket = True
@@ -35,8 +32,8 @@ class GoogleCloudStorageStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         self._storage_client = None
         self._storage_options = None
-        self.workers = WORKERS
-        self.chunk_size = CHUNK_SIZE
+        self.workers = 8
+        self.chunk_size = 32 * 1024 * 1024
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
     @property
@@ -53,8 +50,8 @@ class GoogleCloudStorageStore(DataStore):
                 "Google gcsfs not installed, run pip install gcsfs"
             ) from exc
 
-        # Creates with the same storage options to avoid credential differences.
-        # in order to support az and wasbs kinds.
+        # use the same storage options to avoid credential differences
+        # in order to support az and wasbs kinds
         credentials = self._filesystem.credentials.credentials
         self._storage_client = Client(credentials=credentials)
 
@@ -74,7 +71,7 @@ class GoogleCloudStorageStore(DataStore):
     def storage_options(self):
         if self._storage_options:
             return self._storage_options
-        credentials = self.get_credentials()
+        credentials = self._get_credentials()
         # due to caching problem introduced in gcsfs 2024.3.1 (ML-7636)
         credentials["use_listings_cache"] = False
         self._storage_options = credentials
@@ -152,6 +149,7 @@ class GoogleCloudStorageStore(DataStore):
         if bucket_retention_policy or bucket.object_retention_mode:
             self.filesystem.put_file(src_path, united_path, overwrite=True)
             return
+
         blob = bucket.blob(key.strip("/"))
 
         if (

@@ -517,17 +517,24 @@ def get_or_create_project(
             parameters=parameters,
             allow_cross_project=allow_cross_project,
         )
-        logger.info("Project loaded successfully", project_name=name)
+        logger.info("Project loaded successfully", project_name=project.name)
         return project
     except mlrun.errors.MLRunNotFoundError:
-        logger.debug("Project not found in db", project_name=name)
+        logger.debug(
+            "Project not found in db", project_name=name, user_project=user_project
+        )
 
     spec_path = path.join(context, subpath or "", "project.yaml")
     load_from_path = url or path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
-        logger.info("Loading project from path", project_name=name, path=url or context)
+        logger.info(
+            "Loading project from path",
+            project_name=name,
+            user_project=user_project,
+            path=url or context,
+        )
         project = load_project(
             context,
             url,
@@ -544,7 +551,7 @@ def get_or_create_project(
 
         logger.info(
             "Project loaded successfully",
-            project_name=name,
+            project_name=project.name,
             path=url or context,
             stored_in_db=save,
         )
@@ -562,7 +569,9 @@ def get_or_create_project(
         save=save,
         parameters=parameters,
     )
-    logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    logger.info(
+        "Project created successfully", project_name=project.name, stored_in_db=save
+    )
     return project
 
 

@@ -30,12 +30,12 @@ from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 class GoogleCloudStorageStore(DataStore):
     using_bucket = True
+    workers = 8
+    chunk_size = 32 * 1024 * 1024
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         self._storage_client = None
         self._storage_options = None
-        self.workers = 8
-        self.chunk_size = 32 * 1024 * 1024
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
     @property
@@ -61,7 +61,7 @@ class GoogleCloudStorageStore(DataStore):
         elif isinstance(token, Credentials):
             credentials = token
         else:
-            raise ValueError("Token format not understood")
+            raise ValueError(f"Unsupported token type: {type(token)}")
         self._storage_client = Client(credentials=credentials)
         return self._storage_client
 

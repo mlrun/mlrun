@@ -315,9 +315,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
-        run_config = fstore.RunConfig(
-            local=self.run_local, kind="remote-spark"
-        )
+        run_config = fstore.RunConfig(local=self.run_local, kind="remote-spark")
 
         get_offline_table = f"get_offline_table_{self.current_time}"
         target = SnowflakeTarget(

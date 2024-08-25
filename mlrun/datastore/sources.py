@@ -1190,6 +1190,9 @@ class KafkaSource(OnlineSource):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "topics must be specified in the KafkaSource attributes"
             )
+        new_topics = [
+            NewTopic(topic, num_partitions, replication_factor) for topic in topics
+        ]
         kafka_admin = KafkaAdminClient(
             bootstrap_servers=brokers,
             sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
@@ -1204,18 +1207,15 @@ class KafkaSource(OnlineSource):
             sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
         )
         try:
-            new_topics = [
-                NewTopic(topic, num_partitions, replication_factor) for topic in topics
-            ]
             kafka_admin.create_topics(new_topics)
-            logger.info(
-                "Kafka topics created successfully",
-                topics=topics,
-                num_partitions=num_partitions,
-                replication_factor=replication_factor,
-            )
         finally:
             kafka_admin.close()
+        logger.info(
+            "Kafka topics created successfully",
+            topics=topics,
+            num_partitions=num_partitions,
+            replication_factor=replication_factor,
+        )
 
 
 class SQLSource(BaseSourceDriver):

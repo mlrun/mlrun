@@ -207,8 +207,8 @@ def test_openai():
     print("openai batch with params successful batch_result", batch_result_params)
 
 
-
 os.environ["HUGGINGFACE_API_KEY"] = "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"
+
 
 def test_huggingface():
     """
@@ -252,9 +252,11 @@ def test_huggingface():
         class_name="LangChainModelServer",
         llm="HuggingFacePipeline",
         init_method="from_model_id",
-        init_kwargs={"model_id": model_id,
-                     "task": "text-generation",
-                     "pipeline_kwargs": {"max_new_tokens": 10}},
+        init_kwargs={
+            "model_id": model_id,
+            "task": "text-generation",
+            "pipeline_kwargs": {"max_new_tokens": 10},
+        },
         model_path=".",
     )
     server2 = serving_func2.to_mock_server()
@@ -270,11 +272,16 @@ def test_huggingface():
             {
                 "inputs": ["How far is the moon"],
                 "usage": "invoke",
-                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+                "generation_kwargs": {
+                    "return_full_text": False,
+                    "temperature": 0.0000000001,
+                },
             },
         )
 
-        assert invoke_result1 and len(invoke_result1["outputs"].lstrip().split(" ")) <= 10
+        assert (
+            invoke_result1 and len(invoke_result1["outputs"].lstrip().split(" ")) <= 10
+        )
         print("huggingface successful invoke invoke_result", invoke_result1)
         invoke_result3 = ser.test(
             "/v2/models/huggingface-langchain-model/predict",
@@ -282,14 +289,22 @@ def test_huggingface():
                 "inputs": ["How far is the moon"],
                 "stop": "<eos>",
                 "usage": "invoke",
-                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+                "generation_kwargs": {
+                    "return_full_text": False,
+                    "temperature": 0.0000000001,
+                },
             },
         )
-        assert invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
+        assert (
+            invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
+        )
         print("huggingface successful invoke invoke_result", invoke_result3)
         batch_result1 = ser.test(
             "/v2/models/huggingface-langchain-model/predict",
-            {"inputs": ["How far is the moon", "How far is the moon"], "usage": "batch"},
+            {
+                "inputs": ["How far is the moon", "How far is the moon"],
+                "usage": "batch",
+            },
         )
         assert batch_result1
         print("huggingface successful batch batch_result", batch_result1)
@@ -298,7 +313,10 @@ def test_huggingface():
             {
                 "inputs": ["How far is the moon", "How far is the moon"],
                 "usage": "batch",
-                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+                "generation_kwargs": {
+                    "return_full_text": False,
+                    "temperature": 0.0000000001,
+                },
             },
         )
         assert batch_result2

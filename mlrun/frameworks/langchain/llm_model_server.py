@@ -70,7 +70,7 @@ class LangChainModelServer(V2ModelServer):
         """
         super().__init__(name=name, context=context, model_path=model_path)
         self.llm = llm
-        self.init_method = init_method   # None=__init__
+        self.init_method = init_method  # None=__init__
         self.init_kwargs = init_kwargs or {}
         self.generation_kwargs = generation_kwargs or {}
 

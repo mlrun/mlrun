@@ -544,10 +544,11 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-            except mlrun.errors.MLRunInvalidArgumentError:
+            except mlrun.errors.MLRunInvalidArgumentError as e:
                 logger.warning(
                     "Failed to delete TSDB resources, you may need to delete them manually",
                     project=project_name,
+                    error=mlrun.errors.err_to_str(e),
                 )
                 tsdb_connector = None
             except mlrun.errors.MLRunInvalidMMStoreType:
@@ -616,11 +617,19 @@ class ModelEndpoints:
             mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM
         )
 
-        server.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
-            project=project_name,
-            function_names=model_monitoring_applications,
-            access_key=model_monitoring_access_key,
-        )
+        try:
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
+                project=project_name,
+                function_names=model_monitoring_applications,
+                access_key=model_monitoring_access_key,
+            )
+        except mlrun.errors.MLRunInvalidArgumentError as e:
+            logger.warning(
+                "Can't delete stream resources, you may need to delete them manually",
+                project_name=project_name,
+                function=model_monitoring_applications,
+                error=mlrun.errors.err_to_str(e),
+            )
 
     @staticmethod
     def _validate_length_features_and_labels(

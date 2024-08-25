@@ -895,11 +895,12 @@ class MonitoringDeployment:
                     function_names=[function_name],
                     access_key=access_key,
                 )
-            except mlrun.errors.MLRunInvalidArgumentError:
+            except mlrun.errors.MLRunInvalidArgumentError as e:
                 logger.warning(
                     "Can't delete stream resources, you may need to delete them manually",
                     project_name=project,
                     function=function_name,
+                    error=mlrun.errors.err_to_str(e),
                 )
 
     @staticmethod

@@ -544,7 +544,7 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-            except mlrun.errors.MLRunInvalidArgumentError as e:
+            except mlrun.errors.MLRunTSDBConnectionFailure as e:
                 logger.warning(
                     "Failed to delete TSDB resources, you may need to delete them manually",
                     project=project_name,
@@ -623,9 +623,9 @@ class ModelEndpoints:
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
             )
-        except mlrun.errors.MLRunInvalidArgumentError as e:
+        except mlrun.errors.MLRunStreamConnectionFailure as e:
             logger.warning(
-                "Can't delete stream resources, you may need to delete them manually",
+                "Failed to delete stream resources, you may need to delete them manually",
                 project_name=project_name,
                 function=model_monitoring_applications,
                 error=mlrun.errors.err_to_str(e),

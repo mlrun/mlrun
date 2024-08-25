@@ -895,9 +895,9 @@ class MonitoringDeployment:
                     function_names=[function_name],
                     access_key=access_key,
                 )
-            except mlrun.errors.MLRunInvalidArgumentError as e:
+            except mlrun.errors.MLRunStreamConnectionFailure as e:
                 logger.warning(
-                    "Can't delete stream resources, you may need to delete them manually",
+                    "Failed to delete stream resources, you may need to delete them manually",
                     project_name=project,
                     function=function_name,
                     error=mlrun.errors.err_to_str(e),
@@ -971,7 +971,7 @@ class MonitoringDeployment:
                     logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:
                     logger.warning(
-                        "Can't delete v3io stream",
+                        "Failed to delete v3io stream",
                         stream_path=stream_path,
                         error=mlrun.errors.err_to_str(e),
                     )
@@ -998,7 +998,7 @@ class MonitoringDeployment:
                 logger.debug("Deleted kafka topics", topics=topics)
             except kafka.errors.TopicAuthorizationFailedError as e:
                 logger.warning(
-                    "Can't delete kafka topics",
+                    "Failed to delete kafka topics",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
                 )
@@ -1009,9 +1009,9 @@ class MonitoringDeployment:
                     error=mlrun.errors.err_to_str(e),
                 )
             except kafka.errors.NoBrokersAvailable as e:
-                # Raise an error that will be caught by the called and skip the deletion of the stream
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Can't delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
+                # Raise an error that will be caught by the caller and skip the deletion of the stream
+                raise mlrun.errors.MLRunStreamConnectionFailure(
+                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
                 )
         else:
             logger.warning(

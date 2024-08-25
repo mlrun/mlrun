@@ -61,7 +61,7 @@ class TDEngineConnector(TSDBConnector):
         try:
             conn.execute(f"USE {self.database}")
         except taosws.QueryError as e:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunTSDBConnectionFailure(
                 f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
             )
         return conn

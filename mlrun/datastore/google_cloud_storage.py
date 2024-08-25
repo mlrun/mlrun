@@ -34,9 +34,9 @@ class GoogleCloudStorageStore(DataStore):
     chunk_size = 32 * 1024 * 1024
 
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._storage_client = None
         self._storage_options = None
-        super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
     @property
     def storage_client(self):

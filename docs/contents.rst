@@ -45,7 +45,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
-   concepts/alerts
+   concepts/alerts-notifications
      
 .. toctree::
    :maxdepth: 1

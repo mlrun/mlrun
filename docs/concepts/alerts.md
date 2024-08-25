@@ -42,7 +42,6 @@ The SDK supports these alert operations:
 - {py:func}`~mlrun.projects.MlrunProject.list_alert_templates` &mdash; Retrieve the list of all alert templates.
 - {py:func}`~mlrun.projects.MlrunProject.list_alerts_configs` &mdash; Retrieve the list of alerts of a project.
 
-This example demonstrates configuring a Slack notification for a job failure alert:
 ## Predefined events (`EventKind`)
 The predefined event types are:
 - `data_drift_detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
@@ -60,15 +59,16 @@ The predefined event types are:
 See {ref}`monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
-When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any one from the predefined events above.
-You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.).. If not specified, it uses the default.
+When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
+You can optionally specify the frequency of the alert through the criteria field in the configuration (how many times in what time window, etc.). 
+If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
 
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 
 ```python
-# define the slack notification object
+# Define the slack notification object
 notification = mlrun.model.Notification(
     kind="slack",
     name="slack_notification",
@@ -79,18 +79,18 @@ notification = mlrun.model.Notification(
 
 endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
 endpoint_id = endpoints[0].metadata.uid
-# generate a unique ID for the EventEntity
+# Generate a unique ID for the EventEntity
 result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
-# construct a list of notifications to be included in the alert config
+# Construct a list of notifications to be included in the alert config
 notifications = [alert_objects.AlertNotification(notification=notification)]
 alert_name = "drift_alert"
-# the summary that we will see in the notification once it is invoked
+# The summary you will see in the notification once it is invoked
 alert_summary = "A drift was detected"
-# for model monitoring alerts we will choose the MODEL_ENDPOINT_RESULT
+# Choose the MODEL_ENDPOINT_RESULT for the model monitoring alert
 entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
-# the event the we want the alert to be triggered on
+# The event that will trigger the alert
 event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
-# create the alert data to be passed to the store_alert_config function
+# Create the alert data to be passed to the store_alert_config function
 alert_data = mlrun.alerts.alert.AlertConfig(
     project=project_name,
     name=alert_name,
@@ -103,12 +103,14 @@ alert_data = mlrun.alerts.alert.AlertConfig(
     notifications=notifications,
 )
 
-# and finally store the alert config in the project
+# And finally store the alert config in the project
 project.store_alert_config(alert_data)
 ```
 
 
-This example illustrates creating an alert with a Slack notification for a job failure, with a defined criteria, which means that the alert will be triggered once this job fails for 3 times in the next 10 minutes:
+This example illustrates creating an alert with a Slack notification for a job failure with defined criteria.
+This alert gets triggered if the job fails 3 times in a 10 minute period.
+
 ```python
 notification = mlrun.model.Notification(
     kind="slack",
@@ -122,7 +124,7 @@ alert_name = "failure_alert"
 alert_summary = "Running a job has failed"
 entity_kind = alert_objects.EventEntityKind.JOB
 event_name = alert_objects.EventKind.FAILED
-# the job's run id that we want to track
+# The job's run id that will be tracked
 run_id = "run-id"
 alert_data = mlrun.alerts.alert.AlertConfig(
     project=project_name,
@@ -133,7 +135,7 @@ alert_data = mlrun.alerts.alert.AlertConfig(
         kind=entity_kind, project=project_name, ids=[run_id]
     ),
     trigger=alert_objects.AlertTrigger(events=[event_name]),
-    criteria=alert_objects.AlertCriteria(period="10m", count=3)
+    criteria=alert_objects.AlertCriteria(period="10m", count=3),
     notifications=notifications,
 )
 project.store_alert_config(alert_data)
@@ -170,7 +172,7 @@ You can customize one or more of these fields when creating an alert from a temp
 
 See the {py:meth}`AlertTemplate parameters<mlrun.common.schemas.alert.AlertTemplate>`.
 
-This example illustrates a Slack notification for a job failure alert, using the predefined system template "JobFailed":
+This example illustrates a Slack notification for a job failure alert, using the predefined system template `JobFailed`:
 
 ```python
 job_fail_template = project.get_alert_template("JobFailed")

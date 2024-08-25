@@ -281,7 +281,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
     def test_snowflake_target_to_dataframe(self):
         if self.run_local:
-            pytest.skip("test_snowflake_target_to_dataframe run in remote run only")
+            pytest.skip("local run is not supported")
 
         number_of_rows = 10
         result_table = f"result_{self.current_time}"

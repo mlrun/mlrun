@@ -208,8 +208,9 @@ class GoogleCloudStorageStore(DataStore):
 
     def rm(self, path, recursive=False, maxdepth=None):
         path = self._make_path(path)
-        if self.filesystem.exists(path):
-            self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        # in order to raise an error in case of a connection error (ML-7056)
+        self.filesystem.exists(path)
+        super().rm(path, recursive=recursive, maxdepth=maxdepth)
 
     def get_spark_options(self):
         res = {}

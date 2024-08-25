@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import requests
 
 from mlrun.genai.config import config, logger
-from mlrun.genai.schemas import ChatSession
+from mlrun.genai.schemas import ChatSession, Project, Workflow
 from mlrun.utils.helpers import dict_to_json
 
 
@@ -112,6 +114,47 @@ class Client:
             method="PUT",
         )
         return response["success"]
+
+    def get_project(self, project_name: str):
+        response = self.post_request(f"projects/{project_name}")
+        return Project(**response["data"])
+
+    def create_workflow(self, project_name: str, workflow: Union[Workflow, dict]):
+        project_id = client.get_project(project_name=project_name).uid
+        if isinstance(workflow, dict):
+            workflow["project_id"] = project_id
+            graph = workflow.pop("graph", None)
+            workflow = Workflow(**workflow)
+            workflow.add_graph(graph)
+        response = self.post_request(
+            f"projects/{project_name}/workflows", method="POST", data=workflow.to_dict()
+        )
+        return Workflow(**response["data"])
+
+    def get_workflow(
+        self, project_name: str, workflow_name: str = None, workflow_id: str = None
+    ):
+        if workflow_id:
+            response = self.post_request(
+                f"projects/{project_name}/workflows/{workflow_id}"
+            )["data"]
+        else:
+            response = self.post_request(
+                f"projects/{project_name}/workflows", params={"name": workflow_name}
+            )
+            if not response["data"]:
+                return None
+            response = response["data"][0]
+        return Workflow(**response)
+
+    def update_workflow(self, project_name: str, workflow: Workflow):
+        print(workflow.to_dict())
+        response = self.post_request(
+            f"projects/{project_name}/workflows/{workflow.uid}",
+            data=workflow.to_dict(),
+            method="PUT",
+        )
+        return Workflow(**response["data"])
 
 
 client = Client(base_url=config.api_url)

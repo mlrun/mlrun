@@ -14,6 +14,7 @@
 
 import mlrun
 from mlrun import serving
+from mlrun.genai.client import client
 from mlrun.genai.config import config as default_config
 from mlrun.genai.schemas import APIDictResponse
 from mlrun.genai.sessions import get_session_store
@@ -24,32 +25,81 @@ class AppServer:
     def __init__(self, config=None, verbose=False):
         self._config = config or default_config
         self._session_store = get_session_store(self._config)
-        self._pipelines = {}
+        self._workflows = {}
         self.verbose = verbose
 
     def set_config(self, config):
         self._config = config
         self._session_store = get_session_store(self._config)
-        for pipeline in self._pipelines.values():
-            pipeline._server = None
+        for workflow in self._workflows.values():
+            workflow._server = None
 
-    def add_pipeline(self, name, graph):
-        pipeline = AppPipeline(self, name, graph)
-        self._pipelines[name] = pipeline
-        return pipeline
+    def add_workflow(
+        self,
+        project_name: str,
+        name: str,
+        graph: list = None,
+        deployment: str = None,
+        update: bool = False,
+        workflow_type: str = None,
+        username: str = None,
+    ):
+        # Check if workflow already exists:
+        if name in self._workflows:
+            raise ValueError(f"workflow {name} already exists")
+        workflow = client.get_workflow(project_name=project_name, workflow_name=name)
+        if workflow:
+            if not update:
+                raise ValueError(
+                    f"workflow {name} already exists, to update set update=True"
+                )
+            else:
+                # Update workflow:
+                if graph:
+                    workflow.add_graph(graph)
+                if deployment:
+                    workflow.deployment = deployment
+                workflow = client.update_workflow(
+                    project_name=project_name, workflow=workflow
+                )
+        else:
+            # Workflow does not exist, create it:
+            owner_id = client.get_user(username=username)["uid"]
+            workflow = {
+                "name": name,
+                "deployment": deployment,
+                "graph": graph,
+                "workflow_type": workflow_type,
+                "owner_id": owner_id,
+            }
+            # Add workflow to database:
+            workflow = client.create_workflow(
+                project_name=project_name,
+                workflow=workflow,
+            )
+        # Add workflow to app server:
+        self._workflows[name] = {
+            "uid": workflow.uid,
+            "project_name": project_name,
+        }
+        return workflow
 
-    def add_pipelines(self, pipelines: dict):
-        for name, graph in pipelines.items():
-            self.add_pipeline(name, graph)
+    def add_workflows(self, project_name: str, workflows: dict):
+        for name, workflow in workflows.items():
+            self.add_workflow(project_name=project_name, **workflow)
 
-    def get_pipeline(self, name):
-        return self._pipelines.get(name)
+    def get_workflow(self, name):
+        workflow = self._workflows.get(name)
+        uid = workflow.get("uid")
+        project_name = workflow.get("project_name")
+        return client.get_workflow(project_name=project_name, workflow_id=uid)
 
-    def run_pipeline(self, name, event):
-        pipeline = self.get_pipeline(name)
-        if not pipeline:
-            raise ValueError(f"pipeline {name} not found")
-        return pipeline.run(event)
+    def run_workflow(self, name, event):
+        workflow = self.get_workflow(name)
+        if not workflow:
+            raise ValueError(f"workflow {name} not found")
+        app_workflow = AppWorkflow(self, name=workflow.name, graph=workflow.graph)
+        return app_workflow.run(event)
 
     def api_startup(self):
         print("\nstartup event\n")
@@ -80,11 +130,11 @@ class AppServer:
 
 app_server = AppServer()
 
-# pipelines cache
-pipelines = {}
+# workflows cache
+workflows = {}
 
 
-class AppPipeline:
+class AppWorkflow:
     def __init__(self, parent, name=None, graph=None):
         self.name = name or ""
         self._parent = parent

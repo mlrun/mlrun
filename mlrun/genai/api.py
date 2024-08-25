@@ -111,6 +111,6 @@ async def infer_workflow(
         "query": item.question,
         "workflow_id": workflow.uid,
     }
-    resp = app_server.run_pipeline(name, event)
+    resp = app_server.run_workflow(name, event)
     print(f"resp: {resp}")
     return resp

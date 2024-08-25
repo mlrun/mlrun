@@ -316,7 +316,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
         run_config = fstore.RunConfig(
-            local=self.run_local, kind=None if self.run_local else "remote-spark"
+            local=self.run_local, kind="remote-spark"
         )
 
         get_offline_table = f"get_offline_table_{self.current_time}"
@@ -331,7 +331,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             with_indexes=True,
             spark_service=self.spark_service,
             run_config=run_config,
-            target=None if self.run_local else target,
+            target=target,
         )
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,

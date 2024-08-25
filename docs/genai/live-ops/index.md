@@ -1,8 +1,6 @@
 (genai-live-ops)=
 # LiveOps 	
 
-See also{ref}`model-monitoring-overview`.
-
 **In this section**
 
 ```{toctree}
@@ -10,3 +8,7 @@ See also{ref}`model-monitoring-overview`.
 
 monitoring-llm
 ```
+
+**See also:**
+- {ref}`model-monitoring-overview`
+- {ref}`realtime-monitor-drift-tutor`

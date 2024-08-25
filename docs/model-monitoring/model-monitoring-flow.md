@@ -5,10 +5,6 @@ This page gives an overview of the model monitoring user flow. See complete exam
 - [Model monitoring and drift detection](../tutorials/05-model-monitoring.html)
 - [Model monitoring with a user-app](../tutorials/genai_02_model_monitor_user_app.html)
 
-```{admonition} Note
-If you are using the CE version, see {ref}`legacy-model-monitoring`.
-```
-
 In this section:
 - [APIs](#apis)
 - [Enable model monitoring](#enable-model-monitoring)
@@ -20,9 +16,6 @@ In this section:
 - [Invoke the model again](#invoke-the-model-again)
 - [View model monitoring artifacts and drift in Grafana](#view-model-monitoring-artifacts-and-drift-in-grafana)
 - [Batch infer model-monitoring](#batch-infer-model-monitoring)
-
-
-
 
 ## APIs
 
@@ -53,14 +46,14 @@ project.enable_model_monitoring(base_period=20)
 ## Log the model with training data
 
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. 
-This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
+{Download the pickle file}`pickle file <../tutorials/src/model.pkl>` used in this example.
 
 
 ```python
 model_name = "RandomForestClassifier"
 project.log_model(
     model_name,
-    model_file="./assets/model.pkl",
+    model_file="model.pkl",
     training_set=train_set,
     framework="sklearn",
 )
@@ -127,11 +120,11 @@ The next step is to deploy the model-monitoring job to generate the full meta da
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
 
-First download the {download}`demo_app <../tutorials/_static/demo_app.py>`.
+First download the {download}`demo_app <../tutorials/src/demo_app.py>`.
 
 ```
 my_app = project.set_model_monitoring_function(
-    func="./assets/demo_app.py",
+    func="demo_app.py",
     application_class="DemoMonitoringApp",
     name="myApp",
 )

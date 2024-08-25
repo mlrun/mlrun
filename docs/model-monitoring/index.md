@@ -1,10 +1,18 @@
 (model-monitoring-des)=
 # Model monitoring description
 
+**In this section**
+- [Architecture](#architecture)
+- [Model and model monitoring endpoints](#model-and-model-monitoring-endpoints)
+- [Streaming platforms and credentials](#streaming-platforms-and-credentials)
+- [Model monitoring applications](#model-monitoring-applications)
+- [Multi-port predictions](#multi-port-predictions)
+- [Batch inputs](#batch-inputs)
+- [Alerts and notifications](#alerts-and-notifications)
 
 ## Architecture
 
-<img src="../_static/images/model-monitoring.png" width="1100" >
+<img src="../_static/images/model-monitoring.png" width="900" >
 
 </br>
 </br>
@@ -22,9 +30,21 @@ the monitoring controller at each `base_period` interval.
 The stream function examines the log entry, processes it into statistics which are then written to the statistics databases 
 (parquet file, time series database and key value database). 
 The monitoring stream function writes the Parquet files using a basic storey ParquetTarget. Additionally, there is a monitoring feature set that refers 
-to the same target. You can use `get_offline_features` to read the data from that feature set. 
+to the same target. 
 
-Read also how {ref}`model monitoring supports the gen AI model server<genai-mmonitor>`.
+## Model and model monitoring endpoints 
+
+For each model that is served in a model serving function, there is a model endpoint. The model endpoint is associated 
+with a feature set that manages the model endpoint statistics. See {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
+
+All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
+The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
+Metrics are grouped under their applications. After you select the metrics and the timeframe, you get a histogram showing the number of occurrences/values range, and a timeline 
+graph of the metric and the threshold. Any alerts are shown in the upper-right corner of the metrics box. 
+
+For example:
+
+<img src="../_static/images/mm_metrics.png" width="700" >
 
 ## Streaming platforms and credentials
 
@@ -40,34 +60,45 @@ tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.).
 * Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
 You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
+MLRun includes a built-in class, `EvidentlyModelMonitoringApplicationBase`, to integrate [Evidently](https://github.com/evidentlyai/evidently) 
+as an MLRun function and create MLRun artifacts. See an example in {ref}`realtime-monitor-drift-tutor`. 
 
 Projects are used to group functions that use the same model monitoring application. You first need to create a project for aspecific application. 
 Then you disable the default app, enable your customer app, and create and run the functions. 
 
-The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. See:
-- User flow example **in ??????**.
-- Custom apps in **?????**.
+The basic flow for classic ML and other models is the same, but the apps and the infer requests are different. See {ref}`model-monitoring`.
 
+## Multi-port predictions
 
+Multi-port predictions involve generating multiple outputs or predictions at the same time from a single model or system. 
+Each "port" can be thought of as a separate output channel that provides a distinct prediction or piece of information. 
+This capability is particularly useful in scenarios where multiple related predictions are needed simultaneously. 
+Multi-port predictions increase efficiently, reducing the time and computational resources required. 
+And, multi-port predictions provide a more holistic view of the data, enabling better decision-making and more accurate forecasting. 
+For example, in a gen AI model, one port gives a response on prompts, one is for meta data, and the third for images.
 
+Multi-port predictions can be applied in several ways:
+- Multi-task learning &mdash; A single model is trained to perform multiple tasks simultaneously, such as predicting different attributes of 
+an object. For example, a model could predict both the age and gender of a person from a single image.
+- Ensemble methods &mdash; Multiple models are combined to make predictions, and each model's output can be considered a separate port. 
+The final prediction is often an aggregation of these individual outputs.
+- Time series forecasting &mdash; In time series analysis, multi-port predictions can be used to forecast multiple future time points 
+simultaneously, providing a more comprehensive view of future trends.
 
+## Batch inputs
 
+Processing data in batches allows for parallel computation, significantly speeding up the training and inference processes. This is especially 
+important for large-scale models that require substantial computational resources. Batch inputs are used with CPUs and GPUs. For gen AI models, 
+batch input is typically a list of prompts. For classic ML models, batch input is a list of features.
 
-## Model and model monitoring endpoints 
-
-Each unique combination of serving function (a deployed Nuclio function) and each model in the model serving function
-has a corresponding {py:meth}`model endpoint <mlrun.model_monitoring.api.get_or_create_model_endpoint>`.
-The model endpoint is related to a feature set that manages the model endpoint statistics.
-
-All model monitoring endpoints are presented in the UI with information about the actual inference, including data on the inputs, outputs, and results.
-The Model Endpoints tab presents the overall metrics. From there you can select an endpoint and view the Overview, Features Analysis, and the Metrics tabs. 
-Metrics are grouped under their applications. After you select the metrics and the timeframe, you get a histogram showing the number of occurrences/values range, and a timeline 
-graph of the metric and the threshold. Any alerts are shown in the upper-right corner of the metrics box. 
-
-For example:
-
-<img src="../_static/images/mm_metrics.png" width="700" >
-
+Batch input that looks like: </br>
+```[[1,2,3], [5,2,9]]```</br>
+would give output like:</br>
+```[11, 0.6], [0, 0.87```</br>
+Batch input that looks like: </br>
+```[[1,2,3, "jhk",], [5,2,9, "tsc"]]```</br>
+would give output like:</br>
+```[11, 8.6], [0, 0.87]```
 
 ## Alerts and notifications
 

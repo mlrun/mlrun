@@ -19,7 +19,7 @@ It's important to keep your design flexible. New solutions come out all the time
 may find a better one in the near future.
 
 A typical scenario may utilize multiple models over an entire flow. The simpler models (evaluating input for toxicity) 
-probably do not need an LLM, whereas the main model does require an LLM. understand your various models so that you can 
+probably do not need an LLM, whereas the main model does require an LLM. Make sure you understand your various models so that you can 
 apportion your resources appropriately. (See {ref}`mlops-dev-flow` for more details about non-LLM models.)
 
 

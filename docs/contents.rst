@@ -31,8 +31,7 @@ Table of Contents
    development/index
    deployment/index
    projects/ci-cd-automate
-   model-monitoring/legacy-mm
-   
+     
    
    
 .. toctree::

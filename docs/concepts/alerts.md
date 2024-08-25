@@ -42,7 +42,7 @@ The SDK supports these alert operations:
 - {py:func}`~mlrun.projects.MlrunProject.list_alert_templates` &mdash; Retrieve the list of all alert templates.
 - {py:func}`~mlrun.projects.MlrunProject.list_alerts_configs` &mdash; Retrieve the list of alerts of a project.
 
-
+This example demonstrates configuring a Slack notification for a job failure alert:
 ## Predefined events (`EventKind`)
 The predefined event types are:
 - `data_drift_detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 

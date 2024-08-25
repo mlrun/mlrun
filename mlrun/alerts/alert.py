@@ -138,8 +138,8 @@ class AlertConfig(ModelObj):
             self._apply_template(template)
 
     def validate_required_fields(self):
-        if not self.project or not self.name:
-            raise mlrun.errors.MLRunBadRequestError("Project and name must be provided")
+        if not self.name:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False

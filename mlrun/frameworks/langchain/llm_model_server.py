@@ -50,6 +50,7 @@ class LangChainModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx = None,
         llm: Union[str, LLM] = None,
+        init_method: str = None,
         init_kwargs: Dict[str, Any] = None,
         generation_kwargs: Dict[str, Any] = None,
         name: str = None,
@@ -60,6 +61,7 @@ class LangChainModelServer(V2ModelServer):
         Initialize a serving class for general llm usage.
         :param context:           The mlrun context to use.
         :param llm:               The llm object itself in case of local usage or the name of the llm.
+        :param init_method:       The initialization method to use while initializing the llm, default is __init__.
         :param init_kwargs:       The initialization arguments to use while initializing the llm.
         :param generation_kwargs: The generation arguments to use while generating text.
         :param name:              The name of this server to be initialized.
@@ -68,6 +70,7 @@ class LangChainModelServer(V2ModelServer):
         """
         super().__init__(name=name, context=context, model_path=model_path)
         self.llm = llm
+        self.init_method = init_method   # None=__init__
         self.init_kwargs = init_kwargs or {}
         self.generation_kwargs = generation_kwargs or {}
 
@@ -81,7 +84,11 @@ class LangChainModelServer(V2ModelServer):
             self.model = self.llm
             return
         # If the llm is a string (or not given, then we take default model), load the llm from langchain.
-        self.model = getattr(langchain_community.llms, self.llm)(**self.init_kwargs)
+        model_class = getattr(langchain_community.llms, self.llm)
+        if self.init_method:
+            self.model = getattr(model_class, self.init_method)(**self.init_kwargs)
+        else:
+            self.model = model_class(**self.init_kwargs)
 
     def predict(
         self,

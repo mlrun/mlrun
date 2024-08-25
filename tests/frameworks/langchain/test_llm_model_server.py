@@ -31,7 +31,7 @@ langchain_model_server_path = str(
 _OLLAMA_DELETE_MODEL_POST_TEST = False
 _OLLAMA_MODEL = "qwen:0.5b"
 _OPENAI_MODEL = "gpt-3.5-turbo-instruct"
-_HUGGINGFACE_MODEL = "gpt2"
+_HUGGINGFACE_MODEL = "Qwen/Qwen2-0.5B-Instruct"
 
 
 # To run this test, you need to:
@@ -93,20 +93,20 @@ def test_ollama(ollama_fixture):
     )
     server = serving_func.to_mock_server()
     predict_result = server.test(
-        "/v2/models/ollama-langchain-model/predict", {"inputs": ["how old are you?"]}
+        "/v2/models/ollama-langchain-model/predict", {"inputs": ["How far is the moon"]}
     )
     assert predict_result
     print("ollama predict successful predict_result", predict_result)
     invoke_result = server.test(
         "/v2/models/ollama-langchain-model/predict",
-        {"inputs": ["how old are you?"], "usage": "invoke"},
+        {"inputs": ["How far is the moon"], "usage": "invoke"},
     )
     assert invoke_result
     print("ollama invoke successful invoke_result", invoke_result)
     invoke_result_params = server.test(
         "/v2/models/ollama-langchain-model/predict",
         {
-            "inputs": ["how old are you?"],
+            "inputs": ["How far is the moon"],
             "stop": ["<eos>"],
             "generation_kwargs": {"num_predict": 10, "temperature": 0.000001},
             "usage": "invoke",
@@ -117,14 +117,14 @@ def test_ollama(ollama_fixture):
     print("ollama invoke with params successful result", invoke_result_params)
     batch_result = server.test(
         "/v2/models/ollama-langchain-model/predict",
-        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
+        {"inputs": ["How far is the moon", "How far is the moon"], "usage": "batch"},
     )
     assert batch_result
     print("ollama batch successful batch_result", batch_result)
     batch_result_params = server.test(
         "/v2/models/ollama-langchain-model/predict",
         {
-            "inputs": ["how old are you?", "how old are you?"],
+            "inputs": ["How far is the moon", "How far is the moon"],
             "generation_kwargs": {"num_predict": 10},
             "usage": "batch",
         },
@@ -166,20 +166,20 @@ def test_openai():
     server = serving_func.to_mock_server()
     predict_result = server.test(
         "/v2/models/openai-langchain-model/predict",
-        {"inputs": ["how old are you?"], "usage": "invoke"},
+        {"inputs": ["How far is the moon"], "usage": "invoke"},
     )
     assert predict_result
     print("openai predict successful predict_result", predict_result)
     invoke_result = server.test(
         "/v2/models/openai-langchain-model/predict",
-        {"inputs": ["how old are you?"], "usage": "invoke"},
+        {"inputs": ["How far is the moon"], "usage": "invoke"},
     )
     assert invoke_result
     print("openai invoke successful invoke_result", invoke_result)
     invoke_result_params = server.test(
         "/v2/models/openai-langchain-model/predict",
         {
-            "inputs": ["how old are you?"],
+            "inputs": ["How far is the moon"],
             "generation_kwargs": {"max_tokens": 10},
             "usage": "invoke",
         },
@@ -189,14 +189,14 @@ def test_openai():
     )
     batch_result = server.test(
         "/v2/models/openai-langchain-model/predict",
-        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
+        {"inputs": ["How far is the moon", "How far is the moon"], "usage": "batch"},
     )
     assert batch_result
     print("openai batch successful batch_result", batch_result)
     batch_result_params = server.test(
         "/v2/models/openai-langchain-model/predict",
         {
-            "inputs": ["how old are you?", "how old are you?"],
+            "inputs": ["How far is the moon", "How far is the moon"],
             "generation_kwargs": {"max_tokens": 10},
             "usage": "batch",
         },
@@ -206,6 +206,9 @@ def test_openai():
         assert len(result.split(" ")) <= 10
     print("openai batch with params successful batch_result", batch_result_params)
 
+
+
+os.environ["HUGGINGFACE_API_KEY"] = "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"
 
 def test_huggingface():
     """
@@ -237,49 +240,68 @@ def test_huggingface():
         model_path=".",
     )
     server = serving_func.to_mock_server()
-    predict_result = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {"inputs": ["how old are you?"]},
-    )
-    assert predict_result
-    print("huggingface successful predict predict_result", predict_result)
-    invoke_result1 = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {
-            "inputs": ["how old are you?"],
-            "usage": "invoke",
-            "generation_kwargs": {"return_full_text": False},
-        },
-    )
 
-    assert invoke_result1 and len(invoke_result1["outputs"].lstrip().split(" ")) <= 10
-    print("huggingface successful invoke invoke_result", invoke_result1)
-    invoke_result3 = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {
-            "inputs": ["how old are you?"],
-            "stop": "<eos>",
-            "usage": "invoke",
-            "generation_kwargs": {"return_full_text": False},
-        },
+    serving_func2 = project.set_function(
+        func=langchain_model_server_path,
+        name="huggingface-langchain-model-server2",
+        kind="serving",
+        image="mlrun/mlrun",
     )
-    assert invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
-    print("huggingface successful invoke invoke_result", invoke_result3)
-    batch_result1 = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {"inputs": ["how old are you?", "how old are you?"], "usage": "batch"},
+    serving_func2.add_model(
+        "huggingface-langchain-model",
+        class_name="LangChainModelServer",
+        llm="HuggingFacePipeline",
+        init_method="from_model_id",
+        init_kwargs={"model_id": model_id,
+                     "task": "text-generation",
+                     "pipeline_kwargs": {"max_new_tokens": 10}},
+        model_path=".",
     )
-    assert batch_result1
-    print("huggingface successful batch batch_result", batch_result1)
-    batch_result2 = server.test(
-        "/v2/models/huggingface-langchain-model/predict",
-        {
-            "inputs": ["how old are you?", "how old are you?"],
-            "usage": "batch",
-            "generation_kwargs": {"return_full_text": False},
-        },
-    )
-    assert batch_result2
-    for result in batch_result2["outputs"]:
-        assert len(result.lstrip().split(" ")) <= 10
-    print("huggingface successful batch batch_result", batch_result2)
+    server2 = serving_func2.to_mock_server()
+    for ser in [server, server2]:
+        predict_result = ser.test(
+            "/v2/models/huggingface-langchain-model/predict",
+            {"inputs": ["How far is the moon"]},
+        )
+        assert predict_result
+        print("huggingface successful predict predict_result", predict_result)
+        invoke_result1 = ser.test(
+            "/v2/models/huggingface-langchain-model/predict",
+            {
+                "inputs": ["How far is the moon"],
+                "usage": "invoke",
+                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+            },
+        )
+
+        assert invoke_result1 and len(invoke_result1["outputs"].lstrip().split(" ")) <= 10
+        print("huggingface successful invoke invoke_result", invoke_result1)
+        invoke_result3 = ser.test(
+            "/v2/models/huggingface-langchain-model/predict",
+            {
+                "inputs": ["How far is the moon"],
+                "stop": "<eos>",
+                "usage": "invoke",
+                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+            },
+        )
+        assert invoke_result3 and len(invoke_result3["outputs"].lstrip().split(" ")) <= 10
+        print("huggingface successful invoke invoke_result", invoke_result3)
+        batch_result1 = ser.test(
+            "/v2/models/huggingface-langchain-model/predict",
+            {"inputs": ["How far is the moon", "How far is the moon"], "usage": "batch"},
+        )
+        assert batch_result1
+        print("huggingface successful batch batch_result", batch_result1)
+        batch_result2 = ser.test(
+            "/v2/models/huggingface-langchain-model/predict",
+            {
+                "inputs": ["How far is the moon", "How far is the moon"],
+                "usage": "batch",
+                "generation_kwargs": {"return_full_text": False, "temperature": 0.0000000001},
+            },
+        )
+        assert batch_result2
+        for result in batch_result2["outputs"]:
+            assert len(result.lstrip().split(" ")) <= 10
+        print("huggingface successful batch batch_result", batch_result2)

@@ -62,15 +62,4 @@ pre_defined_templates = [
         trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED]},
         reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
     ),
-    mlrun.common.schemas.AlertTemplate(
-        template_name="ModelMonitoringApplicationFailed",
-        template_description="Generic template for model monitoring application failure alerts",
-        system_generated=True,
-        summary="An invalid event has been detected in the model monitoring application",
-        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
-        trigger={
-            "events": [mlrun.common.schemas.alert.EventKind.MM_APP_FAILED]
-        },
-        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
-    ),
 ]

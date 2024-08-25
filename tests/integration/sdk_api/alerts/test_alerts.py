@@ -231,13 +231,10 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         ), "Templates are different"
 
         all_system_templates = project.list_alert_templates()
-        assert len(all_system_templates) == 4
+        assert len(all_system_templates) == 3
         assert all_system_templates[0].template_name == "JobFailed"
         assert all_system_templates[1].template_name == "DataDriftDetected"
         assert all_system_templates[2].template_name == "DataDriftSuspected"
-        assert (
-            all_system_templates[3].template_name == "ModelMonitoringApplicationFailed"
-        )
 
         # generate an alert from a template
         alert_name = "new_alert"

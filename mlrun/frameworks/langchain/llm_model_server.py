@@ -109,10 +109,6 @@ class LangChainModelServer(V2ModelServer):
         :param request:           The request to the model. The input to the model will be read from the "inputs" key.
         :return:                  The model's prediction on the given input.
         """
-        print("-"*50)
-        print("zeev")
-        print(f"Request: {request}")
-        print("-" * 50)
         inputs = request.get("inputs", [])
         usage = request.get("usage", "predict")
         generation_kwargs = (
@@ -121,17 +117,11 @@ class LangChainModelServer(V2ModelServer):
         if usage == "predict":
             return self.model.invoke(input=inputs[0], config=generation_kwargs)
         elif usage == "invoke":
-            print("-" * 50)
-            print("zeev")
-            print(f"usage: {usage}")
-            print(f"generation_kwargs: {generation_kwargs}")
             config = request.get("config", None)
             stop = request.get("stop", None)
-            ans =  self.model.invoke(
+            ans = self.model.invoke(
                 input=inputs[0], config=config, stop=stop, **generation_kwargs
             )
-            print("ans: ", ans)
-            print("-" * 50)
             return ans
         elif usage == "batch":
             config = request.get("config", None)

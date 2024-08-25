@@ -88,6 +88,7 @@ alert_name = "drift_alert"
 alert_summary = "A drift was detected"
 entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
 event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+# create the alert data to be passed to the store_alert_config function
 alert_data = mlrun.alerts.alert.AlertConfig(
     project=project_name,
     name=alert_name,

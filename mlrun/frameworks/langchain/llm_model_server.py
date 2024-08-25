@@ -125,12 +125,14 @@ class LangChainModelServer(V2ModelServer):
             print("zeev")
             print(f"usage: {usage}")
             print(f"generation_kwargs: {generation_kwargs}")
-            print("-" * 50)
             config = request.get("config", None)
             stop = request.get("stop", None)
-            return self.model.invoke(
+            ans =  self.model.invoke(
                 input=inputs[0], config=config, stop=stop, **generation_kwargs
             )
+            print("ans: ", ans)
+            print("-" * 50)
+            return ans
         elif usage == "batch":
             config = request.get("config", None)
             return_exceptions = request.get("return_exceptions", None)

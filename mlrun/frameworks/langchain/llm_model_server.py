@@ -121,6 +121,11 @@ class LangChainModelServer(V2ModelServer):
         if usage == "predict":
             return self.model.invoke(input=inputs[0], config=generation_kwargs)
         elif usage == "invoke":
+            print("-" * 50)
+            print("zeev")
+            print(f"usage: {usage}")
+            print(f"generation_kwargs: {generation_kwargs}")
+            print("-" * 50)
             config = request.get("config", None)
             stop = request.get("stop", None)
             return self.model.invoke(

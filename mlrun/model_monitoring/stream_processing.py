@@ -169,11 +169,40 @@ class EventStreamProcessor:
             mlrun.serving.states.RootFlowStep,
             fn.set_topology(mlrun.serving.states.StepKinds.flow),
         )
+        graph.add_step(
+            "ExtractEndpointID",
+            "extract_endpoint",
+            full_event=True,
+        )
+
+        # split the graph between event with error vs valid event
+        graph.add_step(
+            "storey.Filter",
+            "FilterError",
+            after="extract_endpoint",
+            _fn="(event.get('error') is None)",
+        )
+
+        graph.add_step(
+            "storey.Filter",
+            "ForwardError",
+            after="extract_endpoint",
+            _fn="(event.get('error') is not None)",
+        )
+
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+
+        tsdb_connector.handle_model_error(
+            graph,
+        )
 
         # Process endpoint event: splitting into sub-events and validate event data
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
+                after="FilterError",
                 full_event=True,
                 project=self.project,
             )
@@ -295,9 +324,6 @@ class EventStreamProcessor:
 
         apply_storey_sample_window()
 
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
-        )
         tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         # Parquet branch
@@ -386,6 +412,38 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         return e
 
 
+class ExtractEndpointID(mlrun.feature_store.steps.MapClass):
+    def __init__(self, **kwargs) -> None:
+        """
+        Generate the model endpoint ID based on the event parameters and attach it to the event.
+        """
+        super().__init__(**kwargs)
+
+    def do(self, full_event) -> typing.Union[storey.Event, None]:
+        # Getting model version and function uri from event
+        # and use them for retrieving the endpoint_id
+        function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
+        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
+            return None
+
+        model = full_event.body.get(EventFieldType.MODEL)
+        if not is_not_none(model, [EventFieldType.MODEL]):
+            return None
+
+        version = full_event.body.get(EventFieldType.VERSION)
+        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
+
+        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
+            function_uri=function_uri,
+            versioned_model=versioned_model,
+        )
+
+        endpoint_id = str(endpoint_id)
+        full_event.body[EventFieldType.ENDPOINT_ID] = endpoint_id
+        full_event.body[EventFieldType.VERSIONED_MODEL] = versioned_model
+        return full_event
+
+
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         """
@@ -459,28 +517,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
     def do(self, full_event):
         event = full_event.body
 
-        # Getting model version and function uri from event
-        # and use them for retrieving the endpoint_id
-        function_uri = event.get(EventFieldType.FUNCTION_URI)
-        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
-            return None
-
-        model = event.get(EventFieldType.MODEL)
-        if not is_not_none(model, [EventFieldType.MODEL]):
-            return None
-
-        version = event.get(EventFieldType.VERSION)
-        versioned_model = f"{model}:{version}" if version else f"{model}:latest"
-
-        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
-            function_uri=function_uri,
-            versioned_model=versioned_model,
-        )
-
-        endpoint_id = str(endpoint_id)
-
-        event[EventFieldType.VERSIONED_MODEL] = versioned_model
-        event[EventFieldType.ENDPOINT_ID] = endpoint_id
+        versioned_model = event[EventFieldType.VERSIONED_MODEL]
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        function_uri = event[EventFieldType.FUNCTION_URI]
 
         # In case this process fails, resume state from existing record
         self.resume_state(endpoint_id)
@@ -598,6 +637,9 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.PREDICTION: prediction,
                     EventFieldType.FIRST_REQUEST: self.first_request[endpoint_id],
                     EventFieldType.LAST_REQUEST: self.last_request[endpoint_id],
+                    EventFieldType.LAST_REQUEST_TIMESTAMP: mlrun.utils.enrich_datetime_with_tz_info(
+                        self.last_request[endpoint_id]
+                    ).timestamp(),
                     EventFieldType.ERROR_COUNT: self.error_count[endpoint_id],
                     EventFieldType.LABELS: event.get(EventFieldType.LABELS, {}),
                     EventFieldType.METRICS: event.get(EventFieldType.METRICS, {}),

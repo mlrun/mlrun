@@ -14,6 +14,7 @@
 
 import typing
 from datetime import datetime
+from typing import Union
 
 import pandas as pd
 import taosws
@@ -63,9 +64,15 @@ class TDEngineConnector(TSDBConnector):
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
-            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
+                self.database
+            ),
         }
 
     def create_tables(self):
@@ -108,10 +115,14 @@ class TDEngineConnector(TSDBConnector):
             subtable=table_name, values=event
         )
         self._connection.execute(create_table_query)
-        insert_table_query = table._insert_subtable_query(
-            subtable=table_name, values=event
+
+        insert_statement = table._insert_subtable_query(
+            self._connection,
+            subtable=table_name,
+            values=event,
         )
-        self._connection.execute(insert_table_query)
+        insert_statement.add_batch()
+        insert_statement.execute()
 
     def apply_monitoring_stream_steps(self, graph):
         """
@@ -155,6 +166,9 @@ class TDEngineConnector(TSDBConnector):
             name="TDEngineTarget",
             after="ProcessBeforeTDEngine",
         )
+
+    def handle_model_error(self, graph, **kwargs) -> None:
+        pass
 
     def delete_tsdb_resources(self):
         """
@@ -384,6 +398,54 @@ class TDEngineConnector(TSDBConnector):
                 )
             ),  # pyright: ignore[reportArgumentType]
         )
+
+    def get_last_request(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_drift_status(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "now-24h",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_metrics_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_results_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_error_count(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_avg_latency(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

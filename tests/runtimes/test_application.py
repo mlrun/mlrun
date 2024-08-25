@@ -40,6 +40,8 @@ def test_create_application_runtime():
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.spec.image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
+    assert fn.spec.min_replicas == 1
+    assert fn.spec.max_replicas == 1
     _assert_function_code(fn)
     _assert_function_handler(fn)
 

@@ -37,17 +37,12 @@ def parse_feature_string(feature):
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"feature {feature} must be {expected_message}"
         )
-    splitted = feature.split(feature_separator)
-    if len(splitted) > 2:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"feature {feature} must be {expected_message}, cannot have more than one '.'"
-        )
-    feature_set = splitted[0]
-    feature_name = splitted[1]
-    splitted = feature_name.split(" as ")
-    if len(splitted) > 1:
-        return feature_set.strip(), splitted[0].strip(), splitted[1].strip()
-    return feature_set.strip(), feature_name.strip(), None
+    feature_set, feature_name = feature.rsplit(feature_separator, 1)
+    feature_set = feature_set.strip()
+    split_result = feature_name.split(" as ", 1)
+    feature_name = split_result[0].strip()
+    alias = split_result[1].strip() if len(split_result) > 1 else None
+    return feature_set, feature_name, alias
 
 
 def parse_project_name_from_feature_string(feature):

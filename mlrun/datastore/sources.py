@@ -1185,35 +1185,39 @@ class KafkaSource(OnlineSource):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "brokers must be specified in the KafkaSource attributes"
             )
-        kafka_admin = KafkaAdminClient(
-            bootstrap_servers=brokers,
-            sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
-            sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
-            sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
-            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_service_name", "kafka"
-            ),
-            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
-                "sasl_kerberos_domain_name"
-            ),
-            sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
-        )
         topics = topics or self.attributes.get("topics")
         if not topics:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "topics must be specified in the KafkaSource attributes"
             )
-        new_topics = [
-            NewTopic(topic, num_partitions, replication_factor) for topic in topics
-        ]
-        kafka_admin.create_topics(new_topics)
-        kafka_admin.close()
-        logger.info(
-            "Kafka topics created successfully",
-            topics=topics,
-            num_partitions=num_partitions,
-            replication_factor=replication_factor,
-        )
+        try:
+            kafka_admin = KafkaAdminClient(
+                bootstrap_servers=brokers,
+                sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
+                sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
+                sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
+                sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
+                    "sasl_kerberos_service_name", "kafka"
+                ),
+                sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
+                    "sasl_kerberos_domain_name"
+                ),
+                sasl_oauth_token_provider=self.attributes.get("sasl", {}).get(
+                    "mechanism"
+                ),
+            )
+            new_topics = [
+                NewTopic(topic, num_partitions, replication_factor) for topic in topics
+            ]
+            kafka_admin.create_topics(new_topics)
+            logger.info(
+                "Kafka topics created successfully",
+                topics=topics,
+                num_partitions=num_partitions,
+                replication_factor=replication_factor,
+            )
+        finally:
+            kafka_admin.close()
 
 
 class SQLSource(BaseSourceDriver):

@@ -160,7 +160,15 @@ class GoogleCloudStorageStore(DataStore):
             self.filesystem.put_file(src_path, united_path, overwrite=True)
             return
 
-        blob = bucket.blob(key.strip("/"))
+        blob = bucket.get_blob(key.strip("/")) or bucket.blob(key.strip("/"))
+
+        if (
+            blob.retention_expiration_time
+            or blob.temporary_hold
+            or blob.event_based_hold
+        ):
+            self.filesystem.put_file(src_path, united_path, overwrite=True)
+            return
 
         try:
             transfer_manager.upload_chunks_concurrently(

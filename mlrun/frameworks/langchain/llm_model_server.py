@@ -109,6 +109,10 @@ class LangChainModelServer(V2ModelServer):
         :param request:           The request to the model. The input to the model will be read from the "inputs" key.
         :return:                  The model's prediction on the given input.
         """
+        print("-"*50)
+        print("zeev")
+        print(f"Request: {request}")
+        print("-" * 50)
         inputs = request.get("inputs", [])
         usage = request.get("usage", "predict")
         generation_kwargs = (

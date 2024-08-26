@@ -1744,7 +1744,6 @@ def validate_node_selectors(
                 f"If there's a newer validation standard, consider upgrading. "
                 f"Be aware that your function executions may fail if the node selector remains invalid."
             )
-            return False
 
     node_selectors = node_selectors or {}
     for key, value in node_selectors.items():
@@ -1784,6 +1783,7 @@ def validate_node_selectors(
         for item, pattern, error_message in filter(None, rules):
             if not pattern.match(item):
                 handle_invalid(error_message)
+                return False
         return True
 
 

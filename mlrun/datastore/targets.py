@@ -1567,7 +1567,6 @@ class StreamTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
-    support_pandas = False
     support_append = True
 
     def add_writer_step(

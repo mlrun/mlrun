@@ -179,3 +179,4 @@ class Member(abc.ABC):
     def _validate_project(self, project: mlrun.common.schemas.Project):
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
         mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
+        mlrun.utils.validate_node_selectors(project.spec.default_function_node_selector)

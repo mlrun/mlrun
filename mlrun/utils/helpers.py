@@ -1718,42 +1718,70 @@ def validate_single_def_handler(function_kind: str, code: str):
             )
 
 
-def validate_node_selectors(node_selectors: dict) -> None:
+def validate_node_selectors(node_selectors: typing.Dict[str, str], raise_on_error: bool = True) -> bool:
     """
     Ensures that user-defined node selectors adhere to Kubernetes label standards:
     - Validates that each key conforms to Kubernetes naming conventions, with specific rules for name and prefix.
     - Ensures values comply with Kubernetes label value rules.
+    - If raise_on_error is True, raises errors for invalid selectors.
+    - If raise_on_error is False, logs warnings for invalid selectors.
     """
+    # Define regex patterns
+    label_pattern = re.compile(mlrun.utils.regex.k8s_label_pattern)
+    prefix_pattern = re.compile(mlrun.utils.regex.k8s_label_prefix_pattern)
+
+    # Helper function for handling errors or warnings
+    def handle_invalid(message):
+        if raise_on_error:
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
+        else:
+            warnings.warn(
+                f"{message} \nWarning: For the current SDK version you are using, "
+                f"the node selector you've set does not comply with the existing validation rules. "
+                f"If upgrading to a newer version is an option, please do so. "
+                f"Otherwise, refer to our documentation on Kubernetes labels for further guidance."
+            )
+            return False
+
     node_selectors = node_selectors or {}
     for key, value in node_selectors.items():
         # Split key into prefix and name if applicable
         prefix, name = key.split("/", 1) if "/" in key else ("", key)
 
-        # Validate Kubernetes name format
-        if not re.compile(mlrun.utils.regex.k8s_label_pattern).match(name):
-            raise mlrun.errors.MLRunInvalidArgumentError(
+        # Validation rules
+        rules = [
+            (
+                name,
+                label_pattern,
                 f"Invalid Kubernetes name '{name}' in key '{key}'. "
                 "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'."
-            )
-
-        # Validate Kubernetes prefix format (if present)
-        if prefix and not re.compile(mlrun.utils.regex.k8s_label_prefix_pattern).match(
-            prefix
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
+                "be up to 63 characters long, and may contain '-', '_', and '.'.",
+            ),
+            (
+                prefix,
+                prefix_pattern,
                 f"Invalid Kubernetes prefix '{prefix}' in key '{key}'. "
                 "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
-                "be up to 253 characters long, and may contain '-', and '.'."
+                "be up to 253 characters long, and may contain '-', and '.'.",
             )
-
-        # Validate Kubernetes value format
-        if value and not re.compile(mlrun.utils.regex.k8s_label_pattern).match(value):
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            if prefix
+            else None,
+            (
+                value,
+                label_pattern,
                 f"Invalid Kubernetes value '{value}' for key '{key}'. "
                 "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'."
+                "be up to 63 characters long, and may contain '-', '_', and '.'.",
             )
+            if value
+            else None,
+        ]
+
+        # Apply validation rules
+        for item, pattern, error_message in filter(None, rules):
+            if not pattern.match(item):
+                handle_invalid(error_message)
+        return True
 
 
 def _reload(module, max_recursion_depth):

@@ -53,9 +53,10 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules.  <img src="../_static/images/cross-project-view.png" width="500" >|
-|ML-5140|UI: Improved responsiveness for runs and functions.|
+|ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
+|ML-7131|By default the Functions page only shows functions that were modified in the last week, and you can edit the time filter, giving an overall improvement in the responsiveness.|
 
 ### Data store
 | ID    |Description                                                                 |

@@ -56,7 +56,7 @@
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
-|ML-7131|By default the UI only retrieves tagged functions: non-tagged functions are only retrieved if explicitly asked for. By default the Functions page only shows functions that were modified in the last week, and you can edit the time filter, giving an overall improvement in the responsiveness.|
+|ML-7103/7131|By default the UI only retrieves tagged functions: non-tagged functions are only retrieved if explicitly asked for. By default the Functions page only shows functions that were modified in the last week: added filters for time. The changes an overall improvement in the responsiveness.|
 
 ### Data store
 | ID    |Description                                                                 |

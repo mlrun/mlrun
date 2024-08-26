@@ -280,6 +280,9 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
 
     def test_snowflake_target_to_dataframe(self):
+        if self.run_local:
+            pytest.skip("local run is not supported")
+
         number_of_rows = 10
         result_table = f"result_{self.current_time}"
         feature_set = fstore.FeatureSet(
@@ -312,9 +315,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]
         )
-        run_config = fstore.RunConfig(
-            local=self.run_local, kind=None if self.run_local else "remote-spark"
-        )
+        run_config = fstore.RunConfig(local=self.run_local, kind="remote-spark")
 
         get_offline_table = f"get_offline_table_{self.current_time}"
         target = SnowflakeTarget(

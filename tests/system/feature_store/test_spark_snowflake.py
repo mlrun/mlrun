@@ -308,9 +308,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             source,
             targets=[target],
             spark_context=self.spark_service,
-            run_config=fstore.RunConfig(
-                local=self.run_local,
-            ),
         )
         vector = fstore.FeatureVector(
             "feature_vector_snowflake", ["snowflake_feature_set.*"]

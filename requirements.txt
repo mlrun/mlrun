@@ -6,7 +6,7 @@ aiohttp-retry~=2.8
 click~=8.1
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.10.3
+nuclio-jupyter~=0.10.4
 numpy>=1.16.5, <1.27.0
 # pandas 2.2 requires sqlalchemy 2
 pandas>=1.2, <2.2
@@ -18,7 +18,7 @@ pyyaml>=5.4.1, <7
 requests~=2.31
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.6.8
+v3io~=0.6.9
 # pydantic 1.10.8 fixes a bug with literal and typing-extension 4.6.0
 # https://docs.pydantic.dev/latest/changelog/#v1108-2023-05-23
 # TODO: loosen upperbound and remove the below comment once fixed upstream
@@ -40,5 +40,5 @@ deprecated~=1.2
 jinja2~=3.1, >=3.1.3
 orjson>=3.9.15, <4
 # mlrun pipeline adapters
-mlrun-pipelines-kfp-common~=0.1.3
-mlrun-pipelines-kfp-v1-8~=0.1.3
+mlrun-pipelines-kfp-common~=0.1.6
+mlrun-pipelines-kfp-v1-8~=0.1.6

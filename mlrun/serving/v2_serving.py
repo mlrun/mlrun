@@ -15,12 +15,11 @@
 import threading
 import time
 import traceback
-from typing import Union
+from typing import Optional, Union
 
+import mlrun.artifacts
 import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring
-from mlrun.artifacts import ModelArtifact  # noqa: F401
-from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
 
@@ -102,7 +101,7 @@ class V2ModelServer(StepToDict):
         self.error = ""
         self.protocol = protocol or "v2"
         self.model_path = model_path
-        self.model_spec: mlrun.artifacts.ModelArtifact = None
+        self.model_spec: Optional[mlrun.artifacts.ModelArtifact] = None
         self._input_path = input_path
         self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()
@@ -258,6 +257,7 @@ class V2ModelServer(StepToDict):
                 "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
+                "timestamp": start.isoformat(sep=" ", timespec="microseconds"),
             }
             if self.version:
                 response["model_version"] = self.version
@@ -335,6 +335,7 @@ class V2ModelServer(StepToDict):
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
                 track_response = {"outputs": outputs or []}
+                # TODO : check dict/list
                 self._model_logger.push(start, track_request, track_response, op)
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
@@ -376,8 +377,10 @@ class V2ModelServer(StepToDict):
         """postprocess, before returning response"""
         return request
 
-    def predict(self, request: dict) -> dict:
-        """model prediction operation"""
+    def predict(self, request: dict) -> list:
+        """model prediction operation
+        :return: list with the model prediction results (can be multi-port) or list of lists for multiple predictions
+        """
         raise NotImplementedError()
 
     def explain(self, request: dict) -> dict:
@@ -567,9 +570,7 @@ def _init_endpoint_record(
                 model=versioned_model_name,
                 model_class=model.__class__.__name__,
                 model_uri=model.model_path,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
-                ),
+                stream_path=model.context.stream.stream_uri,
                 active=True,
                 monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
             ),

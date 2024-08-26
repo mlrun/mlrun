@@ -37,6 +37,9 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
     _MetricPoint,
 )
 from mlrun.model_monitoring.db.stores.v3io_kv.kv_store import KVStoreBase
+from mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps import (
+    _normalize_dict_for_v3io_frames,
+)
 from mlrun.model_monitoring.db.tsdb.v3io.v3io_connector import (
     V3IOTSDBConnector,
     _is_no_schema_error,
@@ -363,20 +366,23 @@ class TestGetModelEndpointMetrics:
 
 
 @pytest.mark.parametrize(
-    ("endpoint_id", "names", "table_path", "expected_query"),
+    ("endpoint_id", "names", "table_path", "columns", "expected_query"),
     [
         (
             "ddw2lke",
             [],
             "app-results",
+            None,
             "SELECT * FROM 'app-results' WHERE endpoint_id='ddw2lke';",
         ),
         (
             "ep123",
             [("app1", "res1")],
             "path/to/app-results",
+            ["result_value", "result_status", "result_kind"],
             (
-                "SELECT * FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
+                "SELECT result_value,result_status,result_kind "
+                "FROM 'path/to/app-results' WHERE endpoint_id='ep123' "
                 "AND ((application_name='app1' AND result_name='res1'));"
             ),
         ),
@@ -384,8 +390,10 @@ class TestGetModelEndpointMetrics:
             "ep123",
             [("app1", "res1"), ("app1", "res2"), ("app2", "res1")],
             "app-results",
+            ["result_value", "result_status", "result_kind"],
             (
-                "SELECT * FROM 'app-results' WHERE endpoint_id='ep123' AND "
+                "SELECT result_value,result_status,result_kind "
+                "FROM 'app-results' WHERE endpoint_id='ep123' AND "
                 "((application_name='app1' AND result_name='res1') OR "
                 "(application_name='app1' AND result_name='res2') OR "
                 "(application_name='app2' AND result_name='res1'));"
@@ -394,11 +402,18 @@ class TestGetModelEndpointMetrics:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: str, names: list[tuple[str, str]], table_path: str, expected_query: str
+    endpoint_id: str,
+    names: list[tuple[str, str]],
+    table_path: str,
+    expected_query: str,
+    columns: Optional[list[str]],
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(
-            endpoint_id=endpoint_id, metric_and_app_names=names, table_path=table_path
+            endpoint_id=endpoint_id,
+            metric_and_app_names=names,
+            table_path=table_path,
+            columns=columns,
         )
         == expected_query
     )
@@ -560,3 +575,19 @@ def test_read_predictions() -> None:
             value=10.0,
         ),
     ]
+
+
+@pytest.mark.parametrize(
+    ("input_event", "expected_output"),
+    [
+        ({}, {}),
+        (
+            {"": 1, "1": 2, "f3": 3, "my--pred": 0.2},
+            {"": 1, "_1": 2, "f3": 3, "my__pred": 0.2},
+        ),
+    ],
+)
+def test_normalize_dict_for_v3io_frames(
+    input_event: dict[str, Any], expected_output: dict[str, Any]
+) -> None:
+    assert _normalize_dict_for_v3io_frames(input_event) == expected_output

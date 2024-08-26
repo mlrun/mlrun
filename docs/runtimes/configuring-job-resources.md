@@ -217,7 +217,7 @@ Preemption mode has these values:
 - none: No preemptible configuration is applied to the function
 
 To change the default function preemption mode, it is required to override the api configuration 
-(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" envvar to either one of the above modes).
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREEMPTION_MODE" environment variable to either one of the above modes).
 
 ### SDK configuration
 
@@ -230,7 +230,7 @@ This example illustrates a function that cannot be scheduled on preemptible node
 fn. with_preemption_mode("allow")
 ```
 
-And another function that can only be scheduled on preemptible noodes:
+And another function that can only be scheduled on preemptible nodes:
 
 ```
 import mlrun
@@ -318,8 +318,87 @@ Modify the priority for an ML function by pressing **ML functions**, then **<img
 of the function, **Edit** | **Resources** | **Pods Priority** drop-down list.
 
 ## Node selection
+
+```{admonition} Note
+Requires Nuclio v1.13.5 or higher.
+```
 Node selection can be used to specify where to run workloads (e.g. specific node groups, instance types, etc.). This is a more advanced 
-parameter mainly used in production deployments to isolate platform services from workloads. 
+parameter mainly used in production deployments to isolate platform services from workloads. You can assign a node or a node group for MLRun or Nuclio service, 
+for jobs executed by a service, and at the project level.  When specified, the 
+service/function/project can only run on nodes whose labels match the node selector entries configured for the specific service/function/project. 
+
+Configurations at the project and function levels are treated as a cohesive unit, prioritizing the function level. 
+Therefore, configurations defined at the function level take precedence over those at the project level. 
+Configurations set at either the project or function level (or both) take precedence over 
+those at the service level: if any configuration is specified at the project or function level (or both), the service level 
+configuration is not considered.   
+
+If node selection is not specified, the selection criteria defaults to the Kubernetes default behavior: the service/function run on a random node.
+
+To illustrate this logic, consider the following cases:
+
+- MLRun service level (V), project level (V), function level (X): Merge between service and project levels, with project-level configuration taking precedence.
+- MLRun service level (V), project level (X), function level (V): Merge between service and function levels, with function-level configuration taking precedence.
+- MLRun service level (V), project level (V), function level (V): Merge between service, project and function levels, with function-level configuration taking precedence.
+- MLRun service level (V), project level (X), function level (X): Service-level configuration applies to the function.
+
+Here's an example that demonstrates how the function-level configuration overrides the project-level configuration, 
+while still incorporating any additional labels defined at the service level:
+- The service level defines node selectors like `{"region": "us-central1", "gpu": "False", "arch": "arm64"}`,
+- The project level defines node selectors like `{"zone": "us-west1", "arch": "amd64"}`,
+- The function level specifies `{"zone": "us-east1", "gpu": "true"}`.
+
+The resulting configuration for the function is:
+```python
+{"region": "us-central1", "zone": "us-east1", "gpu": "true", "arch": "amd64"}
+```
+
+### Overriding node selectors
+
+You can override and ignore node selectors defined at the project level or service level from the function level 
+by using an empty key (a key with no value), thereby completely canceling a specific node selector label. For example, if:
+- The project level defines `{"zone": "us-west1", "arch": "amd64"}`
+- The function level specifies `{"zone": "", "gpu": "true"}`
+
+The zone label from the project level is completely removed, and the resulting configuration for the function is:
+```
+{"gpu": "true", "arch": "amd64"}
+```
+
+
+
+### Runtimes
+Each runtime type is handled individually, with specific behaviors defined for Nuclio and Spark. These special behaviors ensure 
+that each runtime type is handled according to its unique requirements.
+
+- Nuclio: For all runtime types, the node selector is applied to the run object that was created as a result of the execution.
+Since Nuclio doesn't have a runtime object in the same way as other runtimes, the final merged node selector (derived 
+from the MLRun config level, project level, and function level) is passed directly to the Nuclio config.
+This merged node selector becomes the function configuration for Nuclio, and Nuclio itself performs a similar operation, 
+merging it with the Nuclio service level config.
+The result is that the MLRun service configuration has precedence over the Nuclio service config. However, if there is no overlap 
+in the labels, both are reflected in the final output.
+
+- Spark: Spark has three separate node selector settings: `application_node_selector`, `driver_node_selector`, and `executor_node_selector`. 
+When setting a node selector for the application, it only applies to the driver and executor, as there is no real 
+significance to setting it for the application itself (since the only pods created are for the driver and executor). 
+The logic is:
+   - Application Node Selector: Always remains empty.
+   - Driver Node Selector: If no specific `driver_node_selector` is defined, the runtime node selector is used. 
+If a specific `driver_node_selector` is defined, it takes precedence. After selecting the appropriate driver node selector, 
+a merge with precedence is performed with the project and MLRun config levels.
+   - Executor Node Selector: Follows the same logic as the driver node selector. If no specific `executor_node_selector` is defined, 
+the runtime node selector is used. If a specific `executor_node_selector` is defined, it takes precedence. 
+A merge with precedence is then performed with the project and MLRun config levels.
+
+This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 
+
+### Best Practice
+
+Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
+For example, a Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
+(and doesn't benefit from being assigned to a GPU node). 
+A Spark Function includes an executor and a driver; the driver also does not benefit from a GPU node.
 
 ### SDK configuration
 
@@ -327,20 +406,31 @@ Configure node selection by adding the key:value pairs in your Jupyter notebook 
 For example:
 
 ```        
-# Only run on non-spot instances
+# Run a function only on non-spot instances
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
+```
+# Run a project on specific instances
+project.with_node_selection(node_selector={"zone": "us-west1"})
+```
 
-See {py:meth}`~#mlrun.runtimes.KubeResource.with_node_selection`.
+```
+# Cancel a node selector
+fn.with_node_selection(node_selector={"zone": })
+```
+
+See {py:meth}`~mlrun.runtimes.RemoteRuntime.with_node_selection`.
 
 ### UI configuration
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/).
 ```
-Configure node selection for individual MLRun jobs when creating a Batch run: go to your project, press **Create New** and select **Batch run**. 
-When you get to the **Resources** tab, add **Key:Value** pair(s). Configure the node selection for individual Nuclio functions when creating a 
+- Configure node selection for individual MLRun jobs when creating a Batch run by going to **Platform dashboard | Projects | New Job | Resources | Node selector**, 
+and adding or removing Key:Value pairs. 
+- Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
-
+- Configure node selection on the function level in the **Projects | <project> | Settings**, by adding or removing 
+Key:Value pairs.
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 

@@ -66,7 +66,8 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             token = credentials
         except json.JSONDecodeError:
             token = cls.credentials_path
-        cls._gcs_fs = fsspec.filesystem("gcs", token=token)
+        # due to caching problem introduced in gcsfs 2024.3.1 (ML-7636)
+        cls._gcs_fs = fsspec.filesystem("gcs", token=token, use_listings_cache=False)
         cls.clean_test_directory()
 
     @classmethod

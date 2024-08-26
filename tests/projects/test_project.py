@@ -27,6 +27,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.alerts.alert
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -535,6 +536,32 @@ def test_project_with_setup(context, op):
         assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
     else:
         assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+
+
+@pytest.mark.parametrize(
+    "setup_file_contents, exception",
+    [
+        (b"def setup(project): return 5", pytest.raises(Exception)),
+        (b"def setup(project): pass", pytest.raises(Exception)),
+        (b"def setup(project): return None", pytest.raises(Exception)),
+        (b"def setup(project): return project", does_not_raise()),
+    ],
+)
+def test_project_setup_must_return_project_object(
+    context, setup_file_contents, exception
+):
+    mlrun_project = mlrun.new_project(context=context, name="projset", save=False)
+    with tempfile.NamedTemporaryFile(dir=context, delete=False, suffix=".py") as fp:
+        fp.write(setup_file_contents)
+
+        # ensure the file is written, so the setup will be imported properly
+        fp.flush()
+        with exception as exc:
+            mlrun.projects.project._run_project_setup(
+                mlrun_project, fp.name, save=False
+            )
+        if exc:
+            assert "must return a project object" in str(exc.value)
 
 
 @pytest.mark.parametrize(
@@ -1218,9 +1245,17 @@ def test_function_receives_project_default_image():
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
-    # Without a project default image, set_function with file-path for remote kind must get an image
+    # Without a project default image, set_function with file-path in context and repo for remote kind must get an image
     with pytest.raises(ValueError, match="image must be provided"):
-        proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+        proj1.set_source("git://mock.git", pull_at_runtime=False)
+        # Specify the relative path for the file to be considered in the project's context
+        proj1.set_function(
+            func="./assets/handler.py",
+            name="func",
+            kind="job",
+            handler="myhandler",
+            with_repo=True,
+        )
 
     proj1.set_default_image(default_image)
     proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
@@ -1893,7 +1928,7 @@ def test_create_api_gateway_valid(
     assert "metadata" in gateway_dict
     assert "spec" in gateway_dict
 
-    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com"
     if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         assert gateway.authentication.authentication_mode == "basicAuth"
     elif (
@@ -1999,7 +2034,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
     assert gateways[0].spec.functions == ["project-name/my-func1"]
 
-    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com"
 
 
 def test_project_create_remote():
@@ -2286,6 +2321,19 @@ def test_workflow_path_with_project_workdir():
     project.spec.workdir = "./workdir"
     path = workflow_spec.get_source_file(project.spec.get_code_path())
     assert path == "./context/./workdir/workflow.py"
+
+
+@pytest.mark.parametrize(
+    "alert_data",
+    [None, ""],
+)
+def test_store_alert_config_missing_alert_data(alert_data):
+    project_name = "dummy-project"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
+    ):
+        project.store_alert_config(alert_data=alert_data)
 
 
 class TestModelMonitoring:

@@ -102,16 +102,13 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls):
-        from mlrun import get_run_db
-        from mlrun.run import new_function
-
-        sj = new_function(
+        sj = mlrun.new_function(
             kind="remote-spark", name="remote-spark-default-image-deploy-temp"
         )
         sj.spec.build.image = cls.default_image
         sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()
-        get_run_db().delete_function(name=sj.metadata.name)
+        mlrun.get_run_db().delete_function(name=sj.metadata.name)
 
     def is_deployed(self):
         if (

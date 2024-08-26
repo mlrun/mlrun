@@ -32,7 +32,7 @@ You can create your own function hub, and connect it to MLRun. Then you can impo
 You can either fork the [MLRun function hub repo](https://github.com/mlrun/functions) and add to it your Git repo, or create a hub from scratch.
 Read [CONTRIBUTING.md](https://github.com/mlrun/functions) to learn how to create a function.
 ```{Note}
-Make sure your hub source is accessible via github (private is also possible).
+Make sure your hub source is accessible via GitHub (private is also possible).
 ```
 
 To create a function hub from scratch, the hub structure must be the same as the [MLRun hub](https://github.com/mlrun/marketplace).
@@ -129,7 +129,7 @@ Partial list of parameters:
 
 - **func** &mdash; function object or spec/code url.
 - **name** &mdash; name of the function (under the project).
-- **kind** &mdash; runtime kind e.g. job, nuclio, spark, dask, mpijob. Default: job.
+- **kind** &mdash; runtime kind e.g. `job`, `nuclio`, `spark`, `dask`, `mpijob`. Default: `job`.
 - **image** &mdash; docker image to be used, can also be specified in the function object/yaml.
 - **with_repo** &mdash; add (clone) the current repo to the build source.
 

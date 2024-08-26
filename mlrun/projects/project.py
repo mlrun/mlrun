@@ -2403,7 +2403,11 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, list[str]] = None,
         requirements_file: str = "",
     ) -> tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
-        if func is None and not _has_module(handler, kind):
+        if (
+            func is None
+            and not _has_module(handler, kind)
+            and mlrun.runtimes.RuntimeKinds.supports_from_notebook(kind)
+        ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if is_ipython:
@@ -4386,18 +4390,17 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
-        if (
-            not image
-            and not project.default_image
-            and kind != "local"
-            and not project.spec.load_source_on_run
-        ):
-            raise ValueError(
-                "image must be provided with py code files which do not "
-                "run on 'local' engine kind"
-            )
         if in_context and with_repo:
+            # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
+            if (
+                not image
+                and not project.default_image
+                and kind != "local"
+                and not project.spec.load_source_on_run
+            ):
+                raise ValueError(
+                    "image must be provided with py code files which do not run on 'local' engine kind"
+                )
             func = new_function(
                 name,
                 command=relative_url,
@@ -4473,9 +4476,17 @@ def _init_function_from_obj(
 def _has_module(handler, kind):
     if not handler:
         return False
-    return (
-        kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes() and ":" in handler
-    ) or "." in handler
+
+    if (
+        kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+        and ":" in handler
+    ):
+        return True
+
+    if "." in handler:
+        return True
+
+    return False
 
 
 def _is_imported_artifact(artifact):

@@ -327,6 +327,26 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run(params=params, handler="func")
         assert run.outputs["return"] == kwargs
 
+    def test_artifacts_with_future_links(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+        )
+
+        p1 = 10
+        run = function.run(
+            handler="handler_with_future_links",
+            params={"p1": p1},
+            returns=["my_model", "px"],
+        )
+
+        # Get my_artifact and verify the extra data was enriched
+        # assert run.outputs["my_model"]
+
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         cases = [

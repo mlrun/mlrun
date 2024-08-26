@@ -324,9 +324,7 @@ class ModelArtifact(Artifact):
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
 
-        # the model spec yaml should not include the tag, as the same model can be used with different tags,
-        # and the tag is not part of the model spec but the metadata of the model artifact
-        spec_body = _remove_tag_from_spec_yaml(self)
+        spec_body = _sanitize_model_spec_yaml(self)
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -506,10 +504,22 @@ def _get_extra(target, extra_data, is_dir=False):
     return extra_dataitems
 
 
-def _remove_tag_from_spec_yaml(model_spec):
-    spec_dict = model_spec.to_dict()
-    spec_dict["metadata"].pop("tag", None)
-    return yaml.safe_dump(spec_dict)
+def _sanitize_model_spec_yaml(model: ModelArtifact):
+    model_dict = model.to_dict()
+
+    # The model spec yaml should not include the tag, as the same model can be used with different tags,
+    # and the tag is not part of the model spec but the metadata of the model artifact
+    model_dict["metadata"].pop("tag", None)
+
+    # Remove future packaging links
+    if model_dict["spec"].get("extra_data"):
+        model_dict["spec"]["extra_data"] = {
+            key: item
+            for key, item in model_dict["spec"]["extra_data"].items()
+            if item is not ...
+        }
+
+    return yaml.safe_dump(model_dict)
 
 
 def update_model(
@@ -593,10 +603,7 @@ def update_model(
 
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
-
-        # the model spec yaml should not include the tag, as the same model can be used with different tags,
-        # and the tag is not part of the model spec but the metadata of the model artifact
-        model_spec_yaml = _remove_tag_from_spec_yaml(model_spec)
+        model_spec_yaml = _sanitize_model_spec_yaml(model_spec)
         mlrun.datastore.store_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key

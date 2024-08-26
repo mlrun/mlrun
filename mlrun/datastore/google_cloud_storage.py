@@ -155,20 +155,7 @@ class GoogleCloudStorageStore(DataStore):
             return
 
         bucket = self.storage_client.bucket(self.endpoint)
-        bucket_retention_policy = bucket._properties.get("retentionPolicy")
-        if bucket_retention_policy or bucket.object_retention_mode:
-            self.filesystem.put_file(src_path, united_path, overwrite=True)
-            return
-
-        blob = bucket.get_blob(key.strip("/")) or bucket.blob(key.strip("/"))
-
-        if (
-            blob.retention_expiration_time
-            or blob.temporary_hold
-            or blob.event_based_hold
-        ):
-            self.filesystem.put_file(src_path, united_path, overwrite=True)
-            return
+        blob = bucket.blob(key.strip("/"))
 
         try:
             transfer_manager.upload_chunks_concurrently(

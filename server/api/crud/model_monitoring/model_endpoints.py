@@ -544,7 +544,13 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-
+            except mlrun.errors.MLRunTSDBConnectionFailure as e:
+                logger.warning(
+                    "Failed to delete TSDB resources, you may need to delete them manually",
+                    project=project_name,
+                    error=mlrun.errors.err_to_str(e),
+                )
+                tsdb_connector = None
             except mlrun.errors.MLRunInvalidMMStoreType:
                 # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
                 if not mlrun.mlconf.is_ce_mode():
@@ -556,7 +562,6 @@ class ModelEndpoints:
                     tsdb_connector = None
             if tsdb_connector:
                 tsdb_connector.delete_tsdb_resources()
-
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,
             db_session=db_session,
@@ -612,11 +617,19 @@ class ModelEndpoints:
             mlrun.common.schemas.model_monitoring.MonitoringFunctionNames.STREAM
         )
 
-        server.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
-            project=project_name,
-            function_names=model_monitoring_applications,
-            access_key=model_monitoring_access_key,
-        )
+        try:
+            server.api.crud.model_monitoring.deployment.MonitoringDeployment._delete_model_monitoring_stream_resources(
+                project=project_name,
+                function_names=model_monitoring_applications,
+                access_key=model_monitoring_access_key,
+            )
+        except mlrun.errors.MLRunStreamConnectionFailure as e:
+            logger.warning(
+                "Failed to delete stream resources, you may need to delete them manually",
+                project_name=project_name,
+                function=model_monitoring_applications,
+                error=mlrun.errors.err_to_str(e),
+            )
 
     @staticmethod
     def _validate_length_features_and_labels(

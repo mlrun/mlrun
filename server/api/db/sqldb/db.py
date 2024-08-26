@@ -5561,10 +5561,13 @@ class SQLDB(DBInterface):
                 )
 
             notification.kind = notification_model.kind
-            notification.message = notification_model.message
-            notification.severity = notification_model.severity
-            notification.when = ",".join(notification_model.when)
-            notification.condition = notification_model.condition
+            notification.message = notification_model.message or ""
+            notification.severity = (
+                notification_model.severity
+                or mlrun.common.schemas.NotificationSeverity.INFO
+            )
+            notification.when = ",".join(notification_model.when or [])
+            notification.condition = notification_model.condition or ""
             notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (

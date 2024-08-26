@@ -41,7 +41,7 @@
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
 |ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
-|NA     | New {ref}`ai_01-basic-llm` tutorial.|
+|NA     | New {ref}`genai_01_basic_tutorial` tutorial.|
 |NA     | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.
 |NA     | New page describing {ref}`log-artifacts`.                                 |
 |NA     | New page describing {ref}`parallel-workflows`.                                 |

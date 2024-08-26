@@ -45,18 +45,21 @@ class _BatchDict(typing.TypedDict):
 
 
 def get_stream_path(
-    project: str, function_name: str = mm_constants.MonitoringFunctionNames.STREAM
+    project: str,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    stream_uri: typing.Optional[str] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param function_name:    Application name. Default is model_monitoring_stream.
+    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = mlrun.get_secret_or_env(
+    stream_uri = stream_uri or mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
     )
 

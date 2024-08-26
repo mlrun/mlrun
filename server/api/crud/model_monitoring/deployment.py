@@ -292,6 +292,8 @@ class MonitoringDeployment:
         stream_paths = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, function_name=function_name
         )
+        # set all MM app and infra to have only 1 replica
+        function.spec.max_replicas = 1
         for i, stream_path in enumerate(stream_paths):
             if stream_path.startswith("kafka://"):
                 topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
@@ -300,6 +302,7 @@ class MonitoringDeployment:
                     brokers=brokers,
                     topics=[topic],
                 )
+                stream_source.create_topics(num_partitions=1, replication_factor=1)
                 function = stream_source.add_nuclio_trigger(function)
 
             if not mlrun.mlconf.is_ce_mode():
@@ -889,11 +892,19 @@ class MonitoringDeployment:
             background_task_name=background_task_name,
         )
         if delete_app_stream_resources:
-            MonitoringDeployment._delete_model_monitoring_stream_resources(
-                project=project,
-                function_names=[function_name],
-                access_key=access_key,
-            )
+            try:
+                MonitoringDeployment._delete_model_monitoring_stream_resources(
+                    project=project,
+                    function_names=[function_name],
+                    access_key=access_key,
+                )
+            except mlrun.errors.MLRunStreamConnectionFailure as e:
+                logger.warning(
+                    "Failed to delete stream resources, you may need to delete them manually",
+                    project_name=project,
+                    function=function_name,
+                    error=mlrun.errors.err_to_str(e),
+                )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -963,7 +974,7 @@ class MonitoringDeployment:
                     logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:
                     logger.warning(
-                        "Can't delete v3io stream",
+                        "Failed to delete v3io stream",
                         stream_path=stream_path,
                         error=mlrun.errors.err_to_str(e),
                     )
@@ -990,7 +1001,7 @@ class MonitoringDeployment:
                 logger.debug("Deleted kafka topics", topics=topics)
             except kafka.errors.TopicAuthorizationFailedError as e:
                 logger.warning(
-                    "Can't delete kafka topics",
+                    "Failed to delete kafka topics",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
                 )
@@ -999,6 +1010,11 @@ class MonitoringDeployment:
                     "Kafka model monitoring topics not found, probably not created",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
+                )
+            except kafka.errors.NoBrokersAvailable as e:
+                # Raise an error that will be caught by the caller and skip the deletion of the stream
+                raise mlrun.errors.MLRunStreamConnectionFailure(
+                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
                 )
         else:
             logger.warning(

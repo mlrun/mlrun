@@ -20,9 +20,11 @@
 |-------|----------------------------------------------------------------------------|
 |ML-5287|You can now configure {ref}`alerts` for model monitoring.|
 |ML-5459|Model monitoring data-path now supports LLM/deep-learning models **add details/link**|
+|ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.|
 |ML-5851|Model monitoring does not require V3IO. See the {ref}`<example using a NoSql target>`. **add link**|
-|ML-6119|New APIs for model monitoring view per endpoint **add details/link**|
-|ML-5460|The model monitoring now has a per-endpoint view that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.**add details/link**|
+|ML-6119|New APIs for model monitoring view per endpoint {py:class}`module-ml.run.model_monitoring.api`|
+
+
 
 ### Projects
 | ID    |Description                                                                 |

@@ -111,6 +111,9 @@ Collect production data, metadata, and metrics to tune the model and application
 
 
 `````{div} full-width
+{octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
 {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
@@ -237,8 +240,8 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Monitor and alert <monitoring>`
-{bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````

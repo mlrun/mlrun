@@ -1045,7 +1045,7 @@ class ProjectSpec(ModelObj):
         return self._default_function_node_selector
 
     @default_function_node_selector.setter
-    def default_function_node_selector(self, node_selector: typing.Dict[str, str]):
+    def default_function_node_selector(self, node_selector: dict[str, str]):
         self._default_function_node_selector = deepcopy(node_selector)
 
     @property

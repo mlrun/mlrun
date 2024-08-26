@@ -1719,7 +1719,7 @@ def validate_single_def_handler(function_kind: str, code: str):
 
 
 def validate_node_selectors(
-    node_selectors: typing.Dict[str, str], raise_on_error: bool = True
+    node_selectors: dict[str, str], raise_on_error: bool = True
 ) -> bool:
     """
     Ensures that user-defined node selectors adhere to Kubernetes label standards:
@@ -1738,10 +1738,11 @@ def validate_node_selectors(
             raise mlrun.errors.MLRunInvalidArgumentError(message)
         else:
             warnings.warn(
-                f"{message} \nWarning: For the current SDK version you are using, "
-                f"the node selector you've set does not comply with the existing validation rules. "
-                f"If upgrading to a newer version is an option, please do so. "
-                f"Otherwise, refer to our documentation on Kubernetes labels for further guidance."
+                f"{message} \nFor your current SDK version, "
+                f"the node selector you've set does not comply with the validation rules. "
+                f"Check our documentation for the latest validation updates. "
+                f"If there's a newer validation standard, consider upgrading. "
+                f"Be aware that your function executions may fail if the node selector remains invalid."
             )
             return False
 

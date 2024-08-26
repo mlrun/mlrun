@@ -58,7 +58,12 @@ class TDEngineConnector(TSDBConnector):
         except taosws.QueryError:
             # Database already exists
             pass
-        conn.execute(f"USE {self.database}")
+        try:
+            conn.execute(f"USE {self.database}")
+        except taosws.QueryError as e:
+            raise mlrun.errors.MLRunTSDBConnectionFailure(
+                f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
+            )
         return conn
 
     def _init_super_tables(self):

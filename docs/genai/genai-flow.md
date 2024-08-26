@@ -1,6 +1,6 @@
 (genai-flow)=
 
-# GenAI development workflow
+# Gen AI development workflow
 
 MLRun automates the flow of tuning, validation, and optimizing LLMs to specific data - efficiently over elastic resources. 
 It rapidly deploys scalable real-time serving and application pipelines that host the LLM as well as the data integration and business logic.
@@ -19,7 +19,7 @@ It's important to keep your design flexible. New solutions come out all the time
 may find a better one in the near future.
 
 A typical scenario may utilize multiple models over an entire flow. The simpler models (evaluating input for toxicity) 
-probably do not need an LLM, whereas the main model does require an LLM. understand your various models so that you can 
+probably do not need an LLM, whereas the main model does require an LLM. Make sure you understand your various models so that you can 
 apportion your resources appropriately. (See {ref}`mlops-dev-flow` for more details about non-LLM models.)
 
 
@@ -34,6 +34,7 @@ and assets that are optimized and tested to simplify and accelerate the move to 
 - {ref}`genai-data-mgmt`
 - {ref}`genai-development`
 - {ref}`genai-deployment`
+- {ref}`genai-live-ops`
 
 
 

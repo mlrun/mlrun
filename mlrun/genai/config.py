@@ -53,8 +53,20 @@ class AppConfig(BaseModel):
         "connection_args": {"address": "localhost:19530"},
     }
 
-    # Pipeline kwargs
-    pipeline_args: dict = {}
+    workflow_deployment: dict = {
+        "host": "localhost",
+        "port": 8000,
+    }
+
+    # Workflow kwargs
+    workflow_args: dict = {}
+
+    def infer_path(self, workflow_name: str):
+        if self.workflow_deployment:
+            host = self.workflow_deployment.get("host", "localhost")
+            port = self.workflow_deployment.get("port", 8000)
+            return f"http://{host}:{port}/api/workflows/{workflow_name}"
+        return ""
 
     def default_collection(self):
         return self.default_vector_store.get("collection_name", "default")
@@ -81,6 +93,7 @@ class AppConfig(BaseModel):
         return config
 
 
+username = os.environ.get("GENAI_USER_NAME", "")
 is_local_config = os.environ.get("IS_LOCAL_CONFIG", "0").lower().strip() in [
     "true",
     "1",

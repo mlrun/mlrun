@@ -15,150 +15,21 @@
 from datetime import datetime
 from enum import Enum
 from http.client import HTTPException
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Type, Union
 
 import yaml
 from pydantic import BaseModel
 
-
-class ChatRole(str, Enum):
-    Human = "Human"
-    AI = "AI"
-    System = "System"
-    User = "User"  # for co-pilot user (vs Human?)
-    Agent = "Agent"  # for co-pilot agent
-
-
-class Message(BaseModel):
-    role: ChatRole
-    content: str
-    html: Optional[str] = None
-    sources: Optional[List[dict]] = None
-    rating: Optional[int] = None
-    suggestion: Optional[str] = None
-
-
-class Conversation(BaseModel):
-    messages: list[Message] = []
-    saved_index: int = 0
-
-    def __str__(self):
-        return "\n".join([f"{m.role}: {m.content}" for m in self.messages])
-
-    def add_message(self, role, content, sources=None):
-        self.messages.append(Message(role=role, content=content, sources=sources))
-
-    def to_list(self):
-        return self.dict()["messages"]
-        # return self.model_dump(mode="json")["messages"]
-
-    def to_dict(self):
-        return self.dict()["messages"]
-        # return self.model_dump(mode="json")["messages"]
-
-    @classmethod
-    def from_list(cls, data: list):
-        return cls.parse_obj({"messages": data or []})
-        # return cls.model_validate({"messages": data or []})
-
-
-class PipelineEvent:
-    """A pipeline event."""
-
-    def __init__(
-        self, query=None, username=None, session_id=None, db_session=None, **kwargs
-    ):
-        self.username = username
-        self.session_id = session_id
-        self.original_query = query
-        self.query = query
-        self.kwargs = kwargs
-
-        self.session = None
-        self.user = None
-        self.results = {}
-        self.state = {}
-        self.conversation: Conversation = Conversation()
-
-        self.db_session = db_session  # SQL db session (from FastAPI)
-
-    def to_dict(self):
-        return {
-            "username": self.username,
-            "session_id": self.session_id,
-            "query": self.query,
-            "kwargs": self.kwargs,
-            "results": self.results,
-            "state": self.state,
-            "conversation": self.conversation.to_list(),
-        }
-
-    def __getitem__(self, item):
-        return getattr(self, item)
-
-
-class TerminateResponse(BaseModel):
-    success: bool = True
-    error: Optional[str] = None
-    resp: dict = {}
-
-    def with_raise(self, format=None) -> "TerminateResponse":
-        if not self.success:
-            format = format or "Pipeline step failed: %s"
-            raise ValueError(format % self.error)
-        return self
-
-
-class QueryItem(BaseModel):
-    question: str
-    session_id: Optional[str] = None
-    filter: Optional[List[Tuple[str, str]]] = None
-    collection: Optional[str] = None
-
-
-class ApiResponse(BaseModel):
-    success: bool
-    data: Optional[Union[list, BaseModel, dict]] = None
-    error: Optional[str] = None
-
-    def with_raise(self, format=None) -> "ApiResponse":
-        if not self.success:
-            format = format or "API call failed: %s"
-            raise ValueError(format % self.error)
-        return self
-
-    def with_raise_http(self, format=None) -> "ApiResponse":
-        if not self.success:
-            format = format or "API call failed: %s"
-            raise HTTPException(status_code=400, detail=format % self.error)
-        return self
-
-
-class ApiDictResponse(ApiResponse):
-    data: Optional[dict] = None
-
-
-class PromptConfig(BaseModel):
-    name: str
-    description: Optional[str] = None
-    labels: Optional[Dict[str, Union[str, None]]] = None
-    template: str
-    inputs: dict = None
-    llm_args: dict = None
-
-
-# ============================== from llmapps/controller/model.py ==============================
-# Temporary: This was copied to here to avoid import from the controller like this:
-# from llmapps.controller.model import ChatSession
-
 metadata_fields = [
+    "uid",
     "name",
     "description",
     "labels",
-    "owner_name",
+    "owner_id",
     "created",
     "updated",
     "version",
+    "project_id",
 ]
 
 
@@ -238,7 +109,7 @@ class Base(BaseModel):
 
         return orm_object
 
-    def to_orm_object(self, obj_class):
+    def to_orm_object(self, obj_class, uid=None):
         struct = self.to_dict(drop_none=False, short=False)
         obj_dict = {
             k: v
@@ -252,6 +123,8 @@ class Base(BaseModel):
             if k not in metadata_fields + self._top_level_fields
         }
         labels = obj_dict.pop("labels", None)
+        if uid:
+            obj_dict["uid"] = uid
         obj = obj_class(**obj_dict)
         if labels:
             obj.labels.clear()
@@ -274,24 +147,45 @@ class Base(BaseModel):
 
 class BaseWithMetadata(Base):
     name: str
-    description: Optional[str] = None
-    labels: Optional[Dict[str, Union[str, None]]] = None
-    created: Optional[Union[str, datetime]] = None
-    updated: Optional[Union[str, datetime]] = None
+    uid: Optional[str]
+    description: Optional[str]
+    labels: Optional[Dict[str, Union[str, None]]]
+    created: Optional[Union[str, datetime]]
+    updated: Optional[Union[str, datetime]]
 
 
-class ChatSession(BaseWithMetadata):
-    _extra_fields = ["history", "features", "state", "agent_name"]
-    _top_level_fields = ["username"]
-
-    username: Optional[str] = None
-    agent_name: Optional[str] = None
-    history: Optional[List[Message]] = []
-    features: Optional[dict[str, str]] = None
-    state: Optional[dict[str, str]] = None
-
-    def to_conversation(self):
-        return Conversation.from_list(self.history)
+class BaseWithOwner(BaseWithMetadata):
+    owner_id: str
 
 
-# =============================================================================================
+class BaseWithVerMetadata(BaseWithOwner):
+    version: Optional[str] = ""
+
+
+class APIResponse(BaseModel):
+    success: bool
+    data: Optional[Union[list, Type[BaseModel], dict]]
+    error: Optional[str]
+
+    def with_raise(self, format=None) -> "APIResponse":
+        if not self.success:
+            format = format or "API call failed: %s"
+            raise ValueError(format % self.error)
+        return self
+
+    def with_raise_http(self, format=None) -> "APIResponse":
+        if not self.success:
+            format = format or "API call failed: %s"
+            raise HTTPException(status_code=400, detail=format % self.error)
+        return self
+
+
+class APIDictResponse(APIResponse):
+    data: Optional[dict] = None
+
+
+class OutputMode(str, Enum):
+    NAMES = "names"
+    SHORT = "short"
+    DICT = "dict"
+    DETAILS = "details"

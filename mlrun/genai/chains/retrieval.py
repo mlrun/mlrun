@@ -18,7 +18,7 @@ from langchain_core.prompts import PromptTemplate
 
 from mlrun.genai.chains.base import ChainRunner
 from mlrun.genai.config import get_llm, get_vector_db, logger
-from mlrun.genai.schema import PipelineEvent
+from mlrun.genai.schemas import WorkflowEvent
 
 
 class DocumentCallbackHandler(BaseCallbackHandler):
@@ -97,7 +97,7 @@ class DocumentRetriever:
             logger.info(f"Source documents:\n{docs_string}")
         return result["answer"], source_docs
 
-    def run(self, event: PipelineEvent):
+    def run(self, event: WorkflowEvent):
         # TODO: use text when is_cli
         logger.debug(f"Retriever Question: {event.query}\n")
         answer, sources = self._get_answer(event.query)
@@ -134,7 +134,7 @@ class MultiRetriever(ChainRunner):
 
         return self._retrievers[collection_name]
 
-    def _run(self, event: PipelineEvent):
+    def _run(self, event: WorkflowEvent):
         retriever = self._get_retriever(event.kwargs.get("collection_name"))
         return retriever.run(event)
 

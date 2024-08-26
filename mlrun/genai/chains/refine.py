@@ -16,7 +16,7 @@ from langchain_core.prompts.prompt import PromptTemplate
 
 from mlrun.genai.chains.base import ChainRunner
 from mlrun.genai.config import get_llm, logger
-from mlrun.genai.schema import PipelineEvent
+from mlrun.genai.schemas import WorkflowEvent
 
 _refine_prompt_template = """
 You are a helpful AI assistant, given the following conversation and a follow up request,
@@ -28,8 +28,6 @@ Chat History:
 {chat_history}
 
 Follow Up Input: {question}
-
-Begin!
 
 Standalone request:
 """
@@ -49,12 +47,13 @@ class RefineQuery(ChainRunner):
         )
         self._chain = refine_prompt | self.llm
 
-    def _run(self, event: PipelineEvent):
+    def _run(self, event: WorkflowEvent):
         chat_history = str(event.conversation)
         logger.debug(f"Question: {event.query}\nChat history: {chat_history}")
         resp = self._chain.invoke(
             {"question": event.query, "chat_history": chat_history}
         )
+        logger.debug(f"Refined question: {resp}")
         return {"answer": resp}
 
 

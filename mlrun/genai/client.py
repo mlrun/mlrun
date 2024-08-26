@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import requests
 
 from mlrun.genai.config import config, logger
+from mlrun.genai.schemas import ChatSession, Project, Workflow
 from mlrun.utils.helpers import dict_to_json
 
 
@@ -29,9 +32,6 @@ class Client:
     ):
         # Construct the URL
         url = f"{self.base_url}/api/{path}"
-        logger.debug(
-            f"Sending {method} request to {url}, params: {params}, data: {data}"
-        )
         kw = {
             key: value
             for key, value in (
@@ -49,6 +49,9 @@ class Client:
                 {k: v for k, v in params.items() if v is not None} if params else None
             )
         # Make the request
+        logger.debug(
+            f"Sending {method} request to {url}, params: {params}, data: {data}"
+        )
         response = requests.request(
             method,
             url,
@@ -68,53 +71,90 @@ class Client:
         response = self.post_request(f"collection/{name}")
         return response["data"]
 
-    def get_session(self, session_id):
-        response = self.post_request(f"session/{session_id}")
-        return response
+    def get_session(self, uid: str, user_name: str):
+        response = self.post_request(f"users/{user_name}/sessions/{uid}")
+        return response["data"]
 
-    def get_user(self, username):
-        response = self.post_request(f"user/{username}")
+    def get_user(self, username: str = "", email: str = None):
+        params = {}
+        if email:
+            params["email"] = email
+        response = self.post_request(f"users/{username}", params=params)
         return response["data"]
 
     def create_session(
         self,
         name,
+        user_id,
         username=None,
-        agent_name=None,
+        workflow_id=None,
         history=None,
-        features=None,
-        state=None,
     ):
         chat_session = {
             "name": name,
-            "username": username,
-            "agent_name": agent_name,
-            "history": history,
-            "features": features,
-            "state": state,
+            "owner_id": user_id,
+            "workflow_id": workflow_id,
+            "history": history or [],
         }
-        response = self.post_request("session", data=chat_session, method="POST")
-        return response["success"]
+        response = self.post_request(
+            f"users/{username}/sessions", data=chat_session, method="POST"
+        )
+        return response
 
     def update_session(
         self,
-        name,
-        username=None,
-        agent_name=None,
+        chat_session: ChatSession,
+        username: str,
         history=None,
-        features=None,
-        state=None,
     ):
-        chat_session = {
-            "name": name,
-            "username": username or self.username,
-            "agent_name": agent_name,
-            "history": history,
-            "features": features,
-            "state": state,
-        }
-        response = self.post_request(f"session/{name}", data=chat_session, method="PUT")
+        chat_session.history = history or []
+        response = self.post_request(
+            f"users/{username}/sessions/{chat_session.name}",
+            data=chat_session.to_dict(),
+            method="PUT",
+        )
         return response["success"]
+
+    def get_project(self, project_name: str):
+        response = self.post_request(f"projects/{project_name}")
+        return Project(**response["data"])
+
+    def create_workflow(self, project_name: str, workflow: Union[Workflow, dict]):
+        project_id = client.get_project(project_name=project_name).uid
+        if isinstance(workflow, dict):
+            workflow["project_id"] = project_id
+            graph = workflow.pop("graph", None)
+            workflow = Workflow(**workflow)
+            workflow.add_graph(graph)
+        response = self.post_request(
+            f"projects/{project_name}/workflows", method="POST", data=workflow.to_dict()
+        )
+        return Workflow(**response["data"])
+
+    def get_workflow(
+        self, project_name: str, workflow_name: str = None, workflow_id: str = None
+    ):
+        if workflow_id:
+            response = self.post_request(
+                f"projects/{project_name}/workflows/{workflow_id}"
+            )["data"]
+        else:
+            response = self.post_request(
+                f"projects/{project_name}/workflows", params={"name": workflow_name}
+            )
+            if not response["data"]:
+                return None
+            response = response["data"][0]
+        return Workflow(**response)
+
+    def update_workflow(self, project_name: str, workflow: Workflow):
+        print(workflow.to_dict())
+        response = self.post_request(
+            f"projects/{project_name}/workflows/{workflow.uid}",
+            data=workflow.to_dict(),
+            method="PUT",
+        )
+        return Workflow(**response["data"])
 
 
 client = Client(base_url=config.api_url)

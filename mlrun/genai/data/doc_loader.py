@@ -126,22 +126,13 @@ class DataLoader:
 
 def get_data_loader(
     config: AppConfig,
-    client,
-    collection_name: str = None,
+    data_source_name: str = None,
+    database_kwargs: dict = None,
 ) -> DataLoader:
     """Get a data loader instance."""
-    # close_session = True if session is None else False
-    # session = session or client.get_db_session()
-    collection_name = collection_name or config.default_collection()
-    db_args = None
-    collection = client.get_collection(collection_name)
-    if not collection:
-        client.create_collection(name=collection_name)
-    else:
-        db_args = collection["db_args"]
     vector_db = get_vector_db(
         config,
-        collection_name=collection_name,
-        vector_store_args=db_args,
+        collection_name=data_source_name,
+        vector_store_args=database_kwargs,
     )
     return DataLoader(config, vector_store=vector_db)

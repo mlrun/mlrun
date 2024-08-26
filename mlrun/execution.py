@@ -14,6 +14,7 @@
 
 import os
 import uuid
+import warnings
 from copy import deepcopy
 from typing import Union
 
@@ -23,11 +24,10 @@ from dateutil import parser
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
-from mlrun.artifacts import ModelArtifact
+from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
-from .artifacts import DatasetArtifact
 from .artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from .datastore import store_manager
 from .features import Feature
@@ -189,6 +189,11 @@ class MLClientCtx:
     def artifacts(self):
         """Dictionary of artifacts (read-only)"""
         return deepcopy(self._artifacts_manager.artifact_list())
+
+    @property
+    def artifact_uris(self):
+        """Dictionary of artifact URIs (read-only)"""
+        return deepcopy(self._artifacts_manager.artifacts_uris)
 
     @property
     def in_path(self):
@@ -421,8 +426,11 @@ class MLClientCtx:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
-                key = artifact_obj.key
-                self._artifacts_manager.artifacts[key] = artifact_obj
+                self._artifacts_manager.artifacts_uris[artifact_obj.key] = (
+                    artifact_obj.key
+                )
+            for key, uri in status.get("artifacts_uris", {}):
+                self._artifacts_manager.artifacts_uris[key] = uri
             self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
@@ -846,10 +854,18 @@ class MLClientCtx:
 
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
-        return self._artifacts_manager.artifacts[key]
+        warnings.warn(
+            "get_cached_artifact is deprecated in 1.7.0 and will be removed in 1.9.0. Use get_artifact instead.",
+            FutureWarning,
+        )
+        return self.get_artifact(key)
 
-    def update_artifact(self, artifact_object):
-        """Update an artifact object in the cache and the DB"""
+    def get_artifact(self, key):
+        artifact_uri = self._artifacts_manager.artifacts_uris[key]
+        return self.get_store_resource(artifact_uri)
+
+    def update_artifact(self, artifact_object: Artifact):
+        """Update an artifact object in the DB and the cached uri"""
         self._artifacts_manager.update_artifact(self, artifact_object)
 
     def commit(self, message: str = "", completed=False):
@@ -970,7 +986,9 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][RunKeys.artifacts] = self._artifacts_manager.artifact_list()
+        struct["status"][RunKeys.artifacts_uris] = (
+            self._artifacts_manager.artifacts_uris
+        )
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -1064,7 +1082,9 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{RunKeys.artifacts}"] = self._artifacts_manager.artifact_list()
+        struct[f"status.{RunKeys.artifacts_uris}"] = (
+            self._artifacts_manager.artifacts_uris
+        )
         return struct
 
     def _init_dbs(self, rundb):

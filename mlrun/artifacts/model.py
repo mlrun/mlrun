@@ -525,7 +525,7 @@ def update_model(
     labels: dict = None,
     write_spec_copy=True,
     store_object: bool = True,
-):
+) -> ModelArtifact:
     """Update model object attributes
 
     this method will edit or add attributes to a model object

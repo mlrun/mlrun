@@ -1755,14 +1755,14 @@ def validate_node_selectors(
             (
                 name,
                 label_pattern,
-                f"Invalid Kubernetes name '{name}' in key '{key}'. "
+                f"Invalid Kubernetes name '{name}' in key '{key}' in the node selector field. "
                 "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
                 "be up to 63 characters long, and may contain '-', '_', and '.'.",
             ),
             (
                 prefix,
                 prefix_pattern,
-                f"Invalid Kubernetes prefix '{prefix}' in key '{key}'. "
+                f"Invalid Kubernetes prefix '{prefix}' in key '{key}' in the node selector field. "
                 "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
                 "be up to 253 characters long, and may contain '-', and '.'.",
             )
@@ -1771,7 +1771,7 @@ def validate_node_selectors(
             (
                 value,
                 label_pattern,
-                f"Invalid Kubernetes value '{value}' for key '{key}'. "
+                f"Invalid Kubernetes value '{value}' for key '{key}' in the node selector field. "
                 "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
                 "be up to 63 characters long, and may contain '-', '_', and '.'.",
             )

@@ -1175,6 +1175,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:
+            mlrun.utils.validate_node_selectors(
+                node_selectors=node_selector, raise_on_error=False
+            )
             self.spec.node_selector = node_selector
         if affinity is not None:
             self.spec.affinity = affinity

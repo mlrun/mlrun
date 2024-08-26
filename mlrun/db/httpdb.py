@@ -3475,7 +3475,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             if delete_resources:
                 logger.info(
-                    "Model Monitoring is being disable",
+                    "Model Monitoring is being disabled",
                     project_name=project,
                 )
             if delete_user_applications:

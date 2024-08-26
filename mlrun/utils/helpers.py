@@ -1718,7 +1718,9 @@ def validate_single_def_handler(function_kind: str, code: str):
             )
 
 
-def validate_node_selectors(node_selectors: typing.Dict[str, str], raise_on_error: bool = True) -> bool:
+def validate_node_selectors(
+    node_selectors: typing.Dict[str, str], raise_on_error: bool = True
+) -> bool:
     """
     Ensures that user-defined node selectors adhere to Kubernetes label standards:
     - Validates that each key conforms to Kubernetes naming conventions, with specific rules for name and prefix.

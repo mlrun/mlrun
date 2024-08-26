@@ -754,7 +754,7 @@ class Notification(ModelObj):
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
 
-        notification_class.validate_params(secret_params or params)
+        notification_class.validate_params(secret_params | params)
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
@@ -1788,6 +1788,11 @@ class RunObject(RunTemplate):
             )
 
         return state
+
+    def abort(self):
+        """abort the run"""
+        db = mlrun.get_run_db()
+        db.abort_run(self.metadata.uid, self.metadata.project)
 
     @staticmethod
     def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):

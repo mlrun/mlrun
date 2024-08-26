@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 
+
 - [v1.7.0](#)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
@@ -166,7 +167,7 @@
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
 |ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
-|NA     | New {ref}`ai_01-basic-llm` tutorial.|
+|NA     | New {ref}`genai_01_basic_tutorial` tutorial.|
 |NA     | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.
 |NA     | New page describing {ref}`log-artifacts`.                                 |
 |NA     | New page describing {ref}`parallel-workflows`.                                 |
@@ -221,7 +222,7 @@
 ### Data store
 | ID |Description                                                                                         |
 |----|-----------------------------------------------------------------------------------------------------|
-|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
+|ML-3618|Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
 |ML-4343|Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
 
 ### Feature store
@@ -233,26 +234,26 @@
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Aopplication summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-3379,4997|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods) and {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.
-|ML-3728|Labels added to pods that are running as part of KFP to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
-|ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
-|ML-4182|Support for notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
-|ML-4623|You can now [Log a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).|
+| ID           | Description                                                                                                                                                                                                                        |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ML-3379,4997 | New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods) and {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`. 
+| ML-3728      | Labels added to pods that are running as part of KFP to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).                                                                                           |
+| ML-4032      | You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers).                                                                           |
+| ML-4182      | Support for notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).                                                              |
+| ML-4623      | You can now [Log a Databricks response as an artifact](../runtimes/databricks.html#logging-a-databricks-response-as-an-artifact).                                                                                                  |
 
 ### UI
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-1855|New **Train Model** wizard.                                                           |
-|ML-2336|You can now delete Jobs in the UI (and not just from the SDK).                                                                 |
-|ML-4506|You can now delete artifacts, models, and datasets in the UI (and not just from the SDK).                                        |
-|ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
-|ML-4916|You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs. |
+| ID      | Description                                                                                                                                                       |
+|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ML-1855 | New **Train Model** wizard.                                                                                                                                       |
+| ML-2336 | You can now delete Jobs in the UI (and not just from the SDK).                                                                                                    |
+| ML-4506 | You can now delete artifacts, models, and datasets in the UI (and not just from the SDK).                             <br/>                                       |
+| ML-4667 | **Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page. |
+| ML-4916 | You can now add a tag when registering an artifact in the Register Artifact, Register Dataset, and Register Model dialogs.                                        |
 
 ### Infrastructure
 
@@ -262,14 +263,14 @@
 |ML-5193|Support for Pandas 2.0.                                                                               |
 
 ### Documentation
-| ID     |Description                                                                                         |
-|---------|-----------------------------------------------------------------------------------------------------|
-|ML-3663|New: How to build a docker image externally using a dockerfile and then use it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
-|ML-4048|New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).|
-|ML-5260|New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.html#load-code-at-runtime-using-a-non-default-source). |
-|ML-5602, ML-5680|Improved feature store documentation including sources and targets, and partitioning. See {ref}`sources-targets`.|
-|NA|New: {ref}`project-setup`.|
-|NA|Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.
+| ID     | Description                                                                                                                                                                                                                     |
+|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|ML-3663| New: How to build a docker image externally using a Dockerfile and then use it. See [Building a docker image using a Dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it). |
+|ML-4048| New: Creating and using a custom function hub. See [Private function hub](../runtimes/load-from-hub.html#private-function-hub).                                                                                                 |
+|ML-5260| New: [Load code at runtime using a non-default source](../runtimes/create-and-use-functions.html#load-code-at-runtime-using-a-non-default-source).                                                                              |
+|ML-5602, ML-5680| Improved feature store documentation including sources and targets, and partitioning. See {ref}`sources-targets`.                                                                                                               |
+|NA| New: {ref}`project-setup`.                                                                                                                                                                                                      |
+|NA| Improved serving function example, and new example of a serving function with Git integration. See {ref}`serving-function`.                                                                                                     
 
 ### Breaking Changes
 | ID     |Description                                                                                         |
@@ -340,10 +341,10 @@
 ## v1.5.0 (23 October 2023)
 
 ### Data store
-| ID     |Description                                                                                                                                                                                                             |
+| ID     | Description                                                                                                                                                                                                             |
 |----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-2296|Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
-|ML-3500|Support for dbfs data store (Databricks file system). See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                            |
+|ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+|ML-3500| Support for DBFS data store (Databricks file system). See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                            |
 
 ### Feature store
 | ID     |Description                                                                                                                                                                                                                                                                                                                  |
@@ -377,7 +378,7 @@
 |ML-4167|The Projects page now supports downloading the .yaml file. Tech Preview.                          |
 |ML-4571|The Model Endpoints page now displays the drift threshold and the drift actual value.               |
 |ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays a maximum of the last 48 hours. |
-|ML-4511|You can now change the image and add new requirements (such as xgboost) in the Batch Infer wizard.  |
+|ML-4511|You can now change the image and add new requirements (such as `xgboost`) in the Batch Infer wizard.  |
 
 ### Documentation
 | ID     |Description                                                                                                                                                                        |
@@ -400,20 +401,20 @@
 See [Deprecations and removed code](#deprecations-and-removed-code).
 
 ###  Closed issues
-| ID     |Description                                                                   |
+| ID     | Description                                                                   |
 |---------|-------------------------------------------------------------------------------|
-|ML-1584|Can now run `code_to_function` when filename contains special characters.|
-|ML-2199|Spark operator job does not fail with default requests args.                   |
-|ML-2380|Spark runtime sustains naive user actions.                     |
-|ML-4188|Projects are deleted simultaneouly in the backend and the UI.  |
-|ML-4212|Pipeline filters that have no results now show the labels.                    |
-|ML-4214|Scheduled workflows with "-" in the name are no longer truncated.             |
-|ML-4232|User attempts to create a consumer group with "-" now throws an error.        |
-|ML-4316|Fixed: `list_runs` fails with `Read timed out`.                               |
-|ML-4323|Fixed: pipeline step failed with "Read timed out.: get log"                   |
-|ML-4391|Consumer group UI now shows complete details.                                 |
-|ML-4501|Fixed: UI  shows error after deleting a function, then viewing a related job. |
-|ML-4533|UI: ML functions can now be created with upper-case letters.           |
+|ML-1584| Can now run `code_to_function` when filename contains special characters.     |
+|ML-2199| Spark operator job does not fail with default requests arguments.             |
+|ML-2380| Spark runtime sustains naive user actions.                                    |
+|ML-4188| Projects are deleted simultaneously in the backend and the UI.                |
+|ML-4212| Pipeline filters that have no results now show the labels.                    |
+|ML-4214| Scheduled workflows with "-" in the name are no longer truncated.             |
+|ML-4232| User attempts to create a consumer group with "-" now throws an error.        |
+|ML-4316| Fixed: `list_runs` fails with `Read timed out`.                               |
+|ML-4323| Fixed: pipeline step failed with "Read timed out.: get log"                   |
+|ML-4391| Consumer group UI now shows complete details.                                 |
+|ML-4501| Fixed: UI  shows error after deleting a function, then viewing a related job. |
+|ML-4533| UI: ML functions can now be created with upper-case letters.                  |
 
 
 ## v1.4.1 (8 August 2023)
@@ -510,27 +511,27 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 
 ### Closed issues
 
-| ID     |Description                                                                                                                                                                                                                                                                                            |
+| ID     | Description                                                                                                                                                                                                                                                                                            |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-1787|Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/1780).                                                                                                                                 |
-|ML-2773|Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569).                                                                                                                                                       |
-|ML-3166|New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278).                                                                                                                                                                             |
-|ML-3420|Fix artifacts corruption due to overflowing size. [View in Git](https://github.com/mlrun/mlrun/pull/3577).                                                                                                                                                                                             |
-|ML-3443|Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379).                                                                                                                                                          |
-|ML-3470|Changes in secrets are now recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711).                                                                                                                                                                        |
-|ML-3508|Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686).                                                                                                                                                     |
-|ML-3621|`clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689).                                                                                                          |
-|ML-3631|MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927).                                                                                                                                                        |
-|ML-3633|Fix parsing of date fields when importing a context from dict. [View in Git](https://github.com/mlrun/mlrun/pull/3308).                                                                                                |
-|ML-3652|V3IO_API is now inferred from the DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422).                                                                                                                                                                                                     |
-|ML-3703|`project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549).                                                                                                                                                   |
-|ML-3713|Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812).                                                                                                                    |
-|ML-3761|\**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533).                                                                                                                                                                             |
-|ML-3782|The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
-|ML-3806|Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446).                                                                                                     |
-|ML-3847|`add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810).                                                                                                                                                                           |
-|ML-3900|Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687).                                                                                                                                  |
-|ML-4129|Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).                                                                                                                                                                                        |
+|ML-1787| Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/1780).                                                                                                                                 |
+|ML-2773| Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569).                                                                                                                                                       |
+|ML-3166| New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278).                                                                                                                                                                             |
+|ML-3420| Fix artifacts corruption due to overflowing size. [View in Git](https://github.com/mlrun/mlrun/pull/3577).                                                                                                                                                                                             |
+|ML-3443| Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379).                                                                                                                                                          |
+|ML-3470| Changes in secrets are now recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711).                                                                                                                                                                        |
+|ML-3508| Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686).                                                                                                                                                     |
+|ML-3621| `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689).                                                                                                          |
+|ML-3631| MLRun now successfully pulls the source code from GitLab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927).                                                                                                                                                        |
+|ML-3633| Fix parsing of date fields when importing a context from dict. [View in Git](https://github.com/mlrun/mlrun/pull/3308).                                                                                                                                                                                |
+|ML-3652| V3IO_API is now inferred from the DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422).                                                                                                                                                                                                     |
+|ML-3703| `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549).                                                                                                                                                   |
+|ML-3713| Users can now use pipeline parameters in the spec of jobs created within the workflow python file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812).                                                                                                                |
+|ML-3761| \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533).                                                                                                                                                                             |
+|ML-3782| The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
+|ML-3806| Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446).                                                                                                     |
+|ML-3847| `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810).                                                                                                                                                                           |
+|ML-3900| Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687).                                                                                                                                  |
+|ML-4129| Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).                                                                                                                                                                                        |
 
 ## v1.3.4 (23 August 2023)
 
@@ -689,7 +690,7 @@ Improvements to [Set up your environment](../install/remote.html).
 
 - The behavior of ingest with aggregation changed in v1.3.0 (storey, spark, pandas engines). Now, when you ingest a "timestamp" column, it returns <br>
 `<class 'pandas._libs.tslibs.timestamps.Timestamp'>`. <br>Previously, it returned `<class 'str'>`
-- Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffacted.)
+- Any target data that was saved using Redis as an online target with storey engine (RedisNoSql target, introduced in 1.2.1) is not accessible after upgrading to v1.3. (Data ingested subsequent to the upgrade is unaffected.)
 
 
 
@@ -699,27 +700,27 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 
 ### Closed issues
 
-| ID            |Description                                                                                                                                                                                                                                                                                         |
+| ID            | Description                                                                                                                                                                                                                                                                                         |
 |----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-2421       |Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/mlrun/pull/3248).                                                                                                                                                                 |
-|ML-2534       |Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632).                                                                                                                                                     |
-|ML-2810       |Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).                                                                                                                                                                                               |
-|ML-2896       |`add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).                                                                                                                                                               |
-|ML-3104       |Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969).                                                                                                                                                                                                     |
-|ML-3119       |Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888).                                                                                                                                                                                |
-|ML-3283       |`project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988). |
-|ML-3286       |Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611).                                                                                                                                                                                    |
-|ML-3316       |Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).                                                                                  |
-|ML-3365 / 3349|Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613).                                                                                                                                                                 |
-|ML-3378       |Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).                                                                                                                                                |
-|ML-3380       |Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations).                                                                                                                                                                                       |
-|ML-3389       |Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635).                                                                                                                                                            |
-|ML-3424       |Documentation: new matrix of which engines support which [sources](../feature-store/sources-targets.html#sources)/[targets](../feature-store/sources-targets.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).                                                                            |
-|ML-3505       |Removed the upperbound on the `google-cloud-bigquery` requirement.                                                                                                                                                                                                                                  |
-|ML-3575       |`project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/mlrun/pull/3246).                                                                                                         |
-|ML-3403       |Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).                                                                                     |
-|ML-3446       |Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241).                                                                                                                                                                               |
-|ML-3482       |Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).                                                                                                                                 |
+|ML-2421       | Artifacts logged via SDK with "/" in the name can now be viewed in the UI. [View in Git](https://github.com/mlrun/mlrun/pull/3248).                                                                                                                                                                 |
+|ML-2534       | Jobs and Workflows pages now display the tag of the executed job (as defined in the API). [View in Git](https://github.com/mlrun/ui/pull/1632).                                                                                                                                                     |
+|ML-2810       | Fixed the Dask Worker Memory Limit Argument. [View in Git](https://github.com/mlrun/mlrun/pull/3123).                                                                                                                                                                                               |
+|ML-2896       | `add_aggregation` over Spark fails with `AttributeError` for sqr and stdvar. [View in Git](https://github.com/mlrun/mlrun/pull/3131).                                                                                                                                                               |
+|ML-3104       | Add support for project default image. [View in Git](https://github.com/mlrun/mlrun/pull/2969).                                                                                                                                                                                                     |
+|ML-3119       | Fix: MPI job run status resolution considering all workers. [View in Git](https://github.com/mlrun/mlrun/pull/2888).                                                                                                                                                                                |
+|ML-3283       | `project.list_models()` did not function as expected for tags and labels. The `list_artifacts` method now accept a dictionary, and docstrings were added for httpdb and for MLRunProject methods: both `list_artifacts` and `list_models`. [View in Git](https://github.com/mlrun/mlrun/pull/2988). |
+|ML-3286       | Fix: Project page displayed an empty list after an upgrade [View in Git](https://github.com/mlrun/ui/pull/1611).                                                                                                                                                                                    |
+|ML-3316       | Users with developer and data permissions can now add members to projects they created. (Previously appeared successful in the UI but users were not added). [View in Git](https://github.com/mlrun/ui/pull/1617).                                                                                  |
+|ML-3365 / 3349| Fix: UI Projects' metrics show N/A for all projects when ml-pipeline is down. [View in Git](https://github.com/mlrun/ui/pull/1613).                                                                                                                                                                 |
+|ML-3378       | Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418).                                                                                                                                                |
+|ML-3380       | Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations).                                                                                                                                                                                       |
+|ML-3389       | Hyperparameters run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635).                                                                                                                                                        |
+|ML-3424       | Documentation: new matrix of which engines support which [sources](../feature-store/sources-targets.html#sources)/[targets](../feature-store/sources-targets.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).                                                                |
+|ML-3505       | Removed the upperbound on the `google-cloud-bigquery` requirement.                                                                                                                                                                                                                                  |
+|ML-3575       | `project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/mlrun/pull/3246).                                                                                                         |
+|ML-3403       | Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118).                                                                                     |
+|ML-3446       | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241).                                                                                                                                                                               |
+|ML-3482       | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180).                                                                                                                                 |
 
 ## v1.2.3 (15 May 2023)
 
@@ -837,7 +838,7 @@ The new behavior can be enabled using a feature flag configured in the API.
 configuration for Nuclio functions, meaning that they run in the same network as MLRun. 
 [View in Git](https://github.com/mlrun/mlrun/issues/2601).
 - Workaround for background tasks getting cancelled prematurely, due to the current FastAPI version that 
-has a bug in the starlette package it uses. The bug caused the task to get cancelled if the client’s HTTP connection 
+has a bug in the `starlette` package it uses. The bug caused the task to get cancelled if the client’s HTTP connection 
 was closed before the task was done. [View in Git](https://github.com/mlrun/mlrun/issues/2618).
 - Fix run fails after deploying function without defined image. [View in Git](https://github.com/mlrun/mlrun/pull/2530).
 - Fix scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
@@ -901,7 +902,7 @@ improve handling of high workloads against the MLRun DB. You can configure the n
 service, which is applied to the service's user-created pods. The default is 2. 
    - v1.1.0 cannot run on top of 3.0.x.
    - For Iguazio versions prior to v3.5.0, the number of workers is set to 1 by default. To change this number, contact support (helm-chart change required).
-   - Multi-instance is not supported for MLrun running on SQLite.
+   - Multi-instance is not supported for MLRun running on SQLite.
 -  Supports pipeline scheduling.
       
 #### Documentation
@@ -937,7 +938,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
    Workaround for previous releases:
    Install `pip install pydantic==1.9.2` after `align_mlrun.sh`.
 - MLRun FeatureSet was not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/2250).
-- MlRun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set 
+- MLRun `Accesskey` presents as clear text in the mlrun yaml, when the mlrun function is created by feature set 
    request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/2250).
    
 ### See more
@@ -1039,6 +1040,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ## Open issues
 
+
 | ID| Description|Workaround |Opened in |
 |--------|----------------------------------------------------------------|-----------------------------------------|-----------|
 |ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.|NA|v1.0.0|
@@ -1077,6 +1079,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
+
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|
@@ -1163,8 +1166,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Removed CLIs 
 
-| Version|CLI                                                        |
+| Version | CLI                                                        |
 |---------|------------------------------------------------------------|
-| v1.6.0 |deploy `--dashboard` (nuclio/deploy)   |No longer supported on client side. Configure using the MLRun API.                    |
-| v1.6.0 |project `--overwrite-schedule` |Not relevant. Running a schedule is now an operation. |
-| v1.5.0 |`--ensure-project` flag of the `mlrun project` CLI command |  |
+| v1.6.0  | deploy `--dashboard (nuclio/deploy)`                       |No longer supported on client side. Configure using the MLRun API.                    |
+| v1.6.0  | project `--overwrite-schedule`                             |Not relevant. Running a schedule is now an operation. |
+| v1.5.0  | `--ensure-project` flag of the `mlrun project` CLI command |  |

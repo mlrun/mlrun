@@ -30,6 +30,7 @@ import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 
+import mlrun.alerts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -716,6 +717,81 @@ def test_delete_artifact_tags(create_server):
     _assert_artifacts(db, proj_obj.name, tag, 0)
 
 
+def test_add_tag_and_delete_untagged_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "artifact-project"
+    project = mlrun.new_project(project_name)
+
+    # create 4 artifacts that are basically the same, but with different auto-generated trees to create different uids.
+    # only the last one will get the latest tag
+    artifact_key = "artifact_key"
+    # add a different db_key to simulate artifact created by a run
+    artifact_db_key = f"{project_name}-{artifact_key}"
+    num_artifacts = 4
+    for i in range(num_artifacts):
+        project.log_artifact(
+            artifact_key,
+            body=b"some data",
+            db_key=artifact_db_key,
+        )
+
+    # list all artifacts
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == num_artifacts
+    artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
+    assert artifact_tags.count("latest") == 1
+    assert artifact_tags.count(None) == num_artifacts - 1
+
+    # find untagged artifacts and add a new tag to them
+    untagged_artifacts = [
+        artifact
+        for artifact in artifacts
+        if "tag" not in artifact["metadata"] or artifact["metadata"]["tag"] is None
+    ]
+    new_tags = []
+    for idx, untagged_artifact in enumerate(untagged_artifacts):
+        new_tag = f"new-tag-{idx}"
+        new_tags.append(new_tag)
+        db.tag_artifacts(untagged_artifact, project_name, tag_name=new_tag)
+
+    # verify the artifacts were tagged
+    artifact_tags = db.list_artifact_tags(project=project_name)
+    assert len(artifact_tags) == num_artifacts
+
+    artifacts = db.list_artifacts(project=project_name)
+    artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
+    assert len(artifact_tags) == num_artifacts
+    assert artifact_tags.count("latest") == 1
+    assert artifact_tags.count(None) == 0
+
+    # delete a single artifact with a new tag
+    db.del_artifact(
+        key=artifact_db_key,
+        tag=new_tags[0],
+        project=project_name,
+    )
+
+    # list all artifacts
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == num_artifacts - 1
+
+    # delete the rest of the artifacts with 'delete_artifacts'
+    artifacts_to_delete = [
+        artifact for artifact in artifacts if artifact["metadata"]["tag"] != "latest"
+    ]
+    for artifact_to_delete in artifacts_to_delete:
+        db.del_artifacts(
+            name=artifact_db_key,
+            tag=artifact_to_delete["metadata"]["tag"],
+            project=project_name,
+        )
+
+    # verify only the latest remained
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == 1
+    assert artifacts[0]["metadata"]["tag"] == "latest"
+
+
 def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
     proj_obj = mlrun.new_project(project)
 
@@ -888,3 +964,27 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+@pytest.mark.parametrize(
+    "alert_name_in_config, alert_name_as_func_param",
+    [
+        (None, None),
+        (None, ""),
+        ("", None),
+        ("", ""),
+    ],
+)
+def test_store_alert_config_missing_alert_name(
+    alert_name_in_config, alert_name_as_func_param, create_server
+):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
+    ):
+        db.store_alert_config(
+            alert_name=alert_name_as_func_param,
+            alert_data=alert_data,
+        )

@@ -15,6 +15,7 @@
 import time
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
@@ -39,6 +40,12 @@ class S3Store(DataStore):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
+
+        self.config = TransferConfig(
+            multipart_threshold=1024 * 1024 * 25,
+            max_concurrency=10,
+            multipart_chunksize=1024 * 1024 * 25,
+        )
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
@@ -166,7 +173,7 @@ class S3Store(DataStore):
 
     def upload(self, key, src_path):
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Object(bucket, key).put(Body=open(src_path, "rb"))
+        self.s3.Bucket(bucket).upload_file(src_path, key, Config=self.config)
 
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)

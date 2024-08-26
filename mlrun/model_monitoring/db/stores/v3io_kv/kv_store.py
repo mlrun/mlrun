@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import http
 import json
 import typing
 from dataclasses import dataclass
@@ -350,7 +350,7 @@ class KVStoreBase(StoreBase):
             table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: json.dumps(event)}
+            attributes = {metric_name: self._encode_field(json.dumps(event))}
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -408,20 +408,23 @@ class KVStoreBase(StoreBase):
 
         """
         try:
-            data = self.client.kv.get(
+            response = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
                     project_name=self.project
                 ),
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
+            return response.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
-            logger.debug("Error while getting last analyzed time", err=err)
-            raise mlrun.errors.MLRunNotFoundError(
-                f"No last analyzed value has been found for {application_name} "
-                f"that processes model endpoint {endpoint_id}",
-            )
+            if err.status_code == http.HTTPStatus.NOT_FOUND:
+                logger.debug("Last analyzed time not found", err=err)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"No last analyzed value has been found for {application_name} "
+                    f"that processes model endpoint {endpoint_id}",
+                )
+            logger.error("Error while getting last analyzed time", err=err)
+            raise err
 
     def update_last_analyzed(
         self, endpoint_id: str, application_name: str, last_analyzed: int

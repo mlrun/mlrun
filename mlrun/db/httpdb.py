@@ -1015,7 +1015,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1051,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "object_uid": uid,
+            "object-uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
@@ -3380,7 +3380,7 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
+            method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/model-monitoring-controller",
             params={
                 "base_period": base_period,
@@ -3475,7 +3475,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             if delete_resources:
                 logger.info(
-                    "Model Monitoring is being disable",
+                    "Model Monitoring is being disabled",
                     project_name=project,
                 )
             if delete_user_applications:
@@ -4216,6 +4216,9 @@ class HTTPRunDB(RunDBInterface):
         :param project:    The project that the alert belongs to.
         :returns:          The created/modified alert.
         """
+        if not alert_data:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
@@ -4224,6 +4227,8 @@ class HTTPRunDB(RunDBInterface):
             if isinstance(alert_data, AlertConfig)
             else AlertConfig.from_dict(alert_data)
         )
+        # Validation is necessary here because users can directly invoke this function
+        # through `mlrun.get_run_db().store_alert_config()`.
         alert_instance.validate_required_fields()
 
         alert_data = alert_instance.to_dict()

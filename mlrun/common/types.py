@@ -30,6 +30,7 @@ class HTTPMethod(StrEnum):
     GET = "GET"
     POST = "POST"
     DELETE = "DELETE"
+    PATCH = "PATCH"
 
 
 class Operation(StrEnum):

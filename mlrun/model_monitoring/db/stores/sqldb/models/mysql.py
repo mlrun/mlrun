@@ -18,6 +18,7 @@ from sqlalchemy.ext.declarative import declarative_base, declared_attr
 
 from mlrun.common.schemas.model_monitoring import (
     EventFieldType,
+    ResultData,
     WriterEvent,
 )
 
@@ -32,6 +33,13 @@ Base = declarative_base()
 
 
 class ModelEndpointsTable(Base, ModelEndpointsBaseTable):
+    feature_stats = Column(
+        EventFieldType.FEATURE_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
+    )
+    current_stats = Column(
+        EventFieldType.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
+    )
+    metrics = Column(EventFieldType.METRICS, sqlalchemy.dialects.mysql.MEDIUMTEXT)
     first_request = Column(
         EventFieldType.FIRST_REQUEST,
         # TODO: migrate to DATETIME, see ML-6921
@@ -72,7 +80,12 @@ class _ApplicationResultOrMetric:
 class ApplicationResultTable(
     Base, _ApplicationResultOrMetric, ApplicationResultBaseTable
 ):
-    pass
+    result_extra_data = Column(
+        ResultData.RESULT_EXTRA_DATA, sqlalchemy.dialects.mysql.MEDIUMTEXT
+    )
+    current_stats = Column(
+        ResultData.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
+    )
 
 
 class ApplicationMetricsTable(

@@ -127,7 +127,7 @@ fn = project.set_function(
 
 #### Overview
 
-Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with Github Actions, GitLab](./projects/ci-integration.html)
+Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with GitHub Actions, GitLab](./projects/ci-integration.html)
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
 - **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.
@@ -347,6 +347,8 @@ fn.with_priority_class(name="igz-workload-medium")
 ```
 
 #### Node selection
+
+Can be configured on the function and the service. See [Node selection](./runtimes/configuring-job-resources.html#node-selection).
 
 ```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
@@ -590,9 +592,37 @@ log_with_returns_run = my_func.run(
 ```
 
 ### Automatic logging
-
+#### Auto-logging a dataset: basic example
 ```python
-# Auto logging for ML frameworks
+import pandas as pd
+
+
+def func(col: list) -> pd.DataFrame:
+    df = pd.DataFrame({"col": col})
+    return df
+
+
+def func_2(df: pd.DataFrame) -> int:
+    return int(df.sum()[0])
+
+
+run1 = my_func.run(
+    handler="func",
+    params={"col": [1, 2, 3, 4, 5, 6, 7]},
+    returns=["df:dataset"],
+    local=True,
+)
+
+my_func.run(
+    handler="func_2",
+    inputs={"df": run1.outputs["df"]},
+    returns=["sum"],
+    local=True,
+)
+```
+
+#### Auto logging for ML frameworks
+```python
 from mlrun.frameworks.sklearn import apply_mlrun
 
 apply_mlrun(model=model, model_name="my_model", x_test=X_test, y_test=y_test)
@@ -650,7 +680,7 @@ batch_run = project.run_function(
 ```
 
 ## Model monitoring and drift detection
-Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html), [Batch inference](./deployment/batch_inference.html) 
+Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
 
 ### Real-time drift detection
 

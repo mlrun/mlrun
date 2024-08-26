@@ -215,9 +215,7 @@ class KubeResourceSpec(FunctionSpec):
             image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
         )
         self.node_name = node_name
-        self.node_selector = (
-            node_selector or mlrun.mlconf.get_default_function_node_selector()
-        )
+        self.node_selector = node_selector or {}
         self._affinity = affinity
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
@@ -532,7 +530,7 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = mlrun.utils.helpers.merge_with_precedence(
+        self.node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
             node_selector, self.node_selector
         )
 
@@ -1176,9 +1174,9 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         """
         if node_name:
             self.spec.node_name = node_name
-        if node_selector:
+        if node_selector is not None:
             self.spec.node_selector = node_selector
-        if affinity:
+        if affinity is not None:
             self.spec.affinity = affinity
         if tolerations is not None:
             self.spec.tolerations = tolerations

@@ -32,7 +32,7 @@ serving_function_image = "mlrun/mlrun"
 serving_model_class_name = "mlrun.frameworks.sklearn.SklearnModelServer"
 
 # Create a serving function within a project
-serving_fn = mlrun.project.set_function(
+serving_fn = project.set_function(
     "serving", kind="serving", image=serving_function_image
 )
 

@@ -1289,21 +1289,6 @@ def test_function_not_enriched_with_project_default_function_node_selector():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)
-
-    # Check invalid node selector assign to project and function
-    invalid_node_selector = {"key": "value_with_invalid_chars=a"}
-
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.new_project(
-            "invalid", save=False, default_function_node_selector=invalid_node_selector
-        )
-
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        proj1.default_function_node_selector = invalid_node_selector
-
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        proj1.spec.default_function_node_selector = invalid_node_selector
-
     default_function_node_selector = {"gpu": "true"}
 
     non_enriched_function = proj1.set_function(

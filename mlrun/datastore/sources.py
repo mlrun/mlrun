@@ -32,6 +32,7 @@ from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
 from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
+from mlrun.utils import logger
 
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
@@ -1161,6 +1162,59 @@ class KafkaSource(OnlineSource):
         raise NotImplementedError(
             "Conversion of a source of type 'KafkaSource' "
             "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
+
+    def create_topics(
+        self,
+        num_partitions: int = 4,
+        replication_factor: int = 1,
+        topics: list[str] = None,
+    ):
+        """
+        Create Kafka topics with the specified number of partitions and replication factor.
+
+        :param num_partitions:      number of partitions for the topics
+        :param replication_factor:  replication factor for the topics
+        :param topics:              list of topic names to create, if None,
+                                    the topics will be taken from the source attributes
+        """
+        from kafka.admin import KafkaAdminClient, NewTopic
+
+        brokers = self.attributes.get("brokers")
+        if not brokers:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "brokers must be specified in the KafkaSource attributes"
+            )
+        topics = topics or self.attributes.get("topics")
+        if not topics:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "topics must be specified in the KafkaSource attributes"
+            )
+        new_topics = [
+            NewTopic(topic, num_partitions, replication_factor) for topic in topics
+        ]
+        kafka_admin = KafkaAdminClient(
+            bootstrap_servers=brokers,
+            sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
+            sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
+            sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
+            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_service_name", "kafka"
+            ),
+            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_domain_name"
+            ),
+            sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
+        )
+        try:
+            kafka_admin.create_topics(new_topics)
+        finally:
+            kafka_admin.close()
+        logger.info(
+            "Kafka topics created successfully",
+            topics=topics,
+            num_partitions=num_partitions,
+            replication_factor=replication_factor,
         )
 
 

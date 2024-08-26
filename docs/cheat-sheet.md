@@ -348,6 +348,8 @@ fn.with_priority_class(name="igz-workload-medium")
 
 #### Node selection
 
+Can be configured on the function and the service. See [Node selection](./runtimes/configuring-job-resources.html#node-selection).
+
 ```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
 ```
@@ -678,7 +680,7 @@ batch_run = project.run_function(
 ```
 
 ## Model monitoring and drift detection
-Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html), [Batch inference](./deployment/batch_inference.html) 
+Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
 
 ### Real-time drift detection
 

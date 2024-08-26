@@ -124,4 +124,4 @@ class ErrApp(ModelMonitoringApplicationBaseV2):
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> list[mm_results.ModelMonitoringApplicationResult]:
         monitoring_context.logger.info("Running demo app")
-        raise ValueError(f" This is an ERROR from {self.NAME} app!")
+        raise ValueError(f"This is an ERROR from {self.NAME} app!")

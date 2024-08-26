@@ -129,7 +129,9 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_results_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data[:-1]:
+        for app_data in cls.apps_data:
+            if not app_data.results:
+                continue
             app_name = app_data.class_.NAME
             cls._logger.debug(
                 "Checking the results KV record of app", app_name=app_name
@@ -148,7 +150,7 @@ class _V3IORecordsChecker:
 
     @classmethod
     def _test_metrics_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data[:-1]:
+        for app_data in cls.apps_data:
             if not app_data.metrics:
                 return
 
@@ -193,11 +195,11 @@ class _V3IORecordsChecker:
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
-            app_data.class_.NAME for app_data in cls.apps_data[:-1]
+            app_data.class_.NAME for app_data in cls.apps_data if app_data.results
         }, "The application names are different than expected"
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
-        for app_data in cls.apps_data[:-1]:
+        for app_data in cls.apps_data:
             if app_metrics := app_data.results:
                 app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
@@ -428,8 +430,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             _AppData(
                 class_=ErrApp,
                 rel_path="assets/application.py",
-                results={},
-                artifacts={},
             ),
         ]
 

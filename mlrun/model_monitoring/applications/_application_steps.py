@@ -177,7 +177,6 @@ class _ApplicationErrorHandler(StepToDict):
         Handle model monitoring application error. This step will generate an event, describing the error.
 
         :param event: Application event.
-        :return: Application event.
         """
 
         logger.error(f"Error in application step: {event}")

@@ -41,6 +41,9 @@ class AzureBlobStore(DataStore):
         self._service_client = None
         self._storage_options = None
 
+    def get_storage_options(self):
+        return self.storage_options
+
     @property
     def storage_options(self):
         if not self._storage_options:
@@ -225,7 +228,7 @@ class AzureBlobStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.storage_options()
+        st = self.storage_options
         service = "blob"
         primary_url = None
         if st.get("connection_string"):

@@ -744,11 +744,10 @@ def code_to_function(
         raise ValueError("Databricks tasks only support embed_code=True")
 
     if kind == RuntimeKinds.application:
-        if handler:
-            raise MLRunInvalidArgumentError(
-                "Handler is not supported for application runtime"
-            )
-        filename, handler = ApplicationRuntime.get_filename_and_handler()
+        raise MLRunInvalidArgumentError(
+            "Embedding a code file is not supported for application runtime. "
+            "Code files should be specified via project/function source."
+        )
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)

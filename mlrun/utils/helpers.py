@@ -1782,6 +1782,8 @@ def validate_node_selectors(
         # Apply validation rules
         for item, pattern, error_message in filter(None, rules):
             if not pattern.match(item):
+                # An error or warning is raised by handle_invalid due to validation failure.
+                # Returning False indicates validation failed, allowing us to exit the function.
                 handle_invalid(error_message)
                 return False
         return True

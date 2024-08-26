@@ -102,12 +102,6 @@ class WorkflowRunners(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
 
-        if workflow_request.notifications:
-            run_spec.spec.notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
         workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
@@ -143,6 +137,14 @@ class WorkflowRunners(
         """
         meta_uid = uuid.uuid4().hex
 
+        notification_dicts = [
+            notification.dict() for notification in workflow_request.notifications or []
+        ]
+        notifications = [
+            mlrun.model.Notification.from_dict(notification)
+            for notification in notification_dicts
+        ]
+
         source, save, is_context = self._validate_source(
             project, workflow_request.source
         )
@@ -165,6 +167,7 @@ class WorkflowRunners(
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
                     subpath=project.spec.subpath,
+                    notifications=notification_dicts,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
@@ -177,6 +180,7 @@ class WorkflowRunners(
                     project.metadata.name,
                     meta_uid,
                 ),
+                notifications=notifications,
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -228,13 +232,6 @@ class WorkflowRunners(
             run_name=runner.metadata.name,
             load_only=load_only,
         )
-
-        notifications = None
-        if workflow_request and workflow_request.notifications:
-            notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
 
@@ -320,6 +317,14 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
+        notification_dicts = [
+            notification.dict() for notification in workflow_request.notifications or []
+        ]
+        notifications = [
+            mlrun.model.Notification.from_dict(notification)
+            for notification in notification_dicts
+        ]
+
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(
@@ -331,12 +336,14 @@ class WorkflowRunners(
                     save=save,
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
+                    notifications=notification_dicts,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
+                notifications=notifications,
             ),
             metadata=RunMetadata(name=run_name),
         )

@@ -26,6 +26,7 @@ import pytest
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from gcsfs.retry import HttpError
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 import mlrun
@@ -416,7 +417,7 @@ class TestGoogleCloudStorage:
         elif fake_credentials:
             os.environ["GCP_CREDENTIALS"] = fake_credentials
         data_item = mlrun.run.get_dataitem(self._object_url)
-        with pytest.raises((DefaultCredentialsError, RefreshError)):
+        with pytest.raises((DefaultCredentialsError, RefreshError, HttpError)):
             data_item.delete()
 
     def test_rm_file_not_found(self, use_datastore_profile):

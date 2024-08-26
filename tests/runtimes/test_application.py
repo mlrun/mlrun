@@ -261,12 +261,12 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
 def test_application_from_local_file_validation():
     project = mlrun.get_or_create_project("test-application")
     func_path = assets_path / "sample_function.py"
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Embedding a code file is not supported for application runtime. "
+        "Code files should be specified via project/function source.",
+    ):
         project.set_function(func=str(func_path), name="my-app", kind="application")
-    assert str(exc.value) == (
-        "Embedding a code file is not supported for application runtime. "
-        "Code files should be specified via project/function source."
-    )
 
 
 def _assert_function_code(fn, file_path=None):

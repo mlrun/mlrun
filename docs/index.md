@@ -114,7 +114,9 @@ Collect production data, metadata, and metrics to tune the model and application
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Model monitoring <monitoring>`
 {bdg-link-info}`Alerts and notifications <alerts-notifications>`
-{octicon}`code-square` **Demo:**
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+<br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
 
@@ -132,23 +134,33 @@ Collect production data, metadata, and metrics to tune the model and application
 ```
 
 ```{grid-item-card} Ingest and process data
+:columns: 4
 :text-align: center
 :link: ./data-prep/index.html
 ```
 
 ```{grid-item-card} Develop and train models 
+:columns: 4
 :text-align: center
 :link: ./development/index.html
 ```
 
 ```{grid-item-card} Deploy models and app
+:columns: 4
 :text-align: center
 :link: ./deployment/index.html
 ```
 
-```{grid-item-card} Monitor and alert
+```{grid-item-card} Model Monitoring
+:columns: 4
 :text-align: center
 :link: ./monitoring/index.html
+```
+
+```{grid-item-card} Alerts and Notifications
+:columns: 4
+:text-align: center
+:link: ./concepts/alerts-notifications.html
 ```
 
 ````
@@ -314,7 +326,7 @@ MLRun includes the following major components:
 
 **{ref}`Real-time monitoring <monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
-
+**{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on on runs and pipelines.
 
 
 ```{toctree}

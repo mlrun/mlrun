@@ -119,10 +119,10 @@ def is_request_from_leader(
     return False
 
 
-def string_to_timedelta(date_str, raise_on_error=True):
+def string_to_timedelta(date_str, offset=0, raise_on_error=True):
     date_str = date_str.strip().lower()
     try:
-        seconds = parse_timespan(date_str)
+        seconds = parse_timespan(date_str) + offset
     except InvalidTimespan as exc:
         if raise_on_error:
             raise exc

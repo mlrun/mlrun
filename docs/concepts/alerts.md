@@ -90,6 +90,7 @@ alert_name = "drift_alert"
 
 # The summary you will see in the notification once it is invoked
 alert_summary = "A drift was detected"
+
 # Choose the MODEL_ENDPOINT_RESULT for the model monitoring alert
 entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
 # The event that will trigger the alert

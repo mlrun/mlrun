@@ -46,10 +46,21 @@ For example:
 
 <img src="../_static/images/mm_metrics.png" width="700" >
 
-## Streaming platforms and credentials
+## Selecting the streaming and TSDB platforms
 
-Model monitoring supports open-source streaming platforms such as Kafka, TDEngine, MySQL (8.0 and higher), in addition to integration with the Iguazio AI platform V3IO data layer. 
+Model monitoring supports open-source streaming platforms such as Kafka, and MySQL (8.0 and higher), 
+in addition to integration with the Iguazio AI platform V3IO data layer. It supports TDEngine, and V3IO for the TSDB platform.
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
+There are three credentials you can set, and each one can have a different value. For example:
+```
+stream_path = kafka://<some_kafka_broker>:<port>
+tsdb_connection = taosws://<username>:<password>@<host>:<port>
+```
+or
+```
+stream_path = v3io
+tsdb_connection = taosws://<username>:<password>@<host>:<port>
+```
 
 ## Model monitoring applications
 
@@ -91,16 +102,9 @@ Processing data in batches allows for parallel computation, significantly speedi
 important for large-scale models that require substantial computational resources. Batch inputs are used with CPUs and GPUs. For gen AI models, 
 batch input is typically a list of prompts. For classic ML models, batch input is a list of features.
 
-Batch input that looks like: </br>
-```[[1,2,3], [5,2,9]]```</br>
-would give output like:</br>
-```[11, 0.6], [0, 0.87```</br>
-Batch input that looks like: </br>
-```[[1,2,3, "jhk",], [5,2,9, "tsc"]]```</br>
-would give output like:</br>
-```[11, 8.6], [0, 0.87]```
+See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.html#create-and-test-the-serving-function) tutorial.
 
 ## Alerts and notifications
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
-And you can use {ref}`notifications` to notify about alerts. 
+And you can use {ref}`notifications` to about the status of runs and pipelines.

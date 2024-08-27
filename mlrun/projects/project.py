@@ -3240,25 +3240,25 @@ class MlrunProject(ModelObj):
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
-                                          exact path.
+                                            exact path.
                                           * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
-                                          for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact
-                                          path.
+                                            path.
                                           * Kafka - for Kafka stream, provide the full connection string without custom
-                                          topic, for example kafka://<some_kafka_broker>:<port>.
+                                            topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact
-                                          path.
+                                            path.
                                           * TDEngine - for TDEngine tsdb, provide the full websocket connection URL,
-                                          for example taosws://<username>:<password>@<host>:<port>.
-        :param replace_creds:                     If True, will override the existing credentials.
+                                            for example taosws://<username>:<password>@<host>:<port>.
+        :param replace_creds:             If True, will override the existing credentials.
                                           Please keep in mind that if you already enabled model monitoring on
                                           your project this action can cause data loose and will require redeploying
                                           all model monitoring functions & model monitoring infra
@@ -3364,7 +3364,7 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.

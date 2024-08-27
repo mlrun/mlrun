@@ -48,8 +48,8 @@ For example:
 
 ## Selecting the streaming and TSDB platforms
 
-Model monitoring supports open-source streaming platforms such as Kafka, and MySQL (8.0 and higher), 
-in addition to integration with the Iguazio AI platform V3IO data layer. It supports TDEngine, and V3IO for the TSDB platform.
+Model monitoring supports Kafka or V3io as streaming platforms, and TDEngine or V3IO as TSDB platform.
+In addition, internal model-monitoring metadata can be saved in MySQL (8.0 and higher) or V3IO.  
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
 There are three credentials you can set, and each one can have a different value. For example:
 ```

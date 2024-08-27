@@ -89,8 +89,7 @@ class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
         cls.check_num_events = kwargs["check_num_events"]
 
     def do_tracking(
-        self,
-        monitoring_context: mm_context.MonitoringApplicationContext,
+        self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> list[mm_results.ModelMonitoringApplicationResult]:
         monitoring_context.logger.info("Running demo app")
         if self.check_num_events:

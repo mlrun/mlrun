@@ -1565,7 +1565,7 @@ class MlrunProject(ModelObj):
         labels=None,
         target_path=None,
         **kwargs,
-    ):
+    ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
 
         If the artifact already exists with the same key and tag, it will be overwritten.

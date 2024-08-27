@@ -592,7 +592,6 @@ class MonitoringApplicationController:
                 project=project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
-            mm_constants.ApplicationEvent.MLRUN_CONTEXT: {},  # TODO : for future use by ad-hoc batch infer
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})

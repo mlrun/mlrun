@@ -561,7 +561,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             entities=alert_objects.EventEntities(
                 kind=entity_kind,
                 project=self.project_name,
-                ids=[f"{self.project_name}_error-alert"],
+                ids=[f"{self.project_name}_err-app"],
             ),
             trigger=alert_objects.AlertTrigger(
                 events=[mlrun.common.schemas.alert.EventKind.MM_APP_FAILED]

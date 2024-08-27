@@ -136,9 +136,6 @@ def test_requirement_specifiers_convention():
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
-        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
-        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
-        "plotly": {"~=5.4, <5.12.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests

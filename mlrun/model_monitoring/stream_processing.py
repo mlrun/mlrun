@@ -202,7 +202,7 @@ class EventStreamProcessor:
         def apply_process_endpoint_event():
             graph.add_step(
                 "ProcessEndpointEvent",
-                after="FilterError",
+                after="extract_endpoint",  # TODO: change this to FilterError in ML-7456
                 full_event=True,
                 project=self.project,
             )
@@ -527,9 +527,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # If error key has been found in the current event,
         # increase the error counter by 1 and raise the error description
         error = event.get("error")
-        if error:
+        if error:  # TODO: delete this in ML-7456
             self.error_count[endpoint_id] += 1
-            # TODO: write to tsdb / kv once in a while
             raise mlrun.errors.MLRunInvalidArgumentError(str(error))
 
         # Validate event fields

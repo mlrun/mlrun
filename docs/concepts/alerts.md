@@ -80,6 +80,7 @@ notification = mlrun.model.Notification(
 endpoints = mlrun.get_run_db().list_model_endpoints(project=project_name)
 
 endpoint_id = endpoints[0].metadata.uid
+
 # Generate a unique ID for the EventEntity
 result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
 # Construct a list of notifications to be included in the alert config

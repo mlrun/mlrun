@@ -1273,10 +1273,13 @@ class RunStatus(ModelObj):
     @property
     def artifacts(self):
         self._artifacts = self._artifacts or []
-        existing_artifact_keys = [artifact.metadata.key for artifact in self._artifacts]
+        existing_artifact_keys = [
+            artifact["metadata"]["key"] for artifact in self._artifacts
+        ]
         for key, uri in self.artifact_uris.items():
             if key not in existing_artifact_keys:
-                self._artifacts.append(mlrun.datastore.get_store_resource(uri))
+                artifact = mlrun.datastore.get_store_resource(uri)
+                self._artifacts.append(artifact.to_dict())
         return self._artifacts
 
     @artifacts.setter

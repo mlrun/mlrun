@@ -3364,7 +3364,7 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-        :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": 
+        :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN":
                                 token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in

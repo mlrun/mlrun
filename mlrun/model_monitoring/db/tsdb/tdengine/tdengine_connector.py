@@ -119,10 +119,10 @@ class TDEngineConnector(TSDBConnector):
 
         # Convert the datetime strings to datetime objects
         event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
-            key=event[mm_schemas.WriterEvent.END_INFER_TIME]
+            val=event[mm_schemas.WriterEvent.END_INFER_TIME]
         )
         event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
-            key=event[mm_schemas.WriterEvent.START_INFER_TIME]
+            val=event[mm_schemas.WriterEvent.START_INFER_TIME]
         )
 
         create_table_query = table._create_subtable_query(
@@ -139,8 +139,8 @@ class TDEngineConnector(TSDBConnector):
         insert_statement.execute()
 
     @staticmethod
-    def _convert_to_datetime(key):
-        return datetime.fromisoformat(key) if isinstance(key, str) else key
+    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+        return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     def apply_monitoring_stream_steps(self, graph):
         """

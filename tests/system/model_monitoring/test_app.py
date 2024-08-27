@@ -649,8 +649,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             if app_data.artifacts:
                 app_name = app_data.class_.NAME
                 self._logger.debug("Checking app artifacts", app_name=app_name)
-                for name in app_data.artifacts:
-                    key = f"{app_name}-logger_{name}"
+                for key in app_data.artifacts:
                     self._logger.debug("Checking artifact", key=key)
                     # Test that the artifact can be fetched from the store
                     self.project.get_artifact(key).to_dataitem().get()

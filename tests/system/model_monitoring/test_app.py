@@ -709,7 +709,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             alert.entities["kind"]
             == alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
         )
-        assert alert.entities["ids"] == [f"{cls.project_name}_error-alert"]
+        assert alert.entities["ids"] == [f"{cls.project_name}_err-app"]
 
         # Validate alert notification
         assert alert.count == 1

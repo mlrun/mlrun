@@ -271,7 +271,12 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     def _resolve_container_error_status(self, crd_object: dict) -> tuple[str, str]:
-        # TODO:
+        conditions = crd_object["status"].get("conditions", [])
+        for condition in conditions:
+            reason = condition.get("reason", "")
+            message = condition.get("message", "")
+            if reason or message:
+                return reason, message
         return "", ""
 
     def _is_terminal_state(self, runtime_resource: dict) -> bool:

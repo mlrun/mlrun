@@ -542,7 +542,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
     def _add_error_alert(self) -> None:
         self._logger.debug("Create an error alert")
-        entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+        entity_kind = alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
 
         dummy_notification = mlrun.common.schemas.Notification(
             kind="webhook",
@@ -707,7 +707,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ]
         assert (
             alert.entities["kind"]
-            == alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+            == alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
         )
         assert alert.entities["ids"] == [f"{cls.project_name}_error-alert"]
 

@@ -23,6 +23,7 @@ from mlrun.common.types import StrEnum
 
 class EventEntityKind(StrEnum):
     MODEL_ENDPOINT_RESULT = "model-endpoint-result"
+    MODEL_MONITORING_APPLICATION = "model-monitoring-application"
     JOB = "job"
 
 
@@ -58,7 +59,7 @@ _event_kind_entity_map = {
     EventKind.SYSTEM_PERFORMANCE_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.MM_APP_ANOMALY_DETECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
     EventKind.MM_APP_ANOMALY_SUSPECTED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
-    EventKind.MM_APP_FAILED: [EventEntityKind.MODEL_ENDPOINT_RESULT],
+    EventKind.MM_APP_FAILED: [EventEntityKind.MODEL_MONITORING_APPLICATION],
     EventKind.FAILED: [EventEntityKind.JOB],
 }
 

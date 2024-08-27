@@ -86,6 +86,7 @@ result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_te
 # Construct a list of notifications to be included in the alert config
 notifications = [alert_objects.AlertNotification(notification=notification)]
 alert_name = "drift_alert"
+
 # The summary you will see in the notification once it is invoked
 alert_summary = "A drift was detected"
 # Choose the MODEL_ENDPOINT_RESULT for the model monitoring alert

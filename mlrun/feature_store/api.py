@@ -230,6 +230,11 @@ def _get_offline_features(
             "entity_timestamp_column param "
             "can not be specified without entity_rows param"
         )
+    if isinstance(target, BaseStoreTarget) and not target.support_pandas:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"get_offline_features does not support targets that do not support pandas engine."
+            f" Target kind: {target.kind}"
+        )
 
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

@@ -384,9 +384,10 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v2"
+    project_name = "test-app-flow-v20"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    # image: typing.Optional[str] = None
+    image = "docker.io/eyaligu/mlrun:unstablev8"
     error_count = 10
 
     @classmethod
@@ -710,6 +711,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             == alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
         )
         assert alert.entities["ids"] == [f"{cls.project_name}_error-alert"]
+
+        # Validate alert notification
+        assert alert.count == 1
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:

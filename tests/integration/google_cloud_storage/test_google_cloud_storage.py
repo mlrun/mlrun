@@ -16,6 +16,7 @@ import json
 import os
 import os.path
 import tempfile
+import time
 import uuid
 
 import dask.dataframe as dd
@@ -23,7 +24,10 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from gcsfs.retry import HttpError
+from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 import mlrun
 import mlrun.errors
@@ -134,7 +138,9 @@ class TestGoogleCloudStorage:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         os.environ.pop("GCP_CREDENTIALS", None)
 
-    def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets):
+    def _setup_by_google_credentials_file(
+        self, use_datastore_profile, use_secrets=False
+    ):
         # We give priority to profiles, then to secrets, and finally to environment variables.
         self.storage_options = {}
         if use_datastore_profile:
@@ -152,7 +158,9 @@ class TestGoogleCloudStorage:
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
 
-    def _setup_by_serialized_json_content(self, use_datastore_profile, use_secrets):
+    def _setup_by_serialized_json_content(
+        self, use_datastore_profile, use_secrets=False
+    ):
         self.storage_options = {}
         if use_datastore_profile:
             self._setup_profile(profile_auth_by="gcp_credentials")
@@ -220,6 +228,69 @@ class TestGoogleCloudStorage:
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
         assert response.decode() == self.test_string
+
+    @pytest.mark.parametrize(
+        "setup_by",
+        [
+            "credentials_file",
+            "serialized_json",
+        ],
+    )
+    def test_large_upload(self, use_datastore_profile, setup_by):
+        self.setup_mapping[setup_by](self, use_datastore_profile)
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        file_size = 1024 * 1024 * 100
+        chunk_size = 1024 * 1024 * 10
+
+        first_start_time = time.monotonic()
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
+            num_chunks = file_size // chunk_size
+            remainder = file_size % chunk_size
+            for _ in range(num_chunks):
+                chunk = os.urandom(chunk_size)
+                temp_file.write(chunk)
+            if remainder:
+                chunk = os.urandom(remainder)
+                temp_file.write(chunk)
+            temp_file.flush()
+            temp_file.seek(0)
+
+            logger.info(
+                f"gcs test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
+                "seconds"
+            )
+            start_time = time.monotonic()
+            data_item.upload(temp_file.name)
+            logger.info(
+                f"gcs test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
+            with tempfile.NamedTemporaryFile(
+                suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
+                start_time = time.monotonic()
+                data_item.download(temp_file_download.name)
+                logger.info(
+                    f"gcs test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
+                )
+                with (
+                    open(temp_file.name, "rb") as file1,
+                    open(temp_file_download.name, "rb") as file2,
+                ):
+                    chunk_number = 1
+                    while True:
+                        chunk1 = file1.read(chunk_size)
+                        chunk2 = file2.read(chunk_size)
+                        if not chunk1 and not chunk2:
+                            break
+                        if chunk1 != chunk2:
+                            raise AssertionError(
+                                f"expected chunk different from the result."
+                                f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
+                            )
+                        chunk_number += 1
 
     @pytest.mark.parametrize(
         "setup_by, use_secrets",
@@ -314,24 +385,43 @@ class TestGoogleCloudStorage:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    @pytest.mark.parametrize("credentials_value", [None, "wrong credentials"])
+    def _generate_fake_private_key(self):
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return pem.decode("utf-8")
+
+    @pytest.mark.parametrize("credentials_value", [False, True])
     def test_wrong_credentials_rm(self, use_datastore_profile, credentials_value):
+        if credentials_value:
+            fake_credentials = json.loads(self.credentials)
+            fake_credentials["private_key"] = self._generate_fake_private_key()
+            fake_credentials = json.dumps(fake_credentials)
+
+        else:
+            fake_credentials = None
         if use_datastore_profile:
             gcp_credentials_dict = (
-                {"gcp_credentials": credentials_value} if credentials_value else {}
+                {"gcp_credentials": fake_credentials} if credentials_value else {}
             )
             self.profile = DatastoreProfileGCS(
                 name=self.profile_name, **gcp_credentials_dict
             )
             register_temporary_client_datastore_profile(self.profile)
-        elif credentials_value:
-            os.environ["GCP_CREDENTIALS"] = credentials_value
+        elif fake_credentials:
+            os.environ["GCP_CREDENTIALS"] = fake_credentials
         data_item = mlrun.run.get_dataitem(self._object_url)
-        with pytest.raises(HttpError):
+        with pytest.raises((DefaultCredentialsError, RefreshError, HttpError)):
             data_item.delete()
 
     def test_rm_file_not_found(self, use_datastore_profile):
-        self._setup_by_serialized_json_content(use_datastore_profile, False)
+        self._setup_by_serialized_json_content(use_datastore_profile)
         not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
         data_item = mlrun.run.get_dataitem(not_exist_url)
         data_item.delete()

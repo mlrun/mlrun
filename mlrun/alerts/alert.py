@@ -29,6 +29,7 @@ class AlertConfig(ModelObj):
         "reset_policy",
         "state",
         "count",
+        "created",
     ]
     _fields_to_serialize = ModelObj._fields_to_serialize + [
         "entities",
@@ -55,12 +56,12 @@ class AlertConfig(ModelObj):
         created: str = None,
         count: int = None,
     ):
-        """
-        Alert config object
+        """Alert config object
 
         Example::
+
             # create an alert on endpoint_id, which will be triggered to slack if there is a "data_drift_detected" event
-            3 times in the next hour.
+            # 3 times in the next hour.
             from mlrun.alerts import AlertConfig
             import mlrun.common.schemas.alert as alert_objects
 
@@ -136,8 +137,8 @@ class AlertConfig(ModelObj):
             self._apply_template(template)
 
     def validate_required_fields(self):
-        if not self.project or not self.name:
-            raise mlrun.errors.MLRunBadRequestError("Project and name must be provided")
+        if not self.name:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False

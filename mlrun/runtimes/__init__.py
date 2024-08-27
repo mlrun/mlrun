@@ -243,6 +243,10 @@ class RuntimeKinds:
         return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
     @staticmethod
+    def supports_from_notebook(kind):
+        return kind not in [RuntimeKinds.application]
+
+    @staticmethod
     def resolve_nuclio_runtime(kind: str, sub_kind: str):
         kind = kind.split(":")[0]
         if kind not in RuntimeKinds.nuclio_runtimes():

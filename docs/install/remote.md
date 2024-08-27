@@ -52,7 +52,7 @@ To install a specific version, use the command: `pip install mlrun==<version>`. 
      - ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
    
       
-   - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
+   - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/dependencies.py#L25).<br>
      
 3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 

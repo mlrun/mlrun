@@ -86,7 +86,7 @@ Production pipelines usually consist of:
 - Real-time data collection, validation, and feature engineering logic
 - One or more model serving services
 - API services and/or application integration logic
-- Data and model monitoring services
+- Data and {ref}`model-monitoring-overview` services
 - Resource monitoring and alerting services
 - Event, telemetry, and data/features logging services
 

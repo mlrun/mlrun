@@ -102,6 +102,16 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
             alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_count=1
         )
 
+        # send events again to make sure alert does not trigger, since it is active already
+        for _ in range(alert2["criteria"].count):
+            self._post_event(
+                project_name, alert2["event_name"], alert2["entity"]["kind"]
+            )
+        alert = self._get_alerts(project_name, created_alert2.name)
+        self._validate_alert(
+            alert, alert_state=alert_objects.AlertActiveState.ACTIVE, alert_count=1
+        )
+
         # reset the alert and trigger the event again and validate that the state is inactive
         self._reset_alert(project_name, created_alert2.name)
         self._post_event(project_name, alert2["event_name"], alert2["entity"]["kind"])
@@ -244,9 +254,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         notification = mlrun.model.Notification(
             kind="slack",
             name="slack_drift",
-            message="Ay caramba!",
-            severity="warning",
-            when=["now"],
             secret_params={
                 "webhook": "https://hooks.slack.com/services/",
             },
@@ -323,15 +330,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         expectations = [
             {
-                "param_name": "project_name",
-                "param_value": "",
-                "exception": mlrun.errors.MLRunBadRequestError,
-                "case": "testing create alert without passing project",
-            },
-            {
                 "param_name": "alert_name",
                 "param_value": "",
-                "exception": mlrun.errors.MLRunBadRequestError,
+                "exception": mlrun.errors.MLRunInvalidArgumentError,
                 "case": "testing create alert without passing alert name",
             },
             {
@@ -435,10 +436,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "notification": {
                     "kind": "slack",
                     "name": "slack_jobs",
-                    "message": "Ay ay ay!",
-                    "severity": "warning",
-                    "when": ["now"],
-                    "condition": "failed",
                     "secret_params": {
                         "webhook": "https://hooks.slack.com/services/",
                     },
@@ -448,10 +445,6 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                 "notification": {
                     "kind": "git",
                     "name": "git_jobs",
-                    "message": "Ay ay ay!",
-                    "severity": "warning",
-                    "when": ["now"],
-                    "condition": "failed",
                     "params": {
                         "repo": "some-repo",
                         "issue": "some-issue",
@@ -672,13 +665,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
                     "notification": {
                         "kind": "slack",
                         "name": "slack_drift",
-                        "message": "Ay caramba!",
-                        "severity": "warning",
-                        "when": ["now"],
                         "secret_params": {
                             "webhook": "https://hooks.slack.com/services/",
                         },
-                        "condition": "oops",
                     }
                 }
             ]

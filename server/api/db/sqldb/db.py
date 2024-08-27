@@ -2429,12 +2429,9 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values_count": len(main_table_identifier_values),
+            "main_table_identifier_values": main_table_identifier_values,
         }
-        if deletions_count != len(main_table_identifier_values):
-            logger.warning("Removed less rows than expected from table", **log_kwargs)
-        else:
-            logger.debug("Removed rows from table", **log_kwargs)
+        logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
         return deletions_count
 
@@ -5115,9 +5112,8 @@ class SQLDB(DBInterface):
             alert_record.id,
             alert.project,
         )
+        self.create_alert_state(session, alert_record)
 
-        state = AlertState(count=0, parent_id=alert_record.id)
-        self._upsert(session, [state])
         return self._transform_alert_config_record_to_schema(alert_record)
 
     def delete_alert(self, session, project: str, name: str):
@@ -5158,6 +5154,7 @@ class SQLDB(DBInterface):
             else mlrun.common.schemas.AlertActiveState.INACTIVE
         )
         alert.count = state.count
+        alert.created = state.created
 
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()
@@ -5271,6 +5268,10 @@ class SQLDB(DBInterface):
         state = self.get_alert_state(session, alert_id)
         if state is not None:
             return state.to_dict()
+
+    def create_alert_state(self, session, alert_record):
+        state = AlertState(count=0, parent_id=alert_record.id)
+        self._upsert(session, [state])
 
     def delete_alert_notifications(
         self,
@@ -5560,10 +5561,13 @@ class SQLDB(DBInterface):
                 )
 
             notification.kind = notification_model.kind
-            notification.message = notification_model.message
-            notification.severity = notification_model.severity
-            notification.when = ",".join(notification_model.when)
-            notification.condition = notification_model.condition
+            notification.message = notification_model.message or ""
+            notification.severity = (
+                notification_model.severity
+                or mlrun.common.schemas.NotificationSeverity.INFO
+            )
+            notification.when = ",".join(notification_model.when or [])
+            notification.condition = notification_model.condition or ""
             notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (

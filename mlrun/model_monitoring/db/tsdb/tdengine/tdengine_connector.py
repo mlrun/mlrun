@@ -108,7 +108,7 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
-            del event[mm_schemas.ResultData.CURRENT_STATS]
+            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
@@ -118,13 +118,11 @@ class TDEngineConnector(TSDBConnector):
             ).replace("-", "_")
 
         # Convert the datetime strings to datetime objects
-        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_string_to_datetime(
-            event[mm_schemas.WriterEvent.END_INFER_TIME]
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
+            key=event[mm_schemas.WriterEvent.END_INFER_TIME]
         )
-        event[mm_schemas.WriterEvent.START_INFER_TIME] = (
-            self._convert_string_to_datetime(
-                event[mm_schemas.WriterEvent.START_INFER_TIME]
-            )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
+            key=event[mm_schemas.WriterEvent.START_INFER_TIME]
         )
 
         create_table_query = table._create_subtable_query(
@@ -141,8 +139,8 @@ class TDEngineConnector(TSDBConnector):
         insert_statement.execute()
 
     @staticmethod
-    def _convert_string_to_datetime(string):
-        return datetime.fromisoformat(string)
+    def _convert_to_datetime(key):
+        return datetime.fromisoformat(key) if isinstance(key, str) else key
 
     def apply_monitoring_stream_steps(self, graph):
         """

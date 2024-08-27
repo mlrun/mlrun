@@ -71,6 +71,7 @@ def test_write_application_event(connector):
         "end_infer_time": end_infer_time,
         "result_status": result_status,
         # make sure we can write apostrophes (ML-7535)
+        "current_stats": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         # TODO: add this back when extra data is supported (ML-7460)
         # "result_extra_data": """{"question": "Who wrote 'To Kill a Mockingbird'?"}""",
         "result_value": result_value,

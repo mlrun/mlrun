@@ -748,7 +748,7 @@ class HttpStore(DataStore):
 # As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
 # Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
 # method specifically to strip away the 'ds' schema as required.
-def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
+def make_datastore_schema_sanitizer(cls, using_bucket=False, *args, **kwargs):
     if not issubclass(cls, fsspec.AbstractFileSystem):
         raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 

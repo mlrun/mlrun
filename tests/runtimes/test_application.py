@@ -22,6 +22,8 @@ import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.utils
 
+assets_path = pathlib.Path(__file__).absolute().parent / "assets"
+
 
 @pytest.fixture
 def igz_version_mock():
@@ -33,10 +35,11 @@ def igz_version_mock():
     mlrun.mlconf.igz_version = original_igz_version
 
 
-def test_create_application_runtime():
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+def test_ensure_reverse_proxy_configurations():
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun"
     )
+    mlrun.runtimes.ApplicationRuntime._ensure_reverse_proxy_configurations(fn)
     assert fn.kind == mlrun.runtimes.RuntimeKinds.application
     assert fn.spec.image == "mlrun/mlrun"
     assert fn.metadata.name == "application-test"
@@ -61,7 +64,7 @@ def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
 
 def test_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image=image
     )
     fn.deploy()
@@ -70,7 +73,7 @@ def test_deploy_application_runtime(rundb_mock, igz_version_mock):
 
 def test_consecutive_deploy_application_runtime(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image=image
     )
     fn.deploy()
@@ -148,7 +151,7 @@ def test_consecutive_deploy_application_runtime(rundb_mock, igz_version_mock):
     ],
 )
 def test_pre_deploy_validation(sidecars, expected_error_message):
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="my/web-app:latest"
     )
     fn.spec.config["spec.sidecars"] = sidecars
@@ -161,7 +164,7 @@ def test_pre_deploy_validation(sidecars, expected_error_message):
 
 
 def test_image_enriched_on_build_application_image(remote_builder_mock):
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
     )
@@ -171,7 +174,7 @@ def test_image_enriched_on_build_application_image(remote_builder_mock):
 
 
 def test_application_image_build(remote_builder_mock, igz_version_mock):
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
         requirements=["mock"],
@@ -185,7 +188,7 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
 
 def test_application_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         function_name,
         kind="application",
         image="mlrun/mlrun",
@@ -199,7 +202,7 @@ def test_application_api_gateway(rundb_mock, igz_version_mock):
 
 
 def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
-    function: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    function: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test",
         kind="application",
         image="mlrun/mlrun",
@@ -217,7 +220,7 @@ def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
 def test_application_runtime_resources(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     app_name = "application-test"
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.code_to_function(
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         app_name,
         kind="application",
         image=image,
@@ -253,6 +256,17 @@ def test_application_runtime_resources(rundb_mock, igz_version_mock):
 def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
     assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
+
+
+def test_application_from_local_file_validation():
+    project = mlrun.get_or_create_project("test-application")
+    func_path = assets_path / "sample_function.py"
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="Embedding a code file is not supported for application runtime. "
+        "Code files should be specified via project/function source.",
+    ):
+        project.set_function(func=str(func_path), name="my-app", kind="application")
 
 
 def _assert_function_code(fn, file_path=None):

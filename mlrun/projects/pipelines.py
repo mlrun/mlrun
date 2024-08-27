@@ -1061,7 +1061,7 @@ def load_and_run(
 
     # extract "start" notification if exists
     start_notifications = [
-        mlrun.model.Notification.from_dict(notification)
+        notification
         for notification in context.get_notifications()
         if "running" in notification.when
     ]

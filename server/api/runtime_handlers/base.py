@@ -771,6 +771,15 @@ class BaseRuntimeHandler(ABC):
 
         return in_terminal_state, last_container_completion_time, run_state
 
+    def _resolve_container_error_status(self, pod: dict) -> tuple[str, str]:
+        container_statuses = pod["status"].get("container_statuses", [])
+        for container_status in container_statuses:
+            terminated = container_status.get("state", {}).get("terminated")
+            if terminated:
+                return terminated.get("reason", ""), terminated.get("message", "")
+
+        return "", ""
+
     def _get_default_label_selector(
         self, class_mode: Union[RuntimeClassMode, str] = None
     ) -> str:
@@ -1180,7 +1189,13 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
         _, _, run = self._ensure_run_state(
-            db, db_session, project, uid, name, run_state
+            db,
+            db_session,
+            project,
+            uid,
+            name,
+            run_state,
+            runtime_resource=runtime_resource,
         )
 
     def _is_runtime_resource_run_in_terminal_state(
@@ -1330,6 +1345,7 @@ class BaseRuntimeHandler(ABC):
             run_state,
             run,
             search_run=False,
+            runtime_resource=runtime_resource,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
@@ -1618,10 +1634,13 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: dict = None,
         search_run: bool = True,
+        runtime_resource: dict = None,
     ) -> tuple[bool, str, dict]:
+        reason, message = "", ""
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
         )
+
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if not run_state or db_run_state == run_state:
@@ -1671,12 +1690,16 @@ class BaseRuntimeHandler(ABC):
                     run_state=run_state,
                 )
 
+            elif run_state == RunStates.error:
+                # Try resolving the error reason
+                reason, message = self._resolve_container_error_status(runtime_resource)
+
         logger.info("Updating run state", run_uid=uid, run_state=run_state)
         run_updates = {
             "status.state": run_state,
             "status.last_update": now_date().isoformat(),
-            # run is not in terminal state, so reset reason and error
-            "status.reason": "",
+            "status.reason": reason,
+            "status.status_text": message,
             "status.error": "",
         }
         run = db.update_run(db_session, run_updates, uid, project)

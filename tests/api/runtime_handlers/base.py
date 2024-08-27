@@ -129,7 +129,10 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(timezone.utc), exit_code=0
+            finished_at=datetime.now(timezone.utc),
+            exit_code=0,
+            reason="Some reason",
+            message="Failed message",
         )
         container_state = client.V1ContainerState(terminated=terminated_container_state)
         container_status = client.V1ContainerStatus(
@@ -560,7 +563,15 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _assert_run_reached_state(
-        db: Session, project: str, uid: str, expected_state: str
+        db: Session,
+        project: str,
+        uid: str,
+        expected_state: str,
+        expected_status_attrs: dict = None,
     ):
+        expected_status_attrs = expected_status_attrs or {}
         run = get_db().read_run(db, uid, project)
         assert run["status"]["state"] == expected_state
+
+        for key, val in expected_status_attrs.items():
+            assert run["status"][key] == val

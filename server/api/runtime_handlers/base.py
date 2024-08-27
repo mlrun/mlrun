@@ -1698,8 +1698,8 @@ class BaseRuntimeHandler(ABC):
         run_updates = {
             "status.state": run_state,
             "status.last_update": now_date().isoformat(),
-            "status.reason": reason,
-            "status.status_text": message,
+            "status.reason": reason or "",
+            "status.status_text": message or "",
             "status.error": "",
         }
         run = db.update_run(db_session, run_updates, uid, project)

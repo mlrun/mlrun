@@ -4418,7 +4418,6 @@ def _init_function_from_dict(
     elif kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         func = new_function(
             name,
-            command=relative_url,
             image=image,
             kind=kind,
             handler=handler,

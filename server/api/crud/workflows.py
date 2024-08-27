@@ -102,12 +102,6 @@ class WorkflowRunners(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
 
-        if workflow_request.notifications:
-            run_spec.spec.notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
         workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
@@ -143,6 +137,11 @@ class WorkflowRunners(
         """
         meta_uid = uuid.uuid4().hex
 
+        notifications = [
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
+        ]
+
         source, save, is_context = self._validate_source(
             project, workflow_request.source
         )
@@ -177,6 +176,7 @@ class WorkflowRunners(
                     project.metadata.name,
                     meta_uid,
                 ),
+                notifications=notifications,
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -229,13 +229,6 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
-        notifications = None
-        if workflow_request and workflow_request.notifications:
-            notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
         artifact_path = workflow_request.artifact_path if workflow_request else ""
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
@@ -244,7 +237,6 @@ class WorkflowRunners(
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
-            notifications=notifications,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -320,6 +312,11 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
+        notifications = [
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
+        ]
+
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(
@@ -337,6 +334,7 @@ class WorkflowRunners(
                     wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
+                notifications=notifications,
             ),
             metadata=RunMetadata(name=run_name),
         )

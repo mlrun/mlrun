@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import json
+import socket
 from typing import Any, Optional, cast
 
 import numpy as np
 import pandas as pd
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.utils
@@ -103,11 +105,22 @@ class MonitoringApplicationContext:
             str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
         )
 
+        # Default labels for the artifacts
+        self._labels = self._get_labels()
+
         # Persistent data - fetched when needed
         self._sample_df: Optional[pd.DataFrame] = None
         self._model_endpoint: Optional[ModelEndpoint] = model_endpoint_dict.get(
             self.endpoint_id
         )
+
+    def _get_labels(self) -> dict[str, str]:
+        return {
+            mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
+            mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
+            mlrun_constants.MLRunInternalLabels.app_name: self.application_name,
+            mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
+        }
 
     @property
     def sample_df(self) -> pd.DataFrame:
@@ -204,4 +217,5 @@ class MonitoringApplicationContext:
         Log an artifact.
         See :func:`~mlrun.projects.project.MlrunProject.log_artifact` for the documentation.
         """
+        kwargs["labels"] = kwargs.get("labels", {}) | self._labels
         return self.project.log_artifact(*args, **kwargs)

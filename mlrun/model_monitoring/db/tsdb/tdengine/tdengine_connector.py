@@ -117,6 +117,16 @@ class TDEngineConnector(TSDBConnector):
                 f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
+        # Convert the datetime strings to datetime objects
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_string_to_datetime(
+            event[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = (
+            self._convert_string_to_datetime(
+                event[mm_schemas.WriterEvent.START_INFER_TIME]
+            )
+        )
+
         create_table_query = table._create_subtable_query(
             subtable=table_name, values=event
         )
@@ -129,6 +139,10 @@ class TDEngineConnector(TSDBConnector):
         )
         insert_statement.add_batch()
         insert_statement.execute()
+
+    @staticmethod
+    def _convert_string_to_datetime(string):
+        return datetime.fromisoformat(string)
 
     def apply_monitoring_stream_steps(self, graph):
         """

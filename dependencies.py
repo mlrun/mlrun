@@ -49,9 +49,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # >=2.4.2 to force having a security fix done in 2.4.2
             "bokeh~=2.4, >=2.4.2",
         ],
-        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
-        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
-        "plotly": ["plotly~=5.4, <5.12.0"],
+        "plotly": ["plotly~=5.23"],
         # used to generate visualization nuclio/serving graph steps
         "graphviz": ["graphviz~=0.20.0"],
         "google-cloud": [

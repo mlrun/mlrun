@@ -1062,8 +1062,8 @@ def load_and_run(
     # extract "start" notification if exists
     start_notifications = [
         mlrun.model.Notification.from_dict(notification)
-        for notification in context.to_dict().get("spec", {}).get("notifications", [])
-        if "running" in notification["when"]
+        for notification in context.get_notifications()
+        if "running" in notification.when
     ]
 
     workflow_log_message = workflow_name or workflow_path

@@ -335,10 +335,12 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             kind="job",
             project=self.project_name,
             filename=code_path,
+            image="datanode-registry.iguazio-platform.app.vmdev17.lab.iguazeng.com:80/quay.io/mlrun/mlrun:unstable",
         )
+        function.set_image_pull_configuration(image_pull_policy="Always")
 
         p1 = 10
-        run = function.run(
+        function.run(
             handler="handler_with_future_links",
             params={"p1": p1},
             returns=["my_model", "px"],

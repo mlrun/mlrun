@@ -156,7 +156,7 @@ class RunKeys:
     inputs = "inputs"
     returns = "returns"
     artifacts = "artifacts"
-    artifacts_uris = "artifacts_uris"
+    artifact_uris = "artifact_uris"
     outputs = "outputs"
     data_stores = "data_stores"
     secrets = "secret_sources"

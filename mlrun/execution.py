@@ -193,7 +193,7 @@ class MLClientCtx:
     @property
     def artifact_uris(self):
         """Dictionary of artifact URIs (read-only)"""
-        return deepcopy(self._artifacts_manager.artifacts_uris)
+        return deepcopy(self._artifacts_manager.artifact_uris)
 
     @property
     def in_path(self):
@@ -426,11 +426,11 @@ class MLClientCtx:
             self._results = status.get("results", self._results)
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
-                self._artifacts_manager.artifacts_uris[artifact_obj.key] = (
+                self._artifacts_manager.artifact_uris[artifact_obj.key] = (
                     artifact_obj.key
                 )
-            for key, uri in status.get("artifacts_uris", {}):
-                self._artifacts_manager.artifacts_uris[key] = uri
+            for key, uri in status.get("artifact_uris", {}):
+                self._artifacts_manager.artifact_uris[key] = uri
             self._state = status.get("state", self._state)
 
         # No need to store the run for every worker
@@ -861,7 +861,7 @@ class MLClientCtx:
         return self.get_artifact(key)
 
     def get_artifact(self, key):
-        artifact_uri = self._artifacts_manager.artifacts_uris[key]
+        artifact_uri = self._artifacts_manager.artifact_uris[key]
         return self.get_store_resource(artifact_uri)
 
     def update_artifact(self, artifact_object: Artifact):
@@ -986,9 +986,7 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][RunKeys.artifacts_uris] = (
-            self._artifacts_manager.artifacts_uris
-        )
+        struct["status"][RunKeys.artifact_uris] = self._artifacts_manager.artifact_uris
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -1082,8 +1080,8 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{RunKeys.artifacts_uris}"] = (
-            self._artifacts_manager.artifacts_uris
+        struct[f"status.{RunKeys.artifact_uris}"] = (
+            self._artifacts_manager.artifact_uris
         )
         return struct
 

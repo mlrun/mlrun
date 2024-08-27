@@ -1250,7 +1250,7 @@ class RunStatus(ModelObj):
         self.host = host
         self.commit = commit
         self.results = results
-        self.artifacts = artifacts
+        self._artifacts = artifacts
         self.start_time = start_time
         self.last_update = last_update
         self.iterations = iterations
@@ -1258,7 +1258,48 @@ class RunStatus(ModelObj):
         self.reason = reason
         self.notifications = notifications or {}
         # Artifact key -> URI mapping, since the full artifacts are not stored in the runs DB table
-        self.artifact_uris = artifact_uris or {}
+        self._artifact_uris = artifact_uris or {}
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        deprecated_fields = {
+            # Set artifacts as deprecated for lazy loading
+            "artifacts": "artifact_uris"
+        }
+        return super().from_dict(
+            struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+
+    @property
+    def artifacts(self):
+        self._artifacts = self._artifacts or []
+        existing_artifact_keys = [artifact.metadata.key for artifact in self._artifacts]
+        for key, uri in self.artifact_uris.items():
+            if key not in existing_artifact_keys:
+                self._artifacts.append(mlrun.datastore.get_store_resource(uri))
+        return self._artifacts
+
+    @artifacts.setter
+    def artifacts(self, artifacts):
+        self._artifacts = artifacts
+
+    @property
+    def artifact_uris(self):
+        return self._artifact_uris
+
+    @artifact_uris.setter
+    def artifact_uris(self, artifact_uris):
+        resolved_artifact_uris = {}
+        if isinstance(artifact_uris, list):
+            # artifact_uris is the deprecated list of artifacts - convert to new form
+            for artifact in artifact_uris:
+                if isinstance(artifact, dict):
+                    artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                resolved_artifact_uris[artifact.key] = artifact.uri
+        else:
+            resolved_artifact_uris = artifact_uris
+
+        self._artifact_uris = resolved_artifact_uris
 
     def is_failed(self) -> Optional[bool]:
         """

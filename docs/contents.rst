@@ -45,7 +45,8 @@ Table of Contents
    feature-store/feature-store
    concepts/runs-workflows
    serving/serving-graph
-      
+   concepts/monitoring
+   concepts/alerts-notifications
      
 .. toctree::
    :maxdepth: 1

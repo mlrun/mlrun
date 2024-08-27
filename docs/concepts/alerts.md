@@ -83,6 +83,7 @@ endpoint_id = endpoints[0].metadata.uid
 
 # Generate a unique ID for the EventEntity
 result_endpoint = get_result_instance_fqn(endpoint_id, "myappv2", "data_drift_test")
+
 # Construct a list of notifications to be included in the alert config
 notifications = [alert_objects.AlertNotification(notification=notification)]
 

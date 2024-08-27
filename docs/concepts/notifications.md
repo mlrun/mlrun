@@ -133,9 +133,9 @@ notification = mlrun.model.Notification(
 project.run(..., notifications=[notification])
 ```
 
-MLRun can also sends a `pipeline started` notification. In order to do so, configure a notification that includes 
-`when=running` to determine the parameters for the `pipeline started` notification, for 
-example the webook, credentials, etc.</br>
+MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
+`when=running`. The `pipeline started` notification uses its own parameters, for
+example the webhook, credentials, etc., for the notification message.</br>
 
 ### Remote pipeline notifications
 In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.

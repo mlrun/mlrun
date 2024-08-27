@@ -942,15 +942,12 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
-        html_display_id = create_ipython_display()
         dag_display_id = create_ipython_display()
 
         def _wait_for_pipeline_completion():
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
-            show_kfp_run(
-                pipeline, html_display_id=html_display_id, dag_display_id=dag_display_id
-            )
+            show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
             if pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",

@@ -484,7 +484,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     return short_run
 
 
-def show_kfp_run(run, html_display_id=None, dag_display_id=None):
+def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True):
     phase_to_color = {
         mlrun_pipelines.common.models.RunStatuses.failed: "red",
         mlrun_pipelines.common.models.RunStatuses.succeeded: "green",
@@ -539,9 +539,11 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None):
 
             # Use externally supplied displays if this method was run as part of an 'animation' loop.
             # Or create new displays if this method was run once as a standalone.
-            html_display_id = html_display_id or create_ipython_display()
+            if with_html:
+                html_display_id = html_display_id or create_ipython_display()
+                IPython.display.update_display(html, display_id=html_display_id)
+
             dag_display_id = dag_display_id or create_ipython_display()
-            IPython.display.update_display(html, display_id=html_display_id)
             IPython.display.update_display(dag, display_id=dag_display_id)
 
         except Exception as exc:

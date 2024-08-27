@@ -16,8 +16,9 @@
 - [Multi-stage workflows (batch pipelines)](#multi-stage-workflows-batch-pipelines)
 - [Logging](#logging)
 - [Experiment tracking](#experiment-tracking)
-- [Model Inferencing and serving](#model-inferencing-and-serving)
+- [Model inferencing and serving](#model-inferencing-and-serving)
 - [Model monitoring and drift detection](#model-monitoring-and-drift-detection)
+- [Alerts and notifications](#alerts-and-notifications)
 - [Sources and targets](#sources-and-targets)
 - [Feature store](#feature-store)
 - [Real-time pipelines](#real-time-pipelines)
@@ -348,8 +349,6 @@ fn.with_priority_class(name="igz-workload-medium")
 
 #### Node selection
 
-Can be configured on the function and the service. See [Node selection](./runtimes/configuring-job-resources.html#node-selection).
-
 ```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preemptible"})
 ```
@@ -592,37 +591,9 @@ log_with_returns_run = my_func.run(
 ```
 
 ### Automatic logging
-#### Auto-logging a dataset: basic example
+
 ```python
-import pandas as pd
-
-
-def func(col: list) -> pd.DataFrame:
-    df = pd.DataFrame({"col": col})
-    return df
-
-
-def func_2(df: pd.DataFrame) -> int:
-    return int(df.sum()[0])
-
-
-run1 = my_func.run(
-    handler="func",
-    params={"col": [1, 2, 3, 4, 5, 6, 7]},
-    returns=["df:dataset"],
-    local=True,
-)
-
-my_func.run(
-    handler="func_2",
-    inputs={"df": run1.outputs["df"]},
-    returns=["sum"],
-    local=True,
-)
-```
-
-#### Auto logging for ML frameworks
-```python
+# Auto logging for ML frameworks
 from mlrun.frameworks.sklearn import apply_mlrun
 
 apply_mlrun(model=model, model_name="my_model", x_test=X_test, y_test=y_test)
@@ -715,6 +686,42 @@ batch_run = project.run_function(
     },
 )
 ```
+
+## Alerts and notifications
+
+Docs: {ref}`alerts`, {ref}`notifications`
+
+### Alerts
+```python
+alert_data = mlrun.alerts.alert.AlertConfig(
+    project=project_name,
+    name=alert_name,
+    summary=alert_summary,
+    severity=alert_objects.AlertSeverity.LOW,
+    entities=alert_objects.EventEntities(
+        kind=entity_kind, project=project_name, ids=[result_endpoint]
+    ),
+    trigger=alert_objects.AlertTrigger(events=[event_name]),
+    criteria=None,
+    notifications=notifications,
+)
+```
+
+### Notifications
+```python
+notification = mlrun.model.Notification(
+    kind="slack",
+    name="slack_notification",
+    message="A drift was detected",
+    severity="warning",
+    when=["now"],
+    condition="failed",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
+).to_dict()
+```
+
 
 ## Sources and targets
 

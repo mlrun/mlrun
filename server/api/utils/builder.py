@@ -47,7 +47,7 @@ def make_dockerfile(
     enriched_group_id: int = None,
     builder_env: list[client.V1EnvVar] = None,
     extra_args: str = "",
-    project_secrets: list[client.V1EnvVar] = None,
+    project_secrets: typing.List[client.V1EnvVar] = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.

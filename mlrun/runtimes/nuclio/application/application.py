@@ -481,7 +481,7 @@ class ApplicationRuntime(RemoteRuntime):
     def invoke(
         self,
         path: str,
-        body: typing.Union[str, bytes, dict] = None,
+        body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: str = None,
         headers: dict = None,
         dashboard: str = "",
@@ -509,11 +509,13 @@ class ApplicationRuntime(RemoteRuntime):
 
         if not method:
             method = "POST" if body else "GET"
+
         return self.status.api_gateway.invoke(
             method=method,
             headers=headers,
             credentials=credentials,
             path=path,
+            body=body,
             **http_client_kwargs,
         )
 

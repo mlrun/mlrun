@@ -25,7 +25,6 @@ import mlrun.runtimes.pod
 import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
-from mlrun import code_to_function
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -84,13 +83,13 @@ class TestApplicationRuntime(TestRuntimeBase):
         )
 
     def _generate_runtime(
-        self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
-        runtime = code_to_function(
+        self, kind=None
+    ) -> typing.Union[mlrun.runtimes.ApplicationRuntime]:
+        runtime = mlrun.new_function(
             name=self.name,
             project=self.project,
             kind=kind or self.runtime_kind,
-            description="test application runtime",
-            labels=labels,
         )
+        runtime._ensure_reverse_proxy_configurations(runtime)
+        runtime._configure_application_sidecar()
         return runtime

@@ -16,6 +16,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 ```{toctree}
 :maxdepth: 1
 :hidden:
+01-mlrun-basics
 02-model-training
 03-model-serving
 04-pipeline

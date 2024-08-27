@@ -208,16 +208,19 @@ class _V3IORecordsChecker:
                 ), "The TSDB saved metrics are different than expected"
 
         if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
+            cls._logger.debug("Checking the MEP status")
             rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
             cls._check_valid_tsdb_result(rs_tsdb, ep_id, "result_status", 2.0)
 
             if last_request:
+                cls._logger.debug("Checking the MEP last_request")
                 lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
                 cls._check_valid_tsdb_result(
                     lr_tsdb, ep_id, "last_request", last_request
                 )
 
             if error_count:
+                cls._logger.debug("Checking the MEP error_count")
                 ec_tsdb = cls._tsdb_storage.get_error_count(endpoint_ids=ep_id)
                 cls._check_valid_tsdb_result(ec_tsdb, ep_id, "error_count", error_count)
 
@@ -636,7 +639,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert endpoints and len(endpoints) == 1, "Expects a single model endpoint"
         endpoint = typing.cast(mlrun.model_monitoring.ModelEndpoint, endpoints[0])
         assert endpoint.spec.stream_path == mlrun.model_monitoring.get_stream_path(
-            project=cls.project_name
+            project=cls.project_name,
+            stream_uri=mlrun.mlconf.model_endpoint_monitoring.stream_connection,
         ), "The model endpoint stream path is different than expected"
         return endpoint.metadata.uid
 

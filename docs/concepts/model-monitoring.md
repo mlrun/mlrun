@@ -26,7 +26,7 @@ call a CI/CD pipeline when data drift is detected and allow a data scientist to 
 
 ```
 {admonition} Note
-Model monitoring is currently in Tech Preview status. Future releases will not support backwards compatibility.
+Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to later versions will not maintain backwards compatibility.
 ```
 
 **In this section**

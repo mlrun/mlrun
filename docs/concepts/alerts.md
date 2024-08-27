@@ -125,6 +125,7 @@ notification = mlrun.model.Notification(
         "webhook": "https://hooks.slack.com/",
     },
 ).to_dict()
+
 notifications = [alert_objects.AlertNotification(notification=notification)]
 alert_name = "failure_alert"
 alert_summary = "Running a job has failed"

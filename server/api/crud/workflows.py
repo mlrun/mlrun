@@ -137,12 +137,9 @@ class WorkflowRunners(
         """
         meta_uid = uuid.uuid4().hex
 
-        notification_dicts = [
-            notification.dict() for notification in workflow_request.notifications or []
-        ]
         notifications = [
-            mlrun.model.Notification.from_dict(notification)
-            for notification in notification_dicts
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
         ]
 
         source, save, is_context = self._validate_source(
@@ -167,7 +164,6 @@ class WorkflowRunners(
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
                     subpath=project.spec.subpath,
-                    notifications=notification_dicts,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
@@ -241,7 +237,6 @@ class WorkflowRunners(
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
-            notifications=notifications,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -317,12 +312,9 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
-        notification_dicts = [
-            notification.dict() for notification in workflow_request.notifications or []
-        ]
         notifications = [
-            mlrun.model.Notification.from_dict(notification)
-            for notification in notification_dicts
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
         ]
 
         source = workflow_request.source if workflow_request else ""
@@ -336,7 +328,6 @@ class WorkflowRunners(
                     save=save,
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
-                    notifications=notification_dicts,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.

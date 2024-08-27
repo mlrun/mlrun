@@ -386,8 +386,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-app-flow-v20"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    # image: typing.Optional[str] = None
-    image = "docker.io/eyaligu/mlrun:unstablev8"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod

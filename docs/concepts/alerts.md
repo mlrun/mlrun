@@ -96,6 +96,7 @@ entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
 
 # The event that will trigger the alert
 event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+
 # Create the alert data to be passed to the store_alert_config function
 alert_data = mlrun.alerts.alert.AlertConfig(
     project=project_name,

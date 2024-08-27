@@ -93,6 +93,7 @@ alert_summary = "A drift was detected"
 
 # Choose the MODEL_ENDPOINT_RESULT for the model monitoring alert
 entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+
 # The event that will trigger the alert
 event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
 # Create the alert data to be passed to the store_alert_config function

@@ -988,7 +988,6 @@ def load_and_run(
     load_only: bool = False,
     wait_for_completion: bool = False,
     project_context: str = None,
-    notifications: list[typing.Union[mlrun.model.Notification, dict]] = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.

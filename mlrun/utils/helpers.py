@@ -1427,8 +1427,8 @@ def create_ipython_display():
         IPython.display.display(content, display_id=display_id)
         return display_id
 
-    # returning None if IPython is not installed
-    logger.warn("IPython is not installed, cannot create IPython display")
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
 
 
 def as_number(field_name, field_value):

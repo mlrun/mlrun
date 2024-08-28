@@ -354,7 +354,8 @@ class ApplicationRuntime(RemoteRuntime):
                 )
         else:
             logger.warning(
-                "Application online, proceed to API gateway creation to make it accessible."
+                "Application is online but is not accessible. "
+                "Use the `create_api_gateway` method to make it accessible."
             )
 
         return True

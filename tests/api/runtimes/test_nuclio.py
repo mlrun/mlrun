@@ -1730,7 +1730,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.enable_default_http_trigger()
 

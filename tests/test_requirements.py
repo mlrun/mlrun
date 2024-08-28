@@ -143,7 +143,7 @@ def test_requirement_specifiers_convention():
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
-        "scikit-learn": {"~=1.4.0"},
+        "scikit-learn": {"~=1.5.1"},
     }
 
     for (

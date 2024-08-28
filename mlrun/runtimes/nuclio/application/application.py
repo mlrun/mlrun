@@ -331,7 +331,7 @@ class ApplicationRuntime(RemoteRuntime):
             authentication_mode == schemas.APIGatewayAuthenticationMode.basic
             and not authentication_creds
         ):
-            raise mlrun.errors.MLRunBadRequestError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Authentication credentials not provided"
             )
 

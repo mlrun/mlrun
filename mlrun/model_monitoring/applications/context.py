@@ -214,10 +214,33 @@ class MonitoringApplicationContext:
 
         return histograms
 
-    def log_artifact(self, *args, **kwargs) -> Artifact:
+    def log_artifact(
+        self,
+        item,
+        body=None,
+        tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        format: Optional[str] = None,
+        upload: Optional[bool] = None,
+        labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
+        **kwargs,
+    ) -> Artifact:
         """
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
-        kwargs["labels"] = kwargs.get("labels", {}) | self._labels
-        return self.project.log_artifact(*args, **kwargs)
+        labels = (labels or {}) | self._labels
+        return self.project.log_artifact(
+            item,
+            body=body,
+            tag=tag,
+            local_path=local_path,
+            artifact_path=artifact_path,
+            format=format,
+            upload=upload,
+            labels=labels,
+            target_path=target_path,
+            **kwargs,
+        )

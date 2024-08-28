@@ -520,7 +520,10 @@ class ApplicationRuntime(RemoteRuntime):
         self._sync_api_gateway()
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
-            super().invoke(
+            logger.warning(
+                "Default API gateway is not configured, will use invocation URL."
+            )
+            return super().invoke(
                 path,
                 body,
                 method,

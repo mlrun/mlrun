@@ -103,4 +103,4 @@ See an example of batch input in the [Serving pre-trained ML/DL models](../tutor
 ## Alerts and notifications
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
-And you can use {ref}`notifications` to about the status of runs and pipelines.
+And you can use {ref}`notifications` to notify about the status of runs and pipelines.

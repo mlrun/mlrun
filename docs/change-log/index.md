@@ -19,11 +19,9 @@
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5287|You can now configure {ref}`alerts` for model monitoring.|
-|ML-5459|Model monitoring data-path now supports LLM/deep-learning models **add details/link**|
+|ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring.|
 |ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.|
-|ML-5851|Model monitoring does not require V3IO. See the {ref}`<example using a NoSql target>`. **add link**|
-|ML-6119|New APIs for model monitoring view per endpoint {py:class}`module-ml.run.model_monitoring.api`|
+|ML-5851|Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO as TSDB platforms. See [Selecting the streaming and TSDB platforms](../model-monitoring/index.html#selecting-the-streaming-and-tsdb-platforms).|
 
 
 
@@ -37,25 +35,25 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-2652|Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.html#api-gateway).|
-|ML-4601|New {ref}`application runtime <application type runtime>` where you can run provide an image (for example a web-app) that runs as a deployment. |
+|ML-4601|New {ref}`application runtime <application>` where you can run provide an image (for example a web-app) that runs as a deployment. |
 
 
 ### Workflows
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6885|You can now add run details to the notification by using `{{ runs }}` in the `override_body` section in notifications. See [Configuring Notifications For Runs](../concepts/notifications.html#configuring-notifications-for-runs).|
+|ML-6885|You can now add run details to the notification by using `{{ runs }}` in the `override_body` section in notifications. See [Configuring notifications for runs](../concepts/notifications.html#configuring-notifications-for-runs).|
 
 
 
 ### Serving graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6015|Storey/Nuclio serving graph: supports designating a step as multiprocess**add details/link**|
+|ML-6015|Storey/Nuclio serving graph: supports [concurrent processing](../serving/model-serving-get-started.html#concurrent-processing), typically used for serving of deep-learning models, where preparation steps and inference can be CPU/GPU heavy, or involving I/O.|
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules.  <img src="../_static/images/cross-project-view.png" width="500" >|
+|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules. <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
@@ -76,7 +74,7 @@
 ### Notifications
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-6644|Explicit control of [Pipeline Started notification configuration](/concepts/notifications.html#configuring-notifications-for-pipelines).|
+|ML-6644|Explicit control of [notification for pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -87,8 +85,9 @@
 ### Documentation
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|NA     | New page: {ref}`genai-live-ops`.|
 |ML-6052|New page: {ref}`log-artifacts`.|
+|NA     | New page: {ref}`mm-using-llm`.|
+|NA     |Enhanced {ref}`model-monitoring-des`.|
 
 
 
@@ -100,7 +99,7 @@
 |ML-3680|Function specs that are modified before running the workflow are now saved.|
 |ML-3804|A serving step with no class now inherits parameters from the function spec. |
 |ML-4248|You can now run a serving function with a large number of models.|
-|ML-4442|Monitoring can be added after a model is deployed without (`set_tracking()` was not set on the serving function).|
+|ML-4442|You can now add monitoring after a model is deployed (`set_tracking()` was not set on the serving function).|
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking does not require a specific workflow. |
@@ -116,7 +115,7 @@
 |ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
-|ML-6991|**waiting for [ML-7413](https://iguazio.atlassian.net/browse/ML-7413)|
+|ML-6991|UI: Now shows KFP pod errors.|
 |ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
 |ML-7135|Fixed Upgrading to mlrun if the `spec.build` was saved incorrectly.|
 |ML-7162|UI: Erroneous "“No data matches…” messages no longer appear.|
@@ -487,7 +486,6 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-3733|`mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 |ML-3773|The aggregation mechanism on Redis databases has improved, but the history of the aggregation (from before the upgrade) is lost, as if there were 0 events during that period.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |ML-4053|Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From v1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
-
 ```
  # Set 2 functions:
 func1 = project.set_function(...)

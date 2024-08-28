@@ -15,6 +15,7 @@ import pathlib
 import typing
 
 import nuclio
+import nuclio.auth
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
@@ -480,7 +481,7 @@ class ApplicationRuntime(RemoteRuntime):
 
     def invoke(
         self,
-        path: str,
+        path: str = "",
         body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: str = None,
         headers: dict = None,
@@ -488,12 +489,25 @@ class ApplicationRuntime(RemoteRuntime):
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
         mock: bool = None,
+        credentials: tuple[str, str] = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
+
+        if not credentials and auth_info:
+            credentials = (auth_info.username, auth_info.password)
+
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
-            super().invoke(
+            # create a requests auth object if credentials are provided
+            auth = (
+                nuclio.auth.AuthInfo(
+                    username=credentials[0], password=credentials[1]
+                ).to_requests_auth()
+                if credentials
+                else None
+            )
+            return super().invoke(
                 path,
                 body,
                 method,
@@ -502,10 +516,9 @@ class ApplicationRuntime(RemoteRuntime):
                 force_external_address,
                 auth_info,
                 mock,
+                auth=auth,
                 **http_client_kwargs,
             )
-
-        credentials = (auth_info.username, auth_info.password) if auth_info else None
 
         if not method:
             method = "POST" if body else "GET"

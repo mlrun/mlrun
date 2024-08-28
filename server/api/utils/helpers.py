@@ -119,7 +119,9 @@ def is_request_from_leader(
     return False
 
 
-def string_to_timedelta(date_str, offset=0, raise_on_error=True):
+def string_to_timedelta(
+    date_str: str, offset: int = 0, raise_on_error: bool = True
+) -> Optional[datetime.timedelta]:
     date_str = date_str.strip().lower()
     try:
         seconds = parse_timespan(date_str) + offset

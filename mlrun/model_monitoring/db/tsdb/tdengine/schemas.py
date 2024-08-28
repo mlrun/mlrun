@@ -233,7 +233,6 @@ class AppResultTable(TDEngineSchema):
             mm_schemas.WriterEvent.START_INFER_TIME: _TDEngineColumn.TIMESTAMP,
             mm_schemas.ResultData.RESULT_VALUE: _TDEngineColumn.FLOAT,
             mm_schemas.ResultData.RESULT_STATUS: _TDEngineColumn.INT,
-            mm_schemas.ResultData.CURRENT_STATS: _TDEngineColumn.BINARY_10000,
         }
         tags = {
             mm_schemas.EventFieldType.PROJECT: _TDEngineColumn.BINARY_64,

@@ -447,7 +447,6 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pass
 
@@ -567,7 +566,6 @@ class _KFPRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -585,7 +583,8 @@ class _KFPRunner(_PipelineRunner):
                 "Notifications will only be sent if you wait for pipeline completion. "
                 "To use the new notification behavior, use the remote pipeline runner."
             )
-            for notification in notifications:
+            # for start message, fallback to old notification behavior
+            for notification in notifications or []:
                 project.notifiers.add_notification(
                     notification.kind, notification.params
                 )
@@ -616,13 +615,12 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-        if send_start_notification:
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name,
-                project.get_param("commit_id", None),
-                run_id,
-                True,
-            )
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name,
+            project.get_param("commit_id", None),
+            run_id,
+            True,
+        )
         pipeline_context.clear()
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
@@ -670,7 +668,6 @@ class _LocalRunner(_PipelineRunner):
         namespace=None,
         source=None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -692,10 +689,9 @@ class _LocalRunner(_PipelineRunner):
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
 
-        if send_start_notification:
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name, pipeline_id=workflow_id
-            )
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name, pipeline_id=workflow_id
+        )
         err = None
         try:
             workflow_handler(**workflow_spec.args)
@@ -755,21 +751,9 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
-
-        # for start message, fallback to old notification behavior
-        if send_start_notification:
-            for notification in notifications or []:
-                project.notifiers.add_notification(
-                    notification.kind, notification.params
-                )
-                # if a notification with `when=running` is provided, it will be used explicitly and others
-                # will be ignored
-                if "running" in notification.when:
-                    break
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
@@ -870,9 +854,6 @@ class _RemoteRunner(_PipelineRunner):
             state = mlrun_pipelines.common.models.RunStatuses.failed
         else:
             state = mlrun_pipelines.common.models.RunStatuses.running
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name,
-            )
             pipeline_context.clear()
         return _PipelineRunStatus(
             run_id=workflow_id,
@@ -1078,6 +1059,13 @@ def load_and_run(
     if load_only:
         return
 
+    # extract "start" notification if exists
+    start_notifications = [
+        notification
+        for notification in context.get_notifications()
+        if "running" in notification.when
+    ]
+
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(
@@ -1093,6 +1081,7 @@ def load_and_run(
         cleanup_ttl=cleanup_ttl,
         engine=engine,
         local=local,
+        notifications=start_notifications,
     )
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)

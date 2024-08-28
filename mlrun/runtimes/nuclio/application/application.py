@@ -327,6 +327,14 @@ class ApplicationRuntime(RemoteRuntime):
         self._ensure_reverse_proxy_configurations(self)
         self._configure_application_sidecar()
 
+        if (
+            authentication_mode == schemas.APIGatewayAuthenticationMode.basic
+            and not authentication_creds
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                "Authentication credentials not provided"
+            )
+
         # We only allow accessing the application via the API Gateway
         name_tag = tag or self.metadata.tag
         self.status.api_gateway_name = (

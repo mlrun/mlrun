@@ -331,7 +331,7 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env=builder_env,
         )
         logger.info(
-            "Successfully deployed function",
+            "Successfully deployed function.",
         )
 
         # Restore the source in case it was removed to make nuclio not consider it when building

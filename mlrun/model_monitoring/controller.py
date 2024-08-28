@@ -334,20 +334,23 @@ class MonitoringApplicationController:
                 logger.info("No model endpoints found", project=self.project)
                 return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
-            if monitoring_functions:
-                # Gets only application in ready state
-                applications_names = list(
-                    {
-                        app.metadata.name
-                        for app in monitoring_functions
-                        if (
-                            app.status.state == "ready"
-                            # workaround for the default app, as its `status.state` is `None`
-                            or app.metadata.name
-                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
-                        )
-                    }
-                )
+            applications_names = list(
+                {app.metadata.name for app in monitoring_functions}
+            )
+            # if monitoring_functions: - ML-7700
+            #   Gets only application in ready state
+            #   applications_names = list(
+            #       {
+            #           app.metadata.name
+            #           for app in monitoring_functions
+            #           if (
+            #               app.status.state == "ready"
+            #               # workaround for the default app, as its `status.state` is `None`
+            #               or app.metadata.name
+            #               == mm_constants.HistogramDataDriftApplicationConstants.NAME
+            #           )
+            #       }
+            #   )
             if not applications_names:
                 logger.info("No monitoring functions found", project=self.project)
                 return

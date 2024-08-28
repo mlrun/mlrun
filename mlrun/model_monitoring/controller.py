@@ -337,7 +337,7 @@ class MonitoringApplicationController:
             applications_names = list(
                 {app.metadata.name for app in monitoring_functions}
             )
-            # if monitoring_functions: - ML-7700
+            # if monitoring_functions: - TODO : ML-7700
             #   Gets only application in ready state
             #   applications_names = list(
             #       {

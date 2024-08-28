@@ -217,7 +217,7 @@ class MonitoringApplicationContext:
     def log_artifact(self, *args, **kwargs) -> Artifact:
         """
         Log an artifact.
-        See :func:`~mlrun.projects.project.MlrunProject.log_artifact` for the documentation.
+        See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
         kwargs["labels"] = kwargs.get("labels", {}) | self._labels
         return self.project.log_artifact(*args, **kwargs)

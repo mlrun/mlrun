@@ -22,10 +22,14 @@ import traceback
 import uuid
 from typing import Optional, Union
 
+from nuclio import Context as NuclioContext
+from nuclio.request import Logger as NuclioLogger
+
 import mlrun
 import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.model_monitoring
+import mlrun.utils
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
@@ -483,7 +487,13 @@ class Response:
 class GraphContext:
     """Graph context object"""
 
-    def __init__(self, level="info", logger=None, server=None, nuclio_context=None):
+    def __init__(
+        self,
+        level="info",  # Unused argument
+        logger=None,
+        server=None,
+        nuclio_context: Optional[NuclioContext] = None,
+    ) -> None:
         self.state = None
         self.logger = logger
         self.worker_id = 0
@@ -493,7 +503,7 @@ class GraphContext:
         self.root = None
 
         if nuclio_context:
-            self.logger = nuclio_context.logger
+            self.logger: NuclioLogger = nuclio_context.logger
             self.Response = nuclio_context.Response
             if hasattr(nuclio_context, "trigger") and hasattr(
                 nuclio_context.trigger, "kind"
@@ -503,7 +513,7 @@ class GraphContext:
             if hasattr(nuclio_context, "platform"):
                 self.platform = nuclio_context.platform
         elif not logger:
-            self.logger = mlrun.utils.helpers.logger
+            self.logger: mlrun.utils.Logger = mlrun.utils.logger
 
         self._server = server
         self.current_function = None

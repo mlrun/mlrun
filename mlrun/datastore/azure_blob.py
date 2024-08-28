@@ -228,7 +228,7 @@ class AzureBlobStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.storage_options()
+        st = self.storage_options
         service = "blob"
         primary_url = None
         if st.get("connection_string"):

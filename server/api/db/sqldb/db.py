@@ -5473,7 +5473,7 @@ class SQLDB(DBInterface):
         return self._query(session, BackgroundTask, project=project)
 
     def _delete_background_tasks(self, session: Session, project: str):
-        logger.debug("Removing background tasks from db", project=project)
+        logger.debug("Removing project background tasks from db", project=project)
         for background_task_name in self._list_project_background_task_names(
             session, project
         ):

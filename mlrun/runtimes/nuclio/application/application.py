@@ -281,10 +281,6 @@ class ApplicationRuntime(RemoteRuntime):
         is_kfp=False,
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
-        direct_port_access: bool = False,
-        authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: tuple[str] = None,
-        ssl_redirect: bool = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -302,11 +298,6 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                  Deploy as part of a kfp pipeline
         :param mlrun_version_specifier: Which mlrun package version to include (if not current)
         :param show_on_failure:         Show logs only in case of build failure
-        :param direct_port_access:      Set True to allow direct port access to the application sidecar
-        :param authentication_mode:     API Gateway authentication mode
-        :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
-        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
-                                        mlrun.mlconf.force_api_gateway_ssl_redirect()
 
         :return: True if the function is ready (deployed)
         """
@@ -328,10 +319,6 @@ class ApplicationRuntime(RemoteRuntime):
         self._configure_application_sidecar()
 
         # We only allow accessing the application via the API Gateway
-        name_tag = tag or self.metadata.tag
-        self.status.api_gateway_name = (
-            f"{self.metadata.name}-{name_tag}" if name_tag else self.metadata.name
-        )
         self.spec.add_templated_ingress_host_mode = (
             NuclioIngressAddTemplatedIngressModes.never
         )
@@ -344,9 +331,7 @@ class ApplicationRuntime(RemoteRuntime):
             builder_env=builder_env,
         )
         logger.info(
-            "Successfully deployed function, creating API gateway",
-            api_gateway_name=self.status.api_gateway_name,
-            authentication_mode=authentication_mode,
+            "Successfully deployed function",
         )
 
         # Restore the source in case it was removed to make nuclio not consider it when building
@@ -354,14 +339,10 @@ class ApplicationRuntime(RemoteRuntime):
             self.spec.build.source = self.status.application_source
         self.save(versioned=False)
 
-        ports = self.spec.internal_application_port if direct_port_access else []
-        return self.create_api_gateway(
-            name=self.status.api_gateway_name,
-            ports=ports,
-            authentication_mode=authentication_mode,
-            authentication_creds=authentication_creds,
-            ssl_redirect=ssl_redirect,
+        logger.info(
+            "Application online, proceed to API gateway creation to make it accessible."
         )
+        return True
 
     def with_source_archive(
         self,
@@ -429,14 +410,34 @@ class ApplicationRuntime(RemoteRuntime):
         self,
         name: str = None,
         path: str = None,
-        ports: list[int] = None,
+        direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
         authentication_creds: tuple[str] = None,
         ssl_redirect: bool = None,
     ):
+        """
+        Create the application API gateway. Once the application is deployed, the API gateway can be created.
+        An application without an API gateway is not accessible.
+        :param name:                    The name of the API gateway, defaults to <function-name>-<function-tag>
+        :param path:                    Optional path of the API gateway, default value is "/"
+        :param direct_port_access:      Set True to allow direct port access to the application sidecar
+        :param authentication_mode:     API Gateway authentication mode
+        :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
+        :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
+                                        mlrun.mlconf.force_api_gateway_ssl_redirect()
+
+        :return:    The API gateway URL
+        """
+        self.status.api_gateway_name = name or (
+            f"{self.metadata.name}-{self.metadata.tag}"
+            if self.metadata.tag
+            else self.metadata.name
+        )
+        ports = self.spec.internal_application_port if direct_port_access else []
+
         api_gateway = APIGateway(
             APIGatewayMetadata(
-                name=name,
+                name=self.status.api_gateway_name,
                 namespace=self.metadata.namespace,
                 labels=self.metadata.labels,
                 annotations=self.metadata.annotations,
@@ -452,10 +453,10 @@ class ApplicationRuntime(RemoteRuntime):
         if ssl_redirect is None:
             ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
         if ssl_redirect:
-            # force ssl redirect so that the application is only accessible via https
+            # Force ssl redirect so that the application is only accessible via https
             api_gateway.with_force_ssl_redirect()
 
-        # add authentication if required
+        # Add authentication if required
         authentication_mode = (
             authentication_mode
             or mlrun.mlconf.function.application.default_authentication_mode

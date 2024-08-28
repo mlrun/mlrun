@@ -194,6 +194,7 @@ def test_application_api_gateway(rundb_mock, igz_version_mock):
         image="mlrun/mlrun",
     )
     fn.deploy()
+    fn.create_api_gateway()
     api_gateway = fn.status.api_gateway
     assert api_gateway is not None
     assert api_gateway.name == function_name
@@ -209,6 +210,7 @@ def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
     )
     # ssl redirect is enabled by default when running in iguazio
     function.deploy()
+    function.create_api_gateway()
 
     ssl_redirect_annotation = "nginx.ingress.kubernetes.io/force-ssl-redirect"
     api_gateway = function.status.api_gateway

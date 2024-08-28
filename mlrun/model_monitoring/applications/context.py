@@ -124,6 +124,10 @@ class MonitoringApplicationContext:
             mlrun_constants.MLRunInternalLabels.endpoint_id: self.endpoint_id,
         }
 
+    def _add_default_labels(self, labels: Optional[dict[str, str]]) -> dict[str, str]:
+        """Add the default labels to logged artifacts labels"""
+        return (labels or {}) | self._default_labels
+
     @property
     def sample_df(self) -> pd.DataFrame:
         if self._sample_df is None:
@@ -231,7 +235,7 @@ class MonitoringApplicationContext:
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
-        labels = (labels or {}) | self._default_labels
+        labels = self._add_default_labels(labels)
         return self.project.log_artifact(
             item,
             body=body,
@@ -266,7 +270,7 @@ class MonitoringApplicationContext:
         Log a dataset artifact.
         See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
         """
-        labels = (labels or {}) | self._default_labels
+        labels = self._add_default_labels(labels)
         return self.project.log_dataset(
             key,
             df,
@@ -311,7 +315,7 @@ class MonitoringApplicationContext:
         Log a model artifact.
         See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
         """
-        labels = (labels or {}) | self._default_labels
+        labels = self._add_default_labels(labels)
         return self.project.log_model(
             key,
             body=body,

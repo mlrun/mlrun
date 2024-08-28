@@ -22,6 +22,7 @@ import pandas as pd
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
+import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact
 from mlrun.artifacts.model import ModelArtifact, get_model
@@ -42,7 +43,7 @@ class MonitoringApplicationContext:
     :param application_name:        (str) The model monitoring application name.
     :param project_name:            (str) The project name.
     :param project:                 (MlrunProject) The project object.
-    :param logger:                  (MlrunProject) Logger.
+    :param logger:                  (nuclio.request.Logger) Nuclio logger.
     :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
     :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
     :param sample_df:               (pd.DataFrame) The new sample DataFrame.
@@ -61,6 +62,7 @@ class MonitoringApplicationContext:
     def __init__(
         self,
         *,
+        graph_context: mlrun.serving.GraphContext,
         application_name: str,
         event: dict[str, Any],
         model_endpoint_dict: dict[str, ModelEndpoint],
@@ -78,9 +80,8 @@ class MonitoringApplicationContext:
         self.project_name = cast(str, mlrun.mlconf.default_project)
         self.project = mlrun.load_project(url=self.project_name)
 
-        self.logger = mlrun.utils.Logger(
-            level=mlrun.mlconf.log_level, name="mlrun-model-monitoring-application"
-        )
+        # Nuclio logger - `nuclio.request.Logger`
+        self.logger = graph_context.logger
 
         # event data
         self.start_infer_time = pd.Timestamp(
@@ -92,17 +93,18 @@ class MonitoringApplicationContext:
         self.latest_request = pd.Timestamp(
             cast(str, event.get(mm_constants.ApplicationEvent.LAST_REQUEST))
         )
-        self._feature_stats: Optional[FeatureStats] = json.loads(
-            event.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
-        )
-        self._sample_df_stats: Optional[FeatureStats] = json.loads(
-            event.get(mm_constants.ApplicationEvent.CURRENT_STATS, "{}")
-        )
         self.endpoint_id = cast(
             str, event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
         )
         self.output_stream_uri = cast(
             str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
+        )
+
+        self._feature_stats: Optional[FeatureStats] = json.loads(
+            event.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
+        )
+        self._sample_df_stats: Optional[FeatureStats] = json.loads(
+            event.get(mm_constants.ApplicationEvent.CURRENT_STATS, "{}")
         )
 
         # Default labels for the artifacts

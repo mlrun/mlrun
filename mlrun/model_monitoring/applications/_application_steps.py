@@ -20,6 +20,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
 import mlrun.model_monitoring
 from mlrun.model_monitoring.helpers import get_stream_path
+from mlrun.serving import GraphContext
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
@@ -117,12 +118,13 @@ class _PushToMonitoringWriter(StepToDict):
 
 
 class _PrepareMonitoringEvent(StepToDict):
-    def __init__(self, application_name: str) -> None:
+    def __init__(self, context: GraphContext, application_name: str) -> None:
         """
         Class for preparing the application event for the application step.
 
         :param application_name: Application name.
         """
+        self.graph_context = context
         self.application_name = application_name
         self.model_endpoints: dict[str, mlrun.model_monitoring.ModelEndpoint] = {}
 
@@ -134,6 +136,7 @@ class _PrepareMonitoringEvent(StepToDict):
         :return: Application context.
         """
         application_context = MonitoringApplicationContext(
+            graph_context=self.graph_context,
             application_name=self.application_name,
             event=event,
             model_endpoint_dict=self.model_endpoints,

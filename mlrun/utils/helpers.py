@@ -24,6 +24,7 @@ import re
 import string
 import sys
 import typing
+import uuid
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module, reload
@@ -1408,6 +1409,26 @@ def is_running_in_jupyter_notebook() -> bool:
     ipy = IPython.get_ipython()
     # if its IPython terminal, it isn't a Jupyter ipython
     return ipy and "Terminal" not in str(type(ipy))
+
+
+def create_ipython_display():
+    """
+    Create an IPython display object and fill it with initial content.
+    We can later use the returned display_id with the update_display method to update the content.
+    If IPython is not installed, a warning will be logged and None will be returned.
+    """
+    if is_ipython:
+        import IPython
+
+        display_id = uuid.uuid4().hex
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
+        IPython.display.display(content, display_id=display_id)
+        return display_id
+
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
 
 
 def as_number(field_name, field_value):

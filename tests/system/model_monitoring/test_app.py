@@ -431,7 +431,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.run_db = mlrun.get_run_db()
 
     def custom_setup(self) -> None:
-        _V3IORecordsChecker.custom_setup(project_name=self.project_name)
+        # skips TestMLRunSystem, calls custom_setup() of _V3IORecordsChecker
+        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
         # validate that stream resources were deleted as expected

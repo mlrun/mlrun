@@ -772,7 +772,7 @@ class BaseRuntimeHandler(ABC):
         return in_terminal_state, last_container_completion_time, run_state
 
     def _resolve_container_error_status(self, pod: dict) -> tuple[str, str]:
-        container_statuses = pod["status"].get("container_statuses", [])
+        container_statuses = pod.get("status", {}).get("container_statuses", [])
         for container_status in container_statuses:
             terminated = container_status.get("state", {}).get("terminated")
             if terminated:

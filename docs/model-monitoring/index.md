@@ -53,13 +53,9 @@ In addition, internal model-monitoring metadata can be saved in MySQL (8.0 and h
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
 There are three credentials you can set, and each one can have a different value. For example:
 ```
-stream_path = kafka://<some_kafka_broker>:<port>
-tsdb_connection = taosws://<username>:<password>@<host>:<port>
-```
-or
-```
-stream_path = v3io
-tsdb_connection = taosws://<username>:<password>@<host>:<port>
+endpoint_store_connection = mysql+pymysql://<username>:<password>@<host>:<port>/<db_name> | v3io 
+stream_path = kafka://<some_kafka_broker>:<port> | "v3io"
+tsdb_connection = taosws://<username>:<password>@<host>:<port> | "v3io"
 ```
 
 ## Model monitoring applications

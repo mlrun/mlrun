@@ -121,6 +121,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
         )
 
+        assert (
+            function.metadata.annotations.get("kubectl.kubernetes.io/default-container")
+            == function.status.sidecar_name
+        )
+
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False
     ):

@@ -34,11 +34,11 @@ fields_to_encode_decode = [
 ]
 
 _METRIC_FIELDS: list[str] = [
-    mm_schemas.WriterEvent.APPLICATION_NAME,
-    mm_schemas.MetricData.METRIC_NAME,
-    mm_schemas.MetricData.METRIC_VALUE,
-    mm_schemas.WriterEvent.START_INFER_TIME,
-    mm_schemas.WriterEvent.END_INFER_TIME,
+    mm_schemas.WriterEvent.APPLICATION_NAME.value,
+    mm_schemas.MetricData.METRIC_NAME.value,
+    mm_schemas.MetricData.METRIC_VALUE.value,
+    mm_schemas.WriterEvent.START_INFER_TIME.value,
+    mm_schemas.WriterEvent.END_INFER_TIME.value,
 ]
 
 

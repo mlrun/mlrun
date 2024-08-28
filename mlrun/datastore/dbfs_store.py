@@ -19,7 +19,7 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 
 class DatabricksFileBugFixed(DatabricksFile):
@@ -89,7 +89,7 @@ class DBFSStore(DataStore):
         """return fsspec file system object, if supported"""
         filesystem_class = get_filesystem_class(protocol=self.kind)
         if not self._filesystem:
-            self._filesystem = makeDatastoreSchemaSanitizer(
+            self._filesystem = make_datastore_schema_sanitizer(
                 cls=filesystem_class,
                 using_bucket=False,
                 **self.get_storage_options(),

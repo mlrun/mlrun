@@ -124,6 +124,12 @@ class TestApplication:
                     "mean": "2024-03-11 09:31:39.152301+00:00",
                     "min": "2024-03-11 09:31:39.152301+00:00",
                 },
+                "ticker": {
+                    "count": cls.COUNT,
+                    "unique": 1,
+                    "top": "AAPL",
+                    "freq": cls.COUNT,
+                },
                 "f1": {
                     "count": cls.COUNT,
                     "hist": [[2, 3, 0, 3, 1, 3], [-10, -5, 0, 5, 10, 15, 20]],

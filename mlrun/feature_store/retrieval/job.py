@@ -181,6 +181,7 @@ class RemoteVectorResponse:
         file_format = kwargs.get("format")
         if not file_format:
             file_format = self.run.status.results["target"]["kind"]
+
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )

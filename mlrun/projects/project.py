@@ -2986,7 +2986,6 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3023,8 +3022,6 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-        :param send_start_notification:
-                          Send a notification when the workflow starts
 
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -3102,7 +3099,6 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
-            send_start_notification=send_start_notification,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
@@ -4422,7 +4418,6 @@ def _init_function_from_dict(
     elif kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         func = new_function(
             name,
-            command=relative_url,
             image=image,
             kind=kind,
             handler=handler,

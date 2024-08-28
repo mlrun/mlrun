@@ -170,20 +170,21 @@ class TestMLRunSystem:
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
             mandatory_env_vars += cls.model_monitoring_mandatory_env_vars
-        configured = True
+
+        missing_env_vars = []
         try:
             env = cls._get_env_from_file()
         except FileNotFoundError:
-            configured = False
+            missing_env_vars = mandatory_env_vars
         else:
             for env_var in mandatory_env_vars:
                 if env_var not in env or env[env_var] is None:
-                    configured = False
+                    missing_env_vars.append(env_var)
 
         return pytest.mark.skipif(
-            not configured,
+            len(missing_env_vars) > 0,
             reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
-            f"in tests/system/env.yml to run it. Currently at least {env_var} is missing",
+            f"in tests/system/env.yml. You are missing: {missing_env_vars}",
         )(test)
 
     @classmethod

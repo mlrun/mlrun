@@ -22,6 +22,7 @@ import pandas as pd
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
+import mlrun.features
 import mlrun.serving
 import mlrun.utils
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
@@ -280,5 +281,56 @@ class MonitoringApplicationContext:
             target_path=target_path,
             extra_data=extra_data,
             label_column=label_column,
+            **kwargs,
+        )
+
+    def log_model(
+        self,
+        key,
+        body=None,
+        framework="",
+        tag="",
+        model_dir=None,
+        model_file=None,
+        algorithm=None,
+        metrics=None,
+        parameters=None,
+        artifact_path=None,
+        upload=None,
+        labels=None,
+        inputs: Optional[list[mlrun.features.Feature]] = None,
+        outputs: Optional[list[mlrun.features.Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
+        training_set=None,
+        label_column=None,
+        extra_data=None,
+        **kwargs,
+    ) -> ModelArtifact:
+        """
+        Log a model artifact.
+        See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
+        """
+        labels = (labels or {}) | self._labels
+        return self.project.log_model(
+            key,
+            body=body,
+            framework=framework,
+            tag=tag,
+            model_dir=model_dir,
+            model_file=model_file,
+            algorithm=algorithm,
+            metrics=metrics,
+            parameters=parameters,
+            artifact_path=artifact_path,
+            upload=upload,
+            labels=labels,
+            inputs=inputs,
+            outputs=outputs,
+            feature_vector=feature_vector,
+            feature_weights=feature_weights,
+            training_set=training_set,
+            label_column=label_column,
+            extra_data=extra_data,
             **kwargs,
         )

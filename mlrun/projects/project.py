@@ -1741,15 +1741,15 @@ class MlrunProject(ModelObj):
         artifact_path=None,
         upload=None,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
         label_column=None,
         extra_data=None,
         **kwargs,
-    ):
+    ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
 
         If the model already exists with the same key and tag, it will be overwritten.

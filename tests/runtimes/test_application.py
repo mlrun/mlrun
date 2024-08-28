@@ -211,20 +211,19 @@ def test_application_disable_default_api_gateway(rundb_mock, igz_version_mock):
     fn.deploy(create_default_api_gateway=False)
     assert fn.status.api_gateway is None
 
-    # TODO: f string match
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="API gateway name='application-test-default' conflicts with default while set_as_default=False.",
+        match=f"API gateway name='{fn.metadata.name}-default' conflicts with default while set_as_default=False.",
     ):
         fn.create_api_gateway(name=fn._resolve_default_api_gateway_name())
 
-    fn.create_api_gateway(
+    url = fn.create_api_gateway(
         "my-gateway",
         authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
         authentication_creds=("username", "password"),
     )
 
-    # assert url == fn.status.external_invocation_urls[0]
+    assert url == f"https://{fn.status.external_invocation_urls[0]}"
 
 
 def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):

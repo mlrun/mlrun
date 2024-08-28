@@ -428,7 +428,7 @@ class ApplicationRuntime(RemoteRuntime):
         path: str = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: tuple[str] = None,
+        authentication_creds: tuple[str, str] = None,
         ssl_redirect: bool = None,
         set_as_default: bool = False,
     ):
@@ -499,6 +499,8 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway = APIGateway.from_scheme(api_gateway_scheme)
             api_gateway.wait_for_readiness()
             url = api_gateway.invoke_url
+            # Update application status
+            self._get_state(raise_on_exception=False)
 
         logger.info("Successfully created API gateway", url=url)
         return url

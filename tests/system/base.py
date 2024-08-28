@@ -183,7 +183,7 @@ class TestMLRunSystem:
         return pytest.mark.skipif(
             not configured,
             reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
-            "in tests/system/env.yml to run it",
+            f"in tests/system/env.yml to run it. Currently at least {env_var} is missing",
         )(test)
 
     @classmethod

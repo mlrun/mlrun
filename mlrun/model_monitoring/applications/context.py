@@ -24,8 +24,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store as fstore
 import mlrun.serving
 import mlrun.utils
-from mlrun.artifacts import Artifact
-from mlrun.artifacts.model import ModelArtifact, get_model
+from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact, get_model
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.model_monitoring.helpers import (
     calculate_inputs_statistics,
@@ -242,5 +241,44 @@ class MonitoringApplicationContext:
             upload=upload,
             labels=labels,
             target_path=target_path,
+            **kwargs,
+        )
+
+    def log_dataset(
+        self,
+        key,
+        df,
+        tag="",
+        local_path=None,
+        artifact_path=None,
+        upload=None,
+        labels=None,
+        format="",
+        preview=None,
+        stats=None,
+        target_path="",
+        extra_data=None,
+        label_column: Optional[str] = None,
+        **kwargs,
+    ) -> DatasetArtifact:
+        """
+        Log a dataset artifact.
+        See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
+        """
+        labels = (labels or {}) | self._labels
+        return self.project.log_dataset(
+            key,
+            df,
+            tag=tag,
+            local_path=local_path,
+            artifact_path=artifact_path,
+            upload=upload,
+            labels=labels,
+            format=format,
+            preview=preview,
+            stats=stats,
+            target_path=target_path,
+            extra_data=extra_data,
+            label_column=label_column,
             **kwargs,
         )

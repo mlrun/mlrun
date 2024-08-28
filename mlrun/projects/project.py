@@ -1664,7 +1664,7 @@ class MlrunProject(ModelObj):
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ) -> DatasetArtifact:
         """

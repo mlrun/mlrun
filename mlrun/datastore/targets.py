@@ -390,6 +390,7 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_pandas = False
     support_append = False
 
     def __init__(
@@ -758,6 +759,8 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
+        if not self.support_pandas:
+            raise NotImplementedError()
         mlrun.utils.helpers.additional_filters_warning(
             additional_filters, self.__class__
         )
@@ -819,6 +822,7 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_pandas = True
     support_append = True
 
     def __init__(
@@ -1084,6 +1088,7 @@ class CSVTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_pandas = True
 
     @staticmethod
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
@@ -1292,7 +1297,7 @@ class SnowflakeTarget(BaseStoreTarget):
         **kwargs,
     ):
         raise mlrun.errors.MLRunRuntimeError(
-            f"{type(self).__name__} does not support storey engine"
+            f"{type(self).__name__} does not support pandas engine"
         )
 
     @property
@@ -1365,19 +1370,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_dask_options(self):
         return {"format": "csv"}
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1612,19 +1604,6 @@ class StreamTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
 
 class KafkaTarget(BaseStoreTarget):
     """
@@ -1727,19 +1706,6 @@ class KafkaTarget(BaseStoreTarget):
             **attributes,
         )
 
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
     def purge(self):
         pass
 
@@ -1784,19 +1750,6 @@ class TSDBTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
-
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
@@ -1834,6 +1787,7 @@ class CustomTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -1869,6 +1823,7 @@ class CustomTarget(BaseStoreTarget):
 class DFTarget(BaseStoreTarget):
     kind = TargetTypes.dataframe
     support_storey = True
+    support_pandas = True
 
     def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
@@ -1931,6 +1886,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,

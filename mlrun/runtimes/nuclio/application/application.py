@@ -299,7 +299,7 @@ class ApplicationRuntime(RemoteRuntime):
         :param is_kfp:                      Deploy as part of a kfp pipeline
         :param mlrun_version_specifier:     Which mlrun package version to include (if not current)
         :param show_on_failure:             Show logs only in case of build failure
-        :param create_default_api_gateway:  When deploy finishes will create the default API gateway for the
+        :param create_default_api_gateway:  When deploy finishes the default API gateway will be created for the
                                             application. Disabling this flag means that the application will not be
                                             accessible until an API gateway is created for it.
 
@@ -349,8 +349,9 @@ class ApplicationRuntime(RemoteRuntime):
                 return self.create_api_gateway(api_gateway_name, set_as_default=True)
             except Exception as exc:
                 logger.warning(
-                    "Failed to create default API gateway, application will not be accessible",
-                    mlrun.errors.err_to_str(exc),
+                    "Failed to create default API gateway, application will not be accessible. "
+                    "Use the `create_api_gateway` method to make it accessible",
+                    exc=mlrun.errors.err_to_str(exc),
                 )
         else:
             logger.warning(
@@ -439,7 +440,7 @@ class ApplicationRuntime(RemoteRuntime):
         :param path:                    Optional path of the API gateway, default value is "/"
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
-        :param authentication_creds:    API Gateway authentication credentials as a tuple (username, password)
+        :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)
         :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
                                         mlrun.mlconf.force_api_gateway_ssl_redirect()
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
@@ -521,7 +522,7 @@ class ApplicationRuntime(RemoteRuntime):
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
             logger.warning(
-                "Default API gateway is not configured, will use invocation URL."
+                "Default API gateway is not configured, invoking function invocation URL."
             )
             return super().invoke(
                 path,

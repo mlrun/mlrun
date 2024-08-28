@@ -26,7 +26,7 @@ import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
 import mlrun.serving
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
-from mlrun.data_types.infer import DFDataInfer, default_num_bins
+from mlrun.data_types.infer import DFDataInfer, InferOptions, default_num_bins
 from mlrun.model_monitoring.helpers import calculate_inputs_statistics
 
 
@@ -67,10 +67,7 @@ def plot_produce(context: mlrun.MLClientCtx):
 
     # Calculate statistics:
     sample_data_statistics = FeatureStats(
-        DFDataInfer.get_stats(
-            df=sample_data,
-            options=mlrun.data_types.infer.InferOptions.Histogram,
-        )
+        DFDataInfer.get_stats(df=sample_data, options=InferOptions.Histogram)
     )
     pad_features_hist(sample_data_statistics)
     inputs_statistics = FeatureStats(
@@ -79,7 +76,9 @@ def plot_produce(context: mlrun.MLClientCtx):
             inputs=inputs,
         )
     )
-    with patch("mlrun.load_project", Mock(mlrun.projects.project.MlrunProject)):
+    with patch(
+        "mlrun.load_project", Mock(return_value=mlrun.projects.project.MlrunProject)
+    ):
         monitoring_context = mm_context.MonitoringApplicationContext(
             graph_context=mlrun.serving.GraphContext(),
             application_name="histogram-data-drift",

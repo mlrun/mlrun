@@ -38,7 +38,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
-        function.create_api_gateway()
 
         assert function.invoke("/", verify=False)
 
@@ -71,7 +70,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying first application")
         function.deploy(with_mlrun=False)
-        function.create_api_gateway()
 
         assert function.invoke("/", verify=False)
 
@@ -102,7 +100,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Deploying vizro application")
         function.deploy(with_mlrun=False)
-        function.create_api_gateway()
 
         assert function.invoke("/", verify=False)
 

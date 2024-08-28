@@ -108,7 +108,7 @@ class MonitoringApplicationContext:
         )
 
         # Default labels for the artifacts
-        self._labels = self._get_labels()
+        self._default_labels = self._get_default_labels()
 
         # Persistent data - fetched when needed
         self._sample_df: Optional[pd.DataFrame] = None
@@ -116,7 +116,7 @@ class MonitoringApplicationContext:
             self.endpoint_id
         )
 
-    def _get_labels(self) -> dict[str, str]:
+    def _get_default_labels(self) -> dict[str, str]:
         return {
             mlrun_constants.MLRunInternalLabels.runner_pod: socket.gethostname(),
             mlrun_constants.MLRunInternalLabels.producer_type: "model-monitoring-app",
@@ -231,7 +231,7 @@ class MonitoringApplicationContext:
         Log an artifact.
         See :func:`~mlrun.projects.MlrunProject.log_artifact` for the documentation.
         """
-        labels = (labels or {}) | self._labels
+        labels = (labels or {}) | self._default_labels
         return self.project.log_artifact(
             item,
             body=body,
@@ -266,7 +266,7 @@ class MonitoringApplicationContext:
         Log a dataset artifact.
         See :func:`~mlrun.projects.MlrunProject.log_dataset` for the documentation.
         """
-        labels = (labels or {}) | self._labels
+        labels = (labels or {}) | self._default_labels
         return self.project.log_dataset(
             key,
             df,
@@ -311,7 +311,7 @@ class MonitoringApplicationContext:
         Log a model artifact.
         See :func:`~mlrun.projects.MlrunProject.log_model` for the documentation.
         """
-        labels = (labels or {}) | self._labels
+        labels = (labels or {}) | self._default_labels
         return self.project.log_model(
             key,
             body=body,

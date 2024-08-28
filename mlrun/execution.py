@@ -921,6 +921,13 @@ class MLClientCtx:
                 updates, self._uid, self.project, iter=self._iteration
             )
 
+    def get_notifications(self):
+        """Get the list of notifications"""
+        return [
+            mlrun.model.Notification.from_dict(notification)
+            for notification in self._notifications
+        ]
+
     def to_dict(self):
         """Convert the run context to a dictionary"""
 

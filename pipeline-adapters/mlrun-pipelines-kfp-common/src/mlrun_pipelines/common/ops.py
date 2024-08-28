@@ -27,6 +27,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.utils import (
+    create_ipython_display,
     dict_to_yaml,
     gen_md_table,
     get_artifact_target,
@@ -483,7 +484,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     return short_run
 
 
-def show_kfp_run(run, clear_output=False):
+def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True):
     phase_to_color = {
         mlrun_pipelines.common.models.RunStatuses.failed: "red",
         mlrun_pipelines.common.models.RunStatuses.succeeded: "green",
@@ -529,16 +530,22 @@ def show_kfp_run(run, clear_output=False):
 
             import IPython
 
-            if clear_output:
-                IPython.display.clear_output(wait=True)
-
             run_id = run["run"]["id"]
             url = get_workflow_url(run["run"]["project"], run_id)
             href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
             html = IPython.display.HTML(
                 f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
             )
-            IPython.display.display(html, dag)
+
+            # Use externally supplied displays if this method was run as part of an 'animation' loop.
+            # Or create new displays if this method was run once as a standalone.
+            if with_html:
+                html_display_id = html_display_id or create_ipython_display()
+                IPython.display.update_display(html, display_id=html_display_id)
+
+            dag_display_id = dag_display_id or create_ipython_display()
+            IPython.display.update_display(dag, display_id=dag_display_id)
+
         except Exception as exc:
             logger.warning(f"failed to plot graph, {err_to_str(exc)}")
 

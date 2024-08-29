@@ -17,7 +17,6 @@ extend-select = [
     "N999", # snake_case for module names
     "B006", # mutable default arguments
 ]
-exclude = ["*.ipynb"]
 explicit-preview-rules = true
 
 [tool.ruff.lint.pycodestyle]
@@ -26,6 +25,7 @@ max-line-length = 120
 [tool.ruff.lint.extend-per-file-ignores]
 "__init__.py" = ["F401"]
 "docs/**.py" = ["CPY001"]
+"*.ipynb" = ["ALL"]  # TODO: enable linting rules on Jupyter notebooks
 
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"

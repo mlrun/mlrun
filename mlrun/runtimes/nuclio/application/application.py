@@ -552,6 +552,20 @@ class ApplicationRuntime(RemoteRuntime):
             reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
         )
 
+    @min_nuclio_versions("1.13.1")
+    def disable_default_http_trigger(
+        self,
+    ):
+        raise mlrun.runtimes.RunError(
+            "Application runtime does not support disabling the default HTTP trigger"
+        )
+
+    @min_nuclio_versions("1.13.1")
+    def enable_default_http_trigger(
+        self,
+    ):
+        pass
+
     def _run(self, runobj: "mlrun.RunObject", execution):
         raise mlrun.runtimes.RunError(
             "Application runtime .run() is not yet supported. Use .invoke() instead."

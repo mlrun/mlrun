@@ -1,5 +1,4 @@
 [tool.ruff]
-extend-include = ["*.ipynb"]
 target-version = "py39"
 required-version = ">=0.6.2"
 

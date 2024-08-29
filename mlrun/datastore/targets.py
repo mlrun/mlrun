@@ -1713,9 +1713,7 @@ class KafkaTarget(BaseStoreTarget):
         path = self.get_target_path()
 
         if not path:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "KafkaTarget requires a path (topic)"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a path")
 
         graph.add_step(
             name=self.name or "KafkaTarget",

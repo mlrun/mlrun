@@ -16,6 +16,7 @@ from mergedeep import merge
 from storey import V3ioDriver
 
 import mlrun
+import mlrun.model_monitoring.helpers
 
 from .utils import (
     parse_kafka_url,
@@ -131,9 +132,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
             topic, brokers = parse_kafka_url(path, brokers)
 
         if not topic:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "KafkaTarget requires a path (topic)"
-            )
+            raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a topic")
         kwargs["brokers"] = brokers
         kwargs["topic"] = topic
         super().__init__(*args, **kwargs, **attributes)

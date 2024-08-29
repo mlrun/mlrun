@@ -21,7 +21,7 @@ You can also create a custom `source` to access various databases or data source
 | [SQLSource](#sql-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
 | {py:meth}`~mlrun.datastore.CSVSource`                                                            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.ParquetSource`                                                      | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
+| [Parquet source](#parquet-source)                                                     | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
 | [S3/Azure source](#s3-azure-source)                                                            | Batch.                                                                 |       |      |       |
 | {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
 | [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
@@ -115,6 +115,27 @@ run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
 ```
 
+## Parquet source
+In ParquetSource, while reading a source, besides start_time and end_time,
+you can also use an additional_filter attribute on other columns in your source,
+which works similarly to the filtering functionality in pandas (based on pyarrow library).
+
+This can increase performance when reading large Parquet files.
+
+```python
+source = ParquetSource(
+            "parquet_source_example",
+            path="v3io://projects/example_project/source.parquet",
+            time_field = "hire_date",
+            start_time=datetime(
+                2023, 11, 3, 12, 30, 18
+            ),
+            end_time=datetime(
+                2023, 11, 8, 12, 30, 18
+            ),
+            additional_filters = [("department", "=", "R&D")],
+        )
+```
 
 ## S3/Azure source
 
@@ -148,28 +169,6 @@ source = SQLSource(
 feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
 feature_set.set_targets([])
 df = fs.ingest(feature_set, source=source)
-```
-
-## Parquet source
-In ParquetSource, while reading a source, besides start_time and end_time,
-you can also use an additional_filter attribute on other columns in your source,
-which works similarly to the filtering functionality in pandas (based on pyarrow library).
-
-This can increase performance when reading large Parquet files.
-
-```python
-source = ParquetSource(
-            "parquet_source_example",
-            path="v3io://projects/example_project/source.parquet",
-            time_field = "hire_date",
-            start_time=datetime(
-                2023, 11, 3, 12, 30, 18
-            ),
-            end_time=datetime(
-                2023, 11, 8, 12, 30, 18
-            ),
-            additional_filters = [("department", "=", "R&D")],
-        )
 ```
 
 # Targets

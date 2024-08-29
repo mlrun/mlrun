@@ -1211,6 +1211,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11", "1.5.9"
         )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.9", "1.7.0"
+        )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "2.0.0"
         )

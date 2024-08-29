@@ -926,9 +926,19 @@ class TestBatchDrift(TestMLRunSystem):
             == mm_constants.ResultStatusApp.detected
         )
 
-        # Validate that the artifacts were logged under the generated context
-        assert len(project.list_artifacts(name="drift_table_plot")) == 1
-        assert len(project.list_artifacts(name="features_drift_results")) == 1
+        # Validate that the artifacts were logged in the project
+        artifacts = project.list_artifacts(
+            labels={
+                "mlrun/producer-type": "model-monitoring-app",
+                "mlrun/app-name": "histogram-data-drift",
+                "mlrun/endpoint-id": endpoint_id,
+            }
+        )
+        assert len(artifacts) == 2
+        assert {art["metadata"]["key"] for art in artifacts} == {
+            "drift_table_plot",
+            "features_drift_results",
+        }
 
     def _validate_model_uri(self, model_obj, model_endpoint):
         model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(

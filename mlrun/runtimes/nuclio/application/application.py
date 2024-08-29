@@ -345,7 +345,7 @@ class ApplicationRuntime(RemoteRuntime):
 
         if create_default_api_gateway:
             try:
-                api_gateway_name = self._resolve_default_api_gateway_name()
+                api_gateway_name = self.resolve_default_api_gateway_name()
                 return self.create_api_gateway(api_gateway_name, set_as_default=True)
             except Exception as exc:
                 logger.warning(
@@ -353,9 +353,9 @@ class ApplicationRuntime(RemoteRuntime):
                     "Use the `create_api_gateway` method to make it accessible",
                     exc=mlrun.errors.err_to_str(exc),
                 )
-        else:
+        elif not self.status.api_gateway:
             logger.warning(
-                "Application is online but is not accessible. "
+                "Application is online but may not be accessible since default gateway creation was not requested."
                 "Use the `create_api_gateway` method to make it accessible."
             )
 
@@ -447,9 +447,14 @@ class ApplicationRuntime(RemoteRuntime):
 
         :return:    The API gateway URL
         """
-        if not set_as_default and name == self._resolve_default_api_gateway_name():
+        if not name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"API gateway {name=} conflicts with default while {set_as_default=}."
+                "API gateway name must be specified."
+            )
+
+        if not set_as_default and name == self.resolve_default_api_gateway_name():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Non-default API gateway cannot use the default gateway name, {name=}."
             )
 
         ports = self.spec.internal_application_port if direct_port_access else []
@@ -500,7 +505,7 @@ class ApplicationRuntime(RemoteRuntime):
             api_gateway = APIGateway.from_scheme(api_gateway_scheme)
             api_gateway.wait_for_readiness()
             url = api_gateway.invoke_url
-            # Update application status
+            # Update application status (enriches invocation url)
             self._get_state(raise_on_exception=False)
 
         logger.info("Successfully created API gateway", url=url)
@@ -581,6 +586,13 @@ class ApplicationRuntime(RemoteRuntime):
         # delete the function to avoid cluttering the project
         mlrun.get_run_db().delete_function(
             reverse_proxy_func.metadata.name, reverse_proxy_func.metadata.project
+        )
+
+    def resolve_default_api_gateway_name(self):
+        return (
+            f"{self.metadata.name}-{self.metadata.tag}"
+            if self.metadata.tag
+            else self.metadata.name
         )
 
     def _run(self, runobj: "mlrun.RunObject", execution):
@@ -696,12 +708,3 @@ class ApplicationRuntime(RemoteRuntime):
         self.status.api_gateway = APIGateway.from_scheme(api_gateway_scheme)
         self.status.api_gateway.wait_for_readiness()
         self.url = self.status.api_gateway.invoke_url
-
-    def _resolve_default_api_gateway_name(self):
-        api_gateway_name = (
-            f"{self.metadata.name}-{self.metadata.tag}"
-            if self.metadata.tag
-            else self.metadata.name
-        )
-        api_gateway_name += "-default"
-        return api_gateway_name

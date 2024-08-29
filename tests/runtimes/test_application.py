@@ -196,7 +196,7 @@ def test_application_default_api_gateway(rundb_mock, igz_version_mock):
     fn.deploy()
     api_gateway = fn.status.api_gateway
     assert api_gateway is not None
-    assert api_gateway.name == f"{function_name}-default"
+    assert api_gateway.name == function_name
     assert len(api_gateway.spec.functions) == 1
     assert function_name in api_gateway.spec.functions[0]
 
@@ -213,9 +213,9 @@ def test_application_disable_default_api_gateway(rundb_mock, igz_version_mock):
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match=f"API gateway name='{fn.metadata.name}-default' conflicts with default while set_as_default=False.",
+        match=f"Non-default API gateway cannot use the default gateway name, name='{fn.metadata.name}'.",
     ):
-        fn.create_api_gateway(name=fn._resolve_default_api_gateway_name())
+        fn.create_api_gateway(name=fn.resolve_default_api_gateway_name())
 
     url = fn.create_api_gateway(
         "my-gateway",

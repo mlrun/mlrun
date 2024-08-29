@@ -349,7 +349,7 @@ class ApplicationRuntime(RemoteRuntime):
                 return self.create_api_gateway(api_gateway_name, set_as_default=True)
             except Exception as exc:
                 logger.warning(
-                    "Failed to create default API gateway, application will not be accessible. "
+                    "Failed to create default API gateway, application may not be accessible. "
                     "Use the `create_api_gateway` method to make it accessible",
                     exc=mlrun.errors.err_to_str(exc),
                 )

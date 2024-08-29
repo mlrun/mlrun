@@ -186,7 +186,7 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
     )
 
 
-def test_application_api_gateway(rundb_mock, igz_version_mock):
+def test_application_default_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         function_name,
@@ -199,6 +199,31 @@ def test_application_api_gateway(rundb_mock, igz_version_mock):
     assert api_gateway.name == function_name
     assert len(api_gateway.spec.functions) == 1
     assert function_name in api_gateway.spec.functions[0]
+
+
+def test_application_disable_default_api_gateway(rundb_mock, igz_version_mock):
+    function_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        function_name,
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    fn.deploy(create_default_api_gateway=False)
+    assert fn.status.api_gateway is None
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=f"Non-default API gateway cannot use the default gateway name, name='{fn.metadata.name}'.",
+    ):
+        fn.create_api_gateway(name=fn.resolve_default_api_gateway_name())
+
+    url = fn.create_api_gateway(
+        "my-gateway",
+        authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        authentication_creds=("username", "password"),
+    )
+
+    assert url == f"https://{fn.status.external_invocation_urls[0]}"
 
 
 def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):

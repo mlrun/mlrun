@@ -57,7 +57,7 @@ class MonitoringApplicationContext:
     :param feature_names:           (list[str]) List of models feature names.
     :param label_names:             (list[str]) List of models label names.
     :param model:                   (tuple[str, ModelArtifact, dict]) The model file, model spec object,
-                                    and list of of extra data items.
+                                    and a list of extra data items.
     """
 
     def __init__(
@@ -201,7 +201,7 @@ class MonitoringApplicationContext:
 
     @property
     def model(self) -> tuple[str, ModelArtifact, dict]:
-        """The model file, model spec object, and list of extra data items"""
+        """The model file, model spec object, and a list of extra data items"""
         return get_model(self.model_endpoint.spec.model_uri)
 
     @staticmethod

@@ -477,6 +477,14 @@ with ctx:
                     )
         return in_terminal_state, completion_time, desired_run_state
 
+    def _resolve_container_error_status(self, crd_object: dict) -> tuple[str, str]:
+        error_message = (
+            crd_object.get("status", {})
+            .get("applicationState", {})
+            .get("errorMessage", "")
+        )
+        return "", error_message
+
     def _is_terminal_state(self, runtime_resource: dict) -> bool:
         state = (
             runtime_resource.get("status", {}).get("applicationState", {}).get("state")

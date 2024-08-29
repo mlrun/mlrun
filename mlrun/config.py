@@ -863,7 +863,7 @@ class Config:
                     f"Unable to decode {attribute_path}"
                 )
             parsed_attribute_value = json.loads(decoded_attribute_value)
-            if isinstance(parsed_attribute_value, expected_type):
+            if not isinstance(parsed_attribute_value, expected_type):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
                 )

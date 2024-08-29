@@ -43,7 +43,8 @@ class MonitoringApplicationContext:
     :param application_name:        (str) The model monitoring application name.
     :param project_name:            (str) The project name.
     :param project:                 (MlrunProject) The project object.
-    :param logger:                  (nuclio.request.Logger) Nuclio logger.
+    :param logger:                  (mlrun.utils.Logger) MLRun logger.
+    :param nuclio_logger:           (nuclio.request.Logger) Nuclio logger.
     :param sample_df_stats:         (FeatureStats) The new sample distribution dictionary.
     :param feature_stats:           (FeatureStats) The train sample distribution dictionary.
     :param sample_df:               (pd.DataFrame) The new sample DataFrame.
@@ -80,8 +81,15 @@ class MonitoringApplicationContext:
         self.project_name = cast(str, mlrun.mlconf.default_project)
         self.project = mlrun.load_project(url=self.project_name)
 
-        # Nuclio logger - `nuclio.request.Logger`
-        self.logger = graph_context.logger
+        # MLRun Logger
+        self.logger = mlrun.utils.create_logger(
+            level=mlrun.mlconf.log_level,
+            formatter_kind=mlrun.mlconf.log_formatter,
+            name="monitoring-application",
+        )
+        # Nuclio logger - `nuclio.request.Logger`.
+        # Note: this logger does not accept keyword arguments.
+        self.nuclio_logger = graph_context.logger
 
         # event data
         self.start_infer_time = pd.Timestamp(

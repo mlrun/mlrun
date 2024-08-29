@@ -91,10 +91,13 @@ class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> list[mm_results.ModelMonitoringApplicationResult]:
-        monitoring_context.logger.info("Running demo app")
+        monitoring_context.nuclio_logger.info("Running demo app")
         if self.check_num_events:
             assert len(monitoring_context.sample_df) == EXPECTED_EVENTS_COUNT
-        monitoring_context.logger.info("Asserted sample_df length")
+        monitoring_context.nuclio_logger.info("Asserted sample_df length")
+        monitoring_context.logger.info(
+            "Now with MLRun logger", sample_df_len=len(monitoring_context.sample_df)
+        )
         return [
             ModelMonitoringApplicationResult(
                 name="data_drift_test",

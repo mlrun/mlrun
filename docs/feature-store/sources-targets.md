@@ -89,7 +89,7 @@ See also {py:meth}`~mlrun.datastore.KafkaSource`.
   
 **Example**:
 
-```
+```python
 from mlrun.datastore.sources import KafkaSource
 
 kafka_source = KafkaSource(
@@ -137,7 +137,7 @@ See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/ind
 either, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
-```
+```python
 source = SQLSource(
     table_name="my_table", 
     db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
@@ -157,7 +157,7 @@ which works similarly to the filtering functionality in pandas (based on pyarrow
 
 This can increase performance when reading large Parquet files.
 
-```
+```python
 source = ParquetSource(
             "parquet_source_example",
             path="v3io://projects/example_project/source.parquet",
@@ -331,7 +331,7 @@ To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in th
 
 You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
 
-```
+```python
 target = SQLTarget(
     table_name="my_table",
     schema= {"id": string, "age": int, "time": pd.Timestamp, ...}

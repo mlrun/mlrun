@@ -1,6 +1,6 @@
 [tool.ruff]
 target-version = "py39"
-required-version = ">=0.6.2"
+required-version = ">=0.6.3"
 
 [tool.ruff.lint]
 extend-select = [

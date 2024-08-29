@@ -3,7 +3,7 @@ twine~=5.1
 build~=1.0
 
 # formatting & linting
-ruff==0.6.2
+ruff==0.6.3
 import-linter~=2.0
 blacken-docs~=1.18
 black~=24.4  # only used by by blacken-docs

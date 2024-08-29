@@ -1485,7 +1485,11 @@ class RunObject(RunTemplate):
     @property
     def error(self) -> str:
         """error string if failed"""
-        if self.status:
+        if (
+            self.status
+            and self.status.state
+            in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+        ):
             unknown_error = ""
             if (
                 self.status.state
@@ -1501,8 +1505,8 @@ class RunObject(RunTemplate):
 
             return (
                 self.status.error
-                or self.status.reason
                 or self.status.status_text
+                or self.status.reason
                 or unknown_error
             )
         return ""

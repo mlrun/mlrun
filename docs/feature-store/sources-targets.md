@@ -153,10 +153,9 @@ df = fs.ingest(feature_set, source=source)
 ## Parquet source
 In ParquetSource, while reading a source, besides start_time and end_time,
 you can also use an additional_filter attribute on other columns in your source,
-which works similarly to the filtering functionality in pandas.
+which works similarly to the filtering functionality in pandas (based on pyarrow library).
 
 This can increase performance when reading large Parquet files.
-
 
 ```
 source = ParquetSource(
@@ -221,6 +220,8 @@ target = KafkaTarget(path="ds://profile-name")
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
 The Parquet file is ideal for fetching large sets of data for training.
 
+The additional_filters functionality is identical to [ParquetSource](sources-targets.md#parquet-source) behavior
+while using as_df method.
 ### Partitioning
 
 When writing data to a ParquetTarget, you can use partitioning. Partitioning organizes data 

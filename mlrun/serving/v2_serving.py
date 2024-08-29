@@ -19,6 +19,7 @@ from typing import Optional, Union
 
 import mlrun.artifacts
 import mlrun.common.model_monitoring
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
@@ -554,13 +555,13 @@ def _init_endpoint_record(
     except mlrun.errors.MLRunNotFoundError:
         model_ep = None
     except mlrun.errors.MLRunBadRequestError as err:
-        logger.debug(
+        logger.info(
             f"Cant reach to model endpoints store, due to  : {err}",
         )
         return
 
     if model.context.server.track_models and not model_ep:
-        logger.debug("Creating a new model endpoint record", endpoint_id=uid)
+        logger.info("Creating a new model endpoint record", endpoint_id=uid)
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
                 project=project, labels=model.labels, uid=uid
@@ -586,28 +587,35 @@ def _init_endpoint_record(
             model_endpoint=model_endpoint.dict(),
         )
 
-    elif (
-        model_ep
-        and (
+    elif model_ep:
+        attributes = {}
+        old_model_uri = model_ep.spec.model_uri
+        mlrun.common.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
+            model_endpoint=model_ep,
+            model_obj=model.model_spec,
+        )
+        if model_ep.spec.model_uri != old_model_uri:
+            attributes["model_uri"] = model_ep.spec.model_uri
+        if (
             model_ep.spec.monitoring_mode
             == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-        )
-        != model.context.server.track_models
-    ):
-        monitoring_mode = (
-            mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-            if model.context.server.track_models
-            else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
-        )
-        db = mlrun.get_run_db()
-        db.patch_model_endpoint(
-            project=project,
-            endpoint_id=uid,
-            attributes={"monitoring_mode": monitoring_mode},
-        )
-        logger.debug(
-            f"Updating model endpoint monitoring_mode to {monitoring_mode}",
-            endpoint_id=uid,
-        )
+        ) != model.context.server.track_models:
+            attributes["monitoring_mode"] = (
+                mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+                if model.context.server.track_models
+                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
+            )
+        if attributes:
+            db = mlrun.get_run_db()
+            db.patch_model_endpoint(
+                project=project,
+                endpoint_id=uid,
+                attributes={"model_uri": model_ep.spec.model_uri},
+            )
+            logger.info(
+                "Updating model endpoint attributes",
+                attributes=attributes,
+                endpoint_id=uid,
+            )
 
     return uid

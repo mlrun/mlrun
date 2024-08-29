@@ -698,7 +698,7 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.disable_default_http_trigger = True
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
         self,
     ):

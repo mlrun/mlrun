@@ -312,10 +312,12 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
-        notifications = [
-            mlrun.model.Notification.from_dict(notification.dict())
-            for notification in workflow_request.notifications or []
-        ]
+        notifications = None
+        if workflow_request:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications or []
+            ]
 
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)

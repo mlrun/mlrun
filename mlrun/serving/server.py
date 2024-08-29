@@ -526,7 +526,7 @@ class GraphContext:
         return self._server
 
     @property
-    def project(self):
+    def project(self) -> str:
         """current project name (for the current function)"""
         project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
             self._server.function_uri

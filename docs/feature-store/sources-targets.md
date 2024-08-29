@@ -150,6 +150,29 @@ feature_set.set_targets([])
 df = fs.ingest(feature_set, source=source)
 ```
 
+## Parquet source
+In ParquetSource, while reading a source, besides start_time and end_time,
+you can also use an additional_filter attribute on other columns in your source,
+which works similarly to the filtering functionality in pandas.
+
+This can increase performance when reading large Parquet files.
+
+
+```
+source = ParquetSource(
+            "parquet_source_example",
+            path="v3io://projects/example_project/source.parquet",
+            time_field = "hire_date",
+            start_time=datetime(
+                2023, 11, 3, 12, 30, 18
+            ),
+            end_time=datetime(
+                2023, 11, 8, 12, 30, 18
+            ),
+            additional_filters = [("department", "=", "R&D")],
+        )
+```
+
 # Targets
 
 By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>

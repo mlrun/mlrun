@@ -71,7 +71,7 @@ from .store_resources import (
     is_store_uri,
     parse_store_uri,
 )
-from .storytargets import (
+from .storeytargets import (
     CSVStoreyTarget,
     KafkaStoreyTarget,
     NoSqlStoreyTarget,

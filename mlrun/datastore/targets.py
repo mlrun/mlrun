@@ -1319,6 +1319,19 @@ class NoSqlBaseTarget(BaseStoreTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
+        table, column_list = self._get_table_and_columns(features, key_columns)
+
+        graph.add_step(
+            name=self.name or self.writer_step_name,
+            after=after,
+            graph_shape="cylinder",
+            class_name="mlrun.datastore.NoSqlStoreyTarget",
+            columns=column_list,
+            table=table,
+            **self.attributes,
+        )
+
+    def _get_table_and_columns(self, features, key_columns):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
@@ -1337,15 +1350,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 col for col in column_list if col[0] not in aggregate_features
             ]
 
-        graph.add_step(
-            name=self.name or self.writer_step_name,
-            after=after,
-            graph_shape="cylinder",
-            class_name="mlrun.datastore.NoSqlStoreyTarget",
-            columns=column_list,
-            table=table,
-            **self.attributes,
-        )
+        return table, column_list
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         raise NotImplementedError()
@@ -1476,51 +1481,51 @@ class NoSqlTarget(NoSqlBaseTarget):
         return df
 
 
-def redis_get_server_endpoint(path):
-    endpoint, uri = parse_path(path)
-    endpoint = endpoint or mlrun.mlconf.redis.url
-    if endpoint.startswith("ds://"):
-        datastore_profile = datastore_profile_read(endpoint)
-        if not datastore_profile:
-            raise ValueError(f"Failed to load datastore profile '{endpoint}'")
-        if datastore_profile.type != "redis":
-            raise ValueError(
-                f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
-            )
-        endpoint = datastore_profile.url_with_credentials()
-    else:
-        parsed_endpoint = urlparse(endpoint)
-        if parsed_endpoint.username or parsed_endpoint.password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Provide Redis username and password only via secrets"
-            )
-        credentials_prefix = mlrun.get_secret_or_env(key="CREDENTIALS_PREFIX")
-        user = mlrun.get_secret_or_env(
-            "REDIS_USER", default="", prefix=credentials_prefix
-        )
-        password = mlrun.get_secret_or_env(
-            "REDIS_PASSWORD", default="", prefix=credentials_prefix
-        )
-        host = parsed_endpoint.hostname
-        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
-        scheme = parsed_endpoint.scheme
-        if user or password:
-            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
-        else:
-            endpoint = f"{scheme}://{host}:{port}"
-    return endpoint, uri
-
-
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
+    @staticmethod
+    def get_server_endpoint(path):
+        endpoint, uri = parse_path(path)
+        endpoint = endpoint or mlrun.mlconf.redis.url
+        if endpoint.startswith("ds://"):
+            datastore_profile = datastore_profile_read(endpoint)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
+            endpoint = datastore_profile.url_with_credentials()
+        else:
+            parsed_endpoint = urlparse(endpoint)
+            if parsed_endpoint.username or parsed_endpoint.password:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Provide Redis username and password only via secrets"
+                )
+            credentials_prefix = mlrun.get_secret_or_env(key="CREDENTIALS_PREFIX")
+            user = mlrun.get_secret_or_env(
+                "REDIS_USER", default="", prefix=credentials_prefix
+            )
+            password = mlrun.get_secret_or_env(
+                "REDIS_PASSWORD", default="", prefix=credentials_prefix
+            )
+            host = parsed_endpoint.hostname
+            port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+            scheme = parsed_endpoint.scheme
+            if user or password:
+                endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+            else:
+                endpoint = f"{scheme}://{host}:{port}"
+        return endpoint, uri
+
     def get_table_object(self):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = redis_get_server_endpoint(self.get_target_path())
+        endpoint, uri = self.get_server_endpoint(self.get_target_path())
 
         return Table(
             uri,
@@ -1529,7 +1534,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = redis_get_server_endpoint(self.get_target_path())
+        endpoint, uri = self.get_server_endpoint(self.get_target_path())
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1570,23 +1575,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
-        key_columns = list(key_columns.keys())
-        table = self._resource.uri
-        column_list = self._get_column_list(
-            features=features,
-            timestamp_key=None,
-            key_columns=key_columns,
-            with_type=True,
-        )
-        if not self.columns:
-            aggregate_features = (
-                [key for key, feature in features.items() if feature.aggregate]
-                if features
-                else []
-            )
-            column_list = [
-                col for col in column_list if col[0] not in aggregate_features
-            ]
+        table, column_list = self._get_table_and_columns(features, key_columns)
 
         graph.add_step(
             path=self.get_target_path(),

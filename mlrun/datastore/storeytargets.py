@@ -23,7 +23,7 @@ from .utils import (
 
 """
 Storey targets expect storage_options, which may contain credentials.
-To avoid passing it openly within the graph, we use those wrapper instead.
+To avoid passing it openly within the graph, we use wrapper classes.
 """
 
 
@@ -147,7 +147,9 @@ class NoSqlStoreyTarget(storey.NoSqlTarget):
 class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
-        endpoint, uri = mlrun.datastore.targets.redis_get_server_endpoint(path)
+        endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
+            path
+        )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)
 

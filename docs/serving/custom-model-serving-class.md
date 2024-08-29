@@ -56,8 +56,9 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 ```python
 import mlrun
 from sklearn.datasets import load_iris
+
 project = mlrun.get_or_create_project("sklearn")
-fn = project.set_function(name"my_server", kind="serving")
+fn = project.set_function(name="my_server", kind="serving")
 
 # set the topology/router and add models
 graph = fn.set_topology("router")

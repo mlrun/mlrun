@@ -275,7 +275,9 @@ import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
 project = mlrun.get_or_create_project(spark)
-spark = project.set_function(kind="spark", command=read_csv_filepath, name="sparkreadcsv")
+spark = project.set_function(
+    kind="spark", command=read_csv_filepath, name="sparkreadcsv"
+)
 spark.with_driver_limits(cpu="1300m")
 spark.with_driver_requests(cpu=1, mem="512m")
 spark.with_executor_limits(cpu="1400m")
@@ -1241,7 +1243,9 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 ```python
 # Create Dask cluster
 project = mlrun.get_or_create_project(dask_cluster)
-dask_cluster = project.set_function(name="dask-cluster", kind="dask", image="mlrun/ml-base")
+dask_cluster = project.set_function(
+    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+)
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

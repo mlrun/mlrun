@@ -78,12 +78,12 @@ templates_path = [
 language = "en"
 
 linkcheck_ignore = {
-    r'https:\/\/github\.com\/.*\/.*#L\d+-L\d+',
+    r"https:\/\/github\.com\/.*\/.*#L\d+-L\d+",
     # linkcheck doesn't work well with relative paths which contain anchor, so ignore them
-    r'^.*\.html#.*$',
-    r'^\./[^/]+\.html#.*$',
-    r'^\.\./[^/]+\.html#.*$',
-    r'^(?!https?:\/\/).*',
+    r"^.*\.html#.*$",
+    r"^\./[^/]+\.html#.*$",
+    r"^\.\./[^/]+\.html#.*$",
+    r"^(?!https?:\/\/).*",
 }
 linkcheck_anchors = True
 

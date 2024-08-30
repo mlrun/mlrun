@@ -67,14 +67,7 @@ Currently, the supported notification kinds and their params are as follows:
   - `url`: The webhook url to which to send the notification.
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
   - `headers`: (dict) The http headers to send with the notification.
-  - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
-                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
-					 Results would look like 
-					 ```
-					 {
-                       "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
-                     }
-					 ```
+  - `override_body`: (dict) The body to send with the notification. 
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
                   The default is set to `True`.
 - `console` (no params, local only)
@@ -96,6 +89,33 @@ notification = mlrun.model.Notification(
 )
 function.run(handler=handler, notifications=[notification])
 ```
+To add run details to the notification:
+```python
+notifications_func = [
+    mlrun.model.Notification.from_dict(
+        {
+            "kind": "webhook",
+            "name": "Test",
+            "severity": "info",
+            "when": ["error", "completed"],
+            "condition": "",
+            "params": {
+                "url": webhook_test,
+                "method": "POST",
+                "override_body": {"message": "Run Completed {{ runs }}"},
+            },
+        }
+    ),
+]
+```
+
+The results look like:
+```
+{
+  "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
+}
+```
+
 
 ## Configuring notifications for pipelines
 To set notifications on pipelines, supply the notifications in the run method of either the project or the pipeline.
@@ -113,13 +133,9 @@ notification = mlrun.model.Notification(
 project.run(..., notifications=[notification])
 ```
 
-For pipelines that have configured notifications, MLRun always sends a `pipeline started` notification. Assuming you have a few notifications 
-configured &mdash; the notification that includes `when=running` determines the parameters for the `pipeline started` notification, for 
-example the webook, credentials, etc.</br>
-If you only want notifications for pipelines in terminal states, you can opt out of the `pipeline started` notification by using:
-```python
-project.run(..., send_start_notification=False)
-```
+MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
+`when=running`. The `pipeline started` notification uses its own parameters, for
+example the webhook, credentials, etc., for the notification message.</br>
 
 ### Remote pipeline notifications
 In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.

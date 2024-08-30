@@ -21,11 +21,11 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. MLRun fully supports k8s releases 1.22, 1.23, and 1.26. 
+- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 
   - 8Gi

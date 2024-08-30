@@ -30,6 +30,7 @@ import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 
+import mlrun.alerts
 import mlrun.artifacts.base
 import mlrun.common.formatters
 import mlrun.common.schemas
@@ -963,3 +964,27 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+@pytest.mark.parametrize(
+    "alert_name_in_config, alert_name_as_func_param",
+    [
+        (None, None),
+        (None, ""),
+        ("", None),
+        ("", ""),
+    ],
+)
+def test_store_alert_config_missing_alert_name(
+    alert_name_in_config, alert_name_as_func_param, create_server
+):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
+    ):
+        db.store_alert_config(
+            alert_name=alert_name_as_func_param,
+            alert_data=alert_data,
+        )

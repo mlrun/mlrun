@@ -1,45 +1,59 @@
 (model-monitoring)=
 # Model monitoring user flow
 
-This page gives an overview of the model monitoring feature. See a complete example in the tutorial [Model monitoring and drift detection](../tutorials/05-model-monitoring.html).
-```{admonition} Note
-If you are using the CE version, see {ref}`legacy-model-monitoring`.
-```
+This page gives an overview of the model monitoring user flow. See complete examples in the tutorials:
+- [Model monitoring and drift detection](../tutorials/05-model-monitoring.html)
+- [Model monitoring with a user-app](../tutorials/genai_02_model_monitor_user_app.html)
+
+In this section:
+- [APIs](#apis)
+- [Enable model monitoring](#enable-model-monitoring)
+- [Log the model with training data](#log-the-model-with-training-data)
+- [Import, enable monitoring, and deploy the serving function](#import-enable-monitoring-and-deploy-the-serving-function)
+- [Invoke the model](#invoke-the-model)
+- [Register and deploy the model-monitoring app](#register-and-deploy-the-model-monitoring-app)
+- [User-app](#)
+- [Invoke the model again](#invoke-the-model-again)
+- [View model monitoring artifacts and drift in Grafana](#view-model-monitoring-artifacts-and-drift-in-grafana)
+- [Batch infer model-monitoring](#batch-infer-model-monitoring)
+
 ## APIs
 
 The model monitoring APIs are configured per project. The APIs are:
 
-- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; brings up the controller and schedules it according to the `base_period`; deploys the writer.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Update or set a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
-- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; creates a function but does not set it. It's useful for troubleshooting, since it does  not register the function to the project.
+- {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring` &mdash; Brings up the controller, writer and stream realtime functions, and schedules the controller according to the `base_period`. 
+You can also deploy the default histogram-based data drift application when you enable model monitoring.
+- {py:meth}`~mlrun.projects.MlrunProject.create_model_monitoring_function` &mdash; Creates a monitoring function object without setting it to the project, used for user-apps and troubleshooting.
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function` &mdash; Updates or sets a monitoring function to the project. (Monitoring does not start until the function is deployed.) 
 - {py:meth}`~mlrun.projects.MlrunProject.list_model_monitoring_functions` &mdash; Retrieves a list of all the model monitoring functions.
 - {py:meth}`~mlrun.projects.MlrunProject.remove_model_monitoring_function` &mdash; Removes the specified model-monitoring-app function from the project and from the DB.
-- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Sets the Kafka or SQL credentials to be used by the project's model monitoring infrastructure functions. 
-- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials` &mdash; Set the credentials that are used by the project's model monitoring infrastructure functions. 
+- {py:meth}`~mlrun.projects.MlrunProject.disable_model_monitoring` &mdash; Disables the controller. 
+- {py:meth}`~mlrun.projects.MlrunProject.update_model_monitoring_controller`  &mdash; Redeploys the model monitoring application controller functions.
+- {py:meth}`~mlrun.config.Config.get_model_monitoring_file_target_path` &mdash; Gets the full path from the configuration based on the provided project and kind.
+
 
 ## Enable model monitoring
 
 Enable model monitoring for a project with {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`.
 The controller runs, by default, every 10 minutes, which is also the minimum interval. 
 You can modify the frequency with the parameter `base_period`. 
-To change the `base_period`, first run `disable_model_monitoring`, then run `enable_model_monitoring`  
-with the new `base_period` value. 
+To change the `base_period`, call `update_model_monitoring_controller`. 
 
 ```python
-project.enable_model_monitoring(base_period=1)
+project.enable_model_monitoring(base_period=20)
 ```
-
 ## Log the model with training data
 
 See the parameter descriptions in {py:meth}`~mlrun.projects.MlrunProject.log_model`. 
-This example uses a {download}`pickle file <../tutorials/_static/model.pkl>`.
+{Download the pickle file}`pickle file <../tutorials/src/model.pkl>` used in this example.
 
 
 ```python
 model_name = "RandomForestClassifier"
 project.log_model(
     model_name,
-    model_file="./assets/model.pkl",
+    model_file="model.pkl",
     training_set=train_set,
     framework="sklearn",
 )
@@ -106,11 +120,11 @@ The next step is to deploy the model-monitoring job to generate the full meta da
 Add the monitoring function to the project using {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_function`. 
 Then, deploy the function using {py:meth}`~mlrun.projects.MlrunProject.deploy_function`.
 
-First download the {download}`demo_app <../tutorials/_static/demo_app.py>`.
+First download the {download}`demo_app <../tutorials/src/demo_app.py>`.
 
 ```
 my_app = project.set_model_monitoring_function(
-    func="./assets/demo_app.py",
+    func="demo_app.py",
     application_class="DemoMonitoringApp",
     name="myApp",
 )
@@ -124,9 +138,8 @@ See the [Model monitoring and drift detection tutorial](../tutorials/05-model-mo
 ## Invoke the model again
 
 The controller checks for new datasets every `base_period` to send to the app. Invoking the model a second time ensures that the previous 
-window closed and therefore the data contains the full monitoring window. From this point on, the applications are triggered by the controller. 
-From this point on, the applications are triggered by the controller. The controller checks the Parquet DB every 10 minutes (or non-default 
-`base_period`) and streams any new data to the app.
+window closed and therefore the data contains the full monitoring window. The controller checks the Parquet DB every 10 minutes 
+(or higher number, user-configurable), and streams any new data to the app.
 
 
 ```python

@@ -108,9 +108,6 @@ def test_requirement_specifiers_convention():
                 continue
 
     ignored_invalid_map = {
-        # 0.1.0 is not compatible with mlrun >=1.7.0rc19
-        "mlrun-pipelines-kfp-common": {"~=0.1.2"},
-        "mlrun-pipelines-kfp-v1-8": {"~=0.1.2"},
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.8"},
         "storey": {"~=1.7.23"},
@@ -136,14 +133,11 @@ def test_requirement_specifiers_convention():
         "pyopenssl": {">=23"},
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
-        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
-        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
-        "plotly": {"~=5.4, <5.12.0"},
         # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
         "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
-        "scikit-learn": {"~=1.4.0"},
+        "scikit-learn": {"~=1.5.1"},
     }
 
     for (
@@ -289,7 +283,7 @@ def _import_extras_requirements():
     setuptools.setup = original_setup
     builtins.open = original_open
 
-    ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
+    ignored_extras = ["api", "complete", "complete-api", "all"]
 
     extras_requirements = []
     for extra_name, extra_requirements in dependencies.extra_requirements().items():

@@ -58,15 +58,26 @@ class TDEngineConnector(TSDBConnector):
         except taosws.QueryError:
             # Database already exists
             pass
-        conn.execute(f"USE {self.database}")
+        try:
+            conn.execute(f"USE {self.database}")
+        except taosws.QueryError as e:
+            raise mlrun.errors.MLRunTSDBConnectionFailure(
+                f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
+            )
         return conn
 
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
-            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
+                self.database
+            ),
         }
 
     def create_tables(self):
@@ -97,6 +108,7 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
+            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
@@ -105,14 +117,30 @@ class TDEngineConnector(TSDBConnector):
                 f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
+        # Convert the datetime strings to datetime objects
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.START_INFER_TIME]
+        )
+
         create_table_query = table._create_subtable_query(
             subtable=table_name, values=event
         )
         self._connection.execute(create_table_query)
-        insert_table_query = table._insert_subtable_query(
-            subtable=table_name, values=event
+
+        insert_statement = table._insert_subtable_query(
+            self._connection,
+            subtable=table_name,
+            values=event,
         )
-        self._connection.execute(insert_table_query)
+        insert_statement.add_batch()
+        insert_statement.execute()
+
+    @staticmethod
+    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+        return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     def apply_monitoring_stream_steps(self, graph):
         """

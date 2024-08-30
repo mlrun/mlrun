@@ -31,6 +31,7 @@ avro~=1.11
 sqlalchemy-utils~=0.39.0
 
 # frameworks tests
-scikit-learn~=1.4.0
+scikit-learn~=1.5.1
 lightgbm~=4.3
 xgboost~=1.1
+cryptography~=42.0

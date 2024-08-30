@@ -16,8 +16,9 @@
 - [Multi-stage workflows (batch pipelines)](#multi-stage-workflows-batch-pipelines)
 - [Logging](#logging)
 - [Experiment tracking](#experiment-tracking)
-- [Model Inferencing and serving](#model-inferencing-and-serving)
+- [Model inferencing and serving](#model-inferencing-and-serving)
 - [Model monitoring and drift detection](#model-monitoring-and-drift-detection)
+- [Alerts and notifications](#alerts-and-notifications)
 - [Sources and targets](#sources-and-targets)
 - [Feature store](#feature-store)
 - [Real-time pipelines](#real-time-pipelines)
@@ -650,7 +651,7 @@ batch_run = project.run_function(
 ```
 
 ## Model monitoring and drift detection
-Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html), [Batch inference](./deployment/batch_inference.html) 
+Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
 
 ### Real-time drift detection
 
@@ -685,6 +686,42 @@ batch_run = project.run_function(
     },
 )
 ```
+
+## Alerts and notifications
+
+Docs: {ref}`alerts`, {ref}`notifications`
+
+### Alerts
+```python
+alert_data = mlrun.alerts.alert.AlertConfig(
+    project=project_name,
+    name=alert_name,
+    summary=alert_summary,
+    severity=alert_objects.AlertSeverity.LOW,
+    entities=alert_objects.EventEntities(
+        kind=entity_kind, project=project_name, ids=[result_endpoint]
+    ),
+    trigger=alert_objects.AlertTrigger(events=[event_name]),
+    criteria=None,
+    notifications=notifications,
+)
+```
+
+### Notifications
+```python
+notification = mlrun.model.Notification(
+    kind="slack",
+    name="slack_notification",
+    message="A drift was detected",
+    severity="warning",
+    when=["now"],
+    condition="failed",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
+).to_dict()
+```
+
 
 ## Sources and targets
 

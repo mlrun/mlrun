@@ -161,8 +161,8 @@ myst_all_links_external = True
 # These substitutions point to the relevant mlrun docs for the current CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.4.0",
-    "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
+    "ceversion": "v1.7.0",
+    "releasedocumentation": "docs.mlrun.org/en/stable/index.html",
 }
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
@@ -185,6 +185,13 @@ redirects = {
     "monitoring/initial-setup-configuration": "monitoring/model-monitoring-deployment.html",
     "tutorials/05-batch-infer": "tutorials/06-batch-infer.html",
     "tutorials/06-model-monitoring": "tutorials/05-model-monitoring.html",
+    "monitoring/models": "../model-monitoring/monitoring-models.html",
+    "monitoring/monitoring": "../model-monitoring.html",
+    "monitoring/monitoring-deployment": "../model-monitoring/model-monitoring-deployment.html",
+    "monitoring/legacy-model-monitoring": "../model-monitoring/legacy-model-monitoring.html",
+    "concepts/monitoring": "model-monitoring.html",
+    "monitoring/index": "../model-monitoring/index.html",
+    "monitoring/model-monitoring": "monitoring/model-monitoring-flow.html",
 }
 
 smartquotes = False

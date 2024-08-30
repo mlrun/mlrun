@@ -27,6 +27,7 @@ import inflection
 import pytest
 
 import mlrun
+import mlrun.alerts.alert
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
@@ -1244,9 +1245,17 @@ def test_function_receives_project_default_image():
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
-    # Without a project default image, set_function with file-path for remote kind must get an image
+    # Without a project default image, set_function with file-path in context and repo for remote kind must get an image
     with pytest.raises(ValueError, match="image must be provided"):
-        proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+        proj1.set_source("git://mock.git", pull_at_runtime=False)
+        # Specify the relative path for the file to be considered in the project's context
+        proj1.set_function(
+            func="./assets/handler.py",
+            name="func",
+            kind="job",
+            handler="myhandler",
+            with_repo=True,
+        )
 
     proj1.set_default_image(default_image)
     proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
@@ -2312,6 +2321,19 @@ def test_workflow_path_with_project_workdir():
     project.spec.workdir = "./workdir"
     path = workflow_spec.get_source_file(project.spec.get_code_path())
     assert path == "./context/./workdir/workflow.py"
+
+
+@pytest.mark.parametrize(
+    "alert_data",
+    [None, ""],
+)
+def test_store_alert_config_missing_alert_data(alert_data):
+    project_name = "dummy-project"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
+    ):
+        project.store_alert_config(alert_data=alert_data)
 
 
 class TestModelMonitoring:

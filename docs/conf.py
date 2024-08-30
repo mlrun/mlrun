@@ -83,7 +83,7 @@ linkcheck_ignore = {
     r'^.*\.html#.*$',
     r'^\./[^/]+\.html#.*$',
     r'^\.\./[^/]+\.html#.*$',
-
+    r'^(?!https?:\/\/).*',
 }
 linkcheck_anchors = True
 

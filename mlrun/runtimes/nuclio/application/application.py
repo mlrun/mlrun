@@ -457,6 +457,14 @@ class ApplicationRuntime(RemoteRuntime):
                 f"Non-default API gateway cannot use the default gateway name, {name=}."
             )
 
+        if (
+            authentication_mode == schemas.APIGatewayAuthenticationMode.basic
+            and not authentication_creds
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Authentication credentials not provided"
+            )
+
         ports = self.spec.internal_application_port if direct_port_access else []
 
         api_gateway = APIGateway(

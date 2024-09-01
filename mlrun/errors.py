@@ -29,9 +29,12 @@ class MLRunBaseError(Exception):
     pass
 
 
-class MLRunTaskNotReady(MLRunBaseError):
+class MLRunTaskNotReadyError(MLRunBaseError):
     """indicate we are trying to read a value which is not ready
     or need to come from a job which is in progress"""
+
+
+MLRunTaskNotReady = MLRunTaskNotReadyError  # kept for BC only
 
 
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):

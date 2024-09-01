@@ -519,6 +519,13 @@ class ApplicationRuntime(RemoteRuntime):
         logger.info("Successfully created API gateway", url=url)
         return url
 
+    def delete_api_gateway(self, name):
+        self._get_db().delete_api_gateway(name=name, project=self.metadata.project)
+        if name == self.status.api_gateway_name:
+            self.status.api_gateway_name = None
+            self.status.api_gateway = None
+        self._get_state()
+
     def invoke(
         self,
         path: str,

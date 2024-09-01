@@ -101,7 +101,7 @@ def test_raise_for_aiohttp_client_response_status():
     ), "should have aiohttp client response in exception"
 
 
-class TestErrToStatusCode(Exception):
+class TestErrToStatusCodeError(Exception):
     def __init__(self, status_code, message):
         self.status_code = status_code
         self.message = message
@@ -119,8 +119,8 @@ class TestErrToStatusCode(Exception):
 def test_err_to_status_code(status_code, exc, message):
     with pytest.raises(exc) as _exc:
         try:
-            raise TestErrToStatusCode(status_code, message)
-        except TestErrToStatusCode as test_exc:
+            raise TestErrToStatusCodeError(status_code, message)
+        except TestErrToStatusCodeError as test_exc:
             raise err_for_status_code(
                 test_exc.status_code, test_exc.message
             ) from test_exc

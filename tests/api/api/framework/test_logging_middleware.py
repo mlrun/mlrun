@@ -28,27 +28,27 @@ from mlrun.utils.logger import Logger, create_logger
 from server.api.main import app
 
 
-class HandledException1(Exception):
+class Handled1Error(Exception):
     pass
 
 
-class HandledException2(Exception):
+class Handled2Error(Exception):
     pass
 
 
-class UnhandledException(Exception):
+class UnhandledError(Exception):
     pass
 
 
-@app.exception_handler(HandledException1)
-async def handler_returning_response(request: fastapi.Request, exc: HandledException1):
+@app.exception_handler(Handled1Error)
+async def handler_returning_response(request: fastapi.Request, exc: Handled1Error):
     logger.warning("Handler caught HandledException1 exception, returning 204 response")
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@app.exception_handler(HandledException2)
+@app.exception_handler(Handled1Error)
 async def handler_returning_http_exception(
-    request: fastapi.Request, exc: HandledException2
+    request: fastapi.Request, exc: Handled1Error
 ):
     logger.warning(
         "Handler caught HandledException2 exception, returning HTTPException with 401"
@@ -72,7 +72,7 @@ def handled_exception_1():
     logger.info(
         "handled_exception_1 endpoint received request, raising handled exception 1"
     )
-    raise HandledException1("handled exception 1")
+    raise Handled1Error("handled exception 1")
 
 
 @test_router.get("/handled_exception_2")
@@ -80,13 +80,13 @@ def handled_exception_2():
     logger.info(
         "handled_exception_2 endpoint received request, raising handled exception 2"
     )
-    raise HandledException2("handled exception 2")
+    raise Handled1Error("handled exception 2")
 
 
 @test_router.get("/unhandled_exception")
 def unhandled_exception():
     logger.info("unhandled endpoint received request, raising unhandled exception")
-    raise UnhandledException("Unhandled exception")
+    raise UnhandledError("Unhandled exception")
 
 
 class SomeScheme(pydantic.BaseModel):
@@ -165,7 +165,7 @@ def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> N
         _ensure_request_logged(stream)
         stream.seek(0)
 
-    with pytest.raises(UnhandledException):
+    with pytest.raises(UnhandledError):
         # In a real fastapi (and not test) unhandled exception returns 500
         client.get("/test/unhandled_exception")
     if has_logger_middleware:

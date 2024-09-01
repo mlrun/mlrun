@@ -644,15 +644,24 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The model endpoint stream path is different than expected"
         return endpoint.metadata.uid
 
-    def _test_artifacts(self) -> None:
+    def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
             if app_data.artifacts:
                 app_name = app_data.class_.NAME
                 self._logger.debug("Checking app artifacts", app_name=app_name)
                 for key in app_data.artifacts:
-                    self._logger.debug("Checking artifact", key=key)
-                    # Test that the artifact can be fetched from the store
-                    self.project.get_artifact(key).to_dataitem().get()
+                    self._logger.debug("Checking artifact existence", key=key)
+                    artifact = self.project.get_artifact(key)
+                    self._logger.debug("Checking artifact labels", key=key)
+                    assert {
+                        "mlrun/producer-type": "model-monitoring-app",
+                        "mlrun/app-name": app_name,
+                        "mlrun/endpoint-id": ep_id,
+                    }.items() <= artifact.labels.items()
+                    self._logger.debug(
+                        "Test the artifact can be fetched from the store", key=key
+                    )
+                    artifact.to_dataitem().get()
 
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
@@ -767,7 +776,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
         self._test_predictions_table(ep_id)
 
-        self._test_artifacts()
+        self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)

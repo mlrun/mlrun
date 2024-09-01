@@ -35,7 +35,7 @@ RUN GOOS=linux \
 
 FROM alpine:latest as install-health-probe
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.19
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.28
 
 RUN mkdir /app
 WORKDIR /app
@@ -44,7 +44,7 @@ RUN wget -qO/app/grpc_health_probe \
     https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /app/grpc_health_probe
 
-FROM gcr.io/iguazio/alpine:3.18
+FROM gcr.io/iguazio/alpine:3.20
 
 # Upgrade OS packages
 RUN apk -U upgrade

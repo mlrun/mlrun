@@ -15,7 +15,6 @@
 import sys
 import typing
 
-import mlrun.artifacts
 import mlrun.common
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.common.schemas.model_monitoring import (

@@ -97,7 +97,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         def wrapper(
             self: SKLearnTypes.ModelType,
-            X: SKLearnTypes.DatasetType,
+            X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
             y: SKLearnTypes.DatasetType = None,
             *args,
             **kwargs,
@@ -124,7 +124,12 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         return wrapper
 
-    def mlrun_predict(self, X: SKLearnTypes.DatasetType, *args, **kwargs):
+    def mlrun_predict(
+        self,
+        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
+        *args,
+        **kwargs,
+    ):
         """
         MLRun's wrapper for the common ML API predict method.
         """
@@ -136,7 +141,12 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         return y_pred
 
-    def mlrun_predict_proba(self, X: SKLearnTypes.DatasetType, *args, **kwargs):
+    def mlrun_predict_proba(
+        self,
+        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
+        *args,
+        **kwargs,
+    ):
         """
         MLRun's wrapper for the common ML API predict_proba method.
         """

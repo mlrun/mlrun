@@ -37,7 +37,6 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
-import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -149,9 +148,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
         """
 
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.STREAM,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.STREAM} function",
@@ -193,9 +195,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
         """
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} function",
@@ -241,9 +246,12 @@ class MonitoringDeployment:
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
         """
 
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.MonitoringFunctionNames.WRITER,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            )
+            != "ready"
         ):
             logger.info(
                 f"Deploying {mm_constants.MonitoringFunctionNames.WRITER} function",
@@ -283,6 +291,8 @@ class MonitoringDeployment:
         stream_paths = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, function_name=function_name
         )
+        # set all MM app and infra to have only 1 replica
+        function.spec.max_replicas = 1
         for i, stream_path in enumerate(stream_paths):
             if stream_path.startswith("kafka://"):
                 topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
@@ -291,6 +301,7 @@ class MonitoringDeployment:
                     brokers=brokers,
                     topics=[topic],
                 )
+                stream_source.create_topics(num_partitions=1, replication_factor=1)
                 function = stream_source.add_nuclio_trigger(function)
 
             if not mlrun.mlconf.is_ce_mode():
@@ -518,39 +529,37 @@ class MonitoringDeployment:
 
         return function
 
-    def _check_if_already_deployed(
-        self, function_name: str, overwrite: bool = False
-    ) -> bool:
+    def _get_function_state(
+        self,
+        function_name: str,
+    ) -> typing.Optional[str]:
         """
-         If overwrite equal False the method check the desired function is all ready deployed
-
         :param function_name:   The name of the function to check.
-        :param overwrite:       If true, overwrite the existing model monitoring controller.
-                                By default, False.
 
-        :return:                True if the function is already deployed, otherwise False.
+        :return:                Function state if deployed, else None.
         """
-        if not overwrite:
-            logger.info(
-                f"Checking if {function_name} is already deployed",
-                project=self.project,
-            )
-            try:
-                # validate that the function has not yet been deployed
+        logger.info(
+            f"Checking if {function_name} is already deployed",
+            project=self.project,
+        )
+        try:
+            # validate that the function has not yet been deployed
+            state, _, _, _, _, _ = (
                 mlrun.runtimes.nuclio.function.get_nuclio_deploy_status(
                     name=function_name,
                     project=self.project,
                     tag="",
                     auth_info=self.auth_info,
                 )
-                logger.info(
-                    f"Detected {function_name} function already deployed",
-                    project=self.project,
-                )
-                return True
-            except mlrun.errors.MLRunNotFoundError:
-                pass
-        return False
+            )
+            logger.info(
+                f"Detected {function_name} function already deployed",
+                project=self.project,
+                state=state,
+            )
+            return state
+        except mlrun.errors.MLRunNotFoundError:
+            pass
 
     def deploy_histogram_data_drift_app(
         self, image: str, overwrite: bool = False
@@ -561,9 +570,12 @@ class MonitoringDeployment:
         :param image:       The image on with the function will run.
         :param overwrite:   If True, the function will be overwritten.
         """
-        if not self._check_if_already_deployed(
-            function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
-            overwrite=overwrite,
+        if (
+            overwrite
+            or self._get_function_state(
+                function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
+            )
+            != "ready"
         ):
             logger.info("Preparing the histogram data drift function")
             func = mlrun.model_monitoring.api._create_model_monitoring_function_base(
@@ -747,7 +759,7 @@ class MonitoringDeployment:
         )
         tasks: list[mlrun.common.schemas.BackgroundTask] = []
         for function_name in function_to_delete:
-            if self._check_if_already_deployed(function_name):
+            if self._get_function_state(function_name):
                 task = await run_in_threadpool(
                     server.api.db.session.run_function_with_new_db_session,
                     MonitoringDeployment._create_monitoring_function_deletion_background_task,
@@ -879,11 +891,19 @@ class MonitoringDeployment:
             background_task_name=background_task_name,
         )
         if delete_app_stream_resources:
-            MonitoringDeployment._delete_model_monitoring_stream_resources(
-                project=project,
-                function_names=[function_name],
-                access_key=access_key,
-            )
+            try:
+                MonitoringDeployment._delete_model_monitoring_stream_resources(
+                    project=project,
+                    function_names=[function_name],
+                    access_key=access_key,
+                )
+            except mlrun.errors.MLRunStreamConnectionFailure as e:
+                logger.warning(
+                    "Failed to delete stream resources, you may need to delete them manually",
+                    project_name=project,
+                    function=function_name,
+                    error=mlrun.errors.err_to_str(e),
+                )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -953,7 +973,7 @@ class MonitoringDeployment:
                     logger.debug("Deleted v3io stream", stream_path=stream_path)
                 except v3io.dataplane.response.HttpResponseError as e:
                     logger.warning(
-                        "Can't delete v3io stream",
+                        "Failed to delete v3io stream",
                         stream_path=stream_path,
                         error=mlrun.errors.err_to_str(e),
                     )
@@ -980,7 +1000,7 @@ class MonitoringDeployment:
                 logger.debug("Deleted kafka topics", topics=topics)
             except kafka.errors.TopicAuthorizationFailedError as e:
                 logger.warning(
-                    "Can't delete kafka topics",
+                    "Failed to delete kafka topics",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
                 )
@@ -989,6 +1009,11 @@ class MonitoringDeployment:
                     "Kafka model monitoring topics not found, probably not created",
                     topics=topics,
                     error=mlrun.errors.err_to_str(e),
+                )
+            except kafka.errors.NoBrokersAvailable as e:
+                # Raise an error that will be caught by the caller and skip the deletion of the stream
+                raise mlrun.errors.MLRunStreamConnectionFailure(
+                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
                 )
         else:
             logger.warning(

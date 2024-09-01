@@ -209,6 +209,14 @@ class MLRunInvalidMMStoreType(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
+class MLRunStreamConnectionFailure(MLRunHTTPStatusError, ValueError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
+class MLRunTSDBConnectionFailure(MLRunHTTPStatusError, ValueError):
+    error_status_code = HTTPStatus.BAD_REQUEST.value
+
+
 class MLRunRetryExhaustedError(Exception):
     pass
 

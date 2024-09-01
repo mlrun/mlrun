@@ -534,11 +534,11 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        if affinity:
+        if affinity is not None:
             self.spec.driver_affinity = affinity
-        if node_selector:
+        if node_selector is not None:
             self.spec.driver_node_selector = node_selector
-        if tolerations:
+        if tolerations is not None:
             self.spec.driver_tolerations = tolerations
 
     def with_executor_node_selection(
@@ -565,11 +565,11 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        if affinity:
+        if affinity is not None:
             self.spec.executor_affinity = affinity
-        if node_selector:
+        if node_selector is not None:
             self.spec.executor_node_selector = node_selector
-        if tolerations:
+        if tolerations is not None:
             self.spec.executor_tolerations = tolerations
 
     def with_preemption_mode(
@@ -808,9 +808,7 @@ class Spark3Runtime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
-        from mlrun.run import new_function
-
-        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
+        sj = mlrun.new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
         # setting required resources

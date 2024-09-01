@@ -157,7 +157,7 @@ here:
 |-----------------------|------------|
 | [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
 | [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
 
 ```{note}

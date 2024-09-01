@@ -517,17 +517,24 @@ def get_or_create_project(
             parameters=parameters,
             allow_cross_project=allow_cross_project,
         )
-        logger.info("Project loaded successfully", project_name=name)
+        logger.info("Project loaded successfully", project_name=project.name)
         return project
     except mlrun.errors.MLRunNotFoundError:
-        logger.debug("Project not found in db", project_name=name)
+        logger.debug(
+            "Project not found in db", project_name=name, user_project=user_project
+        )
 
     spec_path = path.join(context, subpath or "", "project.yaml")
     load_from_path = url or path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
-        logger.info("Loading project from path", project_name=name, path=url or context)
+        logger.info(
+            "Loading project from path",
+            project_name=name,
+            user_project=user_project,
+            path=url or context,
+        )
         project = load_project(
             context,
             url,
@@ -544,7 +551,7 @@ def get_or_create_project(
 
         logger.info(
             "Project loaded successfully",
-            project_name=name,
+            project_name=project.name,
             path=url or context,
             stored_in_db=save,
         )
@@ -562,7 +569,9 @@ def get_or_create_project(
         save=save,
         parameters=parameters,
     )
-    logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    logger.info(
+        "Project created successfully", project_name=project.name, stored_in_db=save
+    )
     return project
 
 
@@ -600,6 +609,10 @@ def _run_project_setup(
     if hasattr(mod, "setup"):
         try:
             project = getattr(mod, "setup")(project)
+            if not project or not isinstance(project, mlrun.projects.MlrunProject):
+                raise ValueError(
+                    "MLRun project_setup:setup() must return a project object"
+                )
         except Exception as exc:
             logger.error(
                 "Failed to run project_setup script",
@@ -610,7 +623,9 @@ def _run_project_setup(
         if save:
             project.save()
     else:
-        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
+        logger.warn(
+            f"skipping setup, setup() handler was not found in {path.basename(setup_file_path)}"
+        )
     return project
 
 
@@ -1542,15 +1557,15 @@ class MlrunProject(ModelObj):
         self,
         item,
         body=None,
-        tag="",
-        local_path="",
-        artifact_path=None,
-        format=None,
-        upload=None,
-        labels=None,
-        target_path=None,
+        tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        format: Optional[str] = None,
+        upload: Optional[bool] = None,
+        labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
 
         If the artifact already exists with the same key and tag, it will be overwritten.
@@ -1649,7 +1664,7 @@ class MlrunProject(ModelObj):
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ) -> DatasetArtifact:
         """
@@ -1726,15 +1741,15 @@ class MlrunProject(ModelObj):
         artifact_path=None,
         upload=None,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
         label_column=None,
         extra_data=None,
         **kwargs,
-    ):
+    ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
 
         If the model already exists with the same key and tag, it will be overwritten.
@@ -2388,7 +2403,11 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, list[str]] = None,
         requirements_file: str = "",
     ) -> tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
-        if func is None and not _has_module(handler, kind):
+        if (
+            func is None
+            and not _has_module(handler, kind)
+            and mlrun.runtimes.RuntimeKinds.supports_from_notebook(kind)
+        ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if is_ipython:
@@ -2967,7 +2986,6 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
-        send_start_notification: bool = True,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3004,8 +3022,6 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-        :param send_start_notification:
-                          Send a notification when the workflow starts
 
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -3083,7 +3099,6 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             source=source,
             notifications=notifications,
-            send_start_notification=send_start_notification,
         )
         # run is None when scheduling
         if run and run.state == mlrun_pipelines.common.models.RunStatuses.failed:
@@ -3216,30 +3231,30 @@ class MlrunProject(ModelObj):
         infrastructure functions. Important to note that you have to set the credentials before deploying any
         model monitoring or serving function.
 
-        :param access_key:                Model Monitoring access key for managing user permissions.
-        :param endpoint_store_connection: Endpoint store connection string. By default, None.
-                                          Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io endpoint store,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. MySQL/SQLite - for SQL endpoint store, please provide full
-                                             connection string, for example
-                                             mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
-        :param stream_path:               Path to the model monitoring stream. By default, None.
-                                          Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io stream,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. Kafka - for Kafka stream, please provide full connection string without
-                                             custom topic, for example kafka://<some_kafka_broker>:<port>.
+        :param access_key:                Model monitoring access key for managing user permissions.
+        :param endpoint_store_connection: Endpoint store connection string. By default, None. Options:
+
+                                          * None - will be set from the system configuration.
+                                          * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
+                                            exact path.
+                                          * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
+                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+        :param stream_path:               Path to the model monitoring stream. By default, None. Options:
+
+                                          * None - will be set from the system configuration.
+                                          * v3io - for v3io stream, pass `v3io` and the system will generate the exact
+                                            path.
+                                          * Kafka - for Kafka stream, provide the full connection string without custom
+                                            topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
-                                          1. None, will be set from the system configuration.
-                                          2. v3io - for v3io stream,
-                                             pass `v3io` and the system will generate the exact path.
-                                          3. TDEngine - for TDEngine tsdb, please provide full websocket connection URL,
-                                             for example taosws://<username>:<password>@<host>:<port>.
-        :param replace_creds:                     If True, will override the existing credentials.
+
+                                          * None - will be set from the system configuration.
+                                          * v3io - for v3io stream, pass `v3io` and the system will generate the exact
+                                            path.
+                                          * TDEngine - for TDEngine tsdb, provide the full websocket connection URL,
+                                            for example taosws://<username>:<password>@<host>:<port>.
+        :param replace_creds:             If True, will override the existing credentials.
                                           Please keep in mind that if you already enabled model monitoring on
                                           your project this action can cause data loose and will require redeploying
                                           all model monitoring functions & model monitoring infra
@@ -3345,7 +3360,8 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN":
+                                token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.
@@ -4055,7 +4071,7 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db().delete_api_gateway(name=name, project=self.name)
 
     def store_alert_config(
-        self, alert_data: AlertConfig, alert_name=None
+        self, alert_data: AlertConfig, alert_name: typing.Optional[str] = None
     ) -> AlertConfig:
         """
         Create/modify an alert.
@@ -4064,9 +4080,11 @@ class MlrunProject(ModelObj):
         :param alert_name: The name of the alert.
         :return: the created/modified alert.
         """
+        if not alert_data:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if alert_name is None:
-            alert_name = alert_data.name
+        alert_name = alert_name or alert_data.name
         if alert_data.project is not None and alert_data.project != self.metadata.name:
             logger.warn(
                 "Project in alert does not match project in operation",
@@ -4369,18 +4387,17 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
-        if (
-            not image
-            and not project.default_image
-            and kind != "local"
-            and not project.spec.load_source_on_run
-        ):
-            raise ValueError(
-                "image must be provided with py code files which do not "
-                "run on 'local' engine kind"
-            )
         if in_context and with_repo:
+            # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
+            if (
+                not image
+                and not project.default_image
+                and kind != "local"
+                and not project.spec.load_source_on_run
+            ):
+                raise ValueError(
+                    "image must be provided with py code files which do not run on 'local' engine kind"
+                )
             func = new_function(
                 name,
                 command=relative_url,
@@ -4402,7 +4419,6 @@ def _init_function_from_dict(
     elif kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         func = new_function(
             name,
-            command=relative_url,
             image=image,
             kind=kind,
             handler=handler,
@@ -4456,9 +4472,17 @@ def _init_function_from_obj(
 def _has_module(handler, kind):
     if not handler:
         return False
-    return (
-        kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes() and ":" in handler
-    ) or "." in handler
+
+    if (
+        kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes()
+        and ":" in handler
+    ):
+        return True
+
+    if "." in handler:
+        return True
+
+    return False
 
 
 def _is_imported_artifact(artifact):

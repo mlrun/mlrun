@@ -14,6 +14,7 @@
 
 import typing
 from datetime import datetime
+from typing import Union
 
 import pandas as pd
 import taosws
@@ -57,15 +58,26 @@ class TDEngineConnector(TSDBConnector):
         except taosws.QueryError:
             # Database already exists
             pass
-        conn.execute(f"USE {self.database}")
+        try:
+            conn.execute(f"USE {self.database}")
+        except taosws.QueryError as e:
+            raise mlrun.errors.MLRunTSDBConnectionFailure(
+                f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
+            )
         return conn
 
     def _init_super_tables(self):
         """Initialize the super tables for the TSDB."""
         self.tables = {
-            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(),
-            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(),
-            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(),
+            mm_schemas.TDEngineSuperTables.APP_RESULTS: tdengine_schemas.AppResultTable(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.METRICS: tdengine_schemas.Metrics(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
+                self.database
+            ),
         }
 
     def create_tables(self):
@@ -96,6 +108,7 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
+            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
@@ -104,14 +117,30 @@ class TDEngineConnector(TSDBConnector):
                 f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
+        # Convert the datetime strings to datetime objects
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.START_INFER_TIME]
+        )
+
         create_table_query = table._create_subtable_query(
             subtable=table_name, values=event
         )
         self._connection.execute(create_table_query)
-        insert_table_query = table._insert_subtable_query(
-            subtable=table_name, values=event
+
+        insert_statement = table._insert_subtable_query(
+            self._connection,
+            subtable=table_name,
+            values=event,
         )
-        self._connection.execute(insert_table_query)
+        insert_statement.add_batch()
+        insert_statement.execute()
+
+    @staticmethod
+    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+        return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     def apply_monitoring_stream_steps(self, graph):
         """
@@ -131,7 +160,7 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "mlrun.datastore.TDEngineStoreyTarget",
+                "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
                 name=name,
                 after=after,
                 supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
@@ -154,6 +183,9 @@ class TDEngineConnector(TSDBConnector):
             name="TDEngineTarget",
             after="ProcessBeforeTDEngine",
         )
+
+    def handle_model_error(self, graph, **kwargs) -> None:
+        pass
 
     def delete_tsdb_resources(self):
         """
@@ -245,11 +277,9 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
             )
-        columns = []
-        for column in query_result.fields:
-            columns.append(column.name())
 
-        return pd.DataFrame(query_result, columns=columns)
+        df_columns = [field.name() for field in query_result.fields]
+        return pd.DataFrame(query_result, columns=df_columns)
 
     def read_metrics_data(
         self,
@@ -273,13 +303,22 @@ class TDEngineConnector(TSDBConnector):
             ],
         ],
     ]:
+        timestamp_column = mm_schemas.WriterEvent.END_INFER_TIME
+        columns = [timestamp_column, mm_schemas.WriterEvent.APPLICATION_NAME]
         if type == "metrics":
             table = mm_schemas.TDEngineSuperTables.METRICS
             name = mm_schemas.MetricData.METRIC_NAME
+            columns += [name, mm_schemas.MetricData.METRIC_VALUE]
             df_handler = self.df_to_metrics_values
         elif type == "results":
             table = mm_schemas.TDEngineSuperTables.APP_RESULTS
             name = mm_schemas.ResultData.RESULT_NAME
+            columns += [
+                name,
+                mm_schemas.ResultData.RESULT_VALUE,
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.ResultData.RESULT_KIND,
+            ]
             df_handler = self.df_to_results_values
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -299,7 +338,8 @@ class TDEngineConnector(TSDBConnector):
             start=start,
             end=end,
             filter_query=filter_query,
-            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            timestamp_column=timestamp_column,
+            columns=columns,
         )
 
         df[mm_schemas.WriterEvent.END_INFER_TIME] = pd.to_datetime(
@@ -375,6 +415,54 @@ class TDEngineConnector(TSDBConnector):
                 )
             ),  # pyright: ignore[reportArgumentType]
         )
+
+    def get_last_request(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_drift_status(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "now-24h",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_metrics_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_results_metadata(
+        self,
+        endpoint_id: str,
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_error_count(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
+
+    def get_avg_latency(
+        self,
+        endpoint_ids: Union[str, list[str]],
+        start: Union[datetime, str] = "0",
+        end: Union[datetime, str] = "now",
+    ) -> pd.DataFrame:
+        pass
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

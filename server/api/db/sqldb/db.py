@@ -1121,47 +1121,57 @@ class SQLDB(DBInterface):
         if link_key:
             key = link_key
 
-        # We perform two consecutive SELECT queries and modify the two artifact records that are returned.
-        # Without no_autoflush, SQLAlchemy offloads the transaction data to the DB during the second SELECT query,
-        # which can result in a deadlock due to assumed conflicts between the transactions.
-        # Using no_autoflush ensures that all modifications don't arrive to the DB until the transaction is committed.
-        with session.no_autoflush:
-            # get the best iteration artifact record
-            query = self._query(session, ArtifactV2).filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key == key,
-                ArtifactV2.iteration == link_iteration,
+        # Lock the artifacts with the same project and key (and producer_id when available) to avoid unexpected
+        # deadlocks and conform to our lock-once-when-starting logic - ML-6869
+        lock_query = self._query(
+            session,
+            ArtifactV2,
+            project=project,
+            key=key,
+        ).with_entities(ArtifactV2.id)
+        if link_tree:
+            lock_query = lock_query.filter(ArtifactV2.producer_id == link_tree)
+
+        lock_query.order_by(
+            ArtifactV2.id.asc()
+        ).populate_existing().with_for_update().all()
+
+        # get the best iteration artifact record
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.iteration == link_iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
+        if uid:
+            query = query.filter(ArtifactV2.uid == uid)
+
+        best_iteration_artifact_record = query.one_or_none()
+        if not best_iteration_artifact_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
             )
-            if link_tree:
-                query = query.filter(ArtifactV2.producer_id == link_tree)
-            if uid:
-                query = query.filter(ArtifactV2.uid == uid)
 
-            best_iteration_artifact_record = query.one_or_none()
-            if not best_iteration_artifact_record:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
-                )
+        # get the previous best iteration artifact
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.best_iteration,
+            ArtifactV2.iteration != link_iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
 
-            # get the previous best iteration artifact
-            query = self._query(session, ArtifactV2).filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key == key,
-                ArtifactV2.best_iteration,
-                ArtifactV2.iteration != link_iteration,
-            )
-            if link_tree:
-                query = query.filter(ArtifactV2.producer_id == link_tree)
+        previous_best_iteration_artifacts = query.one_or_none()
+        if previous_best_iteration_artifacts:
+            # remove the previous best iteration flag
+            previous_best_iteration_artifacts.best_iteration = False
+            artifacts_to_commit.append(previous_best_iteration_artifacts)
 
-            previous_best_iteration_artifacts = query.one_or_none()
-            if previous_best_iteration_artifacts:
-                # remove the previous best iteration flag
-                previous_best_iteration_artifacts.best_iteration = False
-                artifacts_to_commit.append(previous_best_iteration_artifacts)
-
-            # update the artifact record with best iteration
-            best_iteration_artifact_record.best_iteration = True
-            artifacts_to_commit.append(best_iteration_artifact_record)
+        # update the artifact record with best iteration
+        best_iteration_artifact_record.best_iteration = True
+        artifacts_to_commit.append(best_iteration_artifact_record)
 
         self._upsert(session, artifacts_to_commit)
 
@@ -2429,12 +2439,9 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values_count": len(main_table_identifier_values),
+            "main_table_identifier_values": main_table_identifier_values,
         }
-        if deletions_count != len(main_table_identifier_values):
-            logger.warning("Removed less rows than expected from table", **log_kwargs)
-        else:
-            logger.debug("Removed rows from table", **log_kwargs)
+        logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
         return deletions_count
 
@@ -5115,9 +5122,8 @@ class SQLDB(DBInterface):
             alert_record.id,
             alert.project,
         )
+        self.create_alert_state(session, alert_record)
 
-        state = AlertState(count=0, parent_id=alert_record.id)
-        self._upsert(session, [state])
         return self._transform_alert_config_record_to_schema(alert_record)
 
     def delete_alert(self, session, project: str, name: str):
@@ -5158,6 +5164,7 @@ class SQLDB(DBInterface):
             else mlrun.common.schemas.AlertActiveState.INACTIVE
         )
         alert.count = state.count
+        alert.created = state.created
 
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()
@@ -5271,6 +5278,10 @@ class SQLDB(DBInterface):
         state = self.get_alert_state(session, alert_id)
         if state is not None:
             return state.to_dict()
+
+    def create_alert_state(self, session, alert_record):
+        state = AlertState(count=0, parent_id=alert_record.id)
+        self._upsert(session, [state])
 
     def delete_alert_notifications(
         self,
@@ -5472,7 +5483,7 @@ class SQLDB(DBInterface):
         return self._query(session, BackgroundTask, project=project)
 
     def _delete_background_tasks(self, session: Session, project: str):
-        logger.debug("Removing background tasks from db", project=project)
+        logger.debug("Removing project background tasks from db", project=project)
         for background_task_name in self._list_project_background_task_names(
             session, project
         ):
@@ -5560,10 +5571,13 @@ class SQLDB(DBInterface):
                 )
 
             notification.kind = notification_model.kind
-            notification.message = notification_model.message
-            notification.severity = notification_model.severity
-            notification.when = ",".join(notification_model.when)
-            notification.condition = notification_model.condition
+            notification.message = notification_model.message or ""
+            notification.severity = (
+                notification_model.severity
+                or mlrun.common.schemas.NotificationSeverity.INFO
+            )
+            notification.when = ",".join(notification_model.when or [])
+            notification.condition = notification_model.condition or ""
             notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (

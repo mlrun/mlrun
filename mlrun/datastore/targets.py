@@ -389,6 +389,7 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_pandas = False
     support_append = False
 
     def __init__(
@@ -757,6 +758,8 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
+        if not self.support_pandas:
+            raise NotImplementedError()
         mlrun.utils.helpers.additional_filters_warning(
             additional_filters, self.__class__
         )
@@ -818,6 +821,7 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_pandas = True
     support_append = True
 
     def __init__(
@@ -937,7 +941,7 @@ class ParquetTarget(BaseStoreTarget):
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.ParquetStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.ParquetStoreyTarget",
             path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
@@ -1075,6 +1079,7 @@ class CSVTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_pandas = True
 
     @staticmethod
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
@@ -1101,7 +1106,7 @@ class CSVTarget(BaseStoreTarget):
             name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.CSVStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.CSVStoreyTarget",
             path=target_path,
             columns=column_list,
             header=True,
@@ -1282,7 +1287,7 @@ class SnowflakeTarget(BaseStoreTarget):
         **kwargs,
     ):
         raise mlrun.errors.MLRunRuntimeError(
-            f"{type(self).__name__} does not support storey engine"
+            f"{type(self).__name__} does not support pandas engine"
         )
 
     @property
@@ -1325,7 +1330,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             name=self.name or self.writer_step_name,
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.NoSqlStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.NoSqlStoreyTarget",
             columns=column_list,
             table=table,
             **self.attributes,
@@ -1360,19 +1365,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_dask_options(self):
         return {"format": "csv"}
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1582,7 +1574,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             name=self.name or self.writer_step_name,
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.RedisNoSqlStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.RedisNoSqlStoreyTarget",
             columns=column_list,
             table=table,
             **self.attributes,
@@ -1619,24 +1611,11 @@ class StreamTarget(BaseStoreTarget):
             name=self.name or "StreamTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.StreamStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.StreamStoreyTarget",
             columns=column_list,
             stream_path=stream_path,
             **self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
 
 class KafkaTarget(BaseStoreTarget):
@@ -1719,24 +1698,11 @@ class KafkaTarget(BaseStoreTarget):
             name=self.name or "KafkaTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.KafkaStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.KafkaStoreyTarget",
             columns=column_list,
             path=path,
             attributes=self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def purge(self):
         pass
@@ -1772,7 +1738,7 @@ class TSDBTarget(BaseStoreTarget):
 
         graph.add_step(
             name=self.name or "TSDBTarget",
-            class_name="mlrun.datastore.TSDBStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.TSDBStoreyTarget",
             after=after,
             graph_shape="cylinder",
             path=uri,
@@ -1781,19 +1747,6 @@ class TSDBTarget(BaseStoreTarget):
             columns=column_list,
             **self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1832,6 +1785,7 @@ class CustomTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -1867,6 +1821,7 @@ class CustomTarget(BaseStoreTarget):
 class DFTarget(BaseStoreTarget):
     kind = TargetTypes.dataframe
     support_storey = True
+    support_pandas = True
 
     def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
@@ -1929,6 +1884,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -2071,7 +2027,7 @@ class SQLTarget(BaseStoreTarget):
             name=self.name or "SqlTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="mlrun.datastore.NoSqlStoreyTarget",
+            class_name="mlrun.datastore.storeytargets.NoSqlStoreyTarget",
             columns=column_list,
             header=True,
             table=table,

@@ -698,7 +698,7 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.disable_default_http_trigger = True
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
         self,
     ):
@@ -753,7 +753,7 @@ class RemoteRuntime(KubeResource):
             return state, text, last_log_timestamp
 
         try:
-            text, last_log_timestamp = self._get_db().get_builder_status(
+            text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except mlrun.db.RunDBError:

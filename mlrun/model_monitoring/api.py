@@ -147,8 +147,7 @@ def record_results(
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
-    :param context:                  MLRun context. Note that the context is required for logging the artifacts
-                                     following the batch drift job.
+    :param context:                  MLRun context. Note that the context is required generating the model endpoint.
     :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
                                      used for doing the drift analysis. Please make sure that the dataframe includes
                                      both feature names and label columns.
@@ -616,7 +615,16 @@ def _create_model_monitoring_function_base(
         app_step = prepare_step.to(class_name=application_class, **application_kwargs)
     else:
         app_step = prepare_step.to(class_name=application_class)
+
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
+
+    app_step.error_handler(
+        name="ApplicationErrorHandler",
+        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        full_event=True,
+        project=project,
+    )
+
     app_step.to(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",

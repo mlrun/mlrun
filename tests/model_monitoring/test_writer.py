@@ -265,6 +265,12 @@ class TestTSDB:
         )
 
         actual_columns = list(record_from_tsdb.columns)
+
+        assert (
+            ResultData.CURRENT_STATS not in actual_columns
+        ), "Current stats should not be written to the TSDB"
+
+        # TODO: Remove this assertion after the extra data is supported in TSDB (ML-7460)
         assert (
             ResultData.RESULT_EXTRA_DATA not in actual_columns
         ), "The extra data should not be written to the TSDB"

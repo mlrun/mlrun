@@ -65,6 +65,7 @@ from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     RunKeys,
+    create_ipython_display,
     extend_hub_uri_if_needed,
     get_in,
     logger,
@@ -744,11 +745,10 @@ def code_to_function(
         raise ValueError("Databricks tasks only support embed_code=True")
 
     if kind == RuntimeKinds.application:
-        if handler:
-            raise MLRunInvalidArgumentError(
-                "Handler is not supported for application runtime"
-            )
-        filename, handler = ApplicationRuntime.get_filename_and_handler()
+        raise MLRunInvalidArgumentError(
+            "Embedding a code file is not supported for application runtime. "
+            "Code files should be specified via project/function source."
+        )
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
@@ -942,10 +942,12 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
+        dag_display_id = create_ipython_display()
+
         def _wait_for_pipeline_completion():
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
-            show_kfp_run(pipeline, clear_output=True)
+            show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
             if pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",

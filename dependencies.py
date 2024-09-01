@@ -49,9 +49,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # >=2.4.2 to force having a security fix done in 2.4.2
             "bokeh~=2.4, >=2.4.2",
         ],
-        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
-        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
-        "plotly": ["plotly~=5.4, <5.12.0"],
+        "plotly": ["plotly~=5.23"],
         # used to generate visualization nuclio/serving graph steps
         "graphviz": ["graphviz~=0.20.0"],
         "google-cloud": [
@@ -62,9 +60,8 @@ def extra_requirements() -> dict[str, list[str]]:
             # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
             "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
+            "gcsfs>=2023.9.2, <2024.4",
         ],
-        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
             # because confluent kafka supports avro format by default

@@ -20,10 +20,9 @@ import pandas as pd
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas
-from mlrun.common.schemas.model_monitoring import (
-    EventFieldType,
-)
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.data_types.infer
+import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
@@ -35,7 +34,6 @@ from mlrun.utils import logger
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class _BatchDict(typing.TypedDict):
@@ -45,26 +43,29 @@ class _BatchDict(typing.TypedDict):
 
 
 def get_stream_path(
-    project: str, function_name: str = mm_constants.MonitoringFunctionNames.STREAM
+    project: str,
+    function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    stream_uri: typing.Optional[str] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param function_name:    Application name. Default is model_monitoring_stream.
+    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = mlrun.get_secret_or_env(
-        mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+    stream_uri = stream_uri or mlrun.get_secret_or_env(
+        mm_constants.ProjectSecretKeys.STREAM_PATH
     )
 
     if not stream_uri or stream_uri == "v3io":
         # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+            kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
@@ -78,7 +79,7 @@ def get_stream_path(
 
 def get_monitoring_parquet_path(
     project: "MlrunProject",
-    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+    kind: str = mm_constants.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project and kind. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
@@ -111,7 +112,7 @@ def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -
     """
 
     return mlrun.get_secret_or_env(
-        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+        key=mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
         secret_provider=secret_provider,
     )
 
@@ -126,7 +127,7 @@ def get_tsdb_connection_string(
     """
 
     return mlrun.get_secret_or_env(
-        key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
+        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
         secret_provider=secret_provider,
     )
 
@@ -200,7 +201,7 @@ def update_model_endpoint_last_request(
         db.patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            attributes={EventFieldType.LAST_REQUEST: current_request},
+            attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
     else:
         try:
@@ -229,7 +230,7 @@ def update_model_endpoint_last_request(
         db.patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
+            attributes={mm_constants.EventFieldType.LAST_REQUEST: bumped_last_request},
         )
 
 
@@ -249,8 +250,7 @@ def calculate_inputs_statistics(
 
     # Use `DFDataInfer` to calculate the statistics over the inputs:
     inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
-        df=inputs,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
+        df=inputs, options=mlrun.data_types.infer.InferOptions.Histogram
     )
 
     # Recalculate the histograms over the bins that are set in the sample-set of the end point:

@@ -63,16 +63,6 @@ from .store_resources import (
     is_store_uri,
     parse_store_uri,
 )
-from .storeytargets import (
-    CSVStoreyTarget,
-    KafkaStoreyTarget,
-    NoSqlStoreyTarget,
-    ParquetStoreyTarget,
-    RedisNoSqlStoreyTarget,
-    StreamStoreyTarget,
-    TDEngineStoreyTarget,
-    TSDBStoreyTarget,
-)
 from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 from .utils import get_kafka_brokers_from_dict, parse_kafka_url
 

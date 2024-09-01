@@ -189,7 +189,7 @@ class AzureBlobStore(DataStore):
                 "Append mode not supported for Azure blob datastore"
             )
         remote_path = self._convert_key_to_remote_path(key)
-        data, mode = self._prepare_put_data(data)
+        data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(remote_path, mode) as f:
             f.write(data)
 

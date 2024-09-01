@@ -173,7 +173,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         # Invoke should infer access key is needed
         assert function.invoke("/", verify=False)
         assert function.status.api_gateway_name == api_gateway_name
-        # At this point we are yet to get the function statsu from the server so the external invocation URL contains
+        # At this point we are yet to get the function status from the server so the external invocation URL contains
         # only "my-api-gateway"
         assert len(function.status.external_invocation_urls) == 1
 

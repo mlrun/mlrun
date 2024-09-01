@@ -14,18 +14,18 @@ When defining a source, it maps to Nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
-| Class name                                                                                       | Description                                                   | storey | spark | pandas |
-| --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.BigQuerySource`                                                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
-| [SnowFlakeSource](#snowflake-source)                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
-| [SQLSource](#sql-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
-| {py:meth}`~mlrun.datastore.CSVSource`                                                            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
+| Class name                                                                                         | Description                                                   | storey | spark | pandas |
+|----------------------------------------------------------------------------------------------------| ---------------------------------                              | ---    | ---   | ---    |
+| {py:meth}`~mlrun.datastore.BigQuerySource`                                                         | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
+| [SnowFlakeSource](#snowflake-source)                                                               | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
+| [SQLSource](#sql-source)                                                                           | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
+| {py:meth}`~mlrun.datastore.CSVSource`                                                              | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
-| [Parquet source](#parquet-source)                                                     | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
-| [S3/Azure source](#s3-azure-source)                                                            | Batch.                                                                 |       |      |       |
-| {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
-| [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+| [ParquetSource](#parquet-source)                                                                   | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
+| [S3/Azure source](#s3-azure-source)                                                                | Batch.                                                                 |       |      |       |
+| {py:meth}`~mlrun.datastore.HttpSource`                                                             |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [Kafka source](#kafka-source)                                                                      |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
+| {py:meth}`~mlrun.datastore.StreamSource`                                                           |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Snowflake source
 An example of SnowflakeSource ingest:

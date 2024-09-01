@@ -97,7 +97,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
         def wrapper(
             self: SKLearnTypes.ModelType,
-            X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
+            X: SKLearnTypes.DatasetType,  # noqa: N803 - should be lowercase "x", kept for BC
             y: SKLearnTypes.DatasetType = None,
             *args,
             **kwargs,
@@ -126,7 +126,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
     def mlrun_predict(
         self,
-        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
+        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be lowercase "x", kept for BC
         *args,
         **kwargs,
     ):
@@ -143,7 +143,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
 
     def mlrun_predict_proba(
         self,
-        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be "snake_case", kept for BC
+        X: SKLearnTypes.DatasetType,  # noqa: N803 - should be lowercase "x", kept for BC
         *args,
         **kwargs,
     ):

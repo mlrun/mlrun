@@ -333,7 +333,7 @@ You can pass the schema and the name of the table you want to create or the name
 ```python
 target = SQLTarget(
     table_name="my_table",
-    schema= {"id": string, "age": int, "time": pd.Timestamp, ...}
+    schema= {"id": string, "age": int, "time": pd.Timestamp, ...},
     create_table=True,
     primary_key_column="id",
     parse_dates=["time"],

@@ -14,7 +14,7 @@
 
 ARG GO_VERSION=1.21
 
-FROM gcr.io/iguazio/golang:${GO_VERSION} as build-binary
+FROM gcr.io/iguazio/golang:${GO_VERSION} AS build-binary
 
 RUN mkdir /app
 WORKDIR /app
@@ -33,7 +33,7 @@ RUN GOOS=linux \
     CGO_ENABLED=0 \
     go build -a -installsuffix cgo -ldflags="-s -w" -o main cmd/logcollector/main.go
 
-FROM alpine:latest as install-health-probe
+FROM alpine:latest AS install-health-probe
 
 ARG GRPC_HEALTH_PROBE_VERSION=v0.4.28
 

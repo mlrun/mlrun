@@ -15,6 +15,7 @@ extend-select = [
     "N806", # lowercase variable names
     "N816", # snake_case for global variable names
     "N999", # snake_case for module names
+    "N802",
     "B006", # mutable default arguments
 ]
 explicit-preview-rules = true

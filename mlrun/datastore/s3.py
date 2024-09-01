@@ -183,6 +183,7 @@ class S3Store(DataStore):
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
+        data, _ = self._prepare_put_data(data)
         bucket, key = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=data)
 

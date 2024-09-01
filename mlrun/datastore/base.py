@@ -157,6 +157,19 @@ class DataStore:
     def put(self, key, data, append=False):
         pass
 
+    def _prepare_put_data(self, data, append=False):
+        mode = "a" if append else "w"
+        if isinstance(data, bytearray):
+            data = bytes(data)
+        if isinstance(data, bytes):
+            return data, f"{mode}b"
+        elif isinstance(data, str):
+            return data, mode
+        else:
+            raise TypeError(
+                f"Data type unknown.  Unable to put in {self.__class__.__name__}"
+            )
+
     def stat(self, key):
         pass
 

@@ -535,9 +535,6 @@ class ApplicationRuntime(RemoteRuntime):
     ):
         self._sync_api_gateway()
 
-        if not credentials and auth_info:
-            credentials = (auth_info.username, auth_info.password)
-
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
             logger.warning(

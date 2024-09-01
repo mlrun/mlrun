@@ -1752,35 +1752,49 @@ def validate_node_selectors(
 
         # Validation rules
         rules = [
-            (
-                name,
-                label_pattern,
-                f"Invalid Kubernetes name '{name}' in key '{key}' in the node selector field. "
-                "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'.",
-            ),
-            (
-                prefix,
-                prefix_pattern,
-                f"Invalid Kubernetes prefix '{prefix}' in key '{key}' in the node selector field. "
-                "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
-                "be up to 253 characters long, and may contain '-', and '.'.",
-            )
-            if prefix
-            else None,
-            (
-                value,
-                label_pattern,
-                f"Invalid Kubernetes value '{value}' for key '{key}' in the node selector field. "
-                "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                "be up to 63 characters long, and may contain '-', '_', and '.'.",
-            )
-            if value
-            else None,
+            {
+                "item": name,
+                "pattern": label_pattern,
+                "error_message": (
+                    f"Invalid Kubernetes name '{name}' in key '{key}' in the node selector field. "
+                    "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
+                    "be up to 63 characters long, and may contain '-', '_', and '.'."
+                ),
+            },
         ]
+        if value != "":
+            rules.append(
+                {
+                    "item": value,
+                    "pattern": label_pattern,
+                    "error_message": (
+                        f"Invalid Kubernetes value '{value}' for key '{key}' in the node selector field. "
+                        "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
+                        "be up to 63 characters long, and may contain '-', '_', and '.'."
+                    ),
+                }
+            )
+
+        # Add prefix rule only if prefix exists
+        if prefix:
+            rules.append(
+                {
+                    "item": prefix,
+                    "pattern": prefix_pattern,
+                    "error_message": (
+                        f"Invalid Kubernetes prefix '{prefix}' in key '{key}' in the node selector field. "
+                        "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
+                        "be up to 253 characters long, and may contain '-', and '.'."
+                    ),
+                }
+            )
 
         # Apply validation rules
-        for item, pattern, error_message in filter(None, rules):
+        for rule in rules:
+            item = rule["item"]
+            pattern = rule["pattern"]
+            error_message = rule["error_message"]
+
             if not pattern.match(item):
                 # An error or warning is raised by handle_invalid due to validation failure.
                 # Returning False indicates validation failed, allowing us to exit the function.

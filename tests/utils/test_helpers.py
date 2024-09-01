@@ -1103,6 +1103,7 @@ def test_validate_single_def_handler_valid_handler(code):
         ({"kubernetes.io/arch": "amd64", "tier": "backend"}, does_not_raise()),
         ({"datacenter/region": "us-west", "role": "worker"}, does_not_raise()),
         ({"team/department": "engineering", "project": "ml-models"}, does_not_raise()),
+        ({"test": "", "kubernetes.io/os": "linux"}, does_not_raise()),
         # Invalid cases
         # Invalid key with extra slashes
         (

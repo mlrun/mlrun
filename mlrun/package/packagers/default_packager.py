@@ -34,7 +34,7 @@ class _DefaultPackagerMeta(ABCMeta):
     dynamically generated docstring that will include a summary of the packager.
     """
 
-    def __new__(mcls, name: str, bases: tuple, namespace: dict, **kwargs):
+    def __new__(cls, name: str, bases: tuple, namespace: dict, **kwargs):
         """
         Create a new DefaultPackager metaclass that saves the original packager docstring to another attribute named
         `_packager_doc`.
@@ -48,7 +48,7 @@ class _DefaultPackagerMeta(ABCMeta):
         namespace["_packager_doc"] = namespace.get("__doc__", "")
 
         # Continue creating the metaclass:
-        return super().__new__(mcls, name, bases, namespace, **kwargs)
+        return super().__new__(cls, name, bases, namespace, **kwargs)
 
     @property
     def __doc__(cls: type["DefaultPackager"]) -> str:

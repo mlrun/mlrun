@@ -753,7 +753,7 @@ class RemoteRuntime(KubeResource):
             return state, text, last_log_timestamp
 
         try:
-            text, last_log_timestamp = self._get_db().get_builder_status(
+            text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except mlrun.db.RunDBError:

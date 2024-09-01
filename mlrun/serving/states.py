@@ -739,7 +739,7 @@ class RouterStep(TaskStep):
 
         if len(self._routes) >= MAX_ALLOWED_STEPS:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"The maximum number of steps allowed in the serving graph is {MAX_ALLOWED_STEPS}"
+                f"Cannot create the serving graph: the maximum number of steps is {MAX_ALLOWED_STEPS}"
             )
         route = self._routes.update(key, route)
         route.set_parent(self)

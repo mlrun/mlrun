@@ -293,7 +293,7 @@ class Client(
             self._wait_for_job_completion(
                 session,
                 job_id,
-                mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+                timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
             )
             self._logger.debug(
                 "Successfully deleted project in Iguazio",

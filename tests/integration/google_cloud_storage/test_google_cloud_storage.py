@@ -222,6 +222,17 @@ class TestGoogleCloudStorage:
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) not in listdir_parent
 
+    @pytest.mark.parametrize(
+        "setup_by, use_secrets",
+        [
+            ("credentials_file", False),
+            ("credentials_file", True),
+            ("serialized_json", False),
+            ("serialized_json", True),
+        ],
+    )
+    def test_upload(self, use_datastore_profile, setup_by, use_secrets):
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         upload_data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
@@ -384,6 +395,25 @@ class TestGoogleCloudStorage:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    def test_put_types(
+        self,
+        use_datastore_profile,
+    ):
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
+        data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
+        )
+        data_item.put(self.test_string.encode())
+        result = data_item.get()
+        assert result == self.test_string.encode()
+        with pytest.raises(
+            TypeError,
+            match="Data type unknown. Unable to put in GoogleCloudStorageStore",
+        ):
+            data_item.put(123)
 
     def _generate_fake_private_key(self):
         private_key = rsa.generate_private_key(

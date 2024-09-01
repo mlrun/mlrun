@@ -167,7 +167,7 @@ class DataStore:
             return data, mode
         else:
             raise TypeError(
-                f"Data type unknown.  Unable to put in {self.__class__.__name__}"
+                f"Data type unknown. Unable to put in {self.__class__.__name__}"
             )
 
     def stat(self, key):

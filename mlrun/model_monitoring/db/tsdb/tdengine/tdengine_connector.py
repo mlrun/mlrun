@@ -108,6 +108,7 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
+            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
@@ -115,6 +116,14 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
+
+        # Convert the datetime strings to datetime objects
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.END_INFER_TIME]
+        )
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.START_INFER_TIME]
+        )
 
         create_table_query = table._create_subtable_query(
             subtable=table_name, values=event
@@ -128,6 +137,10 @@ class TDEngineConnector(TSDBConnector):
         )
         insert_statement.add_batch()
         insert_statement.execute()
+
+    @staticmethod
+    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+        return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     def apply_monitoring_stream_steps(self, graph):
         """

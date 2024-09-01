@@ -114,3 +114,14 @@ class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
 
 class NoCheckDemoMonitoringApp(DemoMonitoringApp, check_num_events=False):
     pass
+
+
+class ErrApp(ModelMonitoringApplicationBaseV2):
+    NAME = "err-app"
+
+    def do_tracking(
+        self,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> list[mm_results.ModelMonitoringApplicationResult]:
+        monitoring_context.logger.info("Running error app")
+        raise ValueError(f"This is an ERROR from {self.NAME} app!")

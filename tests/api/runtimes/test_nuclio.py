@@ -844,10 +844,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
-        mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime(self.runtime_kind)
-
         node_name = "some-node-name"
+        mlconf.nuclio_version = "1.6.3"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_node_selection(node_name=node_name)
+
+        mlconf.nuclio_version = "1.5.21"
         function.with_node_selection(node_name=node_name)
 
         self.execute_function(function)
@@ -856,6 +859,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
 
+        mlconf.nuclio_version = "1.6.10"
         config_node_selector = {
             "label-1": "val1",
             "label-2": "val2",
@@ -1206,6 +1210,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11", "1.5.9"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.9", "1.7.0"
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "2.0.0"
@@ -1730,7 +1737,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.enable_default_http_trigger()
 

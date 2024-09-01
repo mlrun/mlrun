@@ -24,6 +24,7 @@ import re
 import string
 import sys
 import typing
+import uuid
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module, reload
@@ -1410,6 +1411,26 @@ def is_running_in_jupyter_notebook() -> bool:
     return ipy and "Terminal" not in str(type(ipy))
 
 
+def create_ipython_display():
+    """
+    Create an IPython display object and fill it with initial content.
+    We can later use the returned display_id with the update_display method to update the content.
+    If IPython is not installed, a warning will be logged and None will be returned.
+    """
+    if is_ipython:
+        import IPython
+
+        display_id = uuid.uuid4().hex
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
+        IPython.display.display(content, display_id=display_id)
+        return display_id
+
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
+
+
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"'{field_name}' must be numeric (str/int types)")
@@ -1680,11 +1701,21 @@ def validate_component_version_compatibility(
             )
         return True
 
+    # Feature might have been back-ported e.g. nuclio node selection is supported from
+    # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
+    # then against 1.5.x
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
-        if parsed_current_version < parsed_min_version:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
             return False
-    return True
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
 
 
 def format_alert_summary(

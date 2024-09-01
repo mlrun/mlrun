@@ -679,7 +679,24 @@ class ImageBuilder(ModelObj):
 
 
 class Notification(ModelObj):
-    """Notification specification"""
+    """Notification object
+
+    :param kind: notification implementation kind - slack, webhook, etc.
+    :param name: for logging and identification
+    :param message: message content in the notification
+    :param severity: severity to display in the notification
+    :param when: list of statuses to trigger the notification: 'running', 'completed', 'error'
+    :param condition: optional condition to trigger the notification, a jinja2 expression that can use run data
+                      to evaluate if the notification should be sent in addition to the 'when' statuses.
+                      e.g.: '{{ run["status"]["results"]["accuracy"] < 0.9}}'
+    :param params: Implementation specific parameters for the notification implementation (e.g. slack webhook url,
+                   git repository details, etc.)
+    :param secret_params: secret parameters for the notification implementation, same as params but will be stored
+                          in a k8s secret and passed as a secret reference to the implementation.
+    :param status: notification status - pending, sent, error
+    :param sent_time: time the notification was sent
+    :param reason: failure reason if the notification failed to send
+    """
 
     def __init__(
         self,
@@ -1468,7 +1485,11 @@ class RunObject(RunTemplate):
     @property
     def error(self) -> str:
         """error string if failed"""
-        if self.status:
+        if (
+            self.status
+            and self.status.state
+            in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+        ):
             unknown_error = ""
             if (
                 self.status.state
@@ -1484,8 +1505,8 @@ class RunObject(RunTemplate):
 
             return (
                 self.status.error
-                or self.status.reason
                 or self.status.status_text
+                or self.status.reason
                 or unknown_error
             )
         return ""

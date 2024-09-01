@@ -410,13 +410,17 @@ class RunDBMock:
 
     def get_builder_status(
         self,
-        func: BaseRuntime,
+        func: mlrun.runtimes.RemoteRuntime,
         offset: int = 0,
         logs: bool = True,
         last_log_timestamp: float = 0,
         verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
+        func.status.external_invocation_urls = [
+            api_gateways.get_invoke_url()
+            for api_gateways in self._api_gateways.values()
+        ]
         return "ready", last_log_timestamp
 
     def deploy_nuclio_function(

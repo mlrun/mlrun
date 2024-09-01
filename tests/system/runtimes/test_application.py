@@ -16,6 +16,10 @@ import io
 import os
 import sys
 
+import pytest
+from nuclio.auth import AuthInfo as NuclioAuthInfo
+
+import mlrun.common.schemas
 import mlrun.runtimes
 import tests.system.base
 
@@ -120,6 +124,54 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function.status.container_image
             == mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
         )
+
+        assert (
+            function.metadata.annotations.get("kubectl.kubernetes.io/default-container")
+            == function.status.sidecar_name
+        )
+
+    @pytest.mark.enterprise
+    def test_deploy_application_with_custom_api_gateway(self):
+        self._upload_code_to_cluster()
+
+        self._logger.debug("Creating application")
+        function, source = self._create_vizro_application()
+
+        self._logger.debug("Deploying vizro application")
+        function.deploy(with_mlrun=False, create_default_api_gateway=False)
+
+        auth = NuclioAuthInfo(username="my-user", password="123").to_requests_auth()
+        function.create_api_gateway(
+            name="my-api-gateway",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+            authentication_creds=(auth.username, auth.password),
+        )
+
+        assert function.invoke("/", verify=False, auth=auth)
+        with pytest.raises(RuntimeError, match="401 Authorization Required"):
+            function.invoke("/", verify=False)
+
+        # Change API gateway to access key mode
+        function.create_api_gateway(
+            name="my-api-gateway",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+        )
+
+        # Invoke with access key
+        auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+        assert function.invoke("/", verify=False, auth=auth)
+        with pytest.raises(RuntimeError, match="401 Authorization Required"):
+            function.invoke("/", verify=False)
+
+        # Create API gateway with new name and set it as default
+        function.create_api_gateway(
+            name="my-other-api-gateway",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+            set_as_default=True,
+        )
+        # Invoke should infer access key is needed
+        assert function.invoke("/", verify=False)
+        assert len(function.status.external_invocation_urls) == 2
 
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False

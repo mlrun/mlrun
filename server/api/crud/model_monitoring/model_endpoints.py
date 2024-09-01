@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring
+import mlrun.model_monitoring.helpers
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
@@ -72,7 +73,7 @@ class ModelEndpoints:
             )
 
             # Verify and enrich the model endpoint obj with the updated model uri
-            mlrun.common.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
+            mlrun.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
                 model_endpoint=model_endpoint,
                 model_obj=model_obj,
             )

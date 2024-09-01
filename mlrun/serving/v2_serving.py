@@ -18,9 +18,9 @@ import traceback
 from typing import Optional, Union
 
 import mlrun.artifacts
-import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.model_monitoring
 from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
 
@@ -590,7 +590,7 @@ def _init_endpoint_record(
     elif model_ep:
         attributes = {}
         old_model_uri = model_ep.spec.model_uri
-        mlrun.common.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
+        mlrun.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
             model_endpoint=model_ep,
             model_obj=model.model_spec,
         )

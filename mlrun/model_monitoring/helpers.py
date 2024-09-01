@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
@@ -321,4 +322,38 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
         type=ModelEndpointMonitoringMetricType.METRIC,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
         full_name=get_invocations_fqn(project),
+    )
+
+
+def enrich_model_endpoint_with_model_uri(
+    model_endpoint: ModelEndpoint,
+    model_obj: mlrun.artifacts.ModelArtifact,
+):
+    """
+    Enrich the model endpoint object with the model uri from the model object. Instead of using the model uri that
+    includes the model object's version, we will use a unique reference to the model object that includes
+    the project, key, iter, and tree. This will allow us to handle future changes in the model object without
+    updating the model endpoint object.
+    In addition, we verify that the model object is of type `ModelArtifact`.
+
+    :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.
+    :param model_obj:         An object representing the model artifact.
+
+    :raise: `MLRunInvalidArgumentError` if the model object is not of type `ModelArtifact`.
+    """
+    mlrun.utils.helpers.verify_field_of_type(
+        field_name="model_endpoint.spec.model_uri",
+        field_value=model_obj,
+        expected_type=mlrun.artifacts.ModelArtifact,
+    )
+
+    # Update model_uri with a unique reference to handle future changes
+    model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+        project=model_endpoint.metadata.project,
+        key=model_obj.key,
+        iter=model_obj.iter,
+        tree=model_obj.tree,
+    )
+    model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
+        kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
     )

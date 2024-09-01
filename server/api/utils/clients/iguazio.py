@@ -618,7 +618,7 @@ class Client(
 
         job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
-            timeout,
+            int(timeout),
             self._logger,
             False,
             _verify_job_in_terminal_state,

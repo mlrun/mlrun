@@ -78,7 +78,7 @@ class MonitoringApplicationContext:
         """
         self.application_name = application_name
 
-        self.project_name = cast(str, mlrun.mlconf.default_project)
+        self.project_name = graph_context.project
         self.project = mlrun.load_project(url=self.project_name)
 
         # MLRun Logger

@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import numpy as np
 import pandas as pd
@@ -28,6 +30,13 @@ import mlrun.serving
 from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.data_types.infer import DFDataInfer, InferOptions, default_num_bins
 from mlrun.model_monitoring.helpers import calculate_inputs_statistics
+
+
+@contextmanager
+def mocked_graph_context_project() -> Iterator[None]:
+    with patch("mlrun.serving.GraphContext.project", PropertyMock) as project_mock:
+        project_mock.return_value = "proj-0"
+        yield
 
 
 def generate_data(
@@ -77,21 +86,23 @@ def plot_produce(context: mlrun.MLClientCtx):
         )
     )
     with patch(
-        "mlrun.load_project", Mock(return_value=mlrun.projects.project.MlrunProject)
+        "mlrun.load_project",
+        Mock(return_value=Mock(spec=mlrun.projects.project.MlrunProject)),
     ):
-        monitoring_context = mm_context.MonitoringApplicationContext(
-            graph_context=mlrun.serving.GraphContext(),
-            application_name="histogram-data-drift",
-            event={
-                mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(
-                    inputs_statistics
-                ),
-                mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(
-                    sample_data_statistics
-                ),
-            },
-            model_endpoint_dict={},
-        )
+        with mocked_graph_context_project():
+            monitoring_context = mm_context.MonitoringApplicationContext(
+                graph_context=mlrun.serving.GraphContext(),
+                application_name="histogram-data-drift",
+                event={
+                    mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(
+                        inputs_statistics
+                    ),
+                    mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(
+                        sample_data_statistics
+                    ),
+                },
+                model_endpoint_dict={},
+            )
     # Patching `log_artifact` only for this test
     monitoring_context.log_artifact = context.log_artifact
     # Initialize the app

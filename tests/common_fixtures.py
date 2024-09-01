@@ -417,10 +417,11 @@ class RunDBMock:
         verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
-        func.status.external_invocation_urls = [
-            api_gateways.get_invoke_url()
-            for api_gateways in self._api_gateways.values()
-        ]
+        if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
+            func.status.external_invocation_urls = [
+                api_gateways.get_invoke_url()
+                for api_gateways in self._api_gateways.values()
+            ]
         return "ready", last_log_timestamp
 
     def deploy_nuclio_function(
@@ -437,6 +438,10 @@ class RunDBMock:
         verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
+        func.status.external_invocation_urls = [
+            api_gateways.get_invoke_url()
+            for api_gateways in self._api_gateways.values()
+        ]
         return "ready", last_log_timestamp
 
     def store_api_gateway(

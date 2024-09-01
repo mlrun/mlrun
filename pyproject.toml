@@ -20,6 +20,7 @@ extend-select = [
     "N804",
     "N812",
     "N813",
+    "N815",
     "B006", # mutable default arguments
 ]
 explicit-preview-rules = true

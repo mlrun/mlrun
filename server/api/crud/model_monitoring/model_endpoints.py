@@ -544,14 +544,14 @@ class ModelEndpoints:
                         project=project_name
                     ),
                 )
-            except mlrun.errors.MLRunTSDBConnectionFailure as e:
+            except mlrun.errors.MLRunTSDBConnectionFailureError as e:
                 logger.warning(
                     "Failed to delete TSDB resources, you may need to delete them manually",
                     project=project_name,
                     error=mlrun.errors.err_to_str(e),
                 )
                 tsdb_connector = None
-            except mlrun.errors.MLRunInvalidMMStoreType:
+            except mlrun.errors.MLRunInvalidMMStoreTypeError:
                 # TODO: delete in 1.9.0 - for BC trying to delete from v3io store
                 if not mlrun.mlconf.is_ce_mode():
                     tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
@@ -623,7 +623,7 @@ class ModelEndpoints:
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
             )
-        except mlrun.errors.MLRunStreamConnectionFailure as e:
+        except mlrun.errors.MLRunStreamConnectionFailureError as e:
             logger.warning(
                 "Failed to delete stream resources, you may need to delete them manually",
                 project_name=project_name,
@@ -718,7 +718,7 @@ class ModelEndpoints:
                     project=model_endpoint_object.metadata.project
                 ),
             )
-        except mlrun.errors.MLRunInvalidMMStoreType as e:
+        except mlrun.errors.MLRunInvalidMMStoreTypeError as e:
             logger.debug(
                 "Failed to add real time metrics because tsdb connection is not defined."
                 " Returning without adding real time metrics.",
@@ -794,7 +794,7 @@ class ModelEndpoints:
                     project=project
                 )
             )
-        except mlrun.errors.MLRunInvalidMMStoreType:
+        except mlrun.errors.MLRunInvalidMMStoreTypeError:
             # TODO: delete in 1.9.0 - for BC trying to create default/v3io store
             store_connection_string = (
                 mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection

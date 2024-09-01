@@ -57,7 +57,7 @@ class ObjectTSDBFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             f"{value} is not a valid tsdb, please choose a valid value: %{valid_values}."
         )
 
@@ -93,7 +93,7 @@ def get_tsdb_connector(
     elif tsdb_connection_string and tsdb_connection_string == "v3io":
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     else:
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             "You must provide a valid tsdb store connection by using "
             "set_model_monitoring_credentials API."
         )

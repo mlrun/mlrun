@@ -208,15 +208,15 @@ class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
-class MLRunInvalidMMStoreType(MLRunHTTPStatusError, ValueError):
+class MLRunInvalidMMStoreTypeError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class MLRunStreamConnectionFailure(MLRunHTTPStatusError, ValueError):
+class MLRunStreamConnectionFailureError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class MLRunTSDBConnectionFailure(MLRunHTTPStatusError, ValueError):
+class MLRunTSDBConnectionFailureError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 

@@ -63,7 +63,7 @@ class ObjectStoreFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             f"{value} is not a valid endpoint store, please choose a valid value: %{valid_values}."
         )
 
@@ -123,7 +123,7 @@ def get_store_object(
             mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
         )
     else:
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             "You must provide a valid store connection by using "
             "set_model_monitoring_credentials API."
         )

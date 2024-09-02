@@ -17,6 +17,7 @@ from storey import V3ioDriver
 
 import mlrun
 import mlrun.model_monitoring.helpers
+from mlrun.datastore.base import DataStore
 
 from .utils import (
     parse_kafka_url,
@@ -36,7 +37,7 @@ def get_url_and_storage_options(path, external_storage_options=None):
         storage_options = merge(external_storage_options, storage_options)
     else:
         storage_options = storage_options or external_storage_options
-    return url, storage_options
+    return url, DataStore._sanitize_storage_options(storage_options)
 
 
 class TDEngineStoreyTarget(storey.TDEngineTarget):
@@ -87,7 +88,7 @@ class StreamStoreyTarget(storey.StreamTarget):
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
-        access_key = storage_options.get("v3io_access_key") if storage_options else None
+        access_key = storage_options.get("v3io_access_key")
         storage = (
             V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
         )

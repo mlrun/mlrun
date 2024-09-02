@@ -61,7 +61,7 @@ df = fs.ingest(
 
 
 ```{admonition} Note
-Confluent Kafka source is Tech Preview 
+Confluent Kafka source is currently in Tech Preview status.
 ```
 
 ## Kafka source
@@ -126,7 +126,7 @@ or pip install mlrun[google-cloud-storage] to install them.
 ## SQL source
 
 ```{admonition} Note
-Tech Preview 
+SQL source is currently in Tech Preview status.
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
@@ -257,7 +257,7 @@ The combination of a NoSQL target with the storey engine does not support featur
 ## RedisNoSql target 
 
 ```{admonition} Note
-Tech Preview
+RedisNoSql target is currently in Tech Preview status.
 ```
 See also [Redis data store profile](#redis-data-store-profile).
 
@@ -294,7 +294,7 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ## SQL target 
 
 ```{admonition} Note
-Tech Preview 
+Sql target is currently in Tech Preview status.
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).

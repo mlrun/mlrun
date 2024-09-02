@@ -1877,7 +1877,7 @@ def test_create_api_gateway_valid(
             path="/",
             host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
-            authentication_mode=authentication_mode,
+            authenticationMode=authentication_mode,
         ),
         status=mlrun.common.schemas.APIGatewayStatus(
             state=mlrun.common.schemas.APIGatewayState.ready,

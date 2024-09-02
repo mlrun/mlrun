@@ -39,7 +39,7 @@ class Authenticator(typing.Protocol):
     @classmethod
     def from_scheme(cls, api_gateway_spec: schemas.APIGatewaySpec):
         if (
-            api_gateway_spec.authentication_mode
+            api_gateway_spec.authenticationMode
             == schemas.APIGatewayAuthenticationMode.basic.value
         ):
             if api_gateway_spec.authentication:
@@ -50,7 +50,7 @@ class Authenticator(typing.Protocol):
             else:
                 return BasicAuth()
         elif (
-            api_gateway_spec.authentication_mode
+            api_gateway_spec.authenticationMode
             == schemas.APIGatewayAuthenticationMode.access_key.value
         ):
             return AccessKeyAuth()
@@ -644,7 +644,7 @@ class APIGateway(ModelObj):
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
-                authentication_mode=schemas.APIGatewayAuthenticationMode.from_str(
+                authenticationMode=schemas.APIGatewayAuthenticationMode.from_str(
                     self.spec.authentication.authentication_mode
                 ),
                 upstreams=upstreams,

@@ -77,7 +77,7 @@ class APIGatewaySpec(_APIGatewayBaseModel):
     name: str
     description: Optional[str]
     path: Optional[str] = "/"
-    authentication_mode: Optional[APIGatewayAuthenticationMode] = (
+    authenticationMode: Optional[APIGatewayAuthenticationMode] = (
         APIGatewayAuthenticationMode.none
     )
     upstreams: list[APIGatewayUpstream]

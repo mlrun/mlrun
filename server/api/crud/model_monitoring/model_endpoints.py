@@ -633,6 +633,10 @@ class ModelEndpoints:
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
             )
+            logger.debug(
+                "Successfully deleted model monitoring stream resources",
+                project_name=project_name,
+            )
         except mlrun.errors.MLRunStreamConnectionFailure as e:
             logger.warning(
                 "Failed to delete stream resources, you may need to delete them manually",
@@ -640,11 +644,6 @@ class ModelEndpoints:
                 function=model_monitoring_applications,
                 error=mlrun.errors.err_to_str(e),
             )
-
-        logger.debug(
-            "Successfully deleted model monitoring stream resources",
-            project_name=project_name,
-        )
 
     @staticmethod
     def _validate_length_features_and_labels(

@@ -255,9 +255,7 @@ class TestAzureBlob:
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
-        upload_data_item = mlrun.run.get_dataitem(
-            self.object_url, self.storage_options
-        )
+        upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()

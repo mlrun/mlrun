@@ -330,10 +330,8 @@ def enrich_model_endpoint_with_model_uri(
     model_obj: mlrun.artifacts.ModelArtifact,
 ):
     """
-    Enrich the model endpoint object with the model uri from the model object. Instead of using the model uri that
-    includes the model object's version, we will use a unique reference to the model object that includes
-    the project, key, iter, and tree. This will allow us to handle future changes in the model object without
-    updating the model endpoint object.
+    Enrich the model endpoint object with the model uri from the model object. We will use a unique reference
+    to the model object that includes the project, key, iter, and tree.
     In addition, we verify that the model object is of type `ModelArtifact`.
 
     :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.

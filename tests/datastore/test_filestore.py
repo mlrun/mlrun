@@ -56,11 +56,10 @@ class TestFileStore:
                 result = data_item.get()
                 assert result == b"test"
                 with pytest.raises(
-                        TypeError,
-                        match="Data type unknown. Unable to put in FileStore",
+                    TypeError,
+                    match="Data type unknown. Unable to put in FileStore",
                 ):
                     data_item.put(123)
         finally:
             if os.path.exists(temp_file.name):
                 os.remove(temp_file.name)
-

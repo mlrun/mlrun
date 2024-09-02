@@ -644,8 +644,8 @@ def test_function():
 @pytest.mark.parametrize("enable_tracking", [False])
 def test_tracked_function(rundb_mock, enable_tracking):
     with patch("mlrun.get_run_db", return_value=rundb_mock):
-        project = mlrun.new_project("tstsrv", save=False)
-        fn = mlrun.new_function("tst", kind="serving")
+        project = mlrun.new_project("test-pro", save=False)
+        fn = mlrun.new_function("test-fn", kind="serving")
         model_uri = _log_model(project)
         print(model_uri)
         fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=5)

@@ -917,6 +917,10 @@ class MonitoringDeployment:
         :param access_key:     If the stream is V3IO, the access key is required.
 
         """
+        logger.debug(
+            "Deleting model monitoring stream resources deployment",
+            project_name=project,
+        )
         stream_paths = []
         for function_name in function_names:
             for i in range(10):
@@ -963,6 +967,9 @@ class MonitoringDeployment:
 
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
+                    logger.debug(
+                        "Deleting v3io stream", project=project, stream_path=stream_path
+                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
@@ -970,7 +977,9 @@ class MonitoringDeployment:
                         if container.startswith("users")
                         else access_key,
                     )
-                    logger.debug("Deleted v3io stream", stream_path=stream_path)
+                    logger.debug(
+                        "Deleted v3io stream", project=project, stream_path=stream_path
+                    )
                 except v3io.dataplane.response.HttpResponseError as e:
                     logger.warning(
                         "Failed to delete v3io stream",
@@ -1020,6 +1029,10 @@ class MonitoringDeployment:
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
                 stream_path=stream_paths[0],
             )
+        logger.debug(
+            "Successfully deleted model monitoring stream resources deployment",
+            project_name=project,
+        )
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
         credentials_dict = {

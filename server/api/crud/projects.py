@@ -154,6 +154,11 @@ class Projects(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         model_monitoring_access_key: str = None,
     ):
+        logger.debug(
+            "Deleting project resources",
+            project_name=name,
+        )
+
         # Delete schedules before runtime resources - otherwise they will keep getting created
         # We skip notification secrets because, the entire project secret will be deleted later
         # so there's no need to delete individual entries from the secret.

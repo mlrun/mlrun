@@ -285,6 +285,9 @@ class KVStoreBase(StoreBase):
         """
         Delete all model endpoints resources in V3IO KV.
         """
+        logger.debug(
+            "Deleting model monitoring endpoints resources", project=self.project
+        )
 
         endpoints = self.list_model_endpoints()
 

@@ -7,4 +7,4 @@ mlrun.alerts
   :maxdepth: 1
   :glob:
 
-  mlrun.alerts.alert
+  *

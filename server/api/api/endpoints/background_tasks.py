@@ -199,7 +199,7 @@ async def _authorize_get_background_task_request(
     background_task: mlrun.common.schemas.BackgroundTask,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
-    # Iguazio manifest doesn't support the global background task resource - therefore if the background task has a
+    # Iguazio manifest doesn't support the global background task resource yet - therefore if the background task has a
     # project (e.g. delete project), we can authorize on the project
     if background_task.metadata.project:
         return await server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
@@ -209,7 +209,7 @@ async def _authorize_get_background_task_request(
             auth_info,
         )
 
-    # If there is no project we have to just omit authorization
+    # If there is no project we have to just omit authorization until iguazio supports it
     # igz_version = mlrun.mlconf.get_parsed_igz_version()
     # if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
     #     return await server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(

@@ -77,7 +77,7 @@ class APIGatewaySpec(_APIGatewayBaseModel):
     name: str
     description: Optional[str]
     path: Optional[str] = "/"
-    authenticationMode: Optional[APIGatewayAuthenticationMode] = (
+    authenticationMode: Optional[APIGatewayAuthenticationMode] = (  # noqa: N815 - for compatibility with Nuclio https://github.com/nuclio/nuclio/blob/672b8e36f9edd6e42b4685ec1d27cabae3c5f045/pkg/platform/types.go#L476
         APIGatewayAuthenticationMode.none
     )
     upstreams: list[APIGatewayUpstream]

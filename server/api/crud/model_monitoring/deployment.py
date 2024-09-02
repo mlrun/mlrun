@@ -37,7 +37,6 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
-import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers

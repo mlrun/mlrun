@@ -353,6 +353,7 @@ class EventStreamProcessor:
                 index_cols=[EventFieldType.ENDPOINT_ID],
                 key_bucketing_number=0,
                 time_partitioning_granularity="hour",
+                time_field=EventFieldType.TIMESTAMP,
                 partition_cols=["$key", "$year", "$month", "$day", "$hour"],
             )
 

@@ -85,6 +85,7 @@ linkcheck_ignore = {
     r"^\.\./[^/]+\.html#.*$",
     r"^(?!https?:\/\/).*",
     r"http:\/\/localhost:\d+",
+    "https://myservice/path "
 }
 linkcheck_anchors = True
 

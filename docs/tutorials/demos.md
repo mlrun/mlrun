@@ -1,8 +1,7 @@
-(demos)=
 # Demos
 
 See:
-- [Fine tune an LLM and build a BOT](https://github.com/mlrun/demo-llm-tuning/blob/main>)
+- [Fine tune an LLM and build a BOT](https://github.com/mlrun/demo-llm-tuning/blob/main)
 - [Call center demo](https://github.com/mlrun/demo-call-center)
 - [How-To: Converting Existing ML Code to an MLRun Project](https://github.com/mlrun/demos/tree/master/howto) 
 - [Mask Detection Demo](https://github.com/mlrun/demos/tree/master/mask-detection)

@@ -263,10 +263,10 @@ class TestAzureBlob:
         response = upload_data_item.get()
         assert response.decode() == self.test_string
 
-    @pytest.mark.parametrize("input", [b"test", bytearray(b"test")])
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
     def test_put_types(
         self,
-        input,
+        data,
     ):
         self.setup_before_test(
             use_datastore_profile=False,
@@ -275,7 +275,7 @@ class TestAzureBlob:
         data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
-        data_item.put(input)
+        data_item.put(data)
         result = data_item.get()
         assert result == b"test"
         with pytest.raises(

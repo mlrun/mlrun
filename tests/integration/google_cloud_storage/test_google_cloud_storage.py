@@ -396,10 +396,10 @@ class TestGoogleCloudStorage:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
-    @pytest.mark.parametrize("input", [b"test", bytearray(b"test")])
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
     def test_put_types(
         self,
-        input,
+        data,
         use_datastore_profile,
     ):
         self._setup_by_google_credentials_file(
@@ -408,7 +408,7 @@ class TestGoogleCloudStorage:
         data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
-        data_item.put(input)
+        data_item.put(data)
         result = data_item.get()
         assert result == b"test"
         with pytest.raises(

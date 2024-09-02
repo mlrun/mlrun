@@ -114,6 +114,12 @@ class HTTPSessionWithRetry(requests.Session):
         )
         while True:
             try:
+                # import here to prevent import cycle
+                from mlrun.config import config as mlconf
+
+                verify_ssl = mlconf.httpdb.http.verify
+                if not verify_ssl:
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
                 response = super().request(method, url, **kwargs)
                 return response
             except Exception as exc:

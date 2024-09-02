@@ -107,7 +107,7 @@ class TestRedisDataStore:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=True) as temp_file:
             with open(temp_file.name, "w") as f:
                 f.write(expected)
-            data_item = mlrun.datastore.store_manager.object(self.redis_path)
+            data_item = mlrun.datastore.store_manager.object(self._object_url)
             data_item.delete()
 
             data_item.upload(temp_file.name)

@@ -1004,7 +1004,7 @@ class RemoteRuntime(KubeResource):
         if command and not command.startswith("http"):
             sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
-        if args and sidecar["command"]:
+        if args and sidecar.get("command"):
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
         # populate the sidecar resources from the function spec

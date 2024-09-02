@@ -248,6 +248,18 @@ class TestV3ioDataStore(TestMLRunSystem):
         response = data_item.get()
         assert response.decode() == self.test_string + self.test_string
 
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Data type unknown. Unable to put in V3ioStore",
+        ):
+            data_item.put(123)
+
     def test_stat(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)

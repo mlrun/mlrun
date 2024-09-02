@@ -126,8 +126,8 @@ class TestGoogleCloudStorage:
             else f"gcs://{self.bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
-        self._object_url = f"{self.run_dir_url}{object_file}"
-        logger.info(f"Object URL: {self._object_url}")
+        self.object_url = f"{self.run_dir_url}{object_file}"
+        logger.info(f"Object URL: {self.object_url}")
         self.storage_options = {}
 
     @classmethod
@@ -190,7 +190,7 @@ class TestGoogleCloudStorage:
         # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(self.test_string)
 
@@ -213,7 +213,7 @@ class TestGoogleCloudStorage:
         ).listdir()
         assert self._object_path in dir_list
         listdir_dataitem_parent = mlrun.run.get_dataitem(
-            os.path.dirname(self._object_url), secrets=self.storage_options
+            os.path.dirname(self.object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) in listdir_parent
@@ -234,7 +234,7 @@ class TestGoogleCloudStorage:
     def test_upload(self, use_datastore_profile, setup_by, use_secrets):
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         upload_data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
@@ -249,7 +249,7 @@ class TestGoogleCloudStorage:
     )
     def test_large_upload(self, use_datastore_profile, setup_by):
         self.setup_mapping[setup_by](self, use_datastore_profile)
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
@@ -406,7 +406,7 @@ class TestGoogleCloudStorage:
             use_datastore_profile=use_datastore_profile, use_secrets=True
         )
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(data)
         result = data_item.get()
@@ -448,7 +448,7 @@ class TestGoogleCloudStorage:
             register_temporary_client_datastore_profile(self.profile)
         elif fake_credentials:
             os.environ["GCP_CREDENTIALS"] = fake_credentials
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises((DefaultCredentialsError, RefreshError, HttpError)):
             data_item.delete()
 

@@ -94,7 +94,7 @@ class TestDBFSStore:
             for key, env_param in env_params.items():
                 os.environ[key] = env_param
         self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
-        self._object_url = f"{self.run_dir_url}{self.object_file}"
+        self.object_url = f"{self.run_dir_url}{self.object_file}"
         register_temporary_client_datastore_profile(self.profile)
         os.environ["DATABRICKS_TOKEN"] = self.token
         os.environ["DATABRICKS_HOST"] = self.host
@@ -125,7 +125,7 @@ class TestDBFSStore:
                 if use_datastore_profile
                 else {"DATABRICKS_TOKEN": self.token, "DATABRICKS_HOST": self.host}
             )
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
         response = data_item.get()
         assert response.decode() == self.test_string
@@ -144,24 +144,24 @@ class TestDBFSStore:
             assert content == self.test_string
 
     def test_stat(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
         stat = data_item.stat()
         assert stat.size == len(self.test_string)
 
     #
     def test_list_dir(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(self.test_string)
-        file_name_length = len(self._object_url.split("/")[-1]) + 1
+        file_name_length = len(self.object_url.split("/")[-1]) + 1
         dir_dataitem = mlrun.run.get_dataitem(
-            self._object_url[:-file_name_length],
+            self.object_url[:-file_name_length],
         )
         dir_list = dir_dataitem.listdir()
-        assert self._object_url.split("/")[-1] in dir_list
+        assert self.object_url.split("/")[-1] in dir_list
 
     def test_upload(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file)
         response = data_item.get()
         assert response.decode() == self.test_string
@@ -171,7 +171,7 @@ class TestDBFSStore:
         self,
         data,
     ):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.put(data)
         result = data_item.get()
         assert result == b"test"
@@ -182,7 +182,7 @@ class TestDBFSStore:
             data_item.put(123)
 
     def test_rm(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file)
         data_item.stat()
         data_item.delete()
@@ -260,7 +260,7 @@ class TestDBFSStore:
     def test_multiple_dataitems(self, use_datastore_profile):
         if not use_datastore_profile:
             pytest.skip("test_multiple_dataitems relevant for profiles only.")
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         test_profile = DatastoreProfileDBFS(
             name="test_profile",
             endpoint_url="test_host",
@@ -289,7 +289,7 @@ class TestDBFSStore:
                 os.environ["DATABRICKS_TOKEN"] = fake_token
                 os.environ["DATABRICKS_HOST"] = self.host
 
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         if fake_token:
             with pytest.raises(DatabricksException):
                 data_item.delete()

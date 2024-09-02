@@ -142,7 +142,7 @@ class TestAzureBlob:
         else:
             self._bucket_url = f"az://{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
-        self._object_url = f"{self.run_dir_url}{self.object_file}"
+        self.object_url = f"{self.run_dir_url}{self.object_file}"
 
     def pop_env(self):
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
@@ -204,7 +204,7 @@ class TestAzureBlob:
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(self.test_string)
 
@@ -232,7 +232,7 @@ class TestAzureBlob:
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
-        file_dataitem = mlrun.run.get_dataitem(self._object_url, self.storage_options)
+        file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
         # Check dir list for container
@@ -256,7 +256,7 @@ class TestAzureBlob:
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
         upload_data_item = mlrun.run.get_dataitem(
-            self._object_url, self.storage_options
+            self.object_url, self.storage_options
         )
         upload_data_item.upload(self.test_file)
 
@@ -273,7 +273,7 @@ class TestAzureBlob:
             auth_method="env_conn_str",
         )
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(data)
         result = data_item.get()
@@ -291,7 +291,7 @@ class TestAzureBlob:
             use_datastore_profile=False,
             auth_method="env_conn_str",
         )
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
@@ -439,7 +439,7 @@ class TestAzureBlob:
             auth_method=auth_method,
             fake_secrets=True,
         )
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises((ValueError, ClientAuthenticationError)):
             data_item.delete()
 
@@ -450,6 +450,6 @@ class TestAzureBlob:
         if use_datastore_profile:
             profile = DatastoreProfileAzureBlob(name=self.profile_name)
             register_temporary_client_datastore_profile(profile)
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(ValueError):
             data_item.delete()

@@ -142,7 +142,7 @@ class TestAzureBlob:
         else:
             self._bucket_url = f"az://{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_url}/{self.run_dir}"
-        self.object_url = f"{self.run_dir_url}{self.object_file}"
+        self._object_url = f"{self.run_dir_url}{self.object_file}"
 
     def pop_env(self):
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
@@ -204,7 +204,7 @@ class TestAzureBlob:
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
         data_item = mlrun.run.get_dataitem(
-            self.object_url, secrets=self.storage_options
+            self._object_url, secrets=self.storage_options
         )
         data_item.put(self.test_string)
 
@@ -232,7 +232,7 @@ class TestAzureBlob:
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
-        file_dataitem = mlrun.run.get_dataitem(self.object_url, self.storage_options)
+        file_dataitem = mlrun.run.get_dataitem(self._object_url, self.storage_options)
         file_dataitem.put(self.test_string)
 
         # Check dir list for container
@@ -255,11 +255,34 @@ class TestAzureBlob:
         self.setup_before_test(
             use_datastore_profile=use_datastore_profile, auth_method=auth_method
         )
-        upload_data_item = mlrun.run.get_dataitem(self.object_url, self.storage_options)
+        upload_data_item = mlrun.run.get_dataitem(
+            self._object_url, self.storage_options
+        )
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()
         assert response.decode() == self.test_string
+
+    @pytest.mark.parametrize("input", [b"test", bytearray(b"test")])
+    def test_put_types(
+        self,
+        input,
+    ):
+        self.setup_before_test(
+            use_datastore_profile=False,
+            auth_method="env_conn_str",
+        )
+        data_item = mlrun.run.get_dataitem(
+            self._object_url, secrets=self.storage_options
+        )
+        data_item.put(input)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Data type unknown. Unable to put in AzureBlobStore",
+        ):
+            data_item.put(123)
 
     def test_large_upload(self):
         # Time-consuming test, so every authentication method is checked in test_blob_upload, which is faster.
@@ -268,7 +291,7 @@ class TestAzureBlob:
             use_datastore_profile=False,
             auth_method="env_conn_str",
         )
-        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item = mlrun.run.get_dataitem(self._object_url)
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
@@ -416,7 +439,7 @@ class TestAzureBlob:
             auth_method=auth_method,
             fake_secrets=True,
         )
-        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item = mlrun.run.get_dataitem(self._object_url)
         with pytest.raises((ValueError, ClientAuthenticationError)):
             data_item.delete()
 
@@ -427,6 +450,6 @@ class TestAzureBlob:
         if use_datastore_profile:
             profile = DatastoreProfileAzureBlob(name=self.profile_name)
             register_temporary_client_datastore_profile(profile)
-        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item = mlrun.run.get_dataitem(self._object_url)
         with pytest.raises(ValueError):
             data_item.delete()

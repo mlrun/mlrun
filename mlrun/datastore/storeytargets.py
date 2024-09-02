@@ -45,10 +45,10 @@ class TDEngineStoreyTarget(storey.TDEngineTarget):
         super().__init__(*args, **kwargs)
 
 
-class ParquetStoreyTarget(storey.ParquetTarget):
-    def __init__(self, *args, **kwargs):
+class StoreyTargetUtils:
+    @staticmethod
+    def process_args_and_kwargs(args, kwargs):
         args = list(args)
-
         path = args[0] if args else kwargs.get("path")
         external_storage_options = kwargs.get("storage_options")
 
@@ -62,28 +62,18 @@ class ParquetStoreyTarget(storey.ParquetTarget):
             args[0] = url
         if "path" in kwargs:
             kwargs["path"] = url
+        return args, kwargs
 
+
+class ParquetStoreyTarget(storey.ParquetTarget):
+    def __init__(self, *args, **kwargs):
+        args, kwargs = StoreyTargetUtils.process_args_and_kwargs(args, kwargs)
         super().__init__(*args, **kwargs)
 
 
 class CSVStoreyTarget(storey.CSVTarget):
     def __init__(self, *args, **kwargs):
-        args = list(args)
-
-        path = args[0] if args else kwargs.get("path")
-        external_storage_options = kwargs.get("storage_options")
-
-        url, storage_options = get_url_and_storage_options(
-            path, external_storage_options
-        )
-
-        if storage_options:
-            kwargs["storage_options"] = storage_options
-        if args:
-            args[0] = url
-        if "path" in kwargs:
-            kwargs["path"] = url
-
+        args, kwargs = StoreyTargetUtils.process_args_and_kwargs(args, kwargs)
         super().__init__(*args, **kwargs)
 
 
@@ -97,7 +87,7 @@ class StreamStoreyTarget(storey.StreamTarget):
         if not path:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
-        access_key = storage_options.get("v3io_access_key")
+        access_key = storage_options.get("v3io_access_key") if storage_options else None
         storage = (
             V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
         )
@@ -139,8 +129,7 @@ class KafkaStoreyTarget(storey.KafkaTarget):
 
 
 class NoSqlStoreyTarget(storey.NoSqlTarget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass
 
 
 class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
@@ -154,5 +143,4 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
 
 
 class TSDBStoreyTarget(storey.TSDBTarget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    pass

@@ -3,8 +3,8 @@
 
 Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
-> Schedules have a minimum interval that will be allowed between two scheduled jobs - by default, a job wouldn't be allowed to be scheduled to run more than 2 times in 10 minutes. 
-> This may be confusing when using schedules like */13 * * * * (every 13th minute) since it is triggered at 52nd minute and then again at the start of the next hour (minute 0) which means there are 8 minutes between runs. 
+> Schedules have a minimum interval that will be allowed between two scheduled jobs. By default, a job is not allowed to be scheduled twice in a 10-minute period 
+> Currently, schedules like */13 * * * * (every 13th minute), in which the job would trigger at the 52nd minute and then again at the start of the next hour (minute 0) (with only 8 minutes between runs) are not allowed. 
 > See mlrun.mlconf.httpdb.scheduling for service schedules configuration. 
 
 ## Creating a job and scheduling it

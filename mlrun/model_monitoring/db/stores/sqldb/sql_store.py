@@ -575,7 +575,8 @@ class SQLStoreBase(StoreBase):
         Delete all the model monitoring resources of the project in the SQL tables.
         """
         logger.debug(
-            "Deleting model monitoring endpoints resources from the SQL tables", project=self.project
+            "Deleting model monitoring endpoints resources from the SQL tables",
+            project=self.project,
         )
         endpoints = self.list_model_endpoints()
 

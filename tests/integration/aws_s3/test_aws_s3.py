@@ -304,6 +304,19 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    def test_put_types(
+        self,
+    ):
+        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item.put(self.test_string.encode())
+        result = data_item.get()
+        assert result == self.test_string.encode()
+        with pytest.raises(
+            TypeError,
+            match="Data type unknown. Unable to put in S3Store",
+        ):
+            data_item.put(123)
+
     def test_large_upload(self):
         data_item = mlrun.run.get_dataitem(self._object_url)
         file_size = 1024 * 1024 * 100

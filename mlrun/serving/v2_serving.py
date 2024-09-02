@@ -556,7 +556,7 @@ def _init_endpoint_record(
         model_ep = None
     except mlrun.errors.MLRunBadRequestError as err:
         logger.info(
-            f"Cant reach to model endpoints store, due to  : {err}",
+            "Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err)
         )
         return
 
@@ -610,7 +610,7 @@ def _init_endpoint_record(
             db.patch_model_endpoint(
                 project=project,
                 endpoint_id=uid,
-                attributes={"model_uri": model_ep.spec.model_uri},
+                attributes=attributes,
             )
             logger.info(
                 "Updating model endpoint attributes",

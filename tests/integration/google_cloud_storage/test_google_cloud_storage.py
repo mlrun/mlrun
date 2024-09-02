@@ -396,8 +396,10 @@ class TestGoogleCloudStorage:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    @pytest.mark.parametrize("input", [b"test", bytearray(b"test")])
     def test_put_types(
         self,
+        input,
         use_datastore_profile,
     ):
         self._setup_by_google_credentials_file(
@@ -406,9 +408,9 @@ class TestGoogleCloudStorage:
         data_item = mlrun.run.get_dataitem(
             self._object_url, secrets=self.storage_options
         )
-        data_item.put(self.test_string.encode())
+        data_item.put(input)
         result = data_item.get()
-        assert result == self.test_string.encode()
+        assert result == b"test"
         with pytest.raises(
             TypeError,
             match="Data type unknown. Unable to put in GoogleCloudStorageStore",

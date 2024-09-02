@@ -676,7 +676,6 @@ class ServingRuntime(RemoteRuntime):
         """create mock server object for local testing/emulation
 
         :param namespace: one or list of namespaces/modules to search the steps classes/functions in
-        :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
         :param workdir:   working directory to locate the source code (if not the current one)

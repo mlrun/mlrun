@@ -78,7 +78,7 @@ def test_list_api_gateways(
                 "spec": {
                     "name": "new-gw",
                     "path": "/",
-                    "authentication_mode": "none",
+                    "authenticationMode": "none",
                     "upstreams": [
                         {
                             "kind": "nucliofunction",

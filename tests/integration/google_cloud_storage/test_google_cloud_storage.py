@@ -176,13 +176,12 @@ class TestGoogleCloudStorage:
                 os.environ["GCP_CREDENTIALS"] = self.credentials
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     def test_perform_google_cloud_storage_tests(
         self, use_datastore_profile, setup_by, use_secrets
@@ -223,13 +222,12 @@ class TestGoogleCloudStorage:
         assert os.path.basename(self._object_path) not in listdir_parent
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     def test_upload(self, use_datastore_profile, setup_by, use_secrets):
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
@@ -304,13 +302,12 @@ class TestGoogleCloudStorage:
                         chunk_number += 1
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",

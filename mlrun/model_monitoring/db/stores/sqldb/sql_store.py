@@ -64,7 +64,7 @@ class SQLStoreBase(StoreBase):
         self._engine = None
         self._init_tables()
 
-    def _init(self):
+    def init(self):
         self._engine = get_engine(dsn=self._sql_connection_string)
 
     def create_tables(self):

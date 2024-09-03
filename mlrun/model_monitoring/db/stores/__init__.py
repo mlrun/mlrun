@@ -89,6 +89,7 @@ def get_store_object(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     store_connection_string: typing.Optional[str] = None,
+    initialize: bool = True,
     **kwargs,
 ) -> StoreBase:
     """
@@ -98,6 +99,7 @@ def get_store_object(
     :param project:                 The name of the project.
     :param secret_provider:         An optional secret provider to get the connection string secret.
     :param store_connection_string: Optional explicit connection string of the store.
+    :param initialize:              Whether to initialize the connection to the database.
 
     :return: `StoreBase` object. Using this object, the user can apply different operations such as write, update, get
              and delete a model endpoint record.
@@ -131,6 +133,9 @@ def get_store_object(
     store_type_fact = ObjectStoreFactory(store_type)
 
     # Convert into store target object
-    return store_type_fact.to_object_store(
+    store_object = store_type_fact.to_object_store(
         project=project, secret_provider=secret_provider, **kwargs
     )
+    if initialize:
+        store_object.init()
+    return store_object

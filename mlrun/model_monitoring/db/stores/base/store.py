@@ -32,7 +32,8 @@ class StoreBase(ABC):
         """
         self.project = project
 
-    def _init(self):
+    def init(self):
+        """Establish connection to database"""
         pass
 
     @abstractmethod

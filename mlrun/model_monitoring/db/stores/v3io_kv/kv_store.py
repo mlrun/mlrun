@@ -104,7 +104,7 @@ class KVStoreBase(StoreBase):
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
 
-    def _init(self):
+    def init(self):
         self.client = mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.mlconf.v3io_api,
         )

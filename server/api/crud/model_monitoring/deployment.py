@@ -387,6 +387,7 @@ class MonitoringDeployment:
         secret_provider = server.api.crud.secrets.get_project_secret_provider(
             project=self.project
         )
+
         tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
             project=self.project, secret_provider=secret_provider
         )

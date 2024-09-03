@@ -68,7 +68,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self._init_tables_path()
         self._create_table = create_table
 
-    def _init(self):
+    def init(self):
         self._frames_client: v3io_frames.client.ClientBase = (
             self._get_v3io_frames_client(self.container)
         )

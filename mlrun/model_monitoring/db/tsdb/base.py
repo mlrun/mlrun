@@ -47,7 +47,7 @@ class TSDBConnector(ABC):
         """
         self.project = project
 
-    def _init(self):
+    def init(self):
         """Create connections and tables"""
         pass
 

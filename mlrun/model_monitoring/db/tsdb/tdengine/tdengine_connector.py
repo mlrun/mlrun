@@ -51,7 +51,7 @@ class TDEngineConnector(TSDBConnector):
         self._connection = None
         self._init_super_tables()
 
-    def _init(self):
+    def init(self):
         self._connection = self._create_connection()
 
     def _create_connection(self):

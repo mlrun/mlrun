@@ -61,8 +61,11 @@ class SQLStoreBase(StoreBase):
             )
 
         self._sql_connection_string = kwargs.get("store_connection_string")
-        self._engine = get_engine(dsn=self._sql_connection_string)
+        self._engine = None
         self._init_tables()
+
+    def _init(self):
+        self._engine = get_engine(dsn=self._sql_connection_string)
 
     def create_tables(self):
         self._create_tables_if_not_exist()

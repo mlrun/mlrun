@@ -64,13 +64,15 @@ class V3IOTSDBConnector(TSDBConnector):
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self._frames_client = None
+        self._init_tables_path()
+        self._create_table = create_table
+
+    def _init(self):
         self._frames_client: v3io_frames.client.ClientBase = (
             self._get_v3io_frames_client(self.container)
         )
-
-        self._init_tables_path()
-
-        if create_table:
+        if self._create_table:
             self.create_tables()
 
     def _init_tables_path(self):

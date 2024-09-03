@@ -47,6 +47,10 @@ class TSDBConnector(ABC):
         """
         self.project = project
 
+    def _init(self):
+        """Create connections and tables"""
+        pass
+
     @abstractmethod
     def apply_monitoring_stream_steps(self, graph) -> None:
         """

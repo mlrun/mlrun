@@ -384,13 +384,24 @@ class MonitoringDeployment:
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
 
+        secret_provider = server.api.crud.secrets.get_project_secret_provider(
+            project=self.project
+        )
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
             function,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=self.project
-            ),
+            tsdb_connector,
+            store_object,
         )
+
+        tsdb_connector.create_tables()
 
         # Set the project to the serving function
         function.metadata.project = self.project

@@ -47,8 +47,12 @@ class TDEngineConnector(TSDBConnector):
             )
         self._tdengine_connection_string = kwargs.get("connection_string")
         self.database = database
-        self._connection = self._create_connection()
+
+        self._connection = None
         self._init_super_tables()
+
+    def _init(self):
+        self._connection = self._create_connection()
 
     def _create_connection(self):
         """Establish a connection to the TSDB server."""

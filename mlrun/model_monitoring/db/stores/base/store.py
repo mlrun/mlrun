@@ -32,6 +32,9 @@ class StoreBase(ABC):
         """
         self.project = project
 
+    def _init(self):
+        pass
+
     @abstractmethod
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """

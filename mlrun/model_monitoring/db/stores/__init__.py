@@ -131,7 +131,6 @@ def get_store_object(
     store_type_fact = ObjectStoreFactory(store_type)
 
     # Convert into store target object
-    store_object = store_type_fact.to_object_store(
+    return store_type_fact.to_object_store(
         project=project, secret_provider=secret_provider, **kwargs
     )
-    return store_object

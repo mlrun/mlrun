@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import time
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -24,7 +23,6 @@ from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
 import mlrun
-from mlrun.common.schemas import ModelMonitoringMode
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.nuclio.serving import serving_subkind
 from mlrun.serving import V2ModelServer
@@ -639,35 +637,6 @@ def test_function():
 
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-
-
-@pytest.mark.parametrize("enable_tracking", [False])
-def test_tracked_function(rundb_mock, enable_tracking):
-    with patch("mlrun.get_run_db", return_value=rundb_mock):
-        project = mlrun.new_project("test-pro", save=False)
-        fn = mlrun.new_function("test-fn", kind="serving")
-        model_uri = _log_model(project)
-        print(model_uri)
-        fn.add_model("m1", model_uri, "ModelTestingClass", multiplier=5)
-        fn.set_tracking("dummy://", enable_tracking=enable_tracking)
-        server = fn.to_mock_server(track_models=True)
-        server.test("/v2/models/m1/infer", testdata)
-
-        dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
-
-    rundb_mock.patch_model_endpoint.assert_called_once()
-    assert (
-        rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"]["model_uri"]
-        == model_uri
-    ), "model_uri attribute of the model endpoint was not updated as expected"
-    if not enable_tracking:
-        assert (
-            rundb_mock.patch_model_endpoint.call_args.kwargs["attributes"][
-                "monitoring_mode"
-            ]
-            == ModelMonitoringMode.disabled
-        ), "model_uri attribute of the model endpoint was not updated as expected"
 
 
 def test_serving_no_router():

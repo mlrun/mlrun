@@ -320,6 +320,7 @@ class TestGetModelEndpointMetrics:
     def store(cls, monkeypatch: pytest.MonkeyPatch) -> KVStoreBase:
         monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
         store = KVStoreBase(project=cls.PROJECT)
+        store.init()
         monkeypatch.setattr(store.client.kv, "scan", cls.scan_mock)
         return store
 

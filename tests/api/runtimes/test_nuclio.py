@@ -875,7 +875,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         invalid_node_selector = {"label-3": "val=3"}
         with pytest.warns(
             Warning,
-            match="the node selector you've set does not comply with the validation rules",
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
         ):
             function.with_node_selection(node_selector=invalid_node_selector)
 

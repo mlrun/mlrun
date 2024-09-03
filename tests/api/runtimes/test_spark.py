@@ -610,7 +610,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         function_node_selector = {"function-label": "function=val"}
         with pytest.warns(
             Warning,
-            match="the node selector you've set does not comply with the validation rules",
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
         ):
             runtime.with_node_selection(node_selector=function_node_selector)
 

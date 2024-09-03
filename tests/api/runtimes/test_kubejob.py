@@ -137,7 +137,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         invalid_node_selector = {"label-1": "val=1"}
         with pytest.warns(
             Warning,
-            match="the node selector you've set does not comply with the validation rules",
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
         ):
             runtime.with_node_selection(node_selector=invalid_node_selector)
         assert runtime.spec.node_selector == {"label-1": "val=1"}

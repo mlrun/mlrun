@@ -28,6 +28,7 @@ import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     ResultKindApp,
@@ -48,6 +49,11 @@ assets_folder = Path(__file__).parent / "assets"
 def application() -> HistogramDataDriftApplication:
     app = HistogramDataDriftApplication()
     return app
+
+
+@pytest.fixture
+def logger() -> mlrun.utils.Logger:
+    return mlrun.utils.Logger(level=logging.DEBUG, name=__name__)
 
 
 @pytest.fixture
@@ -178,6 +184,7 @@ class TestApplication:
         feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
         monitoring_context: Mock,
+        logger: mlrun.utils.Logger,
     ) -> dict[str, Any]:
         kwargs = {}
         kwargs["monitoring_context"] = monitoring_context
@@ -193,6 +200,7 @@ class TestApplication:
         monitoring_context.dict_to_histogram = (
             mm_context.MonitoringApplicationContext.dict_to_histogram
         )
+        monitoring_context.logger = logger
         assert (
             kwargs.keys()
             == inspect.signature(application.do_tracking).parameters.keys()
@@ -236,36 +244,48 @@ class TestApplication:
         assert len(metrics) == 3, "Expected three metrics"
 
 
-@pytest.mark.parametrize(
-    ("sample_df_stats", "feature_stats"),
-    [
-        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
-        pytest.param(
-            pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
-            pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
-            id="real-world-csv-dfs",
-        ),
-    ],
-)
-def test_compute_metrics_per_feature(
-    application: HistogramDataDriftApplication,
-    monitoring_context: Mock,
-    sample_df_stats: pd.DataFrame,
-    feature_stats: pd.DataFrame,
-) -> None:
-    monitoring_context.sample_df_stats = sample_df_stats
-    monitoring_context.feature_stats = feature_stats
+class TestMetricsPerFeature:
+    @staticmethod
+    @pytest.fixture
+    def monitoring_context(
+        logger: mlrun.utils.Logger,
+    ) -> mm_context.MonitoringApplicationContext:
+        ctx = Mock()
 
-    def dict_to_histogram(df: pd.DataFrame) -> pd.DataFrame:
-        return df
+        def dict_to_histogram(df: pd.DataFrame) -> pd.DataFrame:
+            return df
 
-    monitoring_context.dict_to_histogram = dict_to_histogram
-    metrics_per_feature = application._compute_metrics_per_feature(
-        monitoring_context=monitoring_context
+        ctx.dict_to_histogram = dict_to_histogram
+        ctx.logger = logger
+        return ctx
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("sample_df_stats", "feature_stats"),
+        [
+            pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+            pytest.param(
+                pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
+                pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
+                id="real-world-csv-dfs",
+            ),
+        ],
     )
-    assert set(metrics_per_feature.columns) == {
-        metric.NAME for metric in application.metrics
-    }, "Different metrics than expected"
-    assert set(metrics_per_feature.index) == set(
-        feature_stats.columns
-    ), "The features are different than expected"
+    def test_compute_metrics_per_feature(
+        application: HistogramDataDriftApplication,
+        monitoring_context: Mock,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+    ) -> None:
+        monitoring_context.sample_df_stats = sample_df_stats
+        monitoring_context.feature_stats = feature_stats
+
+        metrics_per_feature = application._compute_metrics_per_feature(
+            monitoring_context=monitoring_context
+        )
+        assert set(metrics_per_feature.columns) == {
+            metric.NAME for metric in application.metrics
+        }, "Different metrics than expected"
+        assert set(metrics_per_feature.index) == set(
+            feature_stats.columns
+        ), "The features are different than expected"

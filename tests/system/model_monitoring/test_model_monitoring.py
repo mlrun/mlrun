@@ -907,7 +907,6 @@ class TestBatchDrift(TestMLRunSystem):
             function_name="batch-drift-function",
             context=context,
             infer_results_df=infer_results_df,
-            # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
         # Wait for the controller, app and writer to complete
@@ -920,16 +919,26 @@ class TestBatchDrift(TestMLRunSystem):
         self._validate_model_uri(model_obj=model, model_endpoint=model_endpoint)
 
         # Test the drift results
-        # TODO: comment out when ML-5767 is done
-        # assert model_endpoint.status.feature_stats
-        # assert model_endpoint.status.current_stats
-        # assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
+        assert model_endpoint.status.feature_stats
+        assert model_endpoint.status.current_stats
+        assert (
+            int(model_endpoint.status.drift_status)
+            == mm_constants.ResultStatusApp.detected
+        )
 
-        # Validate that the artifacts were logged under the generated context
-        assert len(project.list_artifacts(name="~drift_table_plot")) == 1
-        assert len(project.list_artifacts(name="~features_drift_results")) == 1
-        # TODO: take the artifacts from the original context when ML-5792 is done
-        # artifacts = context.artifacts
+        # Validate that the artifacts were logged in the project
+        artifacts = project.list_artifacts(
+            labels={
+                "mlrun/producer-type": "model-monitoring-app",
+                "mlrun/app-name": "histogram-data-drift",
+                "mlrun/endpoint-id": endpoint_id,
+            }
+        )
+        assert len(artifacts) == 2
+        assert {art["metadata"]["key"] for art in artifacts} == {
+            "drift_table_plot",
+            "features_drift_results",
+        }
 
     def _validate_model_uri(self, model_obj, model_endpoint):
         model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(

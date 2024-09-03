@@ -335,19 +335,23 @@ class MonitoringApplicationController:
                 return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
-                # Gets only application in ready state
                 applications_names = list(
-                    {
-                        app.metadata.name
-                        for app in monitoring_functions
-                        if (
-                            app.status.state == "ready"
-                            # workaround for the default app, as its `status.state` is `None`
-                            or app.metadata.name
-                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
-                        )
-                    }
+                    {app.metadata.name for app in monitoring_functions}
                 )
+            # if monitoring_functions: - TODO : ML-7700
+            #   Gets only application in ready state
+            #   applications_names = list(
+            #       {
+            #           app.metadata.name
+            #           for app in monitoring_functions
+            #           if (
+            #               app.status.state == "ready"
+            #               # workaround for the default app, as its `status.state` is `None`
+            #               or app.metadata.name
+            #               == mm_constants.HistogramDataDriftApplicationConstants.NAME
+            #           )
+            #       }
+            #   )
             if not applications_names:
                 logger.info("No monitoring functions found", project=self.project)
                 return
@@ -592,7 +596,6 @@ class MonitoringApplicationController:
                 project=project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
-            mm_constants.ApplicationEvent.MLRUN_CONTEXT: {},  # TODO : for future use by ad-hoc batch infer
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})

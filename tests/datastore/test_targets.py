@@ -47,7 +47,7 @@ def test_stream_target_path_is_without_run_id():
     stream_target.set_resource(fset)
     stream_target.add_writer_step(mock_graph, None, None, key_columns={})
     # make sure that run ID wasn't added to the path
-    assert mock_graph.kwargs.get("stream_path") == path
+    assert mock_graph.kwargs.get("stream_path") == url
 
     # make sure the path is still right after deserialization (which loses the specific type)
     stream_target = BaseStoreTarget.from_dict(stream_target.to_dict())
@@ -65,8 +65,8 @@ def test_kafka_target_path_is_without_run_id():
     fset = FeatureSet(name="my-featureset")
     kafka_target.set_resource(fset)
     kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
-    # make sure that run ID wasn't added to the topic
-    assert mock_graph.kwargs.get("topic") == topic
+    # make sure that run ID wasn't added to the path
+    assert mock_graph.kwargs.get("path") == url
 
     # make sure the path is still right after deserialization (which loses the specific type)
     kafka_target = BaseStoreTarget.from_dict(kafka_target.to_dict())

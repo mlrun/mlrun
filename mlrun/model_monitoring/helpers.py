@@ -271,6 +271,9 @@ def calculate_inputs_statistics(
                     inputs_statistics[feature]["hist"]
                 )
             )
+        else:
+            # If the feature is not in the sample set and doesn't have a histogram, remove it from the statistics:
+            inputs_statistics.pop(feature)
 
     return inputs_statistics
 

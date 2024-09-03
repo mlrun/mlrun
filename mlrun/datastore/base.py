@@ -167,9 +167,7 @@ class DataStore:
         elif isinstance(data, str):
             return data, mode
         else:
-            raise TypeError(
-                f"Unable to put a value of type {type(self).__name__}"
-            )
+            raise TypeError(f"Unable to put a value of type {type(self).__name__}")
 
     def stat(self, key):
         pass

@@ -33,7 +33,7 @@ from mlrun.utils import (
     get_artifact_target,
     get_in,
     get_workflow_url,
-    is_jupyter,
+    is_ipython,
     logger,
     run_keys,
     version,
@@ -497,10 +497,10 @@ def show_kfp_run(run, html_display_id=None, dag_display_id=None, with_html=True)
     }
     if not run or "graph" not in run:
         return
-    if is_jupyter:
+    if is_ipython:
         try:
             from graphviz import Digraph
-        except ModuleNotFoundError:
+        except ImportError:
             return
 
         try:

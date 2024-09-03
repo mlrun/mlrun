@@ -217,7 +217,7 @@ def validate_node_selectors(
             warnings.warn(
                 f"{message}\n"
                 f"The node selector you’ve set does not meet the validation rules for the current Kubernetes version. "
-                f"Please note that invalid node selectors may cause function execution failures."
+                f"Please note that invalid node selectors may cause issues with function scheduling."
             )
 
     node_selectors = node_selectors or {}

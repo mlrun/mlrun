@@ -303,7 +303,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={self.run_uid}",
             paginated=False,
         )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.error,
+            expected_status_attrs={"status_text": "Some message"},
+        )
 
     def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
         db_instance = get_db()
@@ -546,7 +552,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def _get_failed_crd_status(driver_ui_url=None):
         return {
             "terminationTime": "2020-10-05T21:17:11Z",
-            "applicationState": {"state": "FAILED"},
+            "applicationState": {"state": "FAILED", "errorMessage": "Some message"},
             "driverInfo": {
                 "webUIIngressAddress": driver_ui_url,
             },

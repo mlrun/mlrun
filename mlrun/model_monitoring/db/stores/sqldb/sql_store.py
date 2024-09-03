@@ -574,8 +574,11 @@ class SQLStoreBase(StoreBase):
         """
         Delete all the model monitoring resources of the project in the SQL tables.
         """
+        logger.debug(
+            "Deleting model monitoring endpoints resources from the SQL tables",
+            project=self.project,
+        )
         endpoints = self.list_model_endpoints()
-        logger.debug("Deleting model monitoring resources", project=self.project)
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]

@@ -3,8 +3,6 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
-{ref}`notifications` are used to notify you or the system of an alert.
-
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)
@@ -13,14 +11,6 @@ Alerts are a mechanism for informing you about possible problem situations.
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
-
-
-**See also**
-```{toctree}
-:maxdepth: 1
-
-drift-detection-alert
-```
 
 ## System configuration 
 These variables control the basic alert behavior: 

@@ -160,10 +160,9 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "storey.TDEngineTarget",
+                "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
                 name=name,
                 after=after,
-                url=self._tdengine_connection_string,
                 supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
                 table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
                 time_col=mm_schemas.EventFieldType.TIME,

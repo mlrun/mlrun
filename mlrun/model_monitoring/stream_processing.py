@@ -312,18 +312,6 @@ class EventStreamProcessor:
         if store_object.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
-        # Emits the event in window size of events based on sample_window size (10 by default)
-        def apply_storey_sample_window():
-            graph.add_step(
-                "storey.steps.SampleWindow",
-                name="sample",
-                after="Rename",
-                window_size=self.sample_window,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        apply_storey_sample_window()
-
         tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         # Parquet branch

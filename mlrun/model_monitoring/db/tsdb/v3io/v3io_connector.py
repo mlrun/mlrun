@@ -24,6 +24,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
+from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
@@ -173,6 +174,7 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
         # Write latency per prediction, labeled by endpoint ID only
         graph.add_step(
             "mlrun.datastore.storeytargets.TSDBStoreyTarget",
@@ -197,17 +199,23 @@ class V3IOTSDBConnector(TSDBConnector):
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
         )
 
+        # Emits the event in window size of events based on sample_window size (10 by default)
+        graph.add_step(
+            "storey.steps.SampleWindow",
+            name="sample",
+            after="Rename",
+            window_size=self.sample_window,
+            key=EventFieldType.ENDPOINT_ID,
+        )
+
         # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
         # stats and details about the events
 
-        def apply_process_before_tsdb():
-            graph.add_step(
-                "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ProcessBeforeTSDB",
-                name="ProcessBeforeTSDB",
-                after="sample",
-            )
-
-        apply_process_before_tsdb()
+        graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ProcessBeforeTSDB",
+            name="ProcessBeforeTSDB",
+            after="sample",
+        )
 
         # Unpacked keys from each dictionary and write to TSDB target
         def apply_filter_and_unpacked_keys(name, keys):

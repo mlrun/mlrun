@@ -245,14 +245,13 @@ def validate_tag_name(
     if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
     otherwise, it returns False
     """
-    is_verified, _ = mlrun.utils.helpers.verify_field_regex(
+    return mlrun.utils.helpers.verify_field_regex(
         field_name,
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
         log_message="Special characters are not permitted in tag names",
     )
-    return is_verified
 
 
 def validate_artifact_key_name(

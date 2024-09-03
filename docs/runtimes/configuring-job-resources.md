@@ -499,15 +499,13 @@ State thresholds are not supported for Nuclio/serving runtimes (since they have 
 
 You can set the log level for individual functions. 
 
-From inside the function itself: 
+To set the log level in the function itself: `context.logger.set_logger_level(level="WARN")`
 
-`context.logger.set_logger_level(level="WARN")`
-
-From outside the function using an env var: 
+To set the log level outside the function, using an env var: 
 
 `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
 
-This is how to do it for Nuclio:
+To set a log level for a Nuclio function:
 
 `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
 

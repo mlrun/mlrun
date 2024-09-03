@@ -57,7 +57,7 @@ class TestFileStore:
                 assert result == b"test"
                 with pytest.raises(
                     TypeError,
-                    match="Data type unknown. Unable to put in FileStore",
+                    match="Unable to put a value of type FileStore",
                 ):
                     data_item.put(123)
         finally:

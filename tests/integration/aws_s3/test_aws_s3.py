@@ -312,7 +312,7 @@ class TestAwsS3:
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Data type unknown. Unable to put in S3Store",
+            match="Unable to put a value of type S3Store",
         ):
             data_item.put(123)
 

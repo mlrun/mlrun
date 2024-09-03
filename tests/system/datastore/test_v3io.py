@@ -256,7 +256,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         assert result == b"test"
         with pytest.raises(
             TypeError,
-            match="Data type unknown. Unable to put in V3ioStore",
+            match="Unable to put a value of type V3ioStore",
         ):
             data_item.put(123)
 

@@ -179,7 +179,7 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
-        generated_buffer = bytearray(os.urandom(file_size))
+        generated_buffer = os.urandom(file_size)
         data_item = mlrun.run.get_dataitem(self.object_url)
         object_path = urlparse(self.object_url).path
 

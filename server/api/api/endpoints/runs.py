@@ -502,3 +502,57 @@ async def abort_run(
     )
 
     return background_task
+
+
+@router.get("/projects/{project}/completed_runs")
+async def list_completed_runs(
+    project: str = None,
+    sort: bool = True,
+    iter: bool = True,
+    start_time_from: str = None,
+    start_time_to: str = None,
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    if project != "*":
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def _filter_runs(_runs):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.run,
+            _runs,
+            lambda run: (
+                run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+                run.get("metadata", {}).get("uid"),
+            ),
+            auth_info,
+        )
+
+    runs, page_info = await paginator.paginate_permission_filtered_request(
+        db_session,
+        server.api.crud.Runs().list_runs,
+        _filter_runs,
+        auth_info,
+        project=project,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        sort=sort,
+        iter=iter,
+        start_time_from=start_time_from,
+        start_time_to=start_time_to,
+        states=[mlrun.common.runtimes.constants.RunStates.completed],
+    )
+    return {
+        "runs": runs,
+        "pagination": page_info,
+    }

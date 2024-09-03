@@ -165,6 +165,11 @@ class TestKubeResource(TestRuntimeBase):
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
 
+    def test_with_foo(self):
+        function = mlrun.new_function("function-name", kind="job")
+        assert function.spec.foo == "bar"
+        assert function.with_foo("buzz").spec.foo == "buzz"
+
     @staticmethod
     def _set_with_node_selection(
         resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr

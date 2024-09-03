@@ -24,6 +24,7 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.model_monitoring
+from mlrun.lists import RunList
 
 
 class RunDBError(Exception):
@@ -95,6 +96,29 @@ class RunDBInterface(ABC):
         with_notifications: bool = False,
     ):
         pass
+
+    @abstractmethod
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> RunList:
+        raise NotImplementedError
 
     @abstractmethod
     def del_run(self, uid, project="", iter=0):
@@ -179,6 +203,12 @@ class RunDBInterface(ABC):
         self, name=None, project="", tag="", labels=None, since=None, until=None
     ):
         pass
+
+    @abstractmethod
+    def list_functions_by_foo_spec(
+        self, foo_spec, project=None, tag=None, labels=None, since=None, until=None
+    ):
+        raise NotImplementedError
 
     @abstractmethod
     def tag_objects(

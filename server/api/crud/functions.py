@@ -92,6 +92,7 @@ class Functions(
         db_session: sqlalchemy.orm.Session,
         project: str = None,
         name: str = None,
+        foo_spec: str = None,
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
@@ -107,6 +108,7 @@ class Functions(
         return server.api.utils.singletons.db.get_db().list_functions(
             session=db_session,
             name=name,
+            foo_spec=foo_spec,
             project=project,
             tag=tag,
             labels=labels,

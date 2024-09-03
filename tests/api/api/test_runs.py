@@ -874,6 +874,58 @@ def test_abort_aborted_run_passed_grace_period(db: Session, client: TestClient) 
         )
 
 
+def test_get_completed_runs(db: Session, client: TestClient) -> None:
+    project = "some-project"
+    first_completed_run = {
+        "metadata": {
+            "name": "run-name-1",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.completed,
+            "start_time": "2024-09-02T00:00:00.000000+00:00",
+        },
+    }
+    second_completed_run = {
+        "metadata": {
+            "name": "run-name-2",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.completed,
+            "start_time": "2024-09-10T00:00:00.000000+00:00",
+        },
+    }
+    in_progress_run = {
+        "metadata": {
+            "name": "run-name-3",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {
+            "state": mlrun.common.runtimes.constants.RunStates.running,
+            "start_time": "2024-09-02T00:00:00.000000+00:00",
+        },
+    }
+    in_progress_run_uid = "in-progress-uid"
+    completed_run1_uid = "completed-1-uid"
+    completed_run2_uid = "completed-2-uid"
+    server.api.crud.Runs().store_run(
+        db, in_progress_run, in_progress_run_uid, project=project
+    )
+    server.api.crud.Runs().store_run(
+        db, first_completed_run, completed_run1_uid, project=project
+    )
+    server.api.crud.Runs().store_run(
+        db, second_completed_run, completed_run2_uid, project=project
+    )
+    response = client.get(
+        f"projects/{project}/completed_runs?start_time_from=2024-09-03T00:00:00.000000"
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    assert len(response.json()["runs"]) == 1
+    assert response.json()["runs"][0] == second_completed_run
+
+
 def test_abort_run_background_task_not_found(db: Session, client: TestClient) -> None:
     project = "some-project"
     run_in_progress = {

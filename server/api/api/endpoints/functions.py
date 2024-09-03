@@ -751,3 +751,67 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
+
+
+@router.get("/projects/{project}/functions/by_foo_spec/{foo_spec}")
+async def list_functions_by_foo_spec(
+    foo_spec: str,
+    project: str = None,
+    tag: str = None,
+    labels: list[str] = Query([], alias="label"),
+    hash_key: str = None,
+    since: str = None,
+    until: str = None,
+    page: int = Query(None, gt=0),
+    page_size: int = Query(None, alias="page-size", gt=0),
+    page_token: str = Query(None, alias="page-token"),
+    format_: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    if project is None:
+        project = config.default_project
+
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+    paginator = server.api.utils.pagination.Paginator()
+
+    async def _filter_functions_by_permissions(_functions):
+        return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.function,
+            _functions,
+            lambda function: (
+                function.get("metadata", {}).get(
+                    "project", mlrun.mlconf.default_project
+                ),
+                function["metadata"]["name"],
+            ),
+            auth_info,
+        )
+
+    functions, page_info = await paginator.paginate_permission_filtered_request(
+        db_session,
+        server.api.crud.Functions().list_functions,
+        _filter_functions_by_permissions,
+        auth_info,
+        token=page_token,
+        page=page,
+        page_size=page_size,
+        project=project,
+        foo_spec=foo_spec,
+        tag=tag,
+        labels=labels,
+        hash_key=hash_key,
+        format_=format_,
+        since=mlrun.utils.datetime_from_iso(since),
+        until=mlrun.utils.datetime_from_iso(until),
+    )
+
+    return {
+        "funcs": functions,
+        "pagination": page_info,
+    }

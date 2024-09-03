@@ -17,6 +17,7 @@ import http
 import unittest.mock
 from http import HTTPStatus
 from types import ModuleType
+from typing import Optional
 
 import fastapi.testclient
 import httpx
@@ -43,6 +44,7 @@ import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 import tests.api.api.utils
 import tests.conftest
+from server.api.utils.singletons.db import get_db
 
 PROJECT = "project-name"
 ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
@@ -1000,19 +1002,55 @@ def test_start_function(
         assert background_task.status.state == expected_status_result
 
 
+def test_list_functions_by_foo_spec(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
+):
+    project = "test-adam"
+    foo_spec = "adam"
+    function_1 = _generate_function(
+        function_name="adam-func-1", project=project, foo_spec=foo_spec, kind="job"
+    )
+    get_db().store_function(
+        db,
+        function_1.to_dict(),
+        function_1.metadata.name,
+        project=project,
+    )
+    function_2 = _generate_function(
+        function_name="adam-func-2",
+        project=project,
+        foo_spec="other_foo_spec",
+        kind="job",
+    )
+    get_db().store_function(
+        db,
+        function_2.to_dict(),
+        function_2.metadata.name,
+        project=project,
+    )
+    response = client.get(f"projects/{project}/functions/by_foo_spec/{foo_spec}").json()
+    assert response is not None
+    assert len(response["funcs"]) == 1
+    assert response["funcs"][0]["spec"]["foo"] == "adam"
+
+
 def _generate_function(
     function_name: str,
     project: str = PROJECT,
     function_tag: str = "latest",
     track_models: bool = False,
+    foo_spec: Optional[str] = None,
+    kind: str = "serving",
 ):
     fn = mlrun.new_function(
         name=function_name,
         project=project,
         tag=function_tag,
-        kind="serving",
+        kind=kind,
         image="mlrun/mlrun",
     )
+    if foo_spec:
+        fn.with_foo(foo_spec)
     if track_models:
         fn.set_tracking()
     return fn

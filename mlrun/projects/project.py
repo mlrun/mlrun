@@ -3812,6 +3812,27 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
+    def list_functions_by_foo_spec(self, foo_spec, tag=None, labels=None):
+        """Retrieve a list of functions, filtered by specific criteria.
+
+        example::
+
+            functions = project.list_functions_by_foo_spec(foo_spec="bar")
+
+
+        :param foo_spec: Return only functions with a specific foo_spec.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
+        :param labels: Return functions that have specific labels assigned to them.
+        :returns: List of function objects.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        functions = db.list_functions_by_foo_spec(
+            foo_spec, self.metadata.name, tag=tag, labels=labels
+        )
+        if functions:
+            # convert dict to function objects
+            return [mlrun.new_function(runtime=func) for func in functions]
+
     def list_model_monitoring_functions(
         self,
         name: Optional[str] = None,
@@ -3917,6 +3938,58 @@ class MlrunProject(ModelObj):
             start_time_to=start_time_to,
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
+            **kwargs,
+        )
+
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        **kwargs,
+    ) -> mlrun.lists.RunList:
+        """Retrieve a list of runs, filtered by various options.
+
+        The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
+        `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to
+        generate comparison table and PCP plot.
+
+        Example::
+
+            # return a list of runs matching the name and label and compare
+            runs = project.list_runs(name="download", labels="owner=admin")
+            runs.compare()
+
+            # multi-label filter can also be provided
+            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
+
+            # If running in Jupyter, can use the .show() function to display the results
+            project.list_runs(name="").show()
+
+
+        :param name: Name of the run to retrieve.
+        :param uid: Unique ID of the run.
+                of a label (i.e. list("key=value")) or by looking for the existence of a given
+                key (i.e. "key").
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
+            returned by their internal order in the DB (order will not be guaranteed).
+        :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
+        :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.list_completed_runs(
+            name,
+            uid,
+            project=project,
+            sort=sort,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
             **kwargs,
         )
 

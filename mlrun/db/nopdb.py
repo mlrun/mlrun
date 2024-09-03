@@ -23,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.errors
 
 from ..config import config
+from ..lists import RunList
 from ..utils import logger
 from .base import RunDBInterface
 
@@ -71,6 +72,33 @@ class NopDB(RunDBInterface):
         pass
 
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
+        pass
+
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> RunList:
+        pass
+
+    def list_functions_by_foo_spec(
+        self, foo_spec, project=None, tag=None, labels=None, since=None, until=None
+    ):
         pass
 
     def read_run(

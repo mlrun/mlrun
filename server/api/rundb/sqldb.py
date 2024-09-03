@@ -29,6 +29,7 @@ import server.api.crud
 import server.api.db.session
 from mlrun.common.db.sql_session import create_session
 from mlrun.db import RunDBInterface
+from mlrun.lists import RunList
 from server.api.db.base import DBError
 from server.api.db.sqldb.db import SQLDB
 
@@ -42,6 +43,33 @@ from server.api.db.sqldb.db import SQLDB
 
 
 class SQLRunDB(RunDBInterface):
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> RunList:
+        raise NotImplementedError()
+
+    def list_functions_by_foo_spec(
+        self, foo_spec, project=None, tag=None, labels=None, since=None, until=None
+    ):
+        raise NotImplementedError()
+
     def __init__(
         self,
         dsn,

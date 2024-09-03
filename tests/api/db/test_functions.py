@@ -14,6 +14,7 @@
 #
 import datetime
 import time
+from typing import Optional
 
 import pytest
 from sqlalchemy.orm import Session
@@ -579,13 +580,25 @@ def test_delete_functions(db: DBInterface, db_session: Session):
     assert db_session.query(Function).count() == 3
 
 
+def test_store_function_with_foo_spec(db: DBInterface, db_session: Session):
+    function_1 = _generate_function(function_name="adam-func", foo_spec="adam")
+    db.store_function(db_session, function_1.to_dict(), function_1.metadata.name)
+    function_from_db = db.get_function(db_session, function_1.metadata.name)
+    assert function_from_db is not None
+    assert function_from_db["spec"]["foo"] == "adam"
+
+
 def _generate_function(
     function_name: str = "function_name_1",
     project: str = "project_name",
     tag: str = "latest",
+    foo_spec: Optional[str] = None,
 ):
-    return mlrun.new_function(
+    func = mlrun.new_function(
         name=function_name,
         project=project,
         tag=tag,
     )
+    if foo_spec:
+        func.with_foo(foo_spec)
+    return func

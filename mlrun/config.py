@@ -219,6 +219,7 @@ default_config = {
     },
     "function": {
         "spec": {
+            "foo": {"default": "bar"},
             "image_pull_secret": {"default": None},
             "security_context": {
                 # default security context to be applied to all functions - json string base64 encoded format

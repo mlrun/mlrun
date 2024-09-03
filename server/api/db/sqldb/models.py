@@ -39,7 +39,6 @@ from server.api.utils.db.sql_types import SQLTypesUtil
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 
-
 _tagged = None
 _labeled = None
 _with_notifications = None
@@ -287,6 +286,12 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
+        foo_spec = relationship(
+            "FunctionSpecFoo",
+            back_populates="function",
+            uselist=False,
+            cascade="all, delete-orphan",
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}/{self.uid}"
@@ -768,6 +773,21 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.key}"
+
+    class FunctionSpecFoo(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "function_spec_foos"
+
+        data = Column(String(length=255, collation=SQLTypesUtil.collation()))
+        function = relationship(Function, back_populates="foo_spec")
+
+        function_id = Column(
+            Integer,
+            ForeignKey("functions.id", ondelete="CASCADE"),
+            primary_key=True,
+        )
+
+        def get_identifier_string(self) -> str:
+            return f"{self.function.project}/{self.function_id}/{self.data}"
 
 
 # Must be after all table definitions

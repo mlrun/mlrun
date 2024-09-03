@@ -69,6 +69,7 @@ spec_fields = [
     "allow_empty_resources",
     "clone_target_dir",
     "reset_on_run",
+    "foo",
 ]
 
 
@@ -111,6 +112,7 @@ class FunctionSpec(ModelObj):
         pythonpath=None,
         disable_auto_mount=False,
         clone_target_dir=None,
+        foo=None,
     ):
         self.command = command or ""
         self.image = image or ""
@@ -130,6 +132,7 @@ class FunctionSpec(ModelObj):
         # The build.source is cloned/extracted to the specified clone_target_dir
         # if a relative path is specified, it will be enriched with a temp dir path
         self._clone_target_dir = clone_target_dir or None
+        self.foo = foo or config.function.spec.foo.default
 
     @property
     def build(self) -> ImageBuilder:
@@ -838,6 +841,16 @@ class BaseRuntime(ModelObj):
 
         if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
+        return self
+
+    def with_foo(self, foo_value: str):
+        """
+        Set the value of foo
+
+        :param foo_value:     value of foo
+
+        """
+        self.spec.foo = foo_value
         return self
 
     def clean_build_params(self):

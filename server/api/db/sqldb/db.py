@@ -88,6 +88,7 @@ from server.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
+    FunctionSpecFoo,
     HubSource,
     Log,
     PaginationCache,
@@ -1753,10 +1754,18 @@ class SQLDB(DBInterface):
             function.setdefault("metadata", {})["name"] = name
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
+            foo_spec = function.get("spec", {}).get("foo")
+            func_foo_spec = None
+            if foo_spec:
+                func_foo_spec = FunctionSpecFoo(
+                    data=foo_spec,
+                )
+
             fn = Function(
                 name=name,
                 project=project,
                 uid=uid,
+                foo_spec=func_foo_spec,
             )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
@@ -1770,6 +1779,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: typing.Optional[str] = None,
+        foo_spec: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
@@ -1785,6 +1795,7 @@ class SQLDB(DBInterface):
         for function, function_tag in self._find_functions(
             session=session,
             name=name,
+            foo_spec=foo_spec,
             project=project,
             labels=labels,
             tag=tag,
@@ -2015,7 +2026,12 @@ class SQLDB(DBInterface):
         return query.one_or_none(), uid
 
     def _get_function_uid(
-        self, session, name: str, tag: str, hash_key: str, project: str
+        self,
+        session,
+        name: str,
+        tag: str,
+        hash_key: str,
+        project: str,
     ):
         computed_tag = tag or "latest"
         if not tag and hash_key:
@@ -4575,6 +4591,7 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: str,
+        foo_spec: str,
         project: str,
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
@@ -4589,6 +4606,7 @@ class SQLDB(DBInterface):
 
         :param session: The DB session.
         :param name: The name of the function to query.
+        :param foo_spec: The name of the foo_spec of the function to filter on.
         :param project: The project of the function to query.
         :param labels: The labels of the function to query.
         :param tag: The tag of the function to query.
@@ -4606,6 +4624,9 @@ class SQLDB(DBInterface):
 
         if hash_key is not None:
             query = query.filter(Function.uid == hash_key)
+
+        if foo_spec:
+            query = query.filter(Function.foo_spec.has(data=foo_spec))
 
         if since or until:
             since = since or datetime.min

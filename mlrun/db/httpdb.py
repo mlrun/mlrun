@@ -910,6 +910,108 @@ class HTTPRunDB(RunDBInterface):
         responses = self.paginated_api_call("GET", _path, error, params=params)
         return RunList(self.process_paginated_responses(responses, "runs"))
 
+    def list_completed_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, list[str]]] = None,
+        project: Optional[str] = None,
+        sort: bool = True,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> RunList:
+        """
+        Retrieve a list of completed runs, filtered by various options.
+
+        Example::
+
+            runs = db.list_completed_runs(
+                name="download",
+                project="iris",
+            )
+            # If running in Jupyter, can use the .show() function to display the results
+            db.list_completed_runs(name="", project=project_name).show()
+
+
+        :param name: Name of the run to retrieve.
+        :param uid: Unique ID of the run, or a list of run UIDs.
+        :param project: Project that the runs belongs to.
+        :param sort: Whether to sort the result according to their start time. Otherwise, results will be
+            returned by their internal order in the DB (order will not be guaranteed).
+        :param last: Deprecated - currently not used (will be removed in 1.8.0).
+        :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
+        :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
+        :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
+            last_update_time_to)``.
+        :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
+            the `partition_sort_by` parameter must be provided as well.
+        :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
+            to return per group. Default value is 1.
+        :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
+            Currently, the only allowed values are `created` and `updated`.
+        :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
+            limit.
+        :param with_notifications: Return runs with notifications, and join them to the response. Default is `False`.
+        """
+
+        project = project or config.default_project
+        if with_notifications:
+            logger.warning(
+                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
+                "using the `with_notifications` flag."
+            )
+
+        if (
+            not name
+            and not uid
+            and not start_time_from
+            and not start_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
+        params = {
+            "name": name,
+            "uid": uid,
+            "sort": bool2str(sort),
+            "iter": bool2str(iter),
+            "start_time_from": datetime_to_iso(start_time_from),
+            "start_time_to": datetime_to_iso(start_time_to),
+            "with-notifications": with_notifications,
+        }
+
+        if partition_by:
+            params.update(
+                self._generate_partition_by_params(
+                    mlrun.common.schemas.RunPartitionByField,
+                    partition_by,
+                    rows_per_partition,
+                    partition_sort_by,
+                    partition_order,
+                    max_partitions,
+                )
+            )
+        error = "list completed runs"
+        _path = self._path_of("completed_runs", project)
+        responses = self.paginated_api_call("GET", _path, error, params=params)
+        return RunList(self.process_paginated_responses(responses, "runs"))
+
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
         """Delete a group of runs identified by the parameters of the function.
 
@@ -1278,6 +1380,31 @@ class HTTPRunDB(RunDBInterface):
         }
         error = "list functions"
         path = f"projects/{project}/functions"
+        responses = self.paginated_api_call("GET", path, error, params=params)
+        return self.process_paginated_responses(responses, "funcs")
+
+    def list_functions_by_foo_spec(
+        self, foo_spec=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
+        """Retrieve a list of functions, filtered by their foo spec.
+
+        :param foo_spec: Return only functions with a specific foo spec.
+        :param project: Return functions belonging to this project. If not specified, the default project is used.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
+        :param labels: Return functions that have specific labels assigned to them.
+        :param since: Return functions updated after this date (as datetime object).
+        :param until: Return functions updated before this date (as datetime object).
+        :returns: List of function objects (as dictionary).
+        """
+        project = project or config.default_project
+        params = {
+            "tag": tag,
+            "label": labels or [],
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
+        }
+        error = "list functions"
+        path = f"projects/{project}/functions/by_foo_spec/{foo_spec}"
         responses = self.paginated_api_call("GET", path, error, params=params)
         return self.process_paginated_responses(responses, "funcs")
 

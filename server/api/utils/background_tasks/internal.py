@@ -62,7 +62,13 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 f"Background task of kind '{kind}' already running"
             )
 
-        background_task = self._generate_background_task(name, kind, timeout)
+        project_name = None
+        if project := kwargs.get("project", None):
+            project_name = project.metadata.name
+
+        background_task = self._generate_background_task(
+            name, kind, timeout, project_name=project_name
+        )
         self._internal_background_tasks[name] = background_task
         self._set_active_task_name_by_kind(kind, name)
         task = functools.partial(
@@ -220,14 +226,14 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _generate_background_task(
-        name: str, kind: str, timeout: typing.Optional[int] = None
+        name: str,
+        kind: str,
+        timeout: typing.Optional[int] = None,
+        project_name: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
         metadata = mlrun.common.schemas.BackgroundTaskMetadata(
-            name=name,
-            kind=kind,
-            created=now,
-            updated=now,
+            name=name, kind=kind, created=now, updated=now, project=project_name
         )
         if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             metadata.timeout = int(timeout)

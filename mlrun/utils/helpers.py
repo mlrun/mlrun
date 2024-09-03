@@ -1701,11 +1701,21 @@ def validate_component_version_compatibility(
             )
         return True
 
+    # Feature might have been back-ported e.g. nuclio node selection is supported from
+    # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
+    # then against 1.5.x
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
-        if parsed_current_version < parsed_min_version:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
             return False
-    return True
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
 
 
 def format_alert_summary(

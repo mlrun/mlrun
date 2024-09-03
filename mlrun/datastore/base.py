@@ -161,6 +161,7 @@ class DataStore:
         mode = "a" if append else "w"
         if isinstance(data, bytearray):
             data = bytes(data)
+
         if isinstance(data, bytes):
             return data, f"{mode}b"
         elif isinstance(data, str):

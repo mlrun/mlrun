@@ -101,6 +101,3 @@ artifact_uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?
 artifact_producer_uri_pattern = (
     r"^((?P<project>.*)/)?(?P<uid>.*?)(\-(?P<iteration>.*?))?$"
 )
-
-k8s_label_prefix_pattern = r"^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$"
-k8s_label_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9\.\-_]{0,61}[a-zA-Z0-9])?$"

@@ -21,6 +21,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
+import mlrun.k8s_utils
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
 import mlrun.projects.operations
@@ -233,7 +234,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project_node_selector, run.spec.node_selector
             )
             # Validate node selectors before enrichment
-            mlrun.utils.validate_node_selectors(resolved_node_selectors)
+            mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
             run.spec.node_selector = resolved_node_selectors
         return run
 

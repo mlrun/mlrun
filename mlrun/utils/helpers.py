@@ -245,13 +245,14 @@ def validate_tag_name(
     if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
     otherwise, it returns False
     """
-    return mlrun.utils.helpers.verify_field_regex(
+    is_verified, _ = mlrun.utils.helpers.verify_field_regex(
         field_name,
         tag_name,
         mlrun.utils.regex.tag_name,
         raise_on_failure=raise_on_failure,
         log_message="Special characters are not permitted in tag names",
     )
+    return is_verified
 
 
 def validate_artifact_key_name(
@@ -1716,91 +1717,6 @@ def validate_single_def_handler(function_kind: str, code: str):
                 "The code file contains a function named “handler“, which is reserved. "
                 + "Use a different name for your function."
             )
-
-
-def validate_node_selectors(
-    node_selectors: dict[str, str], raise_on_error: bool = True
-) -> bool:
-    """
-    Ensures that user-defined node selectors adhere to Kubernetes label standards:
-    - Validates that each key conforms to Kubernetes naming conventions, with specific rules for name and prefix.
-    - Ensures values comply with Kubernetes label value rules.
-    - If raise_on_error is True, raises errors for invalid selectors.
-    - If raise_on_error is False, logs warnings for invalid selectors.
-    """
-    # Define regex patterns
-    label_pattern = re.compile(mlrun.utils.regex.k8s_label_pattern)
-    prefix_pattern = re.compile(mlrun.utils.regex.k8s_label_prefix_pattern)
-
-    # Helper function for handling errors or warnings
-    def handle_invalid(message):
-        if raise_on_error:
-            raise mlrun.errors.MLRunInvalidArgumentError(message)
-        else:
-            warnings.warn(
-                f"{message} \nFor your current SDK version, "
-                f"the node selector you've set does not comply with the validation rules. "
-                f"Check our documentation for the latest validation updates. "
-                f"If there's a newer validation standard, consider upgrading. "
-                f"Be aware that your function executions may fail if the node selector remains invalid."
-            )
-
-    node_selectors = node_selectors or {}
-    for key, value in node_selectors.items():
-        # Split key into prefix and name if applicable
-        prefix, name = key.split("/", 1) if "/" in key else ("", key)
-
-        # Validation rules
-        rules = [
-            {
-                "item": name,
-                "pattern": label_pattern,
-                "error_message": (
-                    f"Invalid Kubernetes name '{name}' in key '{key}' in the node selector field. "
-                    "Name must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                    "be up to 63 characters long, and may contain '-', '_', and '.'."
-                ),
-            },
-        ]
-        if value != "":
-            rules.append(
-                {
-                    "item": value,
-                    "pattern": label_pattern,
-                    "error_message": (
-                        f"Invalid Kubernetes value '{value}' for key '{key}' in the node selector field. "
-                        "Value must start and end with an alphanumeric character (a–z, A–Z, 0–9), "
-                        "be up to 63 characters long, and may contain '-', '_', and '.'."
-                    ),
-                }
-            )
-
-        # Add prefix rule only if prefix exists
-        if prefix:
-            rules.append(
-                {
-                    "item": prefix,
-                    "pattern": prefix_pattern,
-                    "error_message": (
-                        f"Invalid Kubernetes prefix '{prefix}' in key '{key}' in the node selector field. "
-                        "Prefix must start and end with a lowercase alphanumeric character (a–z, 0–9), "
-                        "be up to 253 characters long, and may contain '-', and '.'."
-                    ),
-                }
-            )
-
-        # Apply validation rules
-        for rule in rules:
-            item = rule["item"]
-            pattern = rule["pattern"]
-            error_message = rule["error_message"]
-
-            if not pattern.match(item):
-                # An error or warning is raised by handle_invalid due to validation failure.
-                # Returning False indicates validation failed, allowing us to exit the function.
-                handle_invalid(error_message)
-                return False
-        return True
 
 
 def _reload(module, max_recursion_depth):

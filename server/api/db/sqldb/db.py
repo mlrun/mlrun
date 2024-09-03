@@ -49,6 +49,7 @@ from mlrun.common.schemas.feature_store import (
 )
 from mlrun.config import config
 from mlrun.errors import err_to_str
+from mlrun.k8s_utils import validate_node_selectors
 from mlrun.lists import ArtifactList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
@@ -1742,7 +1743,7 @@ class SQLDB(DBInterface):
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
         if function_node_selector := get_in(function, "spec.node_selector"):
-            mlrun.utils.validate_node_selectors(function_node_selector)
+            validate_node_selectors(function_node_selector)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(

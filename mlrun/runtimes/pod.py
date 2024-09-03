@@ -38,6 +38,7 @@ from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
+    validate_node_selectors,
 )
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
@@ -1175,9 +1176,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:
-            mlrun.utils.validate_node_selectors(
-                node_selectors=node_selector, raise_on_error=False
-            )
+            validate_node_selectors(node_selectors=node_selector, raise_on_error=False)
             self.spec.node_selector = node_selector
         if affinity is not None:
             self.spec.affinity = affinity

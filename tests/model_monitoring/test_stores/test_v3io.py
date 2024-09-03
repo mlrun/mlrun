@@ -213,6 +213,7 @@ def kv_client_mock() -> v3io.dataplane.kv.Model:
 def mocked_client_store(
     store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model
 ) -> KVStoreBase:
+    store.init()
     store.client.kv = kv_client_mock
     return store
 

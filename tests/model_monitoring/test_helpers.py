@@ -153,8 +153,9 @@ def generate_sample_data(
 def test_calculate_input_statistics(
     feature_stats: FeatureStats,
 ) -> None:
-    """In the following test we will generate a sample data and calculate the input statistics based on the feature statistics.
-    In addition, we will add a string feature to the sample data and check that it was removed from the input statistics."""
+    """In the following test we will generate a sample data and calculate the input statistics based on the feature
+    statistics. In addition, we will add a string feature to the sample data and check that it was removed from the
+    input statistics."""
 
     current_stats = generate_sample_data(feature_stats)
 

@@ -137,9 +137,7 @@ testdata_iris_dict_error = (
 testdata_2 = '{"inputs": [5, 5]}'
 
 
-def _log_model(
-    project,
-):
+def _log_model(project):
     iris = load_iris()
     iris_dataset = pd.DataFrame(data=iris.data, columns=iris.feature_names)
     iris_labels = pd.DataFrame(data=iris.target, columns=["label"])

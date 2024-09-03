@@ -753,7 +753,7 @@ class RemoteRuntime(KubeResource):
             return state, text, last_log_timestamp
 
         try:
-            text, last_log_timestamp = self._get_db().get_builder_status(
+            text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except mlrun.db.RunDBError:
@@ -1004,7 +1004,7 @@ class RemoteRuntime(KubeResource):
         if command and not command.startswith("http"):
             sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
-        if args and sidecar["command"]:
+        if args and sidecar.get("command"):
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
         # populate the sidecar resources from the function spec

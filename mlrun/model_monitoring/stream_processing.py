@@ -50,7 +50,7 @@ class EventStreamProcessor:
         parquet_target: str,
         sample_window: int = 10,
         aggregate_windows: typing.Optional[list[str]] = None,
-        aggregate_period: str = "30s",
+        aggregate_period: str = "5m",
         model_monitoring_access_key: str = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph

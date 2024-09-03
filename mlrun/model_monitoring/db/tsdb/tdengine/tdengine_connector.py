@@ -175,7 +175,8 @@ class TDEngineConnector(TSDBConnector):
                     mm_schemas.EventFieldType.PROJECT,
                     mm_schemas.EventFieldType.ENDPOINT_ID,
                 ],
-                max_events=10,
+                max_events=1000,
+                flush_after_seconds=30,
             )
 
         apply_process_before_tsdb()

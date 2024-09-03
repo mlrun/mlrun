@@ -161,8 +161,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def apply_monitoring_stream_steps(
         self,
         graph,
-        tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 300,
+        tsdb_batching_max_events: int = 1000,
+        tsdb_batching_timeout_secs: int = 30,
     ):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -273,8 +273,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def handle_model_error(
         self,
         graph,
-        tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 60,
+        tsdb_batching_max_events: int = 1000,
+        tsdb_batching_timeout_secs: int = 30,
         **kwargs,
     ) -> None:
         graph.add_step(

@@ -154,6 +154,7 @@ class GraphServer(ModelObj):
         resource_cache: ResourceCache = None,
         logger=None,
         is_mock=False,
+        monitoring_mock=False,
     ):
         """for internal use, initialize all steps (recursively)"""
 
@@ -166,6 +167,7 @@ class GraphServer(ModelObj):
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
         context.is_mock = is_mock
+        context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
         context.stream = _StreamContext(

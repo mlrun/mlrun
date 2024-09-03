@@ -517,7 +517,10 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+        )
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         # TODO : adjust for ce scenario
@@ -569,6 +572,10 @@ class ModelEndpoints:
             stream_paths=stream_paths,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        logger.debug(
+            "Successfully deleted model monitoring endpoints resources",
+            project_name=project_name,
+        )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -590,7 +597,10 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-
+        logger.debug(
+            "Deleting model monitoring stream resources",
+            project_name=project_name,
+        )
         if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
             try:
@@ -622,6 +632,10 @@ class ModelEndpoints:
                 project=project_name,
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
+            )
+            logger.debug(
+                "Successfully deleted model monitoring stream resources",
+                project_name=project_name,
             )
         except mlrun.errors.MLRunStreamConnectionFailureError as e:
             logger.warning(

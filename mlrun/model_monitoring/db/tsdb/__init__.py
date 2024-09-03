@@ -66,7 +66,6 @@ def get_tsdb_connector(
     project: str,
     secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
     tsdb_connection_string: typing.Optional[str] = None,
-    initialize: bool = True,
     **kwargs,
 ) -> TSDBConnector:
     """
@@ -74,7 +73,6 @@ def get_tsdb_connector(
     :param project:                 The name of the project.
     :param secret_provider:         An optional secret provider to get the connection string secret.
     :param tsdb_connection_string:  An optional explicit connection string to the TSDB.
-    :param initialize:              Whether to initialize the connection to the database.
 
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
@@ -105,6 +103,4 @@ def get_tsdb_connector(
 
     # Convert into TSDB connector object
     tsdb_connector = tsdb_connector_factory.to_tsdb_connector(project=project, **kwargs)
-    if initialize:
-        tsdb_connector.init()
     return tsdb_connector

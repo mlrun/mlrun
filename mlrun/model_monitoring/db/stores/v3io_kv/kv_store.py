@@ -100,14 +100,17 @@ class KVStoreBase(StoreBase):
         project: str,
     ) -> None:
         super().__init__(project=project)
-        self.client = None
+        self._client = None
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
 
-    def init(self):
-        self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-        )
+    @property
+    def client(self):
+        if not self._client:
+            self._client = mlrun.utils.v3io_clients.get_v3io_client(
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+        return self._client
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """

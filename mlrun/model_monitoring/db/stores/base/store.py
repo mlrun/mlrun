@@ -32,10 +32,6 @@ class StoreBase(ABC):
         """
         self.project = project
 
-    def init(self):
-        """Establish connection to database"""
-        pass
-
     @abstractmethod
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """

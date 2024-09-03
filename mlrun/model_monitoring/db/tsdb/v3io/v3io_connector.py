@@ -64,16 +64,17 @@ class V3IOTSDBConnector(TSDBConnector):
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
-        self._frames_client = None
+        self._frames_client: Optional[v3io_frames.client.ClientBase] = None
         self._init_tables_path()
         self._create_table = create_table
 
-    def init(self):
-        self._frames_client: v3io_frames.client.ClientBase = (
-            self._get_v3io_frames_client(self.container)
-        )
-        if self._create_table:
-            self.create_tables()
+    @property
+    def frames_client(self):
+        if not self._frames_client:
+            self._frames_client = self._get_v3io_frames_client(self.container)
+            if self._create_table:
+                self.create_tables()
+        return self._frames_client
 
     def _init_tables_path(self):
         self.tables = {}
@@ -153,7 +154,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_name in application_tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
             table = self.tables[table_name]
-            self._frames_client.create(
+            self.frames_client.create(
                 backend=_TSDB_BE,
                 table=table,
                 if_exists=v3io_frames.IGNORE,
@@ -335,7 +336,7 @@ class V3IOTSDBConnector(TSDBConnector):
             raise ValueError(f"Invalid {kind = }")
 
         try:
-            self._frames_client.write(
+            self.frames_client.write(
                 backend=_TSDB_BE,
                 table=table,
                 dfs=pd.DataFrame.from_records([event]),
@@ -362,7 +363,7 @@ class V3IOTSDBConnector(TSDBConnector):
             tables = mm_schemas.V3IOTSDBTables.list()
         for table_to_delete in tables:
             try:
-                self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
+                self.frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
             except v3io_frames.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
@@ -478,7 +479,7 @@ class V3IOTSDBConnector(TSDBConnector):
         aggregators = ",".join(agg_funcs) if agg_funcs else None
         table_path = self.tables[table]
         try:
-            df = self._frames_client.read(
+            df = self.frames_client.read(
                 backend=_TSDB_BE,
                 table=table_path,
                 start=start,
@@ -581,7 +582,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         logger.debug("Querying V3IO TSDB", query=query)
 
-        df: pd.DataFrame = self._frames_client.read(
+        df: pd.DataFrame = self.frames_client.read(
             backend=_TSDB_BE,
             start=start,
             end=end,

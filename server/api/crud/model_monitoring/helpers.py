@@ -128,11 +128,9 @@ def get_stream_path(
 
 def get_store_object(project: str) -> mlrun.model_monitoring.db.stores.StoreBase:
     """Handle the get store object function for the server side, using the project secret provider."""
-    model_endpoint_store = mlrun.model_monitoring.get_store_object(
+    return mlrun.model_monitoring.get_store_object(
         project=project,
         secret_provider=server.api.crud.secrets.get_project_secret_provider(
             project=project
         ),
     )
-    model_endpoint_store.init()
-    return model_endpoint_store

@@ -213,7 +213,6 @@ def kv_client_mock() -> v3io.dataplane.kv.Model:
 def mocked_client_store(
     store: KVStoreBase, kv_client_mock: v3io.dataplane.kv.Model
 ) -> KVStoreBase:
-    store.init()
     store.client.kv = kv_client_mock
     return store
 
@@ -321,7 +320,6 @@ class TestGetModelEndpointMetrics:
     def store(cls, monkeypatch: pytest.MonkeyPatch) -> KVStoreBase:
         monkeypatch.setenv("V3IO_ACCESS_KEY", "secret-value")
         store = KVStoreBase(project=cls.PROJECT)
-        store.init()
         monkeypatch.setattr(store.client.kv, "scan", cls.scan_mock)
         return store
 
@@ -514,7 +512,6 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
     tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
-    tsdb_connector.init()
     data = tsdb_connector.read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
@@ -565,7 +562,6 @@ def test_read_predictions() -> None:
             str(err.value)
             == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
         )
-    tsdb_connector.init()
     predictions_args["agg_funcs"] = ["count"]
     result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"

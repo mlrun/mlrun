@@ -253,6 +253,32 @@ def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
     assert api_gateway.metadata.annotations[ssl_redirect_annotation] == "true"
 
 
+def test_application_api_gateway_timeout_annotations(rundb_mock):
+    function: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    gateway_timeout = 50
+    function.deploy(create_default_api_gateway=False)
+    function.create_api_gateway(
+        name="my-gateway", gateway_timeout=gateway_timeout, set_as_default=True
+    )
+
+    annotations = [
+        "nginx.ingress.kubernetes.io/proxy-connect-timeout",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout",
+    ]
+    api_gateway = function.status.api_gateway
+    assert api_gateway is not None
+    for annotation in annotations:
+        annotation_value = api_gateway.metadata.annotations.get(annotation)
+        assert annotation_value == str(gateway_timeout)
+        assert int(annotation_value) == gateway_timeout
+
+
 def test_application_runtime_resources(rundb_mock, igz_version_mock):
     image = "my/web-app:latest"
     app_name = "application-test"

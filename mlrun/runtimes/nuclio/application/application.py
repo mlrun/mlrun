@@ -470,15 +470,13 @@ class ApplicationRuntime(RemoteRuntime):
             )
 
         ports = self.spec.internal_application_port if direct_port_access else []
-        annotations = self.metadata.annotations.copy()
-        self._enrich_gateway_timeout_annotations(annotations, gateway_timeout)
 
         api_gateway = APIGateway(
             APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
-                labels=self.metadata.labels,
-                annotations=annotations,
+                labels=self.metadata.labels.copy(),
+                annotations=self.metadata.annotations.copy(),
             ),
             APIGatewaySpec(
                 functions=[self],
@@ -488,6 +486,7 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        api_gateway.with_gateway_timeout(gateway_timeout)
         if ssl_redirect is None:
             ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
         if ssl_redirect:

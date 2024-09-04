@@ -132,6 +132,10 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        labels = self._merge_schedule_and_schedule_object_labels(
+            labels=labels,
+            scheduled_object=scheduled_object,
+        )
         labels = self._enrich_schedule(
             auth_info, kind, labels, name, project, scheduled_object
         )
@@ -206,10 +210,19 @@ class Scheduler:
 
         db_schedule = get_db().get_schedule(db_session, project, name)
 
+        # merge schedule's labels and scheduled object's labels for object from db
+        db_labels = self._merge_schedule_and_schedule_object_labels(
+            db_schedule.labels, db_schedule.scheduled_object
+        )
+        # merge schedule's labels and scheduled object's labels for passed values
+        labels = self._merge_schedule_and_schedule_object_labels(
+            labels, scheduled_object
+        )
+
         # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
         # if labels are {} then we do want to overwrite them
         if labels is None:
-            labels = {label.name: label.value for label in db_schedule.labels}
+            labels = {label.name: label.value for label in db_labels}
 
         labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
@@ -943,6 +956,31 @@ class Scheduler:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
         return labels
+
+    @staticmethod
+    def _merge_schedule_and_schedule_object_labels(labels, scheduled_object):
+        """
+        Merges the labels of the scheduled object, giving precedence to the scheduled object labels
+        :param labels (dict): the labels of a schedule
+        :param scheduled_object (dict): the labels of a scheduled object
+
+        :return: merged labels
+        """
+        scheduled_object_labels = (
+            scheduled_object.get("task", {}).get("metadata", {}).get("labels")
+        )
+        if scheduled_object_labels == {} and not labels:
+            return {}
+        if not labels:
+            return scheduled_object_labels
+
+        if not scheduled_object_labels:
+            scheduled_object_labels = {}
+        updated_labels = {**labels, **scheduled_object_labels}
+        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
+            updated_labels
+        )
+        return updated_labels
 
     @staticmethod
     def _remove_schedule_notification_secrets(

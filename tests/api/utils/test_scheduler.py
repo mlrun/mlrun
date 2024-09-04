@@ -1640,3 +1640,53 @@ def _get_start_and_end_time_for_scheduled_trigger(
     start_date = now + timedelta(seconds=1)
     end_date = now + timedelta(seconds=1 + number_of_jobs * seconds_interval)
     return start_date, end_date
+
+
+@pytest.mark.parametrize(
+    "labels, scheduled_object, expected",
+    [
+        (
+            {"key1": "value1", "key2": "value2"},
+            {
+                "task": {
+                    "metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}
+                }
+            },
+            {"key1": "value1", "key2": "new_value2", "key3": "value3"},
+        ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+        (
+            {},
+            {"task": {"metadata": {"labels": {"key1": "value1"}}}},
+            {"key1": "value1"},
+        ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": None}}},
+            {"key1": "value1"},
+        ),
+        (
+            {},
+            {"task": {"metadata": {"labels": None}}},
+            None,
+        ),
+        (
+            None,
+            {"task": {"metadata": {"labels": None}}},
+            None,
+        ),
+    ],
+)
+def test_merge_schedule_and_schedule_object_labels(
+    scheduler, labels, scheduled_object, expected
+):
+    result = scheduler._merge_schedule_and_schedule_object_labels(
+        labels,
+        scheduled_object,
+    )
+    assert result == expected
+    assert scheduled_object["task"]["metadata"]["labels"] == expected

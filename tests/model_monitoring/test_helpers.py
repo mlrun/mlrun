@@ -157,22 +157,22 @@ def test_calculate_input_statistics(
     statistics. In addition, we will add a string feature to the sample data and check that it was removed from the
     input statistics."""
 
-    current_stats = generate_sample_data(feature_stats)
+    input_data = generate_sample_data(feature_stats)
 
-    # add string feature to current_stats
-    current_stats["str_feat"] = "blabla"
-    inputs_stats = mlrun.model_monitoring.helpers.calculate_inputs_statistics(
+    # add string feature to input data
+    input_data["str_feat"] = "blabla"
+    current_stats = mlrun.model_monitoring.helpers.calculate_inputs_statistics(
         sample_set_statistics=feature_stats,
-        inputs=current_stats,
+        inputs=input_data,
     )
     # check that the string feature was removed
-    assert "str_feat" not in inputs_stats.keys()
+    assert "str_feat" not in current_stats.keys()
 
-    # check that the input_stats have the same keys as the feature_stats
-    assert inputs_stats.keys() == feature_stats.keys()
+    # check that the current_stats have the same keys as the feature_stats
+    assert current_stats.keys() == feature_stats.keys()
 
     # validate the expected keys in a certain feature statistics
-    feature_statistics = inputs_stats[next(iter(feature_stats))]
+    feature_statistics = current_stats[next(iter(feature_stats))]
     assert list(feature_statistics.keys()) == [
         "count",
         "mean",

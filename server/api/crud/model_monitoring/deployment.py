@@ -983,7 +983,7 @@ class MonitoringDeployment:
                 except Exception as exc:
                     # Raise an error that will be caught by the caller and skip the deletion of the stream
                     raise mlrun.errors.MLRunStreamConnectionFailure(
-                        f"Failed to delete v3io stream {stream_path}, {mlrun.errors.err_to_str(exc)}"
+                        f"Failed to delete v3io stream {stream_path}"
                     ) from exc
         elif stream_paths[0].startswith("kafka://"):
             # Delete Kafka topics
@@ -1009,7 +1009,7 @@ class MonitoringDeployment:
             except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
                 raise mlrun.errors.MLRunStreamConnectionFailure(
-                    f"Failed to delete kafka topics {topics}, {mlrun.errors.err_to_str(exc)}"
+                    "Failed to delete kafka topics"
                 ) from exc
         else:
             logger.warning(

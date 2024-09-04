@@ -299,7 +299,7 @@ def test_get_project_background_task_not_exists(
 def test_get_internal_background_task_auth(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
-    server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock()
     )
     response = client.post("/test/internal-background-tasks?project=my-proj")
@@ -310,7 +310,7 @@ def test_get_internal_background_task_auth(
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
         == 1
     )
 
@@ -321,7 +321,7 @@ def test_get_internal_background_task_auth(
     response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
         == 1
     )
 

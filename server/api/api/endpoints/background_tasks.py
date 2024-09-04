@@ -202,8 +202,7 @@ async def _authorize_get_background_task_request(
     # Iguazio manifest doesn't support the global background task resource yet - therefore if the background task has a
     # project (e.g. delete project), we can authorize on the project
     if background_task.metadata.project:
-        return await server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.project,
+        return await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             background_task.metadata.project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,

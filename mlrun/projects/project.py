@@ -3041,7 +3041,7 @@ class MlrunProject(ModelObj):
             )
 
         if not schedule or engine not in ["remote"]:
-            # For remote/schedule runs we don't require the functions to be synced as they can be loaded dynamically
+            # For remote/scheduled runs we don't require the functions to be synced as they can be loaded dynamically
             # during run
             self.sync_functions(always=sync)
             if not self.spec._function_objects:

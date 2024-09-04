@@ -1679,6 +1679,11 @@ def _get_start_and_end_time_for_scheduled_trigger(
             {"task": {"metadata": {"labels": None}}},
             None,
         ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
     ],
 )
 def test_merge_schedule_and_schedule_object_labels(

@@ -126,6 +126,7 @@ class RedisStore(DataStore):
 
     def put(self, key, data, append=False):
         key = RedisStore.build_redis_key(key)
+        data, _ = self._prepare_put_data(data, append)
         if append:
             self.redis.append(key, data)
         else:

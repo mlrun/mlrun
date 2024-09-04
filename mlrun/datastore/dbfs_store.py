@@ -130,11 +130,7 @@ class DBFSStore(DataStore):
                 "Append mode not supported for Databricks file system"
             )
         #  can not use append mode because it overrides data.
-        mode = "w"
-        if isinstance(data, bytes):
-            mode += "b"
-        elif not isinstance(data, str):
-            raise TypeError(f"Unknown data type {type(data)}")
+        data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(key, mode) as f:
             f.write(data)
 

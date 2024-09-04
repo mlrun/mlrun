@@ -169,10 +169,18 @@ class Alerts(
 
                 if alert.criteria.period is not None:
                     # adjust the sliding window of events
+                    # in case the EventEntityKind is JOB then we should consider the runs monitoring interval here
+                    # because the monitoring runs might miss events occurring just before the interval.
+                    offset = 0
+                    if (
+                        alert.entities.kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB
+                    ):
+                        offset = int(mlconfig.monitoring.runs.interval)
                     self._normalize_events(
                         state_obj,
                         server.api.utils.helpers.string_to_timedelta(
-                            alert.criteria.period, raise_on_error=False
+                            alert.criteria.period, offset, raise_on_error=False
                         ),
                     )
 

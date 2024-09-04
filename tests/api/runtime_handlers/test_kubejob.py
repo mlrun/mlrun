@@ -378,7 +378,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler, expected_number_of_list_pods_calls
         )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.error,
+            expected_status_attrs={
+                "reason": "Some reason",
+                "status_text": "Failed message",
+            },
+        )
 
     @pytest.mark.asyncio
     async def test_monitor_run_debouncing_non_terminal_state(

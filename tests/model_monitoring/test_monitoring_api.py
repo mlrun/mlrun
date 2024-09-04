@@ -22,7 +22,7 @@ import mlrun.model_monitoring.api
 from mlrun.db import RunDBInterface
 from mlrun.model_monitoring import ModelEndpoint
 
-from .assets.application import DemoMonitoringAppV2
+from .assets.application import DemoMonitoringApp
 
 
 def test_read_dataset_as_dataframe():
@@ -77,7 +77,7 @@ def test_record_result_updates_last_request() -> None:
     [
         {
             "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
-            "application_class": DemoMonitoringAppV2(param_1=1, param_2=2),
+            "application_class": DemoMonitoringApp(param_1=1, param_2=2),
         },
         {
             "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),

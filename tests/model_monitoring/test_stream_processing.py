@@ -22,6 +22,7 @@ from mlrun.model_monitoring.stream_processing import EventStreamProcessor
 @pytest.mark.parametrize("endpoint_store", ["v3io", "mysql"])
 def test_plot_monitoring_serving_graph(tsdb_connector, endpoint_store):
     project_name = "test-stream-processing"
+    project = mlrun.get_or_create_project(project_name)
 
     processor = EventStreamProcessor(
         project_name,
@@ -30,7 +31,7 @@ def test_plot_monitoring_serving_graph(tsdb_connector, endpoint_store):
         "mytarget",
     )
 
-    fn = mlrun.new_function(
+    fn = project.set_function(
         kind="serving",
         name="my-fn",
     )

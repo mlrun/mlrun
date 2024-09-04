@@ -395,7 +395,7 @@ def v2_serving_handler(context, event, get_body=False):
     # workaround for NUC-178
     # nuclio 1.12.12 added the topic attribute, and we must use it as part of the fix for NUC-233
     # TODO: Remove fallback on event.path once support for nuclio<1.12.12 is dropped
-    event.stream_path = getattr(event, "topic", None) or event.path
+    event.stream_path = getattr(event, "topic", event.path)
     if hasattr(event, "trigger") and event.trigger.kind in (
         "kafka",
         "kafka-cluster",

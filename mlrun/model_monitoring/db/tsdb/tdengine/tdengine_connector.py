@@ -52,12 +52,12 @@ class TDEngineConnector(TSDBConnector):
         self._init_super_tables()
 
     @property
-    def connection(self):
+    def connection(self) -> taosws.Connection:
         if not self._connection:
             self._connection = self._create_connection()
         return self._connection
 
-    def _create_connection(self):
+    def _create_connection(self) -> taosws.Connection:
         """Establish a connection to the TSDB server."""
         conn = taosws.connect(self._tdengine_connection_string)
         try:

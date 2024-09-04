@@ -20,7 +20,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
@@ -65,7 +65,7 @@ class SQLStoreBase(StoreBase):
         self._init_tables()
 
     @property
-    def engine(self):
+    def engine(self) -> Engine:
         if not self._engine:
             self._engine = get_engine(dsn=self._sql_connection_string)
         return self._engine

@@ -402,8 +402,6 @@ class MonitoringDeployment:
             store_object,
         )
 
-        tsdb_connector.create_tables()
-
         # Set the project to the serving function
         function.metadata.project = self.project
 

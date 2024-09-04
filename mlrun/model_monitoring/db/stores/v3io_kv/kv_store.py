@@ -20,6 +20,7 @@ from http import HTTPStatus
 import v3io.dataplane
 import v3io.dataplane.output
 import v3io.dataplane.response
+from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -105,7 +106,7 @@ class KVStoreBase(StoreBase):
         self.path, self.container = self._get_path_and_container()
 
     @property
-    def client(self):
+    def client(self) -> V3IOClient:
         if not self._client:
             self._client = mlrun.utils.v3io_clients.get_v3io_client(
                 endpoint=mlrun.mlconf.v3io_api,

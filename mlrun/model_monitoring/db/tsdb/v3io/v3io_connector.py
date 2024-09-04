@@ -69,7 +69,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self._create_table = create_table
 
     @property
-    def frames_client(self):
+    def frames_client(self) -> v3io_frames.client.ClientBase:
         if not self._frames_client:
             self._frames_client = self._get_v3io_frames_client(self.container)
             if self._create_table:

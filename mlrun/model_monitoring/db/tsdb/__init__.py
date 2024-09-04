@@ -102,5 +102,4 @@ def get_tsdb_connector(
     tsdb_connector_factory = ObjectTSDBFactory(tsdb_connector_type)
 
     # Convert into TSDB connector object
-    tsdb_connector = tsdb_connector_factory.to_tsdb_connector(project=project, **kwargs)
-    return tsdb_connector
+    return tsdb_connector_factory.to_tsdb_connector(project=project, **kwargs)

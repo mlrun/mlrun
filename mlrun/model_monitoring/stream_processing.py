@@ -37,6 +37,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ModelEndpointTarget,
     ProjectSecretKeys,
 )
+from mlrun.model_monitoring.db import StoreBase, TSDBConnector
 from mlrun.utils import logger
 
 
@@ -133,7 +134,8 @@ class EventStreamProcessor:
     def apply_monitoring_serving_graph(
         self,
         fn: mlrun.runtimes.ServingRuntime,
-        secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+        tsdb_connector: TSDBConnector,
+        endpoint_store: StoreBase,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -161,8 +163,8 @@ class EventStreamProcessor:
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
         :param fn: A serving function.
-        :param secret_provider: An optional callable function that provides the connection string from the project
-                                secret.
+        :param tsdb_connector: Time series database connector.
+        :param store: KV/SQL store used for endpoint data.
         """
 
         graph = typing.cast(
@@ -188,10 +190,6 @@ class EventStreamProcessor:
             "ForwardError",
             after="extract_endpoint",
             _fn="(event.get('error') is not None)",
-        )
-
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
         )
 
         tsdb_connector.handle_model_error(
@@ -306,10 +304,7 @@ class EventStreamProcessor:
                 table=self.kv_path,
             )
 
-        store_object = mlrun.model_monitoring.get_store_object(
-            project=self.project, secret_provider=secret_provider
-        )
-        if store_object.type == ModelEndpointTarget.V3IO_NOSQL:
+        if endpoint_store.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
         # Emits the event in window size of events based on sample_window size (10 by default)

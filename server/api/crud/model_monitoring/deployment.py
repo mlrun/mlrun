@@ -384,12 +384,22 @@ class MonitoringDeployment:
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
 
+        secret_provider = server.api.crud.secrets.get_project_secret_provider(
+            project=self.project
+        )
+
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
             function,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=self.project
-            ),
+            tsdb_connector,
+            store_object,
         )
 
         # Set the project to the serving function
@@ -1479,10 +1489,6 @@ def get_endpoint_features(
     # Create feature object and add it to a general features list
     features = []
     for name in feature_names:
-        if feature_stats is not None and name not in feature_stats:
-            logger.warn("Feature missing from 'feature_stats'", name=name)
-        if current_stats is not None and name not in current_stats:
-            logger.warn("Feature missing from 'current_stats'", name=name)
         f = mlrun.common.schemas.Features.new(
             name, safe_feature_stats.get(name), safe_current_stats.get(name)
         )

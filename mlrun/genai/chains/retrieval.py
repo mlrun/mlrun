@@ -11,10 +11,10 @@
 # limitations under the License.
 
 import logging
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
-from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain.callbacks.base import BaseCallbackHandler
+from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 
@@ -57,7 +57,7 @@ class DocumentRetriever:
         vector_store,
         verbose: bool = False,
         chain_type: Optional[str] = None,
-        **search_kwargs
+        **search_kwargs,
     ):
         document_prompt = PromptTemplate(
             template="Content: {page_content}\nSource: {index}",
@@ -75,10 +75,12 @@ class DocumentRetriever:
         self.cb = DocumentCallbackHandler()
         self.cb.verbose = verbose
         self.verbose = verbose
-        self.chain_type = chain_type  #TODO check what this is
+        self.chain_type = chain_type  # TODO check what this is
 
     @classmethod
-    def from_config(cls, config, collection_name: Optional[str] = None, **search_kwargs):
+    def from_config(
+        cls, config, collection_name: Optional[str] = None, **search_kwargs
+    ):
         """Create a document retriever from a config object."""
         vector_db = get_vector_db(config, collection_name=collection_name)
         llm = get_llm(config)
@@ -89,7 +91,8 @@ class DocumentRetriever:
         result = self.chain({"question": query}, callbacks=[self.cb])
         sources = [s.strip() for s in result["sources"].split(",")]
         source_docs = [
-            doc for doc in result["source_documents"]
+            doc
+            for doc in result["source_documents"]
             if doc.metadata.pop("index", "") in sources
         ]
         if self.verbose:
@@ -111,12 +114,7 @@ class DocumentRetriever:
 class MultiRetriever(ChainRunner):
     """A class that manages multiple document retrievers."""
 
-    def __init__(
-        self,
-        llm=None,
-        default_collection: Optional[str] = None,
-        **kwargs
-    ):
+    def __init__(self, llm=None, default_collection: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
         self.llm = llm
         self.default_collection = default_collection
@@ -127,18 +125,24 @@ class MultiRetriever(ChainRunner):
         if not self.default_collection:
             self.default_collection = self.context._config.default_collection()
 
-    def _get_retriever(self, collection_name: Optional[str] = None) -> DocumentRetriever:
+    def _get_retriever(
+        self, collection_name: Optional[str] = None
+    ) -> DocumentRetriever:
         collection_name = collection_name or self.default_collection
         logger.debug(f"Selected collection: {collection_name}")
         if collection_name not in self._retrievers:
-            vector_db = get_vector_db(self.context._config, collection_name=collection_name)
+            vector_db = get_vector_db(
+                self.context._config, collection_name=collection_name
+            )
             retriever = DocumentRetriever(self.llm, vector_db, verbose=self.verbose)
             self._retrievers[collection_name] = retriever
         return self._retrievers[collection_name]
 
     def _run(self, event: WorkflowEvent) -> Dict[str, any]:
         """Run the multi retriever."""
-        collection_name = event.kwargs.get("collection_name")  # TODO name always in kwargs?
+        collection_name = event.kwargs.get(
+            "collection_name"
+        )  # TODO name always in kwargs?
         retriever = self._get_retriever(collection_name)
         return retriever.run(event)
 
@@ -158,7 +162,7 @@ def get_retriever_from_config(
     config,
     verbose: bool = False,
     collection_name: Optional[str] = None,
-    **search_kwargs
+    **search_kwargs,
 ) -> DocumentRetriever:
     """Create a document retriever from a config object."""
     vector_db = get_vector_db(config, collection_name=collection_name)

@@ -19,6 +19,7 @@ class SentimentAnalysisStep(ChainRunner):
     """
     Processes sentiment analysis on a given text.
     """
+
     DEFAULT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment"
 
     def __init__(self, tokenizer: str = None, model: str = None, **kwargs):
@@ -32,12 +33,17 @@ class SentimentAnalysisStep(ChainRunner):
         super().__init__(**kwargs)
         self.tokenizer = tokenizer or self.DEFAULT_MODEL
         self.model = model or self.DEFAULT_MODEL
-        self.sentiment_classifier = pipeline("sentiment-analysis", tokenizer=self.tokenizer, model=self.model)
+        self.sentiment_classifier = pipeline(
+            "sentiment-analysis", tokenizer=self.tokenizer, model=self.model
+        )
 
     def _run(self, event):
         """Run the sentiment analysis step."""
         transcription = event.query
-        sentiment = self.sentiment_classifier(transcription)  # Is a list of dictionaries (in tested examples)
-        return {"answer": sentiment[0]["label"], "sources": ""}  # TODO: Can only return string
-
-
+        sentiment = self.sentiment_classifier(
+            transcription
+        )  # Is a list of dictionaries (in tested examples)
+        return {
+            "answer": sentiment[0]["label"],
+            "sources": "",
+        }  # TODO: Can only return string

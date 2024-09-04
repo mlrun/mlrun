@@ -437,7 +437,8 @@ class ApplicationRuntime(RemoteRuntime):
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
         An application without an API gateway is not accessible.
         :param name:                    The name of the API gateway, defaults to <function-name>-<function-tag>
-        :param path:                    Optional path of the API gateway, default value is "/"
+        :param path:                    Optional path of the API gateway, default value is "/".
+            Note that given path should be supported by deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)

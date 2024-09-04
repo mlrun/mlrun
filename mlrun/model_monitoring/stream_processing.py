@@ -48,7 +48,6 @@ class EventStreamProcessor:
         parquet_batching_max_events: int,
         parquet_batching_timeout_secs: int,
         parquet_target: str,
-        sample_window: int = 10,
         aggregate_windows: typing.Optional[list[str]] = None,
         aggregate_period: str = "5m",
         model_monitoring_access_key: str = None,

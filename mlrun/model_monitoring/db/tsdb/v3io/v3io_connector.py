@@ -164,6 +164,7 @@ class V3IOTSDBConnector(TSDBConnector):
         graph,
         tsdb_batching_max_events: int = 1000,
         tsdb_batching_timeout_secs: int = 30,
+        sample_window: int = 10,
     ):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -204,7 +205,7 @@ class V3IOTSDBConnector(TSDBConnector):
             "storey.steps.SampleWindow",
             name="sample",
             after="Rename",
-            window_size=self.sample_window,
+            window_size=sample_window,
             key=EventFieldType.ENDPOINT_ID,
         )
 

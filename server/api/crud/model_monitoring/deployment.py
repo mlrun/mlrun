@@ -384,12 +384,22 @@ class MonitoringDeployment:
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
 
+        secret_provider = server.api.crud.secrets.get_project_secret_provider(
+            project=self.project
+        )
+
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
             function,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=self.project
-            ),
+            tsdb_connector,
+            store_object,
         )
 
         # Set the project to the serving function
@@ -980,12 +990,11 @@ class MonitoringDeployment:
                     logger.debug(
                         "Deleted v3io stream", project=project, stream_path=stream_path
                     )
-                except v3io.dataplane.response.HttpResponseError as e:
-                    logger.warning(
-                        "Failed to delete v3io stream",
-                        stream_path=stream_path,
-                        error=mlrun.errors.err_to_str(e),
-                    )
+                except Exception as exc:
+                    # Raise an error that will be caught by the caller and skip the deletion of the stream
+                    raise mlrun.errors.MLRunStreamConnectionFailure(
+                        f"Failed to delete v3io stream {stream_path}"
+                    ) from exc
         elif stream_paths[0].startswith("kafka://"):
             # Delete Kafka topics
             import kafka
@@ -1007,23 +1016,11 @@ class MonitoringDeployment:
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
-            except kafka.errors.TopicAuthorizationFailedError as e:
-                logger.warning(
-                    "Failed to delete kafka topics",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.UnknownTopicOrPartitionError as e:
-                logger.info(
-                    "Kafka model monitoring topics not found, probably not created",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.NoBrokersAvailable as e:
+            except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
                 raise mlrun.errors.MLRunStreamConnectionFailureError(
-                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
-                )
+                    "Failed to delete kafka topics"
+                ) from exc
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",

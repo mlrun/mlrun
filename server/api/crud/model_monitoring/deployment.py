@@ -1197,7 +1197,7 @@ class MonitoringDeployment:
         :param client_version:            The client version.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
-        :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
+        :raise MLRunInvalidMMStoreTypeError: If the user provided invalid credentials.
         """
         if not replace_creds:
             try:

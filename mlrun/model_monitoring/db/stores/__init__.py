@@ -101,7 +101,7 @@ def get_store_object(
 
     :return: `StoreBase` object. Using this object, the user can apply different operations such as write, update, get
              and delete a model endpoint record.
-    :raise: `MLRunInvalidMMStoreType` if the user didn't provide store connection
+    :raise: `MLRunInvalidMMStoreTypeError` if the user didn't provide store connection
              or the provided store connection is invalid.
     """
 

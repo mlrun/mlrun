@@ -1489,10 +1489,6 @@ def get_endpoint_features(
     # Create feature object and add it to a general features list
     features = []
     for name in feature_names:
-        if feature_stats is not None and name not in feature_stats:
-            logger.warn("Feature missing from 'feature_stats'", name=name)
-        if current_stats is not None and name not in current_stats:
-            logger.warn("Feature missing from 'current_stats'", name=name)
         f = mlrun.common.schemas.Features.new(
             name, safe_feature_stats.get(name), safe_current_stats.get(name)
         )

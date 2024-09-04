@@ -55,7 +55,6 @@ class EventStreamProcessor:
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
-        self.sample_window = sample_window
         self.aggregate_windows = aggregate_windows or ["5m", "1h"]
         self.aggregate_period = aggregate_period
 
@@ -163,7 +162,7 @@ class EventStreamProcessor:
 
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
-        :param store: KV/SQL store used for endpoint data.
+        :param endpoint_store: KV/SQL store used for endpoint data.
         """
 
         graph = typing.cast(

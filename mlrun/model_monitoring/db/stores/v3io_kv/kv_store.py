@@ -20,6 +20,7 @@ from http import HTTPStatus
 import v3io.dataplane
 import v3io.dataplane.output
 import v3io.dataplane.response
+from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -100,12 +101,17 @@ class KVStoreBase(StoreBase):
         project: str,
     ) -> None:
         super().__init__(project=project)
-        # Initialize a V3IO client instance
-        self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-        )
+        self._client = None
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
+
+    @property
+    def client(self) -> V3IOClient:
+        if not self._client:
+            self._client = mlrun.utils.v3io_clients.get_v3io_client(
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+        return self._client
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """

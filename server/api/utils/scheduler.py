@@ -978,22 +978,16 @@ class Scheduler:
         :return: The merged labels and the updated scheduled object, ensuring alignment between
                  provided and database labels
         """
-
-        # convert list[LabelRecord] to dict
-        db_schedule_labels = (
-            {label.name: label.value for label in db_schedule.labels}
-            if db_schedule
-            else {}
-        )
-
-        # merge schedule's labels and scheduled object's labels for object from db
-        db_labels = (
-            self._merge_schedule_and_schedule_object_labels(
+        db_labels = {}
+        if db_schedule:
+            # convert list[LabelRecord] to dict
+            db_schedule_labels = {
+                label.name: label.value for label in db_schedule.labels
+            }
+            # merge schedule's labels and scheduled object's labels for object from db
+            db_labels = self._merge_schedule_and_schedule_object_labels(
                 db_schedule_labels, db_schedule.scheduled_object
             )
-            if db_schedule
-            else {}
-        )
 
         # merge schedule's labels and scheduled object's labels for passed values
         labels = self._merge_schedule_and_schedule_object_labels(
@@ -1002,7 +996,7 @@ class Scheduler:
 
         # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
         # if labels are {} then we do want to overwrite them
-        if labels is None:
+        if labels is None and db_schedule:
             labels = db_labels
             # ensure that labels value in db are aligned (for cases when we upgrade from version, where they weren't)
             scheduled_object = db_schedule.scheduled_object
@@ -1010,7 +1004,7 @@ class Scheduler:
 
         # If schedule object isn't passed,
         # Ensure that schedule_object has the same value as schedule.labels
-        if scheduled_object is None:
+        if scheduled_object is None and db_schedule:
             scheduled_object = db_schedule.scheduled_object
             self._set_scheduled_object_labels(scheduled_object, labels)
 

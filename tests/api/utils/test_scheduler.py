@@ -1537,7 +1537,7 @@ def test_merge_schedule_and_schedule_object_labels(
 
 
 @pytest.mark.parametrize(
-    "labels, scheduled_object, db_schedule_labels, db_task_labels, expected",
+    "labels, scheduled_object, db_schedule_labels, db_scheduled_object, expected",
     [
         (
             # if schedule.labels and task.labels are passed,
@@ -1556,7 +1556,7 @@ def test_merge_schedule_and_schedule_object_labels(
                     id="2", name="key4", value="db_value4"
                 ),
             ],
-            {"key1": "db_value1"},
+            {"task": {"metadata": {"labels": {"key1": "db_value1"}}}},
             {"key1": "value1", "key2": "new_value2", "key3": "value3"},
         ),
         (
@@ -1569,7 +1569,7 @@ def test_merge_schedule_and_schedule_object_labels(
                     id="1", name="key1", value="db_value1"
                 )
             ],
-            {"key1": "db_value2"},
+            {"task": {"metadata": {"labels": {"key1": "db_value2"}}}},
             {"key1": "value1"},
         ),
         (
@@ -1578,7 +1578,7 @@ def test_merge_schedule_and_schedule_object_labels(
             {"key1": "value1"},
             {"task": {"metadata": {"labels": None}}},
             [],
-            {},
+            {"task": {"metadata": {"labels": {}}}},
             {"key1": "value1"},
         ),
         (
@@ -1587,7 +1587,7 @@ def test_merge_schedule_and_schedule_object_labels(
             {},
             {"task": {"metadata": {"labels": {"key1": "value1"}}}},
             [],
-            {},
+            {"task": {"metadata": {"labels": {}}}},
             {"key1": "value1"},
         ),
         (
@@ -1595,7 +1595,7 @@ def test_merge_schedule_and_schedule_object_labels(
             None,
             {"task": {"metadata": {"labels": None}}},
             [],
-            {},
+            {"task": {"metadata": {"labels": {}}}},
             {},
         ),
         (
@@ -1608,7 +1608,7 @@ def test_merge_schedule_and_schedule_object_labels(
                     id="1", name="key1", value="db_value1"
                 )
             ],
-            {},
+            {"task": {"metadata": {"labels": {}}}},
             {},
         ),
         (
@@ -1625,7 +1625,7 @@ def test_merge_schedule_and_schedule_object_labels(
                     id="2", name="key4", value="db_value4"
                 ),
             ],
-            {"key5": "db_value5"},
+            {"task": {"metadata": {"labels": {"key5": "db_value5"}}}},
             {"key3": "db_value3", "key4": "db_value4", "key5": "db_value5"},
         ),
         (
@@ -1641,18 +1641,59 @@ def test_merge_schedule_and_schedule_object_labels(
                     id="2", name="key4", value="db_value4"
                 ),
             ],
-            {},
+            {"task": {"metadata": {"labels": {}}}},
             {"key3": "db_value3", "key4": "db_value4"},
+        ),
+        (
+            # if schedule.labels is passed, schedule object isn't passed at all None,
+            # we expect to get values from schedule.labels
+            {"key1": "value1"},
+            None,
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
+            ],
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
         ),
     ],
 )
 def test_merge_schedule_and_db_schedule_labels(
+    scheduler,
+    labels,
+    scheduled_object,
+    db_schedule_labels,
+    db_scheduled_object,
+    expected,
+):
+    # Create a mock of ScheduleRecord
+    db_schedule = MagicMock()
+    db_schedule.labels = db_schedule_labels
+    db_schedule.scheduled_object = db_scheduled_object
+
+    result_labels, result_scheduled_object = (
+        scheduler._merge_schedule_and_db_schedule_labels(
+            labels,
+            scheduled_object,
+            db_schedule,
+        )
+    )
+
+    assert result_labels == expected
+    assert result_scheduled_object["task"]["metadata"]["labels"] == expected
+
+
+def test_merge_schedule_and_db_schedule_labels_empty_schedule(
     scheduler, labels, scheduled_object, db_schedule_labels, db_task_labels, expected
 ):
     # Create a mock of ScheduleRecord
     db_schedule = MagicMock()
     db_schedule.labels = db_schedule_labels
-    db_schedule.scheduled_object = {"task": {"metadata": {"labels": db_task_labels}}}
+    db_schedule.scheduled_object = {}
 
     result_labels, result_scheduled_object = (
         scheduler._merge_schedule_and_db_schedule_labels(

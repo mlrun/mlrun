@@ -290,7 +290,11 @@ class Client(
                 name=name,
                 job_id=job_id,
             )
-            self._wait_for_job_completion(session, job_id)
+            self._wait_for_job_completion(
+                session,
+                job_id,
+                timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
+            )
             self._logger.debug(
                 "Successfully deleted project in Iguazio",
                 name=name,
@@ -599,7 +603,11 @@ class Client(
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _wait_for_job_completion(
-        self, session: str, job_id: str, error_message: str = ""
+        self,
+        session: str,
+        job_id: str,
+        error_message: str = "",
+        timeout: typing.Optional[int] = 360,  # in seconds
     ):
         def _verify_job_in_terminal_state():
             job_response_body = self._get_job_from_iguazio(session, job_id)
@@ -610,7 +618,7 @@ class Client(
 
         job_state, job_result = mlrun.utils.helpers.retry_until_successful(
             self._wait_for_job_completion_retry_interval,
-            360,
+            int(timeout),
             self._logger,
             False,
             _verify_job_in_terminal_state,

@@ -126,8 +126,8 @@ class TestGoogleCloudStorage:
             else f"gcs://{self.bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
-        self._object_url = f"{self.run_dir_url}{object_file}"
-        logger.info(f"Object URL: {self._object_url}")
+        self.object_url = f"{self.run_dir_url}{object_file}"
+        logger.info(f"Object URL: {self.object_url}")
         self.storage_options = {}
 
     @classmethod
@@ -176,13 +176,12 @@ class TestGoogleCloudStorage:
                 os.environ["GCP_CREDENTIALS"] = self.credentials
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     def test_perform_google_cloud_storage_tests(
         self, use_datastore_profile, setup_by, use_secrets
@@ -190,7 +189,7 @@ class TestGoogleCloudStorage:
         # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(self.test_string)
 
@@ -213,7 +212,7 @@ class TestGoogleCloudStorage:
         ).listdir()
         assert self._object_path in dir_list
         listdir_dataitem_parent = mlrun.run.get_dataitem(
-            os.path.dirname(self._object_url), secrets=self.storage_options
+            os.path.dirname(self.object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) in listdir_parent
@@ -222,8 +221,18 @@ class TestGoogleCloudStorage:
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) not in listdir_parent
 
+    @pytest.mark.parametrize(
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
+    )
+    def test_upload(self, use_datastore_profile, setup_by, use_secrets):
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         upload_data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
@@ -238,7 +247,7 @@ class TestGoogleCloudStorage:
     )
     def test_large_upload(self, use_datastore_profile, setup_by):
         self.setup_mapping[setup_by](self, use_datastore_profile)
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
@@ -293,13 +302,12 @@ class TestGoogleCloudStorage:
                         chunk_number += 1
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",
@@ -385,6 +393,27 @@ class TestGoogleCloudStorage:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(
+        self,
+        data,
+        use_datastore_profile,
+    ):
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type GoogleCloudStorageStore",
+        ):
+            data_item.put(123)
+
     def _generate_fake_private_key(self):
         private_key = rsa.generate_private_key(
             public_exponent=65537,
@@ -416,7 +445,7 @@ class TestGoogleCloudStorage:
             register_temporary_client_datastore_profile(self.profile)
         elif fake_credentials:
             os.environ["GCP_CREDENTIALS"] = fake_credentials
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises((DefaultCredentialsError, RefreshError, HttpError)):
             data_item.delete()
 

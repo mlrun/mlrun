@@ -255,7 +255,7 @@ def calculate_inputs_statistics(
     )
 
     # Recalculate the histograms over the bins that are set in the sample-set of the end point:
-    for feature in inputs_statistics.keys():
+    for feature in list(inputs_statistics):
         if feature in sample_set_statistics:
             counts, bins = np.histogram(
                 inputs[feature].to_numpy(),
@@ -272,6 +272,9 @@ def calculate_inputs_statistics(
                     inputs_statistics[feature]["hist"]
                 )
             )
+        else:
+            # If the feature is not in the sample set and doesn't have a histogram, remove it from the statistics:
+            inputs_statistics.pop(feature)
 
     return inputs_statistics
 

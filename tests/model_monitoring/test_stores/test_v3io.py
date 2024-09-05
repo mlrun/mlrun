@@ -511,7 +511,8 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
-    data = V3IOTSDBConnector(project="fictitious-one").read_metrics_data(
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
+    data = tsdb_connector.read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
@@ -554,16 +555,15 @@ def test_read_predictions() -> None:
         "aggregation_window": "1m",
     }
 
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
-        V3IOTSDBConnector(project="fictitious-one").read_predictions(**predictions_args)
+        tsdb_connector.read_predictions(**predictions_args)
         assert (
             str(err.value)
             == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
         )
     predictions_args["agg_funcs"] = ["count"]
-    result = V3IOTSDBConnector(project="fictitious-one").read_predictions(
-        **predictions_args
-    )
+    result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [
         _MetricPoint(

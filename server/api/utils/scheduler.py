@@ -348,14 +348,18 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
+        db_schedule = get_db().get_schedule(
+            db_session, project, name, raise_on_not_found=False
+        )
         if not kind:
             # TODO: Need to think of a way to not use `get_schedule`
             #  in this function or in `get_db().store_function()` in this flow
             #  because we must have kind to ensure that auth info has access key.
-            db_schedule = get_db().get_schedule(
-                db_session, project, name, raise_on_not_found=False
-            )
             kind = db_schedule.kind
+
+        labels, scheduled_object = self._merge_schedule_and_db_schedule_labels(
+            labels, scheduled_object, db_schedule
+        )
 
         labels = self._enrich_schedule(
             auth_info, kind, labels, name, project, scheduled_object, fn_kind
@@ -960,7 +964,7 @@ class Scheduler:
         self,
         labels: Optional[dict],
         scheduled_object: Union[Optional[dict], Callable],
-        db_schedule: mlrun.common.schemas.ScheduleRecord,
+        db_schedule: Optional[mlrun.common.schemas.ScheduleRecord],
     ):
         """
         Merges the provided schedule labels and scheduled object labels with the labels
@@ -976,12 +980,21 @@ class Scheduler:
         """
 
         # convert list[LabelRecord] to dict
-        db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
+        db_schedule_labels = (
+            {label.name: label.value for label in db_schedule.labels}
+            if db_schedule
+            else {}
+        )
 
         # merge schedule's labels and scheduled object's labels for object from db
-        db_labels = self._merge_schedule_and_schedule_object_labels(
-            db_schedule_labels, db_schedule.scheduled_object
+        db_labels = (
+            self._merge_schedule_and_schedule_object_labels(
+                db_schedule_labels, db_schedule.scheduled_object
+            )
+            if db_schedule
+            else {}
         )
+
         # merge schedule's labels and scheduled object's labels for passed values
         labels = self._merge_schedule_and_schedule_object_labels(
             labels, scheduled_object

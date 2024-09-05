@@ -210,19 +210,9 @@ class Scheduler:
 
         db_schedule = get_db().get_schedule(db_session, project, name)
 
-        # merge schedule's labels and scheduled object's labels for object from db
-        db_labels = self._merge_schedule_and_schedule_object_labels(
-            db_schedule.labels, db_schedule.scheduled_object
+        labels, scheduled_object = self._merge_schedule_and_db_schedule_labels(
+            labels, scheduled_object, db_schedule
         )
-        # merge schedule's labels and scheduled object's labels for passed values
-        labels = self._merge_schedule_and_schedule_object_labels(
-            labels, scheduled_object
-        )
-
-        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
-        # if labels are {} then we do want to overwrite them
-        if labels is None:
-            labels = {label.name: label.value for label in db_labels}
 
         labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
@@ -959,7 +949,8 @@ class Scheduler:
 
     @staticmethod
     def _merge_schedule_and_schedule_object_labels(
-        labels: Optional[dict], scheduled_object: Union[Optional[dict], Callable]
+        labels: Optional[dict],
+        scheduled_object: Union[Optional[dict], Callable],
     ):
         """
         Merges the labels of the scheduled object, giving precedence to the scheduled object labels
@@ -991,6 +982,43 @@ class Scheduler:
             updated_labels
         )
         return updated_labels
+
+    def _merge_schedule_and_db_schedule_labels(
+        self,
+        labels: Optional[dict],
+        scheduled_object: Union[Optional[dict], Callable],
+        db_schedule: mlrun.common.schemas.ScheduleRecord,
+    ):
+        # convert list[LabelRecord] to dict
+        db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
+
+        # merge schedule's labels and scheduled object's labels for object from db
+        db_labels = self._merge_schedule_and_schedule_object_labels(
+            db_schedule_labels, db_schedule.scheduled_object
+        )
+        # merge schedule's labels and scheduled object's labels for passed values
+        labels = self._merge_schedule_and_schedule_object_labels(
+            labels, scheduled_object
+        )
+
+        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
+        # if labels are {} then we do want to overwrite them
+        if labels is None:
+            labels = db_labels
+            # ensure that labels value in db are aligned (for cases when we upgrade from version, where they weren't)
+            scheduled_object = db_schedule.scheduled_object
+            scheduled_object.setdefault("task", {}).setdefault("metadata", {})[
+                "labels"
+            ] = db_labels
+        # If schedule object isn't passed,
+        # Ensure that schedule_object has the same value as schedule.labels
+        if scheduled_object is None:
+            scheduled_object = db_schedule.scheduled_object
+            scheduled_object.setdefault("task", {}).setdefault("metadata", {})[
+                "labels"
+            ] = labels
+
+        return labels, scheduled_object
 
     @staticmethod
     def _remove_schedule_notification_secrets(

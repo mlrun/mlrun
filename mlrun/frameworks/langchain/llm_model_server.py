@@ -106,23 +106,25 @@ class LangChainModelServer(V2ModelServer):
         Upon receiving a request, the model will use the "usage" key to determine the usage of the model, and will
         return the model's prediction accordingly.
 
-        :param request:           The request to the model. The input to the model will be read from the "inputs" key.
-        :return:                  The model's prediction on the given input.
+        :param request: The request to the model. The input to the model will be read from the "inputs" key.
+        :return: The model's prediction on the given input.
         """
         inputs = request.get("inputs", [])
         usage = request.get("usage", "predict")
         generation_kwargs = (
             request.get("generation_kwargs", None) or self.generation_kwargs
         )
+        # Both predict and invoke are the using the same method , but invoke has more generation options (stop, etc.)
+        # to comply with langchain's invoke method.
         if usage == "predict":
             return self.model.invoke(input=inputs[0], config=generation_kwargs)
         elif usage == "invoke":
             config = request.get("config", None)
             stop = request.get("stop", None)
-            ans = self.model.invoke(
+            answer = self.model.invoke(
                 input=inputs[0], config=config, stop=stop, **generation_kwargs
             )
-            return ans
+            return answer
         elif usage == "batch":
             config = request.get("config", None)
             return_exceptions = request.get("return_exceptions", None)
@@ -136,5 +138,9 @@ class LangChainModelServer(V2ModelServer):
             raise NotImplementedError("ainvoke is not implemented")
         elif usage == "abatch":
             raise NotImplementedError("abatch is not implemented")
+        elif usage == "stream":
+            raise NotImplementedError("stream is not implemented")
+        elif usage == "astream":
+            raise NotImplementedError("astream is not implemented")
         else:
             raise ValueError(f"Unknown usage: {usage}")

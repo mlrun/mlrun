@@ -29,15 +29,24 @@ langchain_model_server_path = str(
 
 #: if true, delete the model after the test
 _OLLAMA_DELETE_MODEL_POST_TEST = False
+
+# Model names
 _OLLAMA_MODEL = "qwen:0.5b"
 _OPENAI_MODEL = "gpt-3.5-turbo-instruct"
 _HUGGINGFACE_MODEL = "Qwen/Qwen2-0.5B-Instruct"
 
+# General test configs
+PROMPT = "How far is the moon"
+QUESTION_LEN = len(PROMPT.split(" "))
+MAX_TOKENS = 10
+TEMPERATURE = 0.0000000001
 
 # To run this test, you need to:
 # 1. install ollama on your computer
 # 2. pull the desired model from the ollama repository (for example, in terminal: ollama pull llama3)
 # 3. run ollama with said model in terminal (for example, in terminal: ollama run llama3)
+
+
 def ollama_check_skip():
     """
     Check if ollama is installed
@@ -71,14 +80,17 @@ def ollama_fixture():
 
 
 @pytest.mark.skipif(ollama_check_skip(), reason="Ollama not installed")
-def test_ollama(ollama_fixture):
+def test_ollama(
+    ollama_fixture,
+    prompt=PROMPT,
+    question_len=QUESTION_LEN,
+    max_tokens=MAX_TOKENS,
+    temperature=TEMPERATURE,
+):
     """
     Test the langchain model server with an ollama model
     """
-    prompt = "How far is the moon"
-    question_len = len(prompt.split(" "))
-    max_tokens = 10
-    temperature = 0.0000000001
+
     project = mlrun.get_or_create_project(
         name="ollama-model-server-example", context="./"
     )
@@ -150,13 +162,11 @@ def skip_openai():
 
 
 @pytest.mark.skipif(skip_openai(), reason="OpenAI API credentials not set")
-def test_openai():
+def test_openai(prompt=PROMPT, question_len=QUESTION_LEN, max_tokens=MAX_TOKENS):
     """
     Test the langchain model server with an openai model
     """
-    prompt = "How far is the moon"
-    question_len = len(prompt.split(" "))
-    max_tokens = 10
+
     project = mlrun.get_or_create_project(
         name="openai-model-server-example", context="./"
     )
@@ -221,19 +231,20 @@ def test_openai():
 os.environ["HUGGINGFACE_API_KEY"] = "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"
 
 
-def test_huggingface():
+def test_huggingface(
+    model_id=_HUGGINGFACE_MODEL,
+    prompt=PROMPT,
+    max_tokens=MAX_TOKENS,
+    temperature=TEMPERATURE,
+    question_len=QUESTION_LEN,
+):
     """
     Test the langchain model server with a huggingface model
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-    model_id = _HUGGINGFACE_MODEL
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(model_id)
-    prompt = "How far is the moon"
-    question_len = len(prompt.split(" "))
-    max_tokens = 10
-    temperature = 0.0000000001
     pipe = pipeline(
         "text-generation", model=model, tokenizer=tokenizer, max_new_tokens=max_tokens
     )
@@ -241,6 +252,7 @@ def test_huggingface():
     project = mlrun.get_or_create_project(
         name="huggingface-model-server-example", context="./"
     )
+    # Create a serving function with a local pipeline
     serving_func = project.set_function(
         func=langchain_model_server_path,
         name="huggingface-langchain-model-server",
@@ -254,8 +266,9 @@ def test_huggingface():
         init_kwargs={"pipeline": pipe},
         model_path=".",
     )
-    server = serving_func.to_mock_server()
+    server1 = serving_func.to_mock_server()
 
+    # Create a second serving function with a model id
     serving_func2 = project.set_function(
         func=langchain_model_server_path,
         name="huggingface-langchain-model-server2",
@@ -275,14 +288,14 @@ def test_huggingface():
         model_path=".",
     )
     server2 = serving_func2.to_mock_server()
-    for ser in [server, server2]:
-        predict_result = ser.test(
+    for server in [server1, server2]:
+        predict_result = server.test(
             "/v2/models/huggingface-langchain-model/predict",
             {"inputs": [prompt]},
         )
         assert predict_result
         print("huggingface successful predict predict_result", predict_result)
-        invoke_result1 = ser.test(
+        invoke_result1 = server.test(
             "/v2/models/huggingface-langchain-model/predict",
             {
                 "inputs": [prompt],
@@ -300,7 +313,7 @@ def test_huggingface():
             <= max_tokens + question_len
         )
         print("huggingface successful invoke invoke_result", invoke_result1)
-        invoke_result3 = ser.test(
+        invoke_result3 = server.test(
             "/v2/models/huggingface-langchain-model/predict",
             {
                 "inputs": [prompt],
@@ -318,7 +331,7 @@ def test_huggingface():
             <= max_tokens + question_len
         )
         print("huggingface successful invoke invoke_result", invoke_result3)
-        batch_result1 = ser.test(
+        batch_result1 = server.test(
             "/v2/models/huggingface-langchain-model/predict",
             {
                 "inputs": [prompt, prompt],
@@ -327,7 +340,7 @@ def test_huggingface():
         )
         assert batch_result1
         print("huggingface successful batch batch_result", batch_result1)
-        batch_result2 = ser.test(
+        batch_result2 = server.test(
             "/v2/models/huggingface-langchain-model/predict",
             {
                 "inputs": [prompt, prompt],

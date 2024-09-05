@@ -945,7 +945,16 @@ class Scheduler:
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
+        self._set_scheduled_object_labels(scheduled_object, labels)
         return labels
+
+    @staticmethod
+    def _set_scheduled_object_labels(scheduled_object, labels):
+        if not isinstance(scheduled_object, dict):
+            return
+        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
+            labels
+        )
 
     def _merge_schedule_and_db_schedule_labels(
         self,
@@ -984,16 +993,13 @@ class Scheduler:
             labels = db_labels
             # ensure that labels value in db are aligned (for cases when we upgrade from version, where they weren't)
             scheduled_object = db_schedule.scheduled_object
-            scheduled_object.setdefault("task", {}).setdefault("metadata", {})[
-                "labels"
-            ] = db_labels
+            self._set_scheduled_object_labels(scheduled_object, db_labels)
+
         # If schedule object isn't passed,
         # Ensure that schedule_object has the same value as schedule.labels
         if scheduled_object is None:
             scheduled_object = db_schedule.scheduled_object
-            scheduled_object.setdefault("task", {}).setdefault("metadata", {})[
-                "labels"
-            ] = labels
+            self._set_scheduled_object_labels(scheduled_object, labels)
 
         return labels, scheduled_object
 

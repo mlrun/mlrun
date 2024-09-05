@@ -37,7 +37,6 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
-import mlrun.utils.singleton
 import server.api.api.endpoints.nuclio
 import server.api.api.utils
 import server.api.crud.model_monitoring.helpers
@@ -385,12 +384,22 @@ class MonitoringDeployment:
             server.api.api.utils.get_run_db_instance(self.db_session)
         )
 
+        secret_provider = server.api.crud.secrets.get_project_secret_provider(
+            project=self.project
+        )
+
+        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project, secret_provider=secret_provider
+        )
+        store_object = mlrun.model_monitoring.get_store_object(
+            project=self.project, secret_provider=secret_provider
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
             function,
-            secret_provider=server.api.crud.secrets.get_project_secret_provider(
-                project=self.project
-            ),
+            tsdb_connector,
+            store_object,
         )
 
         # Set the project to the serving function
@@ -918,6 +927,10 @@ class MonitoringDeployment:
         :param access_key:     If the stream is V3IO, the access key is required.
 
         """
+        logger.debug(
+            "Deleting model monitoring stream resources deployment",
+            project_name=project,
+        )
         stream_paths = []
         for function_name in function_names:
             for i in range(10):
@@ -964,6 +977,9 @@ class MonitoringDeployment:
 
                 try:
                     # if the stream path is in the users directory, we need to use pipelines access key to delete it
+                    logger.debug(
+                        "Deleting v3io stream", project=project, stream_path=stream_path
+                    )
                     v3io_client.stream.delete(
                         container,
                         stream_path,
@@ -971,13 +987,14 @@ class MonitoringDeployment:
                         if container.startswith("users")
                         else access_key,
                     )
-                    logger.debug("Deleted v3io stream", stream_path=stream_path)
-                except v3io.dataplane.response.HttpResponseError as e:
-                    logger.warning(
-                        "Failed to delete v3io stream",
-                        stream_path=stream_path,
-                        error=mlrun.errors.err_to_str(e),
+                    logger.debug(
+                        "Deleted v3io stream", project=project, stream_path=stream_path
                     )
+                except Exception as exc:
+                    # Raise an error that will be caught by the caller and skip the deletion of the stream
+                    raise mlrun.errors.MLRunStreamConnectionFailure(
+                        f"Failed to delete v3io stream {stream_path}"
+                    ) from exc
         elif stream_paths[0].startswith("kafka://"):
             # Delete Kafka topics
             import kafka
@@ -999,28 +1016,20 @@ class MonitoringDeployment:
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
-            except kafka.errors.TopicAuthorizationFailedError as e:
-                logger.warning(
-                    "Failed to delete kafka topics",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.UnknownTopicOrPartitionError as e:
-                logger.info(
-                    "Kafka model monitoring topics not found, probably not created",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.NoBrokersAvailable as e:
+            except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
                 raise mlrun.errors.MLRunStreamConnectionFailure(
-                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
-                )
+                    "Failed to delete kafka topics"
+                ) from exc
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
                 stream_path=stream_paths[0],
             )
+        logger.debug(
+            "Successfully deleted model monitoring stream resources deployment",
+            project_name=project,
+        )
 
     def _get_monitoring_mandatory_project_secrets(self) -> dict[str, str]:
         credentials_dict = {
@@ -1467,10 +1476,6 @@ def get_endpoint_features(
     # Create feature object and add it to a general features list
     features = []
     for name in feature_names:
-        if feature_stats is not None and name not in feature_stats:
-            logger.warn("Feature missing from 'feature_stats'", name=name)
-        if current_stats is not None and name not in current_stats:
-            logger.warn("Feature missing from 'current_stats'", name=name)
         f = mlrun.common.schemas.Features.new(
             name, safe_feature_stats.get(name), safe_current_stats.get(name)
         )

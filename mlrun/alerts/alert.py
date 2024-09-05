@@ -238,9 +238,11 @@ class AlertConfig(ModelObj):
             db = mlrun.get_run_db()
             template = db.get_alert_template(template)
 
-        # Extract parameters from the template and apply them to the AlertConfig object
-        self.summary = template.summary
-        self.severity = template.severity
-        self.criteria = template.criteria
-        self.trigger = template.trigger
-        self.reset_policy = template.reset_policy
+        # Apply parameters from the template to the AlertConfig object only if they are not already specified by the
+        # user in the current configuration.
+        # User-provided parameters will take precedence over corresponding template values
+        self.summary = self.summary or template.summary
+        self.severity = self.severity or template.severity
+        self.criteria = self.criteria or template.criteria
+        self.trigger = self.trigger or template.trigger
+        self.reset_policy = self.reset_policy or template.reset_policy

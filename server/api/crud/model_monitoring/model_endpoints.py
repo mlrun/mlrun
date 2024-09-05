@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
 import mlrun.model_monitoring
+import mlrun.model_monitoring.helpers
 import server.api.api.utils
 import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
@@ -72,7 +73,7 @@ class ModelEndpoints:
             )
 
             # Verify and enrich the model endpoint obj with the updated model uri
-            cls._enrich_model_endpoint_with_model_uri(
+            mlrun.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
                 model_endpoint=model_endpoint,
                 model_obj=model_obj,
             )
@@ -517,7 +518,10 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-
+        logger.debug(
+            "Deleting model monitoring endpoints resources",
+            project_name=project_name,
+        )
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         # TODO : adjust for ce scenario
@@ -569,6 +573,10 @@ class ModelEndpoints:
             stream_paths=stream_paths,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        logger.debug(
+            "Successfully deleted model monitoring endpoints resources",
+            project_name=project_name,
+        )
 
     @staticmethod
     def _delete_model_monitoring_stream_resources(
@@ -590,7 +598,10 @@ class ModelEndpoints:
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
-
+        logger.debug(
+            "Deleting model monitoring stream resources",
+            project_name=project_name,
+        )
         if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
             # Generate V3IO Access Key
             try:
@@ -622,6 +633,10 @@ class ModelEndpoints:
                 project=project_name,
                 function_names=model_monitoring_applications,
                 access_key=model_monitoring_access_key,
+            )
+            logger.debug(
+                "Successfully deleted model monitoring stream resources",
+                project_name=project_name,
             )
         except mlrun.errors.MLRunStreamConnectionFailure as e:
             logger.warning(
@@ -812,37 +827,3 @@ class ModelEndpoints:
                     project=project, store_connection_string=store_connection_string
                 )
         return model_endpoint_store
-
-    @staticmethod
-    def _enrich_model_endpoint_with_model_uri(
-        model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        model_obj: mlrun.artifacts.ModelArtifact,
-    ):
-        """
-        Enrich the model endpoint object with the model uri from the model object. Instead of using the model uri that
-        includes the model object's version, we will use a unique reference to the model object that includes
-        the project, key, iter, and tree. This will allow us to handle future changes in the model object without
-        updating the model endpoint object.
-        In addition, we verify that the model object is of type `ModelArtifact`.
-
-        :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.
-        :param model_obj:         An object representing the model artifact.
-
-        :raise: `MLRunInvalidArgumentError` if the model object is not of type `ModelArtifact`.
-        """
-        mlrun.utils.helpers.verify_field_of_type(
-            field_name="model_endpoint.spec.model_uri",
-            field_value=model_obj,
-            expected_type=mlrun.artifacts.ModelArtifact,
-        )
-
-        # Update model_uri with a unique reference to handle future changes
-        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
-            project=model_endpoint.metadata.project,
-            key=model_obj.key,
-            iter=model_obj.iter,
-            tree=model_obj.tree,
-        )
-        model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
-            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
-        )

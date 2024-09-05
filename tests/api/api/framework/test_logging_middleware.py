@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import io
-import typing
+from collections.abc import Iterator
 from http import HTTPStatus
 
 import fastapi
@@ -28,30 +28,30 @@ from mlrun.utils.logger import Logger, create_logger
 from server.api.main import app
 
 
-class HandledException1(Exception):
+class Handled1Error(Exception):
     pass
 
 
-class HandledException2(Exception):
+class Handled2Error(Exception):
     pass
 
 
-class UnhandledException(Exception):
+class UnhandledError(Exception):
     pass
 
 
-@app.exception_handler(HandledException1)
-async def handler_returning_response(request: fastapi.Request, exc: HandledException1):
-    logger.warning("Handler caught HandledException1 exception, returning 204 response")
+@app.exception_handler(Handled1Error)
+async def handler_returning_response(request: fastapi.Request, exc: Handled1Error):
+    logger.warning("Handler caught Handled1Error exception, returning 204 response")
     return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@app.exception_handler(HandledException2)
+@app.exception_handler(Handled2Error)
 async def handler_returning_http_exception(
-    request: fastapi.Request, exc: HandledException2
+    request: fastapi.Request, exc: Handled2Error
 ):
     logger.warning(
-        "Handler caught HandledException2 exception, returning HTTPException with 401"
+        "Handler caught Handled2Error exception, returning HTTPException with 401"
     )
     return await http_exception_handler(
         request, fastapi.HTTPException(status_code=HTTPStatus.UNAUTHORIZED.value)
@@ -67,26 +67,26 @@ def success():
     return fastapi.Response(status_code=202)
 
 
-@test_router.get("/handled_exception_1")
-def handled_exception_1():
+@test_router.get("/handled_1_error")
+def handled_1_error():
     logger.info(
-        "handled_exception_1 endpoint received request, raising handled exception 1"
+        "handled_exception_1 endpoint received request, raising handled 1 error"
     )
-    raise HandledException1("handled exception 1")
+    raise Handled1Error("handled 1 error")
 
 
-@test_router.get("/handled_exception_2")
-def handled_exception_2():
+@test_router.get("/handled_2_error")
+def handled_2_error():
     logger.info(
-        "handled_exception_2 endpoint received request, raising handled exception 2"
+        "handled_exception_2 endpoint received request, raising handled 2 error"
     )
-    raise HandledException2("handled exception 2")
+    raise Handled2Error("handled 2 error")
 
 
 @test_router.get("/unhandled_exception")
 def unhandled_exception():
     logger.info("unhandled endpoint received request, raising unhandled exception")
-    raise UnhandledException("Unhandled exception")
+    raise UnhandledError("Unhandled exception")
 
 
 class SomeScheme(pydantic.BaseModel):
@@ -106,7 +106,7 @@ middleware_modes = [
 
 # must add it here since we're adding routes
 @pytest.fixture(params=middleware_modes)
-def client(request) -> typing.Generator:
+def client(request: pytest.FixtureRequest) -> Iterator[TestClient]:
     # save a copy of the middlewares. we would want to restore them once we're done with the test
     user_middleware = app.user_middleware.copy()
     try:
@@ -125,7 +125,7 @@ def client(request) -> typing.Generator:
 
 
 @pytest.fixture
-def stream_logger(request) -> (io.StringIO, Logger):
+def stream_logger() -> Iterator[tuple[io.StringIO, Logger]]:
     stream = io.StringIO()
     stream_logger = create_logger("debug", name="test-logger", stream=stream)
     yield stream, stream_logger
@@ -147,13 +147,13 @@ def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> N
         _ensure_request_logged(stream)
         stream.seek(0)
 
-    resp = client.get("/test/handled_exception_1")
+    resp = client.get("/test/handled_1_error")
     assert resp.status_code == HTTPStatus.NO_CONTENT.value
     if has_logger_middleware:
         _ensure_request_logged(stream)
         stream.seek(0)
 
-    resp = client.get("/test/handled_exception_2")
+    resp = client.get("/test/handled_2_error")
     assert resp.status_code == HTTPStatus.UNAUTHORIZED.value
     if has_logger_middleware:
         _ensure_request_logged(stream)
@@ -165,7 +165,7 @@ def test_logging_middleware(db: Session, client: TestClient, stream_logger) -> N
         _ensure_request_logged(stream)
         stream.seek(0)
 
-    with pytest.raises(UnhandledException):
+    with pytest.raises(UnhandledError):
         # In a real fastapi (and not test) unhandled exception returns 500
         client.get("/test/unhandled_exception")
     if has_logger_middleware:

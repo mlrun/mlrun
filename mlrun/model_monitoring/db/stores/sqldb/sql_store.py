@@ -20,7 +20,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
@@ -61,8 +61,14 @@ class SQLStoreBase(StoreBase):
             )
 
         self._sql_connection_string = kwargs.get("store_connection_string")
-        self._engine = get_engine(dsn=self._sql_connection_string)
+        self._engine = None
         self._init_tables()
+
+    @property
+    def engine(self) -> Engine:
+        if not self._engine:
+            self._engine = get_engine(dsn=self._sql_connection_string)
+        return self._engine
 
     def create_tables(self):
         self._create_tables_if_not_exist()
@@ -116,7 +122,7 @@ class SQLStoreBase(StoreBase):
         :param table_name: Target table name.
         :param event:      Event dictionary that will be written into the DB.
         """
-        with self._engine.connect() as connection:
+        with self.engine.connect() as connection:
             # Convert the result into a pandas Dataframe and write it into the database
             event_df = pd.DataFrame([event])
             event_df.to_sql(table_name, con=connection, index=False, if_exists="append")
@@ -177,7 +183,7 @@ class SQLStoreBase(StoreBase):
         param table:     SQLAlchemy declarative table.
         :param criteria: A list of binary expressions that filter the query.
         """
-        if not self._engine.has_table(table.__tablename__):
+        if not self.engine.has_table(table.__tablename__):
             logger.debug(
                 f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
             )
@@ -524,9 +530,9 @@ class SQLStoreBase(StoreBase):
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
             db_name = make_url(self._sql_connection_string).database
-            if not self._engine.has_table(table):
+            if not self.engine.has_table(table):
                 logger.info(f"Creating table {table} on {db_name} db.")
-                self._tables[table].metadata.create_all(bind=self._engine)
+                self._tables[table].metadata.create_all(bind=self.engine)
             else:
                 logger.info(f"Table {table} already exists on {db_name} db.")
 
@@ -615,7 +621,7 @@ class SQLStoreBase(StoreBase):
 
         # Note: the block below does not use self._get, as we need here all the
         # results, not only `one_or_none`.
-        with sqlalchemy.orm.Session(self._engine) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             metric_rows = (
                 session.query(table)  # pyright: ignore[reportOptionalCall]
                 .filter(table.endpoint_id == endpoint_id)

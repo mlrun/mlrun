@@ -179,7 +179,7 @@ class TestV3ioDataStore(TestMLRunSystem):
 
     def test_v3io_large_object_put(self):
         file_size = 20 * 1024 * 1024  # 20MB
-        generated_buffer = bytearray(os.urandom(file_size))
+        generated_buffer = os.urandom(file_size)
         data_item = mlrun.run.get_dataitem(self.object_url)
         object_path = urlparse(self.object_url).path
 
@@ -247,6 +247,18 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.put(self.test_string, append=True)
         response = data_item.get()
         assert response.decode() == self.test_string + self.test_string
+
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type V3ioStore",
+        ):
+            data_item.put(123)
 
     def test_stat(self):
         data_item = mlrun.run.get_dataitem(self.object_url)

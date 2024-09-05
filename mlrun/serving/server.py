@@ -154,6 +154,7 @@ class GraphServer(ModelObj):
         resource_cache: ResourceCache = None,
         logger=None,
         is_mock=False,
+        monitoring_mock=False,
     ):
         """for internal use, initialize all steps (recursively)"""
 
@@ -166,6 +167,7 @@ class GraphServer(ModelObj):
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
         context.is_mock = is_mock
+        context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
         context.stream = _StreamContext(
@@ -391,7 +393,9 @@ def v2_serving_handler(context, event, get_body=False):
 
     # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
     # workaround for NUC-178
-    event.stream_path = event.path
+    # nuclio 1.12.12 added the topic attribute, and we must use it as part of the fix for NUC-233
+    # TODO: Remove fallback on event.path once support for nuclio<1.12.12 is dropped
+    event.stream_path = getattr(event, "topic", event.path)
     if hasattr(event, "trigger") and event.trigger.kind in (
         "kafka",
         "kafka-cluster",

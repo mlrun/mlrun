@@ -20,25 +20,44 @@ class SentimentAnalysisStep(ChainRunner):
     Processes sentiment analysis on a given text.
     """
 
+    # Default model to use as model and tokenizer if not given
     DEFAULT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment"
 
-    def __init__(self, tokenizer: str = None, model: str = None, **kwargs):
+    def __init__(
+        self,
+        tokenizer: str = None,
+        model: str = None,
+        pipeline_kwargs: dict = None,
+        **kwargs,
+    ):
         """
         Initialize the sentiment analysis step.
 
-        :param model:     The name of the model to use, if not given, the default model will be used, has to be from the
-                          roberta model family.
-        :param tokenizer: The name of the tokenizer to use, if not given, the default tokenizer will be used.
+        :param model:           The name of the model to use, if not given, the default model will be used, has to be
+                                from the roberta model family.
+        :param tokenizer:       The name of the tokenizer to use, if not given, the default tokenizer will be used,
+                                has to be compatible with the model.
+        :param pipeline_kwargs: Additional keyword arguments to pass to the HuggingFace pipeline.
         """
         super().__init__(**kwargs)
         self.tokenizer = tokenizer or self.DEFAULT_MODEL
         self.model = model or self.DEFAULT_MODEL
+        # Load the HuggingFace sentiment analysis pipeline
         self.sentiment_classifier = pipeline(
-            "sentiment-analysis", tokenizer=self.tokenizer, model=self.model
+            "sentiment-analysis",
+            tokenizer=self.tokenizer,
+            model=self.model,
+            **pipeline_kwargs,
         )
 
     def _run(self, event):
-        """Run the sentiment analysis step."""
+        """
+        Run the sentiment analysis step.
+
+        :param event: The event to process.
+
+        :return: The processed event with the sentiment analysis result.
+        """
         transcription = event.query
         sentiment = self.sentiment_classifier(
             transcription

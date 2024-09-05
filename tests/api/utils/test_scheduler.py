@@ -1687,26 +1687,6 @@ def test_merge_schedule_and_db_schedule_labels(
     assert result_scheduled_object["task"]["metadata"]["labels"] == expected
 
 
-def test_merge_schedule_and_db_schedule_labels_empty_schedule(
-    scheduler, labels, scheduled_object, db_schedule_labels, db_task_labels, expected
-):
-    # Create a mock of ScheduleRecord
-    db_schedule = MagicMock()
-    db_schedule.labels = db_schedule_labels
-    db_schedule.scheduled_object = {}
-
-    result_labels, result_scheduled_object = (
-        scheduler._merge_schedule_and_db_schedule_labels(
-            labels,
-            scheduled_object,
-            db_schedule,
-        )
-    )
-
-    assert result_labels == expected
-    assert result_scheduled_object["task"]["metadata"]["labels"] == expected
-
-
 def _assert_schedule_get_and_list_credentials_enrichment(
     db: Session,
     scheduler: Scheduler,

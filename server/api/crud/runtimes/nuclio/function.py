@@ -40,6 +40,9 @@ import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
 
+# Configmap objects on Kubernetes have 1Mb size limit
+SERVING_SPEC_MAX_LENGTH = 1048576
+
 
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
@@ -293,10 +296,18 @@ def _compile_function_config(
         )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
+        serving_spec_len = len(serving_spec.encode("utf-8"))
         if (
             can_pass_via_cm
-            and len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
         ):
+            if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                    + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                    + "in the returned json, and check if the function runs successfully. "
+                    + "Repeat as necessary to get the spec to an allowed size"
+                )
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )

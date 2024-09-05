@@ -189,12 +189,7 @@ class AzureBlobStore(DataStore):
                 "Append mode not supported for Azure blob datastore"
             )
         remote_path = self._convert_key_to_remote_path(key)
-        if isinstance(data, bytes):
-            mode = "wb"
-        elif isinstance(data, str):
-            mode = "w"
-        else:
-            raise TypeError("Data type unknown.  Unable to put in Azure!")
+        data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(remote_path, mode) as f:
             f.write(data)
 

@@ -154,6 +154,11 @@ class Projects(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         model_monitoring_access_key: str = None,
     ):
+        logger.debug(
+            "Deleting project resources",
+            project_name=name,
+        )
+
         # Delete schedules before runtime resources - otherwise they will keep getting created
         # We skip notification secrets because, the entire project secret will be deleted later
         # so there's no need to delete individual entries from the secret.
@@ -208,13 +213,19 @@ class Projects(
         # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
         self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
-        # delete model monitoring resources
-        server.api.crud.ModelEndpoints().delete_model_endpoints_resources(
-            project_name=name,
-            db_session=session,
-            model_monitoring_applications=model_monitoring_applications,
-            model_monitoring_access_key=model_monitoring_access_key,
-        )
+        try:
+            # delete model monitoring resources
+            server.api.crud.ModelEndpoints().delete_model_endpoints_resources(
+                project_name=name,
+                db_session=session,
+                model_monitoring_applications=model_monitoring_applications,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete model monitoring resources", project_name=name
+            )
+            raise exc
 
         if mlrun.mlconf.is_api_running_on_k8s():
             self._delete_project_secrets(name)

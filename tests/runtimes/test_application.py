@@ -49,6 +49,17 @@ def test_ensure_reverse_proxy_configurations():
     _assert_function_handler(fn)
 
 
+def test_ensure_basic_credentials_configuration():
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fn.create_api_gateway(
+            name="api-gateway",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        )
+
+
 def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun", command="echo"

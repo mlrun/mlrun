@@ -966,17 +966,25 @@ class Scheduler:
 
         :return: merged labels
         """
+        # Ensure scheduled_object is a dictionary-like object
+        if not hasattr(scheduled_object, "get"):
+            return labels
+
+        # Extract the scheduled object labels
         scheduled_object_labels = (
-            scheduled_object.get("task", {}).get("metadata", {}).get("labels")
+            scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
         )
-        if scheduled_object_labels == {} and not labels:
-            return {}
+
+        # If labels are empty, no need to update scheduled_object_labels,
         if not labels:
             return scheduled_object_labels
 
-        if not scheduled_object_labels:
-            scheduled_object_labels = {}
+        scheduled_object_labels = scheduled_object_labels or {}
+
+        # Merge labels, giving precedence to scheduled_object_labels
         updated_labels = {**labels, **scheduled_object_labels}
+
+        # Update the original scheduled_object with the merged labels
         scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
             updated_labels
         )

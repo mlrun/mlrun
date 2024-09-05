@@ -1003,8 +1003,8 @@ class Scheduler:
 
         return labels, scheduled_object
 
-    @staticmethod
     def _merge_schedule_and_schedule_object_labels(
+        self,
         labels: Optional[dict],
         scheduled_object: Union[Optional[dict], Callable],
     ):
@@ -1036,9 +1036,8 @@ class Scheduler:
         )
 
         # Update the original scheduled_object with the merged labels
-        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
-            updated_labels
-        )
+        self._set_scheduled_object_labels(scheduled_object, updated_labels)
+
         return updated_labels
 
     @staticmethod

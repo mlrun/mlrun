@@ -958,11 +958,13 @@ class Scheduler:
         return labels
 
     @staticmethod
-    def _merge_schedule_and_schedule_object_labels(labels, scheduled_object):
+    def _merge_schedule_and_schedule_object_labels(
+        labels: Optional[dict], scheduled_object: Union[Optional[dict], Callable]
+    ):
         """
         Merges the labels of the scheduled object, giving precedence to the scheduled object labels
-        :param labels (dict): the labels of a schedule
-        :param scheduled_object (dict): the labels of a scheduled object
+        :param labels: the labels of a schedule
+        :param scheduled_object: a scheduled object
 
         :return: merged labels
         """

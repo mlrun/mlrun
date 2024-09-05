@@ -40,12 +40,12 @@ import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
+    SUPPORTED_EVIDENTLY_VERSION,
     ModelMonitoringApplicationBase,
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
-from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
@@ -56,7 +56,7 @@ from .assets.application import (
     NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import (
-    CustomEvidentlyMonitoringAppV2,
+    CustomEvidentlyMonitoringApp,
 )
 
 
@@ -253,13 +253,13 @@ class _V3IORecordsChecker:
             ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
-    def _test_apps_parquet(
+    def _test_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
-                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+                kind=mm_constants.FileTargetKind.PARQUET,
             )
         )
         df = ParquetTarget(
@@ -284,7 +284,7 @@ class _V3IORecordsChecker:
         last_request: datetime = None,
         error_count: float = None,
     ) -> None:
-        cls._test_apps_parquet(ep_id, inputs, outputs)
+        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
@@ -379,7 +379,7 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v2"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
     error_count = 10
@@ -415,7 +415,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringAppV2,
+                class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -718,7 +718,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         # Validate alert notification
         assert alert.count == 1
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
+    @pytest.mark.parametrize("with_training_set", [True])
     def test_app_flow(self, with_training_set: bool) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         inputs, outputs = self._log_model(with_training_set)

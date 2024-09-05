@@ -24,7 +24,6 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
 from mlrun.data_types.infer import InferOptions, get_df_stats

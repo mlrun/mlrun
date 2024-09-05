@@ -127,7 +127,7 @@ if _HAS_EVIDENTLY:
         return project
 
 
-class CustomEvidentlyMonitoringAppV2(EvidentlyModelMonitoringApplicationBase):
+class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     NAME = "evidently-app-test-v2"
 
     def __init__(

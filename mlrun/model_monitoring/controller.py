@@ -26,7 +26,6 @@ import nuclio
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
-import mlrun.feature_store as fstore
 import mlrun.model_monitoring.db.stores
 from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
@@ -401,10 +400,6 @@ class MonitoringApplicationController:
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
-            m_fs = fstore.get_feature_set(
-                endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
-            )
-
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
                     project=project,
@@ -420,9 +415,6 @@ class MonitoringApplicationController:
                         start_infer_time=start_infer_time,
                         end_infer_time=end_infer_time,
                         endpoint_id=endpoint_id,
-                        latest_request=endpoint[
-                            mm_constants.EventFieldType.LAST_REQUEST
-                        ],
                         project=project,
                         applications_names=[application],
                         model_monitoring_access_key=model_monitoring_access_key,
@@ -438,7 +430,6 @@ class MonitoringApplicationController:
         start_infer_time,
         end_infer_time,
         endpoint_id,
-        latest_request,
         project,
         applications_names,
         model_monitoring_access_key,
@@ -449,20 +440,17 @@ class MonitoringApplicationController:
         :param start_infer_time:    The beginning of the infer interval window.
         :param end_infer_time:      The end of the infer interval window.
         :param endpoint_id:         Identifier for the model endpoint.
-        :param latest_request:      Timestamp of the latest model request.
         :param project: mlrun       Project name.
         :param applications_names:  List of application names to which data will be pushed.
 
         """
+        # TODO : tsdb prediction check - ?
 
         data = {
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constants.ApplicationEvent.END_INFER_TIME: end_infer_time.isoformat(
-                sep=" ", timespec="microseconds"
-            ),
-            mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,

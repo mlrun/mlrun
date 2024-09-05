@@ -250,7 +250,7 @@ def test_is_iguazio_session_cookie():
         ["3.5.5-b25.20231224135202"],
         ["3.6.0"],
         ["4.0.0"],
-        ["3.2.0", "3.6.0"],
+        ["3.5.5", "3.6.0"],
     ],
 )
 def test_min_iguazio_version_fail(min_versions):

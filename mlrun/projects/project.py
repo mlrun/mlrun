@@ -1557,15 +1557,15 @@ class MlrunProject(ModelObj):
         self,
         item,
         body=None,
-        tag="",
-        local_path="",
-        artifact_path=None,
-        format=None,
-        upload=None,
-        labels=None,
-        target_path=None,
+        tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        format: Optional[str] = None,
+        upload: Optional[bool] = None,
+        labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
 
         If the artifact already exists with the same key and tag, it will be overwritten.
@@ -1664,7 +1664,7 @@ class MlrunProject(ModelObj):
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ) -> DatasetArtifact:
         """
@@ -1741,15 +1741,15 @@ class MlrunProject(ModelObj):
         artifact_path=None,
         upload=None,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
         label_column=None,
         extra_data=None,
         **kwargs,
-    ):
+    ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
 
         If the model already exists with the same key and tag, it will be overwritten.
@@ -3040,8 +3040,9 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        if engine not in ["remote"]:
-            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+        if engine not in ["remote"] and not schedule:
+            # For remote/scheduled runs we don't require the functions to be synced as they can be loaded dynamically
+            # during run
             self.sync_functions(always=sync)
             if not self.spec._function_objects:
                 raise ValueError(
@@ -3236,25 +3237,25 @@ class MlrunProject(ModelObj):
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io endpoint store, pass `v3io` and the system will generate the
-                                          exact path.
+                                            exact path.
                                           * MySQL/SQLite - for SQL endpoint store, provide the full connection string,
-                                          for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
+                                            for example: mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
         :param stream_path:               Path to the model monitoring stream. By default, None. Options:
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact
-                                          path.
+                                            path.
                                           * Kafka - for Kafka stream, provide the full connection string without custom
-                                          topic, for example kafka://<some_kafka_broker>:<port>.
+                                            topic, for example kafka://<some_kafka_broker>:<port>.
         :param tsdb_connection:           Connection string to the time series database. By default, None.
                                           Options:
 
                                           * None - will be set from the system configuration.
                                           * v3io - for v3io stream, pass `v3io` and the system will generate the exact
-                                          path.
+                                            path.
                                           * TDEngine - for TDEngine tsdb, provide the full websocket connection URL,
-                                          for example taosws://<username>:<password>@<host>:<port>.
-        :param replace_creds:                     If True, will override the existing credentials.
+                                            for example taosws://<username>:<password>@<host>:<port>.
+        :param replace_creds:             If True, will override the existing credentials.
                                           Please keep in mind that if you already enabled model monitoring on
                                           your project this action can cause data loose and will require redeploying
                                           all model monitoring functions & model monitoring infra
@@ -3360,7 +3361,8 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN":
+                                token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
                                 This ensures latest code changes are executed. This argument must be used in
                                 conjunction with the local=True argument.

@@ -301,7 +301,16 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid_label_selector,
             paginated=False,
         )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.error,
+            expected_status_attrs={
+                "reason": "Some reason",
+                "status_text": "Some message",
+            },
+        )
 
     def test_state_thresholds(self, db: Session, client: TestClient):
         """
@@ -653,4 +662,5 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         return {
             "completionTime": "2020-10-06T00:36:41Z",
             "replicaStatuses": {"Launcher": {"failed": 1}, "Worker": {}},
+            "conditions": [{"reason": "Some reason", "message": "Some message"}],
         }

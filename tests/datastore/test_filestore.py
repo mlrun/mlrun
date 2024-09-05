@@ -26,6 +26,9 @@ import mlrun
 )
 class TestFileStore:
     def test_put_stat_delete(self, prefix):
+        # Since the test deletes the file at the end, using a temporary file context manager with delete=True would
+        # raise an error.
+        # Therefore, we use a try-finally statement instead.
         try:
             with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as temp_file:
                 object_url = f"{prefix}{temp_file.name}"
@@ -45,3 +48,18 @@ class TestFileStore:
         not_exist_url = f"{prefix}/path/to/file/not_exist_file.txt"
         data_item = mlrun.run.get_dataitem(not_exist_url)
         data_item.delete()
+
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data, prefix):
+        with tempfile.NamedTemporaryFile(suffix=".txt") as temp_file:
+            object_url = f"{prefix}{temp_file.name}"
+            data_item = mlrun.run.get_dataitem(object_url)
+            data_item.put(data)
+            result = data_item.get()
+            assert result == b"test"
+
+            with pytest.raises(
+                TypeError,
+                match="Unable to put a value of type FileStore",
+            ):
+                data_item.put(123)

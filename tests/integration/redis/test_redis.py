@@ -56,11 +56,11 @@ class TestRedisDataStore:
             self.test_endpoint = f"ds://{self.profile_name}"
         else:
             self.test_endpoint = self.redis_endpoint
-        self.redis_path = f"{self.test_endpoint}/{file}"
+        self.object_url = f"{self.test_endpoint}/{file}"
 
     def test_redis_put_get_object(self, use_datastore_profile):
         self.setup_before_test(use_datastore_profile)
-        data_item = mlrun.datastore.store_manager.object(self.redis_path)
+        data_item = mlrun.datastore.store_manager.object(self.object_url)
 
         data_item.delete()
 
@@ -86,6 +86,20 @@ class TestRedisDataStore:
 
         data_item.delete()
 
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data, use_datastore_profile):
+        self.setup_before_test(use_datastore_profile)
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        # In Redis, we decode the responses, so the assertion here will be different compared to other datastores.
+        assert result == "test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type RedisStore",
+        ):
+            data_item.put(123)
+
     def test_redis_upload_download_object(self, use_datastore_profile):
         self.setup_before_test(use_datastore_profile)
         # prepare file for upload
@@ -93,7 +107,7 @@ class TestRedisDataStore:
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=True) as temp_file:
             with open(temp_file.name, "w") as f:
                 f.write(expected)
-            data_item = mlrun.datastore.store_manager.object(self.redis_path)
+            data_item = mlrun.datastore.store_manager.object(self.object_url)
             data_item.delete()
 
             data_item.upload(temp_file.name)
@@ -105,9 +119,7 @@ class TestRedisDataStore:
     def test_redis_listdir(self, use_datastore_profile):
         self.setup_before_test(use_datastore_profile)
         list_dir = self.test_endpoint + "/dir-0/dir-1"
-
-        redis_path = self.test_endpoint
-        dir_path = redis_path
+        dir_path = self.test_endpoint
         expected = []
 
         for depth in range(5):
@@ -118,7 +130,7 @@ class TestRedisDataStore:
             data_item.put("abcde")
             # list_dir skips the first object
             if depth > 0:
-                expected.append(obj_path[len(redis_path) :])
+                expected.append(obj_path[len(self.test_endpoint) :])
 
         dir_item = mlrun.datastore.store_manager.object(list_dir)
         actual = dir_item.listdir()

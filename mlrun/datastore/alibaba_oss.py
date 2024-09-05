@@ -85,6 +85,7 @@ class OSSStore(DataStore):
         return oss.get_object(key).read()
 
     def put(self, key, data, append=False):
+        data, _ = self._prepare_put_data(data, append)
         bucket, key = self.get_bucket_and_key(key)
         oss = oss2.Bucket(self.auth, self.endpoint_url, bucket)
         oss.put_object(key, data)

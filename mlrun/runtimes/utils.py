@@ -463,3 +463,19 @@ def resolve_node_selectors(
             instance_node_selector,
         )
     return instance_node_selector
+
+
+def enrich_gateway_timeout_annotations(annotations: dict, gateway_timeout: int):
+    """
+    Set gateway proxy connect/read/send timeout annotations
+    :param annotations:     The annotations to enrich
+    :param gateway_timeout: The timeout to set
+    """
+    if not gateway_timeout:
+        return
+    gateway_timeout_str = str(gateway_timeout)
+    annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
+        gateway_timeout_str
+    )
+    annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = gateway_timeout_str
+    annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = gateway_timeout_str

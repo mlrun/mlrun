@@ -55,6 +55,8 @@ If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
 
+When you run `store_alert_config`, the alert is automatically reset.
+
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 
 ```python

@@ -1790,7 +1790,7 @@ def _assert_schedule(
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
     assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
-    if hasattr(schedule.creation_time, "get"):
+    if isinstance(scheduled_object, dict):
         # only for cases when scheduled_object is not a callable function
         assert (
             DeepDiff(

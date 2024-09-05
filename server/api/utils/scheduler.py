@@ -947,48 +947,25 @@ class Scheduler:
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
         return labels
 
-    @staticmethod
-    def _merge_schedule_and_schedule_object_labels(
-        labels: Optional[dict],
-        scheduled_object: Union[Optional[dict], Callable],
-    ):
-        """
-        Merges the labels of the scheduled object, giving precedence to the scheduled object labels
-        :param labels: the labels of a schedule
-        :param scheduled_object: a scheduled object
-
-        :return: merged labels
-        """
-        # Ensure scheduled_object is a dictionary-like object
-        if not hasattr(scheduled_object, "get"):
-            return labels
-
-        # Extract the scheduled object labels
-        scheduled_object_labels = (
-            scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
-        )
-
-        # If labels are empty, no need to update scheduled_object_labels,
-        if not labels:
-            return scheduled_object_labels
-
-        scheduled_object_labels = scheduled_object_labels or {}
-
-        # Merge labels, giving precedence to scheduled_object_labels
-        updated_labels = {**labels, **scheduled_object_labels}
-
-        # Update the original scheduled_object with the merged labels
-        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
-            updated_labels
-        )
-        return updated_labels
-
     def _merge_schedule_and_db_schedule_labels(
         self,
         labels: Optional[dict],
         scheduled_object: Union[Optional[dict], Callable],
         db_schedule: mlrun.common.schemas.ScheduleRecord,
     ):
+        """
+        Merges the provided schedule labels and scheduled object labels with the labels
+        from the database schedule. The method ensures that the scheduled object's labels
+        are properly aligned with the schedule labels.
+
+        :param labels: The labels of the schedule
+        :param scheduled_object: the scheduled object
+        :param db_schedule: A ScheduleRecord object from the database, containing the existing labels
+                            and scheduled object to be merged
+        :return: The merged labels and the updated scheduled object, ensuring alignment between
+                 provided and database labels
+        """
+
         # convert list[LabelRecord] to dict
         db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
 
@@ -1019,6 +996,44 @@ class Scheduler:
             ] = labels
 
         return labels, scheduled_object
+
+    @staticmethod
+    def _merge_schedule_and_schedule_object_labels(
+        labels: Optional[dict],
+        scheduled_object: Union[Optional[dict], Callable],
+    ):
+        """
+        Merges the labels of the scheduled object, giving precedence to the scheduled object labels
+        :param labels: the labels of a schedule
+        :param scheduled_object: a scheduled object
+
+        :return: merged labels
+        """
+        # Ensure scheduled_object is a dictionary-like object
+        if not isinstance(scheduled_object, dict):
+            return labels
+
+        # Extract the scheduled object labels
+        scheduled_object_labels = (
+            scheduled_object.get("task", {}).get("metadata", {}).get("labels", {})
+        )
+
+        # If labels are empty, no need to update scheduled_object_labels,
+        if not labels:
+            return scheduled_object_labels
+
+        scheduled_object_labels = scheduled_object_labels or {}
+
+        # Merge labels, giving precedence to scheduled_object_labels
+        updated_labels = mlrun.utils.merge_dicts_with_precedence(
+            labels, scheduled_object_labels
+        )
+
+        # Update the original scheduled_object with the merged labels
+        scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
+            updated_labels
+        )
+        return updated_labels
 
     @staticmethod
     def _remove_schedule_notification_secrets(

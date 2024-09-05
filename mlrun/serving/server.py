@@ -393,7 +393,9 @@ def v2_serving_handler(context, event, get_body=False):
 
     # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
     # workaround for NUC-178
-    event.stream_path = event.path
+    # nuclio 1.12.12 added the topic attribute, and we must use it as part of the fix for NUC-233
+    # TODO: Remove fallback on event.path once support for nuclio<1.12.12 is dropped
+    event.stream_path = getattr(event, "topic", event.path)
     if hasattr(event, "trigger") and event.trigger.kind in (
         "kafka",
         "kafka-cluster",

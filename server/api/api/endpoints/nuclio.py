@@ -405,8 +405,9 @@ def process_model_monitoring_secret(
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
+    shard_count: int,
+    retention_period_hours: int,
     access_key: str = None,
-    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
@@ -429,8 +430,8 @@ def create_model_monitoring_stream(
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,
-            shard_count=stream_args.shard_count,
-            retention_period_hours=stream_args.retention_period_hours,
+            shard_count=shard_count,
+            retention_period_hours=retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
             access_key=access_key,
         )

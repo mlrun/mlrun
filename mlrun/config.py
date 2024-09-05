@@ -525,7 +525,22 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
-        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "serving_stream": {
+            "v3io": {
+                "shards_count": 2,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 2,
+                "max_replicas": 2,
+            },
+            "kafka": {
+                "partition_count": 8,
+                "retention_period_hours": 24,
+                "num_workers": 2,
+                "min_replicas": 0,
+                "max_replicas": 4,
+            },
+        },
         "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.

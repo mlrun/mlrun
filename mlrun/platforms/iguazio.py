@@ -124,7 +124,7 @@ class OutputStream:
             ):
                 response.raise_for_status([409, 204])
 
-    def push(self, data):
+    def push(self, data, partition_key=None):
         def dump_record(rec):
             if not isinstance(rec, (str, bytes)):
                 return dict_to_json(rec)
@@ -132,7 +132,14 @@ class OutputStream:
 
         if not isinstance(data, list):
             data = [data]
-        records = [{"data": dump_record(rec)} for rec in data]
+
+        records = []
+        for rec in data:
+            record = {"data": dump_record(rec)}
+            if partition_key is not None:
+                record["partition_key"] = partition_key
+            records.append(record)
+
         if self._mock:
             # for mock testing
             self._mock_queue.extend(records)
@@ -205,7 +212,7 @@ class KafkaOutputStream:
 
         self._initialized = True
 
-    def push(self, data):
+    def push(self, data, partition_key=None):
         self._lazy_init()
 
         def dump_record(rec):
@@ -226,7 +233,9 @@ class KafkaOutputStream:
         else:
             for record in data:
                 serialized_record = dump_record(record)
-                self._kafka_producer.send(self._topic, serialized_record)
+                self._kafka_producer.send(
+                    self._topic, serialized_record, key=partition_key
+                )
 
 
 class V3ioStreamClient:

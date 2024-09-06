@@ -104,10 +104,10 @@ class APIGateway(_APIGatewayBaseModel):
 
     def get_invoke_url(self):
         if self.spec.host and self.spec.path:
-            if not self.spec.path.startswith("/"):
-                return f"{self.spec.host.rstrip('/')}/{self.spec.path}"
-            return f"{self.spec.host.rstrip('/')}{self.spec.path}"
-        return self.spec.host
+            return f"{self.spec.host.rstrip('/')}/{self.spec.path.lstrip('/')}".rstrip(
+                "/"
+            )
+        return self.spec.host.rstrip("/")
 
     def enrich_mlrun_names(self):
         self._enrich_api_gateway_mlrun_name()

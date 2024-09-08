@@ -1120,24 +1120,22 @@ def test_replace_exported_artifact_producer(rundb_mock):
         ("project-owner", None),
         (None, "username"),
         ("project-owner", "username"),
+        (None, None),
     ],
 )
-def test_artifact_owner(rundb_mock, project_owner, username):
+def test_artifact_owner(
+    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+):
     if username:
-        # set the V3IO_USERNAME env var
-        os.environ["V3IO_USERNAME"] = username
+        monkeypatch.setenv("V3IO_USERNAME", username)
 
-    try:
-        project = mlrun.new_project("artifact-owner", save=False)
-        project.spec.owner = project_owner
-        artifact = project.log_artifact("x", body="123", format="txt")
-        if username:
-            assert artifact.spec.producer.get("owner") == username
-        else:
-            assert artifact.spec.producer.get("owner") == project_owner
-    finally:
-        # remove the env var when done
-        os.environ.pop("V3IO_USERNAME", None)
+    project = mlrun.new_project("artifact-owner", save=False)
+    project.spec.owner = project_owner
+    artifact = project.log_artifact("x", body="123", format="txt")
+    if username:
+        assert artifact.producer.get("owner") == username
+    else:
+        assert artifact.producer.get("owner") == project_owner
 
 
 @pytest.mark.parametrize(

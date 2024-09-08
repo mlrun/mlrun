@@ -4341,9 +4341,7 @@ class MlrunProject(ModelObj):
         return self._get_hexsha() or str(uuid.uuid4())
 
     def _resolve_artifact_owner(self):
-        if username := os.getenv("V3IO_USERNAME"):
-            return username
-        return self.spec.owner
+        return os.getenv("V3IO_USERNAME") or self.spec.owner
 
 
 def _set_as_current_default_project(project: MlrunProject):

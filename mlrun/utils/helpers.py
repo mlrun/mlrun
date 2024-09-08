@@ -1008,6 +1008,13 @@ def get_workflow_url(project, id=None):
 
 
 def get_kfp_project_filter(project_name: str) -> str:
+    """
+    Generates a filter string for KFP runs, using a substring predicate
+    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
+    with a specific project. The 'op: 9' operator indicates that the filter checks if the
+    project name appears as a substring in the run's name, ensuring that we can identify
+    runs belonging to the desired project.
+    """
     return f'{{"predicates": [{{"key": "name", "op": 9, "string_value": "{project_name}"}}]}}'
 
 

@@ -923,7 +923,7 @@ class MonitoringDeployment:
                     function_names=[function_name],
                     access_key=access_key,
                 )
-            except mlrun.errors.MLRunStreamConnectionFailure as e:
+            except mlrun.errors.MLRunStreamConnectionFailureError as e:
                 logger.warning(
                     "Failed to delete stream resources, you may need to delete them manually",
                     project_name=project,
@@ -1006,12 +1006,11 @@ class MonitoringDeployment:
                     logger.debug(
                         "Deleted v3io stream", project=project, stream_path=stream_path
                     )
-                except v3io.dataplane.response.HttpResponseError as e:
-                    logger.warning(
-                        "Failed to delete v3io stream",
-                        stream_path=stream_path,
-                        error=mlrun.errors.err_to_str(e),
-                    )
+                except Exception as exc:
+                    # Raise an error that will be caught by the caller and skip the deletion of the stream
+                    raise mlrun.errors.MLRunStreamConnectionFailureError(
+                        f"Failed to delete v3io stream {stream_path}"
+                    ) from exc
         elif stream_paths[0].startswith("kafka://"):
             # Delete Kafka topics
             import kafka
@@ -1033,23 +1032,11 @@ class MonitoringDeployment:
                 )
                 kafka_client.delete_topics(topics)
                 logger.debug("Deleted kafka topics", topics=topics)
-            except kafka.errors.TopicAuthorizationFailedError as e:
-                logger.warning(
-                    "Failed to delete kafka topics",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.UnknownTopicOrPartitionError as e:
-                logger.info(
-                    "Kafka model monitoring topics not found, probably not created",
-                    topics=topics,
-                    error=mlrun.errors.err_to_str(e),
-                )
-            except kafka.errors.NoBrokersAvailable as e:
+            except Exception as exc:
                 # Raise an error that will be caught by the caller and skip the deletion of the stream
-                raise mlrun.errors.MLRunStreamConnectionFailure(
-                    f"Failed to delete kafka topics {topics}, no brokers available, {mlrun.errors.err_to_str(e)}"
-                )
+                raise mlrun.errors.MLRunStreamConnectionFailureError(
+                    "Failed to delete kafka topics"
+                ) from exc
         else:
             logger.warning(
                 "Stream path is not supported and therefore can't be deleted, expected v3io or kafka",
@@ -1223,7 +1210,7 @@ class MonitoringDeployment:
         :param client_version:            The client version.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
-        :raise MLRunInvalidMMStoreType:   If the user provided invalid credentials.
+        :raise MLRunInvalidMMStoreTypeError: If the user provided invalid credentials.
         """
         if not replace_creds:
             try:
@@ -1274,21 +1261,21 @@ class MonitoringDeployment:
                     mlrun.common.schemas.model_monitoring.ModelEndpointTargetSchemas.list()
                 )
             ):
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "Currently only MySQL/SQLite connections are supported for non-v3io endpoint store,"
                     "please provide a full URL (e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>)"
                 )
             if mlrun.mlconf.is_ce_mode() and endpoint_store_connection.startswith(
                 "v3io"
             ):
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only MySQL/SQLite connections are supported for endpoint store"
                 )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
         else:
-            raise mlrun.errors.MLRunInvalidMMStoreType(
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid endpoint store connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
@@ -1311,7 +1298,7 @@ class MonitoringDeployment:
                 stream_path == mm_constants.V3IO_MODEL_MONITORING_DB
                 and mlrun.mlconf.is_ce_mode()
             ):
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only kafka stream are supported for stream path"
                 )
             elif stream_path == mm_constants.V3IO_MODEL_MONITORING_DB:
@@ -1319,14 +1306,14 @@ class MonitoringDeployment:
                 stream_path = ""
             elif stream_path:
                 if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                    raise mlrun.errors.MLRunInvalidMMStoreType(
+                    raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                         "Custom kafka topic is not allowed"
                     )
                 elif not stream_path.startswith("kafka://") and (
                     stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
                     or stream_path != ""
                 ):
-                    raise mlrun.errors.MLRunInvalidMMStoreType(
+                    raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                         "Currently only Kafka connection is supported for non-v3io stream,"
                         "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
                     )
@@ -1334,7 +1321,7 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
         else:
-            raise mlrun.errors.MLRunInvalidMMStoreType(
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid stream path connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
@@ -1352,7 +1339,7 @@ class MonitoringDeployment:
                 tsdb_connection != mm_constants.V3IO_MODEL_MONITORING_DB
                 and not tsdb_connection.startswith("taosws://")
             ):
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "Currently only TDEngine websocket connection is supported for non-v3io TSDB,"
                     "please provide a full URL (e.g. taosws://<username>:<password>@<host>:<port>)"
                 )
@@ -1360,14 +1347,14 @@ class MonitoringDeployment:
                 tsdb_connection == mm_constants.V3IO_MODEL_MONITORING_DB
                 and mlrun.mlconf.is_ce_mode()
             ):
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only TDEngine websocket connection is supported for TSDB"
                 )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
             ] = tsdb_connection
         else:
-            raise mlrun.errors.MLRunInvalidMMStoreType(
+            raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 "You must provide a valid tsdb connection while using set_model_monitoring_credentials "
                 "API/SDK or in the system config"
             )
@@ -1379,7 +1366,7 @@ class MonitoringDeployment:
             try:
                 secrets_dict[key]
             except KeyError:
-                raise mlrun.errors.MLRunInvalidMMStoreType(
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     f"You must provide a valid {key} connection while using set_model_monitoring_credentials."
                 )
         # Create tsdb & sql tables that will be used for storing the model monitoring data

@@ -451,7 +451,7 @@ class Spark3JobSpec(KubeResourceSpec):
 class Spark3Runtime(KubejobRuntime):
     group = "sparkoperator.k8s.io"
     version = "v1beta2"
-    apiVersion = group + "/" + version
+    apiVersion = group + "/" + version  # noqa: N815
     kind = "spark"
     plural = "sparkapplications"
 

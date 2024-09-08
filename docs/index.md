@@ -61,7 +61,7 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 {bdg-link-info}`Guardrails for data management<./genai/data-mgmt/guardrails-data.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -76,11 +76,11 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Working with RAG <./genai/development/working-with-rag.html>`
 {bdg-link-info}`Evalating LLMs <./genai/development/evaluating-llms.html>`
 {bdg-link-info}`Fine tuning LLMS <./genai/development/fine-tuning-llms.html>`
-<br> {octicon}`code-square` **Demo:**
+<br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 {bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -95,13 +95,13 @@ inferring results using one or more models, and driving actions.
 {bdg-link-info}`Serving gen AI models <./genai/deployment/genai_serving.html>`
 {bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
-<br> {octicon}`code-square` **Tutorials:**
+<br> {octicon}`code-square` **Tutorial:**
 {bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
-<br> {octicon}`code-square` **Demo:**
+<br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 {bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 

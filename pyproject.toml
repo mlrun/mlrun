@@ -8,13 +8,9 @@ extend-select = [
     "W",   # pycodestyle
     "E",   # pycodestyle
     "I",   # isort
+    "N",   # pep8-naming
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
-    "N801", # CamelCase for class names
-    "N805", # first argument of instance method should be 'self'
-    "N806", # lowercase variable names
-    "N816", # snake_case for global variable names
-    "N999", # snake_case for module names
     "B006", # mutable default arguments
 ]
 explicit-preview-rules = true

@@ -19,6 +19,7 @@ Configuring runs and functions is relevant for all supported cloud platforms.
 - [Scaling and auto-scaling](#scaling-and-auto-scaling)
 - [Mounting persistent storage](#mounting-persistent-storage)
 - [Preventing stuck pods](#preventing-stuck-pods)
+- [Setting the log level](#setting-the-log-level)
 
 ## Environment variables
 
@@ -493,3 +494,14 @@ See {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
 ```{admonition} Note
 State thresholds are not supported for Nuclio/serving runtimes (since they have their own monitoring) or for the Dask runtime (which can be monitored by the client).
 ```
+
+## Setting the log level
+
+You can set the log level for individual functions. 
+
+To set the log level in the function itself: `context.logger.set_logger_level(level="WARN")`
+
+To set the log level outside the function, using an environment variable: `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
+
+To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
+

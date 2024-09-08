@@ -120,6 +120,7 @@ class V2ModelServer(StepToDict):
         if model:
             self.model = model
             self.ready = True
+        self._versioned_model_name = None
         self._model_endpoint_uid = None
         self.shard_by_endpoint = shard_by_endpoint
 
@@ -228,8 +229,8 @@ class V2ModelServer(StepToDict):
         return self.validate(request, op)
 
     @property
-    def model_endpoint_uid(self):
-        if self._model_endpoint_uid is None:
+    def versioned_model_name(self):
+        if self._versioned_model_name is None:
             # Generating version model value based on the model name and model version
             if self.model_path and self.model_path.startswith("store://"):
                 # Enrich the model server with the model artifact metadata
@@ -238,15 +239,19 @@ class V2ModelServer(StepToDict):
                     # Enrich the model version with the model artifact tag
                     self.version = self.model_spec.tag
                 self.labels = self.model_spec.labels
-                versioned_model_name = f"{self.name}:{self.version}"
+                self._versioned_model_name = f"{self.name}:{self.version}"
             else:
-                versioned_model_name = f"{self.name}:latest"
+                self._versioned_model_name = f"{self.name}:latest"
+        return self._versioned_model_name
 
+    @property
+    def model_endpoint_uid(self):
+        if self._model_endpoint_uid is None:
             # Generating model endpoint ID based on function uri and model version
             self._model_endpoint_uid = (
                 mlrun.common.model_monitoring.create_model_endpoint_uid(
                     function_uri=self.context.server.function_uri,
-                    versioned_model=versioned_model_name,
+                    versioned_model=self.versioned_model_name,
                 ).uid
             )
         return self._model_endpoint_uid
@@ -600,7 +605,7 @@ def _init_endpoint_record(
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_uri=graph_server.function_uri,
-                model=versioned_model_name,
+                model=model.versioned_model_name,
                 model_class=model.__class__.__name__,
                 model_uri=model.model_path,
                 stream_path=model.context.stream.stream_uri,

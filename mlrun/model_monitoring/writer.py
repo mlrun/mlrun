@@ -258,9 +258,11 @@ class ModelMonitoringWriter(StepToDict):
                 "data drift app",
                 endpoint_id=endpoint_id,
             )
+            attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
+            attributes["drift_status"] = str(attributes["drift_status"])
             self._app_result_store.update_model_endpoint(
                 endpoint_id=endpoint_id,
-                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
+                attributes=attributes,
             )
 
         logger.info("Model monitoring writer finished handling event")

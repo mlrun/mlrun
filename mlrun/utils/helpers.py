@@ -1007,6 +1007,10 @@ def get_workflow_url(project, id=None):
     return url
 
 
+def get_kfp_project_filter(project_name: str) -> str:
+    return f'{{"predicates": [{{"key": "name", "op": 9, "string_value": "{project_name}"}}]}}'
+
+
 def are_strings_in_exception_chain_messages(
     exception: Exception, strings_list: list[str]
 ) -> bool:

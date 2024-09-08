@@ -66,6 +66,12 @@ class Pipelines(
 
         kfp_client = self.initialize_kfp_client(namespace)
         if project != "*":
+            # If no filter is provided and the project is not "*",
+            # automatically apply a filter to match runs where the project name
+            # is a substring of the pipeline's name. This ensures that only pipelines
+            # with the project name in their name are returned, helping narrow down the results.
+            if not filter_:
+                filter_ = mlrun.utils.get_kfp_project_filter(project_name=project)
             runs = []
             while page_token is not None:
                 # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.

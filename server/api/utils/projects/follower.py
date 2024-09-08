@@ -79,6 +79,9 @@ class Member(
                 # full_sync=True was a temporary measure to handle the move of mlrun from single instance to
                 # chief-worker model. Now it is possible to delete projects that are not in the leader therefore
                 # we don't necessarily need to archive projects that are not in the leader.
+                # A full sync occurs only during initialization (and not in the periodic task) to avoid cases where
+                # a bug in Iguazio returns an empty list of projects, which could potentially result in the
+                # deletion of all MLRun projects
                 # TODO: Discuss maybe removing full_sync=True in 1.8.0
                 self._sync_projects(full_sync=True)
             except Exception as exc:

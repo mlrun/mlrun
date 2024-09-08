@@ -68,7 +68,7 @@ class TDEngineConnector(TSDBConnector):
         try:
             conn.execute(f"USE {self.database}")
         except taosws.QueryError as e:
-            raise mlrun.errors.MLRunTSDBConnectionFailure(
+            raise mlrun.errors.MLRunTSDBConnectionFailureError(
                 f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
             )
         return conn
@@ -167,9 +167,10 @@ class TDEngineConnector(TSDBConnector):
 
         def apply_tdengine_target(name, after):
             graph.add_step(
-                "mlrun.datastore.storeytargets.TDEngineStoreyTarget",
+                "storey.TDEngineTarget",
                 name=name,
                 after=after,
+                url=self._tdengine_connection_string,
                 supertable=mm_schemas.TDEngineSuperTables.PREDICTIONS,
                 table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
                 time_col=mm_schemas.EventFieldType.TIME,

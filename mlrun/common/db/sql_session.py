@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import sessionmaker as SessionMaker
+from sqlalchemy.orm import (
+    sessionmaker as SessionMaker,  # noqa: N812 - `sessionmaker` is a class
+)
 
 from mlrun.config import config
 

@@ -19,7 +19,7 @@ import pandas as pd
 import semver
 
 
-def _toPandas(spark_df):
+def _to_pandas(spark_df):
     """
     Modified version of spark DataFrame.toPandas() -
     https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py#L35
@@ -262,9 +262,9 @@ def spark_df_to_pandas(spark_df):
                 )
                 type_conversion_dict[field.name] = "datetime64[ns]"
 
-        df = _toPandas(spark_df)
+        df = _to_pandas(spark_df)
         if type_conversion_dict:
             df = df.astype(type_conversion_dict)
         return df
     else:
-        return _toPandas(spark_df)
+        return _to_pandas(spark_df)

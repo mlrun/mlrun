@@ -156,7 +156,9 @@ class RemoteVectorResponse:
 
     def _is_ready(self):
         if self.status != "completed":
-            raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
+            raise mlrun.errors.MLRunTaskNotReadyError(
+                "feature vector dataset is not ready"
+            )
         self.vector.reload()
 
     def to_dataframe(self, columns=None, df_module=None, **kwargs):

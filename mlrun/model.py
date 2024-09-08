@@ -487,7 +487,7 @@ class ImageBuilder(ModelObj):
 
     def __init__(
         self,
-        functionSourceCode=None,
+        functionSourceCode=None,  # noqa: N803 - should be "snake_case", kept for BC
         source=None,
         image=None,
         base_image=None,

@@ -17,7 +17,7 @@ import sqlalchemy.orm
 
 import mlrun.utils.singleton
 import server.api.utils.singletons.k8s
-from mlrun.datastore.datastore_profile import DatastoreProfile as dsp
+from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 
 from .secrets import Secrets
 
@@ -39,7 +39,7 @@ class DatastoreProfiles(
             )
 
         adjusted_secret = {
-            dsp.generate_secret_key(profile_name, project): profile_secret_json
+            DSProfile.generate_secret_key(profile_name, project): profile_secret_json
         }
 
         Secrets().store_project_secrets(
@@ -57,7 +57,7 @@ class DatastoreProfiles(
                 "MLRun is not configured with k8s, datastore profile credentials cannot be deleted"
             )
 
-        adjusted_secret = dsp.generate_secret_key(profile_name, project)
+        adjusted_secret = DSProfile.generate_secret_key(profile_name, project)
 
         Secrets().delete_project_secret(
             project,

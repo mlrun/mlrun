@@ -247,7 +247,7 @@ class ASTVisitor(ast.NodeVisitor):
         self.exprs.append(node)
         super().generic_visit(node)
 
-    def visit_FunctionDef(self, node):
+    def visit_FunctionDef(self, node):  # noqa: N802
         self.funcs.append(node)
         self.generic_visit(node)
 

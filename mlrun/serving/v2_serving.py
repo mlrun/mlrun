@@ -152,9 +152,7 @@ class V2ModelServer(StepToDict):
             return
 
         if not self.context.is_mock or self.context.monitoring_mock:
-            self.model_endpoint_uid = _init_endpoint_record(
-                graph_server=server, model=self
-            )
+            _init_endpoint_record(graph_server=server, model=self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""

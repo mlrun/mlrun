@@ -32,7 +32,7 @@ class QueryLLM:
         return event
 ```
 
-To run a model as part of a larger pipeline, you can use the {py:method}`~mlrun.runtimes.ServingRuntime.set_topology` method of the serving function. 
+To run a model as part of a larger pipeline, you can use the {py:meth}`mlrun.runtimes.ServingRuntime.set_topology` method of the serving function. 
 Store the code above to `src/serve-llm.py`. Then, to create the serving function, run the following code:
 
 ```python

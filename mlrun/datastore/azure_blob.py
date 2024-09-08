@@ -22,7 +22,7 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, make_datastore_schema_sanitizer
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
@@ -40,6 +40,9 @@ class AzureBlobStore(DataStore):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self._service_client = None
         self._storage_options = None
+
+    def get_storage_options(self):
+        return self.storage_options
 
     @property
     def storage_options(self):
@@ -75,7 +78,7 @@ class AzureBlobStore(DataStore):
         if not self._filesystem:
             # in order to support az and wasbs kinds
             filesystem_class = get_filesystem_class(protocol=self.kind)
-            self._filesystem = makeDatastoreSchemaSanitizer(
+            self._filesystem = make_datastore_schema_sanitizer(
                 filesystem_class,
                 using_bucket=self.using_bucket,
                 blocksize=self.max_blocksize,
@@ -186,12 +189,7 @@ class AzureBlobStore(DataStore):
                 "Append mode not supported for Azure blob datastore"
             )
         remote_path = self._convert_key_to_remote_path(key)
-        if isinstance(data, bytes):
-            mode = "wb"
-        elif isinstance(data, str):
-            mode = "w"
-        else:
-            raise TypeError("Data type unknown.  Unable to put in Azure!")
+        data, mode = self._prepare_put_data(data, append)
         with self.filesystem.open(remote_path, mode) as f:
             f.write(data)
 
@@ -225,7 +223,7 @@ class AzureBlobStore(DataStore):
 
     def get_spark_options(self):
         res = {}
-        st = self.storage_options()
+        st = self.storage_options
         service = "blob"
         primary_url = None
         if st.get("connection_string"):

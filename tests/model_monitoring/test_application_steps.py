@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import json
 import logging
 import typing
@@ -20,19 +21,99 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
+import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.serving.states
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
 from mlrun.model_monitoring.applications._application_steps import (
+    _PrepareMonitoringEvent,  # noqa: F401
     _PushToMonitoringWriter,
 )
-from mlrun.utils import Logger
+from mlrun.utils import Logger, logger
 
 STREAM_PATH = "./test_stream.json"
+
+
+class TestEventPreparation:
+    ENDPOINT_ID = "test-ep-id"
+    APPLICATION_NAME = "test-app"
+
+    @staticmethod
+    @pytest.fixture
+    def mock_load_project(tmp_path: Path) -> typing.Iterator[None]:
+        with patch(
+            "mlrun.load_project",
+            Mock(
+                return_value=mlrun.projects.MlrunProject(
+                    spec=mlrun.projects.ProjectSpec(artifact_path=str(tmp_path))
+                )
+            ),
+        ):
+            yield
+
+    @classmethod
+    @pytest.fixture
+    def controller_event(cls) -> dict[str, typing.Any]:
+        return {
+            mm_constants.ApplicationEvent.ENDPOINT_ID: cls.ENDPOINT_ID,
+            mm_constants.ApplicationEvent.APPLICATION_NAME: cls.APPLICATION_NAME,
+        }
+
+    @classmethod
+    @pytest.mark.usefixtures("mock_load_project")
+    @patch("mlrun.model_monitoring.applications.context.get_endpoint_record")
+    def test_prepare_monitoring_event(
+        cls, mock_get_endpoint_record: Mock, controller_event: dict[str, typing.Any]
+    ) -> None:
+        logger.info("Set up a mock server with a `_PrepareMonitoringEvent` step")
+
+        fn = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                filename=__file__,
+                name="model-monitoring-context-preparation",
+                kind=mlrun.run.RuntimeKinds.serving,
+            ),
+        )
+        graph = fn.set_topology(mlrun.serving.states.StepKinds.flow)
+
+        graph.to(
+            "_PrepareMonitoringEvent", application_name=cls.APPLICATION_NAME
+        ).respond()
+        server = fn.to_mock_server()
+        monitoring_context = typing.cast(
+            mm_context.MonitoringApplicationContext,
+            server.test(body=controller_event),
+        )
+
+        logger.info("Test `monitoring_context` functionality")
+
+        monitoring_context.logger.debug("Checking `get_endpoint_record` was called")
+        mock_get_endpoint_record.assert_called_once()
+
+        monitoring_context.logger.debug("Logging an artifact")
+        artifact = monitoring_context.log_artifact(
+            "my-app-data",
+            body=b"Sometimes, context is important.",
+            format="txt",
+            labels={"framework": "deepeval"},
+        )
+
+        monitoring_context.logger.debug("Checking logged artifact labels")
+        assert {
+            "framework": "deepeval",
+            "mlrun/producer-type": "model-monitoring-app",
+            "mlrun/app-name": cls.APPLICATION_NAME,
+            "mlrun/endpoint-id": cls.ENDPOINT_ID,
+        }.items() <= artifact.labels.items()
+
+        server.wait_for_completion()
+        monitoring_context.logger.debug("I'm done")
 
 
 class Pusher:

@@ -87,8 +87,6 @@ Some services do not support security context yet:
 :hidden:
 :maxdepth: 1
 
-install/local-docker
 install/kubernetes
-install/aws-install
 install/remote
 ```

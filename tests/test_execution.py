@@ -14,6 +14,8 @@
 import datetime
 import unittest.mock
 
+import numpy as np
+import pandas as pd
 import pytest
 from mlrun_pipelines.models import PipelineRun
 
@@ -21,7 +23,51 @@ import mlrun
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
 import mlrun.errors
-from tests.conftest import out_path
+from mlrun import new_task
+from tests.conftest import out_path, tag_test, verify_state
+
+
+def my_func(context):
+    print(f"Run: {context.name} (uid={context.uid})")
+
+    context.log_result("float", 1.5)
+    context.log_result("np-float32", np.float32(1.5))
+    context.log_result("date", datetime.datetime(2018, 1, 1))
+    context.log_result("np-date", np.datetime64("2018-01-01"))
+    context.log_result("np-nan", np.nan)
+    context.log_result("np-list", [1.5, np.nan, np.inf])
+    context.log_result("dict", {"x": -1.3, "y": np.float32(1.5), "z": "ab"})
+    context.log_result(
+        "array", np.array([1, 2, 3.2, np.nan, np.datetime64("2018-01-01")])
+    )
+
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "x": np.array([1, 2, 3.2, np.nan, 5.5]),
+        "y": [25, 94, 0.1, 57, datetime.datetime(2018, 1, 1)],
+    }
+    df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "x", "y"])
+    context.log_dataset("df1", df=df, format="csv")
+
+    date_rng = pd.date_range("2018-01-01", periods=4, freq="H")
+    df = pd.DataFrame(date_rng, columns=["date"])
+    df["data"] = np.random.rand(4)
+    df["nan"] = np.nan
+    df["datetime"] = pd.to_datetime(df["date"])
+    df["text"] = "x"
+    df = df.set_index("datetime")
+    context.log_dataset("df2", df=df)
+
+    return np.nan
+
+
+def test_log_serialization():
+    function = mlrun.new_function(name="test_serialization", kind="job")
+    base_task = new_task(artifact_path=out_path, handler=my_func)
+    task = tag_test(base_task, "test_serialization")
+    result = function.run(task, local=True)
+    verify_state(result)
 
 
 def test_local_context(rundb_mock):

@@ -20,7 +20,7 @@ from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, get_range, make_datastore_schema_sanitizer
 
 
 class S3Store(DataStore):
@@ -126,7 +126,7 @@ class S3Store(DataStore):
         except ImportError as exc:
             raise ImportError("AWS s3fs not installed") from exc
         filesystem_class = get_filesystem_class(protocol=self.kind)
-        self._filesystem = makeDatastoreSchemaSanitizer(
+        self._filesystem = make_datastore_schema_sanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
@@ -183,6 +183,7 @@ class S3Store(DataStore):
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
+        data, _ = self._prepare_put_data(data, append)
         bucket, key = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=data)
 

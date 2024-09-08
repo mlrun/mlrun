@@ -386,6 +386,7 @@ class APIGateway(ModelObj):
         headers: dict = None,
         credentials: Optional[tuple[str, str]] = None,
         path: Optional[str] = None,
+        body: Optional[Union[str, bytes, dict]] = None,
         **kwargs,
     ):
         """
@@ -396,6 +397,7 @@ class APIGateway(ModelObj):
         :param credentials: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required
             can also be set by the environment variable (_, V3IO_ACCESS_KEY) for access key authentication.
         :param path: (str, optional) The sub-path for the invocation.
+        :param body: (Optional[Union[str, bytes, dict]]) The body of the invocation.
         :param kwargs: (dict) Additional keyword arguments.
 
         :return: The response from the API gateway invocation.
@@ -444,6 +446,13 @@ class APIGateway(ModelObj):
                     "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
                 )
         url = urljoin(self.invoke_url, path or "")
+
+        # Determine the correct keyword argument for the body
+        if isinstance(body, dict):
+            kwargs["json"] = body
+        elif isinstance(body, (str, bytes)):
+            kwargs["data"] = body
+
         return requests.request(
             method=method,
             url=url,
@@ -567,6 +576,15 @@ class APIGateway(ModelObj):
         """
         self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
             "true"
+        )
+
+    def with_gateway_timeout(self, gateway_timeout: int):
+        """
+        Set gateway proxy connect/read/send timeout annotations
+        :param gateway_timeout: The timeout in seconds
+        """
+        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+            self.metadata.annotations, gateway_timeout
         )
 
     @classmethod

@@ -60,8 +60,8 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 {bdg-link-info}`Vector databases <./genai/data-mgmt/vector-databases.html>`
 {bdg-link-info}`Guardrails for data management<./genai/data-mgmt/guardrails-data.html>`
 <br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
-<br> {octicon}`video` **Videos:**
+{bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -73,14 +73,14 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Working with RAG <./genai/working-with-rag.html>`
-{bdg-link-info}`Evalating LLMs <./genai/evaluating-llms.html>`
-{bdg-link-info}`Fine tuning LLMS <./genai/fine-tuning-llms.html>`
-<br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-primary}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+{bdg-link-info}`Working with RAG <./genai/development/working-with-rag.html>`
+{bdg-link-info}`Evalating LLMs <./genai/development/evaluating-llms.html>`
+{bdg-link-info}`Fine tuning LLMS <./genai/development/fine-tuning-llms.html>`
+<br> {octicon}`code-square` **Demos:**
+{bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
+{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -92,16 +92,16 @@ inferring results using one or more models, and driving actions.
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Serving gen AI models <./genai/genai-serving.html>`
-{bdg-link-info}`GPU utilization <./genai/gpu-utilization.html>`
-{bdg-link-info}`Gen AI realtime serving graph <./genai/genai-serving-graph.html>`
-<br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/g01-llm.html>`
-<br> {octicon}`code-square` **Demo:**
-{bdg-link-primary}`Call center demo <https://github.com/mlrun/demo-call-center>`
-{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
-{bdg-link-primary}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+{bdg-link-info}`Serving gen AI models <./genai/deployment/genai_serving.html>`
+{bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
+{bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
+<br> {octicon}`code-square` **Tutorial:**
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+<br> {octicon}`code-square` **Demos:**
+{bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
+{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -111,8 +111,10 @@ Collect production data, metadata, and metrics to tune the model and application
 
 
 `````{div} full-width
-{octicon}`code-square` **Demo:**
-{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{octicon}`mortar-board` **Tutorial:**
+{bdg-link-info}`Model monitoring using LLM <./genai/live-ops/monitoring-llm.html>`
+<br> {octicon}`code-square` **Demo:**
+{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
 
 ## MLOps tasks
@@ -183,10 +185,12 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Ingest and process data <ingesting-process-data>`
+{bdg-link-info}`Ingest and process data <data-prep/index.html>`
+{bdg-link-info}`Feature store <./feature-store/feature-store.html>`
 {bdg-link-info}`Data and artifacts <./concepts/data.html>`
 <br> {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`NAME <./tutorials/FILENAME>`
+{bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
+{bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
 
 `````
 

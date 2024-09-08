@@ -20,6 +20,7 @@ from http import HTTPStatus
 import v3io.dataplane
 import v3io.dataplane.output
 import v3io.dataplane.response
+from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -34,11 +35,11 @@ fields_to_encode_decode = [
 ]
 
 _METRIC_FIELDS: list[str] = [
-    mm_schemas.WriterEvent.APPLICATION_NAME,
-    mm_schemas.MetricData.METRIC_NAME,
-    mm_schemas.MetricData.METRIC_VALUE,
-    mm_schemas.WriterEvent.START_INFER_TIME,
-    mm_schemas.WriterEvent.END_INFER_TIME,
+    mm_schemas.WriterEvent.APPLICATION_NAME.value,
+    mm_schemas.MetricData.METRIC_NAME.value,
+    mm_schemas.MetricData.METRIC_VALUE.value,
+    mm_schemas.WriterEvent.START_INFER_TIME.value,
+    mm_schemas.WriterEvent.END_INFER_TIME.value,
 ]
 
 
@@ -100,12 +101,17 @@ class KVStoreBase(StoreBase):
         project: str,
     ) -> None:
         super().__init__(project=project)
-        # Initialize a V3IO client instance
-        self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-        )
+        self._client = None
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
+
+    @property
+    def client(self) -> V3IOClient:
+        if not self._client:
+            self._client = mlrun.utils.v3io_clients.get_v3io_client(
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+        return self._client
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """
@@ -285,6 +291,10 @@ class KVStoreBase(StoreBase):
         """
         Delete all model endpoints resources in V3IO KV.
         """
+        logger.debug(
+            "Deleting model monitoring endpoints resources in V3IO KV",
+            project=self.project,
+        )
 
         endpoints = self.list_model_endpoints()
 

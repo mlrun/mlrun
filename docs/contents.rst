@@ -18,7 +18,7 @@ Table of Contents
    genai/data-mgmt/index
    genai/development/index
    genai/deployment/index	  
-   genai/live-ops/index
+
 	  
 	
 	   
@@ -30,8 +30,8 @@ Table of Contents
    data-prep/index
    development/index
    deployment/index
-   monitoring/index
    projects/ci-cd-automate
+     
    
    
 .. toctree::
@@ -41,10 +41,11 @@ Table of Contents
    projects/project
    runtimes/functions
    concepts/data
-   feature-store/feature-store
+   concepts/model-monitoring
+   concepts/alerts-notifications
    concepts/runs-workflows
    serving/serving-graph
-   concepts/monitoring
+   feature-store/feature-store
      
 .. toctree::
    :maxdepth: 1

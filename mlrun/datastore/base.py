@@ -157,6 +157,18 @@ class DataStore:
     def put(self, key, data, append=False):
         pass
 
+    def _prepare_put_data(self, data, append=False):
+        mode = "a" if append else "w"
+        if isinstance(data, bytearray):
+            data = bytes(data)
+
+        if isinstance(data, bytes):
+            return data, f"{mode}b"
+        elif isinstance(data, str):
+            return data, mode
+        else:
+            raise TypeError(f"Unable to put a value of type {type(self).__name__}")
+
     def stat(self, key):
         pass
 
@@ -748,7 +760,7 @@ class HttpStore(DataStore):
 # As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
 # Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
 # method specifically to strip away the 'ds' schema as required.
-def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
+def make_datastore_schema_sanitizer(cls, using_bucket=False, *args, **kwargs):
     if not issubclass(cls, fsspec.AbstractFileSystem):
         raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 

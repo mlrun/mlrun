@@ -47,7 +47,7 @@ class PackTest(NamedTuple):
 
     pack_handler: str
     log_hint: Union[str, dict]
-    validation_function: Callable[[Any, ...], bool]
+    validation_function: Callable[..., bool]
     pack_parameters: dict = {}
     validation_parameters: dict = {}
     default_artifact_type_object: Any = None
@@ -69,7 +69,7 @@ class UnpackTest(NamedTuple):
                                    exception message. Default is None (the test should succeed).
     """
 
-    prepare_input_function: Callable[[...], tuple[str, str]]
+    prepare_input_function: Callable[..., tuple[str, str]]
     unpack_handler: str
     prepare_parameters: dict = {}
     unpack_parameters: dict = {}

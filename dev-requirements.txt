@@ -3,7 +3,7 @@ twine~=5.1
 build~=1.0
 
 # formatting & linting
-ruff==0.5.0
+ruff==0.6.3
 import-linter~=2.0
 blacken-docs~=1.18
 black~=24.4  # only used by by blacken-docs
@@ -31,6 +31,7 @@ avro~=1.11
 sqlalchemy-utils~=0.39.0
 
 # frameworks tests
-scikit-learn~=1.4.0
+scikit-learn~=1.5.1
 lightgbm~=4.3
 xgboost~=1.1
+cryptography~=43.0

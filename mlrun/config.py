@@ -527,7 +527,7 @@ default_config = {
     "model_endpoint_monitoring": {
         "serving_stream": {
             "v3io": {
-                "shards_count": 2,
+                "shard_count": 2,
                 "retention_period_hours": 24,
                 "num_workers": 1,
                 "min_replicas": 2,

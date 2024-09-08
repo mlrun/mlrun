@@ -49,14 +49,12 @@ class EventStreamProcessor:
         parquet_batching_max_events: int,
         parquet_batching_timeout_secs: int,
         parquet_target: str,
-        sample_window: int = 10,
         aggregate_windows: typing.Optional[list[str]] = None,
-        aggregate_period: str = "30s",
+        aggregate_period: str = "5m",
         model_monitoring_access_key: str = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
-        self.sample_window = sample_window
         self.aggregate_windows = aggregate_windows or ["5m", "1h"]
         self.aggregate_period = aggregate_period
 
@@ -164,7 +162,7 @@ class EventStreamProcessor:
 
         :param fn: A serving function.
         :param tsdb_connector: Time series database connector.
-        :param store: KV/SQL store used for endpoint data.
+        :param endpoint_store: KV/SQL store used for endpoint data.
         """
 
         graph = typing.cast(
@@ -307,18 +305,6 @@ class EventStreamProcessor:
         if endpoint_store.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
 
-        # Emits the event in window size of events based on sample_window size (10 by default)
-        def apply_storey_sample_window():
-            graph.add_step(
-                "storey.steps.SampleWindow",
-                name="sample",
-                after="Rename",
-                window_size=self.sample_window,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        apply_storey_sample_window()
-
         tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
         # Parquet branch
@@ -336,11 +322,12 @@ class EventStreamProcessor:
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
-                "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+                "storey.ParquetTarget",
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",
                 path=self.parquet_path,
+                storage_options=self.storage_options,
                 max_events=self.parquet_batching_max_events,
                 flush_after_seconds=self.parquet_batching_timeout_secs,
                 attributes={"infer_columns_from_data": True},

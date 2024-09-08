@@ -433,6 +433,7 @@ class ApplicationRuntime(RemoteRuntime):
         authentication_creds: tuple[str, str] = None,
         ssl_redirect: bool = None,
         set_as_default: bool = False,
+        gateway_timeout: typing.Optional[int] = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -445,6 +446,8 @@ class ApplicationRuntime(RemoteRuntime):
         :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
                                         mlrun.mlconf.force_api_gateway_ssl_redirect()
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
+        :param gateway_timeout:         nginx ingress timeout in sec (request timeout, when will the gateway return an
+                                        error)
 
         :return:    The API gateway URL
         """
@@ -472,8 +475,7 @@ class ApplicationRuntime(RemoteRuntime):
             APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
-                labels=self.metadata.labels,
-                annotations=self.metadata.annotations,
+                labels=self.metadata.labels.copy(),
             ),
             APIGatewaySpec(
                 functions=[self],
@@ -483,6 +485,7 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        api_gateway.with_gateway_timeout(gateway_timeout)
         if ssl_redirect is None:
             ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
         if ssl_redirect:

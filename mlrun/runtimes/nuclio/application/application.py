@@ -438,7 +438,7 @@ class ApplicationRuntime(RemoteRuntime):
         An application without an API gateway is not accessible.
         :param name:                    The name of the API gateway
         :param path:                    Optional path of the API gateway, default value is "/".
-            Note that given path should be supported by deployed application
+            The given path should be supported by the deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)

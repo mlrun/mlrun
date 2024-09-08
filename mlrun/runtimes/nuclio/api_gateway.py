@@ -578,6 +578,15 @@ class APIGateway(ModelObj):
             "true"
         )
 
+    def with_gateway_timeout(self, gateway_timeout: int):
+        """
+        Set gateway proxy connect/read/send timeout annotations
+        :param gateway_timeout: The timeout in seconds
+        """
+        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+            self.metadata.annotations, gateway_timeout
+        )
+
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(

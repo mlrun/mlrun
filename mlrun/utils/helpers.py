@@ -1015,7 +1015,8 @@ def get_kfp_project_filter(project_name: str) -> str:
     project name appears as a substring in the run's name, ensuring that we can identify
     runs belonging to the desired project.
     """
-    return f'{{"predicates": [{{"key": "name", "op": 9, "string_value": "{project_name}"}}]}}'
+    is_substring_op = 9
+    return f'{{"predicates": [{{"key": "name", "op": {is_substring_op}, "string_value": "{project_name}"}}]}}'
 
 
 def are_strings_in_exception_chain_messages(

@@ -24,6 +24,7 @@ from typing import NamedTuple, Optional, Union, cast
 import nuclio
 
 import mlrun
+import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.model_monitoring.db.stores
@@ -287,6 +288,9 @@ class MonitoringApplicationController:
         )
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
+        self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project
+        )
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:
@@ -376,6 +380,7 @@ class MonitoringApplicationController:
                         batch_window_generator=self._batch_window_generator,
                         project=self.project,
                         model_monitoring_access_key=self.model_monitoring_access_key,
+                        tsdb_connector=self.tsdb_connector,
                     )
 
     @classmethod
@@ -386,6 +391,7 @@ class MonitoringApplicationController:
         batch_window_generator: _BatchWindowGenerator,
         project: str,
         model_monitoring_access_key: str,
+        tsdb_connector: mlrun.model_monitoring.db.tsdb.TSDBConnector,
     ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
@@ -397,6 +403,7 @@ class MonitoringApplicationController:
         :param batch_window_generator:      (_BatchWindowGenerator) An object that generates _BatchWindow objects.
         :param project:                     (str) Project name.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
+        :param tsdb_connector:              (mlrun.model_monitoring.db.tsdb.TSDBConnector) TSDB connector
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
@@ -411,6 +418,30 @@ class MonitoringApplicationController:
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
+                    prediction_metric = tsdb_connector.read_predictions(
+                        endpoint_id=endpoint_id,
+                        start=start_infer_time,
+                        end=end_infer_time,
+                    )
+                    if isinstance(
+                        prediction_metric,
+                        mm_schemas.ModelEndpointMonitoringMetricNoData,
+                    ):
+                        logger.info(
+                            "No data found for the given interval",
+                            start=start_infer_time,
+                            end=end_infer_time,
+                            endpoint_id=endpoint_id,
+                        )
+                        return
+                    else:
+                        logger.info(
+                            "Data found for the given interval",
+                            start=start_infer_time,
+                            end=end_infer_time,
+                            endpoint_id=endpoint_id,
+                            count=len(prediction_metric.values),
+                        )
                     cls._push_to_applications(
                         start_infer_time=start_infer_time,
                         end_infer_time=end_infer_time,
@@ -427,25 +458,24 @@ class MonitoringApplicationController:
 
     @staticmethod
     def _push_to_applications(
-        start_infer_time,
-        end_infer_time,
-        endpoint_id,
-        project,
-        applications_names,
-        model_monitoring_access_key,
+        start_infer_time: datetime.datetime,
+        end_infer_time: datetime.datetime,
+        endpoint_id: str,
+        project: str,
+        applications_names: list[str],
+        model_monitoring_access_key: str,
     ):
         """
         Pushes data to multiple stream applications.
 
-        :param start_infer_time:    The beginning of the infer interval window.
-        :param end_infer_time:      The end of the infer interval window.
-        :param endpoint_id:         Identifier for the model endpoint.
-        :param project: mlrun       Project name.
-        :param applications_names:  List of application names to which data will be pushed.
+        :param start_infer_time:            The beginning of the infer interval window.
+        :param end_infer_time:              The end of the infer interval window.
+        :param endpoint_id:                 Identifier for the model endpoint.
+        :param project: mlrun               Project name.
+        :param applications_names:          List of application names to which data will be pushed.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
 
         """
-        # TODO : tsdb prediction check - ?
-
         data = {
             mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"

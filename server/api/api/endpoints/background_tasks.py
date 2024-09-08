@@ -16,7 +16,6 @@ import datetime
 import typing
 
 import fastapi
-import semver
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
@@ -133,7 +132,6 @@ async def get_internal_background_task(
         server.api.api.deps.authenticate_request
     ),
 ):
-    await _authorize_get_background_task_request(name, auth_info)
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
@@ -147,10 +145,13 @@ async def get_internal_background_task(
             name=name, request=request
         )
 
-    return await run_in_threadpool(
+    background_task = await run_in_threadpool(
         server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
         name=name,
+        raise_on_not_found=True,
     )
+    await _authorize_get_background_task_request(background_task, auth_info)
+    return background_task
 
 
 @router.get(
@@ -184,9 +185,7 @@ async def list_internal_background_tasks(
     allowed_background_tasks = []
     for background_task in background_tasks:
         try:
-            await _authorize_get_background_task_request(
-                background_task.metadata.name, auth_info
-            )
+            await _authorize_get_background_task_request(background_task, auth_info)
             allowed_background_tasks.append(background_task)
         except mlrun.errors.MLRunAccessDeniedError:
             pass
@@ -197,17 +196,24 @@ async def list_internal_background_tasks(
 
 
 async def _authorize_get_background_task_request(
-    name: str, auth_info: mlrun.common.schemas.AuthInfo
+    background_task: mlrun.common.schemas.BackgroundTask,
+    auth_info: mlrun.common.schemas.AuthInfo,
 ):
-    # Since there's no not-found option on get_background_task - we authorize before getting (unlike other get endpoint)
-    # In Iguazio 3.2 the manifest doesn't support the global background task resource - therefore we have to just omit
-    # authorization
-    # we also skip Iguazio 3.6 for now, until it will add support for it (still in development)
-    igz_version = mlrun.mlconf.get_parsed_igz_version()
-    if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
-        await server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.background_task,
-            name,
+    # Iguazio manifest doesn't support the global background task resource yet - therefore if the background task has a
+    # project (e.g. delete project), we can authorize on the project
+    if background_task.metadata.project:
+        return await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            background_task.metadata.project,
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
+
+    # If there is no project we have to just omit authorization until iguazio supports it
+    # igz_version = mlrun.mlconf.get_parsed_igz_version()
+    # if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
+    #     return await server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+    #         mlrun.common.schemas.AuthorizationResourceTypes.background_task,
+    #         background_task.metadata.name,
+    #         mlrun.common.schemas.AuthorizationAction.read,
+    #         auth_info,
+    #     )

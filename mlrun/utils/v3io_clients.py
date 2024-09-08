@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from v3io.dataplane import Client as V3IOClient
-from v3io_frames import Client as get_client
+from v3io_frames import Client as V3IOFramesClient
 from v3io_frames.client import ClientBase
 
 _v3io_clients: dict[frozenset, V3IOClient] = {}
@@ -24,7 +24,7 @@ def get_frames_client(**kwargs) -> ClientBase:
     global _frames_clients
     kw_set = frozenset(kwargs.items())
     if kw_set not in _frames_clients:
-        _frames_clients[kw_set] = get_client(**kwargs)
+        _frames_clients[kw_set] = V3IOFramesClient(**kwargs)
 
     return _frames_clients[kw_set]
 

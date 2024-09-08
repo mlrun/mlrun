@@ -47,10 +47,17 @@ class TDEngineConnector(TSDBConnector):
             )
         self._tdengine_connection_string = kwargs.get("connection_string")
         self.database = database
-        self._connection = self._create_connection()
+
+        self._connection = None
         self._init_super_tables()
 
-    def _create_connection(self):
+    @property
+    def connection(self) -> taosws.Connection:
+        if not self._connection:
+            self._connection = self._create_connection()
+        return self._connection
+
+    def _create_connection(self) -> taosws.Connection:
         """Establish a connection to the TSDB server."""
         conn = taosws.connect(self._tdengine_connection_string)
         try:
@@ -61,7 +68,7 @@ class TDEngineConnector(TSDBConnector):
         try:
             conn.execute(f"USE {self.database}")
         except taosws.QueryError as e:
-            raise mlrun.errors.MLRunTSDBConnectionFailure(
+            raise mlrun.errors.MLRunTSDBConnectionFailureError(
                 f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
             )
         return conn
@@ -84,7 +91,7 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self._connection.execute(create_table_query)
+            self.connection.execute(create_table_query)
 
     def write_application_event(
         self,
@@ -128,10 +135,10 @@ class TDEngineConnector(TSDBConnector):
         create_table_query = table._create_subtable_query(
             subtable=table_name, values=event
         )
-        self._connection.execute(create_table_query)
+        self.connection.execute(create_table_query)
 
         insert_statement = table._insert_subtable_query(
-            self._connection,
+            self.connection,
             subtable=table_name,
             values=event,
         )
@@ -176,7 +183,8 @@ class TDEngineConnector(TSDBConnector):
                     mm_schemas.EventFieldType.PROJECT,
                     mm_schemas.EventFieldType.ENDPOINT_ID,
                 ],
-                max_events=10,
+                max_events=1000,
+                flush_after_seconds=30,
             )
 
         apply_process_before_tsdb()
@@ -196,12 +204,12 @@ class TDEngineConnector(TSDBConnector):
             get_subtable_names_query = self.tables[table]._get_subtables_query(
                 values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
-            subtables = self._connection.query(get_subtable_names_query)
+            subtables = self.connection.query(get_subtable_names_query)
             for subtable in subtables:
                 drop_query = self.tables[table]._drop_subtable_query(
                     subtable=subtable[0]
                 )
-                self._connection.execute(drop_query)
+                self.connection.execute(drop_query)
         logger.info(
             f"Deleted all project resources in the TSDB connector for project {self.project}"
         )
@@ -273,7 +281,7 @@ class TDEngineConnector(TSDBConnector):
             database=self.database,
         )
         try:
-            query_result = self._connection.query(full_query)
+            query_result = self.connection.query(full_query)
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"

@@ -953,7 +953,9 @@ class Scheduler:
         return labels
 
     @staticmethod
-    def _set_scheduled_object_labels(scheduled_object, labels):
+    def _set_scheduled_object_labels(
+        scheduled_object: Union[Optional[dict], Callable], labels: Optional[dict]
+    ) -> None:
         if not isinstance(scheduled_object, dict):
             return
         scheduled_object.setdefault("task", {}).setdefault("metadata", {})["labels"] = (
@@ -965,14 +967,14 @@ class Scheduler:
         labels: Optional[dict],
         scheduled_object: Union[Optional[dict], Callable],
         db_schedule: Optional[mlrun.common.schemas.ScheduleRecord],
-    ):
+    ) -> tuple[Optional[dict], Union[Optional[dict], Callable]]:
         """
         Merges the provided schedule labels and scheduled object labels with the labels
         from the database schedule. The method ensures that the scheduled object's labels
         are properly aligned with the schedule labels.
 
         :param labels: The labels of the schedule
-        :param scheduled_object: the scheduled object
+        :param scheduled_object: The scheduled object
         :param db_schedule: A ScheduleRecord object from the database, containing the existing labels
                             and scheduled object to be merged
         :return: The merged labels and the updated scheduled object, ensuring alignment between
@@ -1014,13 +1016,13 @@ class Scheduler:
         self,
         labels: Optional[dict],
         scheduled_object: Union[Optional[dict], Callable],
-    ):
+    ) -> Optional[dict]:
         """
         Merges the labels of the scheduled object, giving precedence to the scheduled object labels
-        :param labels: the labels of a schedule
-        :param scheduled_object: a scheduled object
+        :param labels: The labels of a schedule
+        :param scheduled_object: A scheduled object
 
-        :return: merged labels
+        :return: Merged labels
         """
         # Ensure scheduled_object is a dictionary-like object
         if not isinstance(scheduled_object, dict):

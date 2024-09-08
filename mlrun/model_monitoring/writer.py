@@ -259,7 +259,9 @@ class ModelMonitoringWriter(StepToDict):
                 endpoint_id=endpoint_id,
             )
             attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
-            attributes["drift_status"] = str(attributes["drift_status"])
+            attributes[EventFieldType.DRIFT_STATUS] = str(
+                attributes[EventFieldType.DRIFT_STATUS]
+            )
             self._app_result_store.update_model_endpoint(
                 endpoint_id=endpoint_id,
                 attributes=attributes,

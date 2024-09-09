@@ -754,6 +754,25 @@ def test_delete_project_with_stop_logs(
         assert log_collector._call.call_args[0][0] == "DeleteLogs"
 
 
+def test_project_with_invalid_node_selector(
+    db: Session,
+    client: TestClient,
+):
+    project_name = "project-name"
+    project = _create_project(client, project_name)
+    invalid_node_selector = {"invalid": "node=selector"}
+
+    project.spec.default_function_node_selector = invalid_node_selector
+    response = client.put(f"projects/{project_name}", json=project.dict())
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+    valid_node_selector = {"label": "val"}
+    project.spec.default_function_node_selector = valid_node_selector
+    response = client.put(f"projects/{project_name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project, response)
+
+
 # leader format is only relevant to follower mode
 @pytest.mark.parametrize("project_member_mode", ["follower"], indirect=True)
 def test_list_projects_leader_format(

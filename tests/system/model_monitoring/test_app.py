@@ -439,7 +439,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.run_db = mlrun.get_run_db()
 
     def custom_setup(self) -> None:
-        _V3IORecordsChecker.custom_setup(project_name=self.project_name)
+        # skips TestMLRunSystem, calls custom_setup() of _V3IORecordsChecker
+        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
         # validate that stream resources were deleted as expected
@@ -644,16 +645,24 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The model endpoint stream path is different than expected"
         return endpoint.metadata.uid
 
-    def _test_artifacts(self) -> None:
+    def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
             if app_data.artifacts:
                 app_name = app_data.class_.NAME
                 self._logger.debug("Checking app artifacts", app_name=app_name)
-                for name in app_data.artifacts:
-                    key = f"{app_name}-logger_{name}"
-                    self._logger.debug("Checking artifact", key=key)
-                    # Test that the artifact can be fetched from the store
-                    self.project.get_artifact(key).to_dataitem().get()
+                for key in app_data.artifacts:
+                    self._logger.debug("Checking artifact existence", key=key)
+                    artifact = self.project.get_artifact(key)
+                    self._logger.debug("Checking artifact labels", key=key)
+                    assert {
+                        "mlrun/producer-type": "model-monitoring-app",
+                        "mlrun/app-name": app_name,
+                        "mlrun/endpoint-id": ep_id,
+                    }.items() <= artifact.labels.items()
+                    self._logger.debug(
+                        "Test the artifact can be fetched from the store", key=key
+                    )
+                    artifact.to_dataitem().get()
 
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
@@ -768,7 +777,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
         self._test_predictions_table(ep_id)
 
-        self._test_artifacts()
+        self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)

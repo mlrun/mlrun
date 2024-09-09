@@ -24,6 +24,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
+from mlrun.common.schemas import EventFieldType
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
@@ -64,14 +65,17 @@ class V3IOTSDBConnector(TSDBConnector):
         self.container = container
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
-        self._frames_client: v3io_frames.client.ClientBase = (
-            self._get_v3io_frames_client(self.container)
-        )
-
+        self._frames_client: Optional[v3io_frames.client.ClientBase] = None
         self._init_tables_path()
+        self._create_table = create_table
 
-        if create_table:
-            self.create_tables()
+    @property
+    def frames_client(self) -> v3io_frames.client.ClientBase:
+        if not self._frames_client:
+            self._frames_client = self._get_v3io_frames_client(self.container)
+            if self._create_table:
+                self.create_tables()
+        return self._frames_client
 
     def _init_tables_path(self):
         self.tables = {}
@@ -151,7 +155,7 @@ class V3IOTSDBConnector(TSDBConnector):
         for table_name in application_tables:
             logger.info("Creating table in V3IO TSDB", table_name=table_name)
             table = self.tables[table_name]
-            self._frames_client.create(
+            self.frames_client.create(
                 backend=_TSDB_BE,
                 table=table,
                 if_exists=v3io_frames.IGNORE,
@@ -161,8 +165,9 @@ class V3IOTSDBConnector(TSDBConnector):
     def apply_monitoring_stream_steps(
         self,
         graph,
-        tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 300,
+        tsdb_batching_max_events: int = 1000,
+        tsdb_batching_timeout_secs: int = 30,
+        sample_window: int = 10,
     ):
         """
         Apply TSDB steps on the provided monitoring graph. Throughout these steps, the graph stores live data of
@@ -173,6 +178,7 @@ class V3IOTSDBConnector(TSDBConnector):
         - endpoint_features (Prediction and feature names and values)
         - custom_metrics (user-defined metrics)
         """
+
         # Write latency per prediction, labeled by endpoint ID only
         graph.add_step(
             "storey.TSDBTarget",
@@ -197,17 +203,23 @@ class V3IOTSDBConnector(TSDBConnector):
             key=mm_schemas.EventFieldType.ENDPOINT_ID,
         )
 
+        # Emits the event in window size of events based on sample_window size (10 by default)
+        graph.add_step(
+            "storey.steps.SampleWindow",
+            name="sample",
+            after="Rename",
+            window_size=sample_window,
+            key=EventFieldType.ENDPOINT_ID,
+        )
+
         # Before writing data to TSDB, create dictionary of 2-3 dictionaries that contains
         # stats and details about the events
 
-        def apply_process_before_tsdb():
-            graph.add_step(
-                "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ProcessBeforeTSDB",
-                name="ProcessBeforeTSDB",
-                after="sample",
-            )
-
-        apply_process_before_tsdb()
+        graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.v3io.stream_graph_steps.ProcessBeforeTSDB",
+            name="ProcessBeforeTSDB",
+            after="sample",
+        )
 
         # Unpacked keys from each dictionary and write to TSDB target
         def apply_filter_and_unpacked_keys(name, keys):
@@ -273,8 +285,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def handle_model_error(
         self,
         graph,
-        tsdb_batching_max_events: int = 10,
-        tsdb_batching_timeout_secs: int = 60,
+        tsdb_batching_max_events: int = 1000,
+        tsdb_batching_timeout_secs: int = 30,
         **kwargs,
     ) -> None:
         graph.add_step(
@@ -333,7 +345,7 @@ class V3IOTSDBConnector(TSDBConnector):
             raise ValueError(f"Invalid {kind = }")
 
         try:
-            self._frames_client.write(
+            self.frames_client.write(
                 backend=_TSDB_BE,
                 table=table,
                 dfs=pd.DataFrame.from_records([event]),
@@ -360,7 +372,7 @@ class V3IOTSDBConnector(TSDBConnector):
             tables = mm_schemas.V3IOTSDBTables.list()
         for table_to_delete in tables:
             try:
-                self._frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
+                self.frames_client.delete(backend=_TSDB_BE, table=table_to_delete)
             except v3io_frames.DeleteError as e:
                 logger.warning(
                     f"Failed to delete TSDB table '{table}'",
@@ -476,7 +488,7 @@ class V3IOTSDBConnector(TSDBConnector):
         aggregators = ",".join(agg_funcs) if agg_funcs else None
         table_path = self.tables[table]
         try:
-            df = self._frames_client.read(
+            df = self.frames_client.read(
                 backend=_TSDB_BE,
                 table=table_path,
                 start=start,
@@ -579,7 +591,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         logger.debug("Querying V3IO TSDB", query=query)
 
-        df: pd.DataFrame = self._frames_client.read(
+        df: pd.DataFrame = self.frames_client.read(
             backend=_TSDB_BE,
             start=start,
             end=end,

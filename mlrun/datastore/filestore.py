@@ -66,9 +66,7 @@ class FileStore(DataStore):
         dir_to_create = path.dirname(self._join(key))
         if dir_to_create:
             self._ensure_directory(dir_to_create)
-        mode = "a" if append else "w"
-        if isinstance(data, bytes):
-            mode = mode + "b"
+        data, mode = self._prepare_put_data(data, append)
         with open(self._join(key), mode) as fp:
             fp.write(data)
             fp.close()

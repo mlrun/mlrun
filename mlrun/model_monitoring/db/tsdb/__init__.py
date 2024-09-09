@@ -57,7 +57,7 @@ class ObjectTSDBFactory(enum.Enum):
         :param value: Provided enum (invalid) value.
         """
         valid_values = list(cls.__members__.keys())
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             f"{value} is not a valid tsdb, please choose a valid value: %{valid_values}."
         )
 
@@ -76,7 +76,7 @@ def get_tsdb_connector(
 
     :return: `TSDBConnector` object. The main goal of this object is to handle different operations on the
              TSDB connector such as updating drift metrics or write application record result.
-    :raise: `MLRunInvalidMMStoreType` if the user didn't provide TSDB connection
+    :raise: `MLRunInvalidMMStoreTypeError` if the user didn't provide TSDB connection
             or the provided TSDB connection is invalid.
     """
 
@@ -93,7 +93,7 @@ def get_tsdb_connector(
     elif tsdb_connection_string and tsdb_connection_string == "v3io":
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
     else:
-        raise mlrun.errors.MLRunInvalidMMStoreType(
+        raise mlrun.errors.MLRunInvalidMMStoreTypeError(
             "You must provide a valid tsdb store connection by using "
             "set_model_monitoring_credentials API."
         )

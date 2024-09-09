@@ -14,18 +14,18 @@ When defining a source, it maps to Nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
-| Class name                                                                                       | Description                                                   | storey | spark | pandas |
-| --------------------------------------------------                                               | ---------------------------------                              | ---    | ---   | ---    |
-| {py:meth}`~mlrun.datastore.BigQuerySource`                                                      | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
-| [SnowFlakeSource](#snowflake-source)                                                                                 | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
-| [SQLSource](#sql-source)                                                                    | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
-| {py:meth}`~mlrun.datastore.CSVSource`                                                            | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
+| Class name                                                                                         | Description                                                   | storey | spark | pandas |
+|----------------------------------------------------------------------------------------------------| ---------------------------------                              | ---    | ---   | ---    |
+| {py:meth}`~mlrun.datastore.BigQuerySource`                                                         | Batch. Reads Google BigQuery query results as input source for a flow.| N      | Y     | Y      |
+| [SnowFlakeSource](#snowflake-source)                                                               | Batch. Reads Snowflake query results as input source for a flow         | N      | Y     | N      |
+| [SQLSource](#sql-source)                                                                           | Batch. Reads SQL query results as input source for a flow               | Y      | N     | Y      |
+| {py:meth}`~mlrun.datastore.CSVSource`                                                              | Batch. Reads a CSV file as input source for a flow.                   | Y      | Y     | Y      |
 | [DataframeSource](https://storey.readthedocs.io/en/latest/api.html#storey.sources.DataframeSource) | Batch. Reads data frame as input source for a flow.                   | Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.ParquetSource`                                                      | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
-| [S3/Azure source](#s3-azure-source)                                                            | Batch.                                                                 |       |      |       |
-| {py:meth}`~mlrun.datastore.HttpSource`                                                          |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
-| [Kafka source](#kafka-source)                                                  |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
-| {py:meth}`~mlrun.datastore.StreamSource`                                                       |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
+| [ParquetSource](#parquet-source)                                                                   | Batch. Reads the Parquet file/dir as the input source for a flow.     | Y      | Y     | Y      |
+| [S3/Azure source](#s3-azure-source)                                                                | Batch.                                                                 |       |      |       |
+| {py:meth}`~mlrun.datastore.HttpSource`                                                             |Event-based. Sets the HTTP-endpoint source for the flow.    | Y      | N     | N      |
+| [Kafka source](#kafka-source)                                                                      |Event-based. Sets a Kafka source for the flow (supports both Apache and Confluence Kafka).| Y      | N     | N      |
+| {py:meth}`~mlrun.datastore.StreamSource`                                                           |Event-based. Sets the stream source for the flow. If the stream doesn’t exist it creates it. | Y      | N     | N      |
 
 ## Snowflake source
 An example of SnowflakeSource ingest:
@@ -61,7 +61,7 @@ df = fs.ingest(
 
 
 ```{admonition} Note
-Confluent Kafka source is Tech Preview 
+Confluent Kafka source is currently in Tech Preview status.
 ```
 
 ## Kafka source
@@ -89,32 +89,54 @@ See also {py:meth}`~mlrun.datastore.KafkaSource`.
   
 **Example**:
 
-```
+```python
 from mlrun.datastore.sources import KafkaSource
 
 kafka_source = KafkaSource(
-            brokers=['default-tenant.app.vmdev76.lab.iguazeng.com:9092'],
-            topics="stocks-topic",
-            initial_offset="earliest", 	
-            group="my_group",
-            attributes={"sasl" : {
-                      "enable": True,
-                      "password" : "pword",
-                      "user" : "user",
-                      "handshake" : True,
-                      "mechanism" : "SCRAM-SHA-256"},
-                    "tls" : {
-                      "enable": True,
-                      "insecureSkipVerify" : False
-                    },            
-                   "caCert" : caCert}
-	)
-        
+    brokers=["default-tenant.app.vmdev76.lab.iguazeng.com:9092"],
+    topics="stocks-topic",
+    initial_offset="earliest",
+    group="my_group",
+    attributes={
+        "sasl": {
+            "enable": True,
+            "password": "pword",
+            "user": "user",
+            "handshake": True,
+            "mechanism": "SCRAM-SHA-256",
+        },
+        "tls": {"enable": True, "insecureSkipVerify": False},
+        "caCert": caCert,
+    },
+)
+
 run_config = fstore.RunConfig(local=False).apply(mlrun.auto_mount())
 
-stocks_set_endpoint = stocks_set.deploy_ingestion_service(source=kafka_source,run_config=run_config)
+stocks_set_endpoint = stocks_set.deploy_ingestion_service(
+    source=kafka_source, run_config=run_config
+)
 ```
 
+## Parquet source
+In ParquetSource, while reading a source, besides start_time and end_time,
+you can also use an additional_filter attribute on other columns in your source,
+which works similarly to the filtering functionality in pandas (based on pyarrow library).
+This can increase performance when reading large Parquet files.
+
+Pay attention! None/NaN/NaT values may be filtered out using this functionality on their columns.
+
+
+
+```python
+source = ParquetSource(
+    "parquet_source_example",
+    path="v3io://projects/example_project/source.parquet",
+    time_field="hire_date",
+    start_time=datetime(2023, 11, 3, 12, 30, 18),
+    end_time=datetime(2023, 11, 8, 12, 30, 18),
+    additional_filters=[("department", "=", "R&D")],
+)
+```
 
 ## S3/Azure source
 
@@ -126,7 +148,7 @@ or pip install mlrun[google-cloud-storage] to install them.
 ## SQL source
 
 ```{admonition} Note
-Tech Preview 
+SQL source is currently in Tech Preview status.
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
@@ -137,15 +159,18 @@ See more details about [Dialects](https://docs.sqlalchemy.org/en/20/dialects/ind
 either, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
-```
+```python
 source = SQLSource(
-    table_name="my_table", 
-    db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
+    table_name="my_table",
+    db_path="mysql+pymysql://abc:abc@localhost:3306/my_db",
     key_field="key",
     parse_dates=["timestamp"],
 )
- 
-feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+
+feature_set = fs.FeatureSet(
+    "my_fs",
+    entities=[fs.Entity("key")],
+)
 feature_set.set_targets([])
 df = fs.ingest(feature_set, source=source)
 ```
@@ -198,6 +223,8 @@ target = KafkaTarget(path="ds://profile-name")
 {py:meth}`~mlrun.datastore.ParquetTarget` is the default target for offline data. 
 The Parquet file is ideal for fetching large sets of data for training.
 
+The additional_filters functionality is identical to [ParquetSource](sources-targets.md#parquet-source) behavior
+while using as_df method.
 ### Partitioning
 
 When writing data to a ParquetTarget, you can use partitioning. Partitioning organizes data 
@@ -257,7 +284,7 @@ The combination of a NoSQL target with the storey engine does not support featur
 ## RedisNoSql target 
 
 ```{admonition} Note
-Tech Preview
+RedisNoSql target is currently in Tech Preview status.
 ```
 See also [Redis data store profile](#redis-data-store-profile).
 
@@ -294,7 +321,7 @@ RedisNoSqlTarget(path="ds://profile-name/a/b")
 ## SQL target 
 
 ```{admonition} Note
-Tech Preview 
+Sql target is currently in Tech Preview status.
 ```
 ```{admonition} Limitation
 Do not use SQL reserved words as entity names. See more details in [Keywords and Reserved Words](https://dev.mysql.com/doc/refman/8.0/en/keywords.html).
@@ -307,14 +334,17 @@ To configure, pass the `db_url` or overwrite the `MLRUN_SQL__URL` env var, in th
 
 You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
 
-```
+```python
 target = SQLTarget(
     table_name="my_table",
-    schema= {"id": string, "age": int, "time": pd.Timestamp, ...}
+    schema={"id": string, "age": int, "time": pd.Timestamp},
     create_table=True,
     primary_key_column="id",
     parse_dates=["time"],
 )
-feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
+feature_set = fs.FeatureSet(
+    "my_fs",
+    entities=[fs.Entity("id")],
+)
 fs.ingest(feature_set, source=df, targets=[target])
 ```

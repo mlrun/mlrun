@@ -164,13 +164,20 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function.invoke("/", verify=False)
 
         # Create API gateway with new name and set it as default
+        api_gateway_name = "my-other-api-gateway"
         function.create_api_gateway(
-            name="my-other-api-gateway",
+            name=api_gateway_name,
             authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
             set_as_default=True,
         )
         # Invoke should infer access key is needed
         assert function.invoke("/", verify=False)
+        assert function.status.api_gateway_name == api_gateway_name
+        # At this point we are yet to get the function status from the server so the external invocation URL contains
+        # only "my-api-gateway"
+        assert len(function.status.external_invocation_urls) == 1
+
+        function._get_state()
         assert len(function.status.external_invocation_urls) == 2
 
     def _create_vizro_application(

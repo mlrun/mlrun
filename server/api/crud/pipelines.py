@@ -71,6 +71,11 @@ class Pipelines(
             # is a substring of the pipeline's name. This ensures that only pipelines
             # with the project name in their name are returned, helping narrow down the results.
             if not filter_:
+                logger.debug(
+                    "No filter provided. "
+                    "Applying project-based filter for project to match pipelines with project name as a substring",
+                    project=project,
+                )
                 filter_ = mlrun.utils.get_kfp_project_filter(project_name=project)
             runs = []
             while page_token is not None:

@@ -1016,7 +1016,12 @@ def get_kfp_project_filter(project_name: str) -> str:
     runs belonging to the desired project.
     """
     is_substring_op = 9
-    return f'{{"predicates": [{{"key": "name", "op": {is_substring_op}, "string_value": "{project_name}"}}]}}'
+    project_name_filter = {
+        "predicates": [
+            {"key": "name", "op": is_substring_op, "string_value": project_name}
+        ]
+    }
+    return json.dumps(project_name_filter)
 
 
 def are_strings_in_exception_chain_messages(

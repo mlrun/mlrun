@@ -313,7 +313,7 @@ class MonitoringDeployment:
                 function.spec.max_replicas = (
                     config.model_endpoint_monitoring.serving_stream.kafka.max_replicas
                 )
-            elif not mlrun.mlconf.is_ce_mode() and stream_path.startswith("v3io://"):
+            elif stream_path.startswith("v3io://"):
                 if "projects" in stream_path:
                     stream_args = (
                         config.model_endpoint_monitoring.application_stream_args
@@ -343,14 +343,16 @@ class MonitoringDeployment:
                     name=f"monitoring_{function_name}_trigger{f'_{i}' if i != 0 else ''}",
                     **kwargs,
                 )
-                function = self._apply_access_key_and_mount_function(
-                    function=function, function_name=function_name
-                )
                 function.spec.min_replicas = (
                     config.model_endpoint_monitoring.serving_stream.v3io.min_replicas
                 )
                 function.spec.max_replicas = (
                     config.model_endpoint_monitoring.serving_stream.v3io.max_replicas
+                )
+
+            if not mlrun.mlconf.is_ce_mode():
+                function = self._apply_access_key_and_mount_function(
+                    function=function, function_name=function_name
                 )
 
         function.spec.disable_default_http_trigger = True

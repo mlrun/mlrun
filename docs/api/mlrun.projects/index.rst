@@ -1,10 +1,9 @@
 .. _mlrun.projects:
 
 mlrun.projects
-================
+==============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
-
-  *
+.. automodule:: mlrun.projects
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,10 +1,14 @@
 .. _mlrun.datastore:
 
 mlrun.datastore
-================================
+===============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
+.. automodule:: mlrun.datastore
+   :members:
+   :show-inheritance:
+   :undoc-members:
+.. automodule:: mlrun.datastore.datastore_profile
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
-  *

@@ -1,10 +1,10 @@
 .. _mlrun.config:
 
 mlrun.config
-================================
+============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
+.. automodule:: mlrun.config
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
-  *

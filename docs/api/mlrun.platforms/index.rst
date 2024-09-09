@@ -1,10 +1,8 @@
 .. _mlrun.platforms:
 
 mlrun.platforms
-================
+===============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
-
-  *
+.. automodule:: mlrun.platforms
+   :members:
+   :imported-members:

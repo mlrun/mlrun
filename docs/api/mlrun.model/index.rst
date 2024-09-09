@@ -1,10 +1,10 @@
 .. _mlrun.model:
 
 mlrun.model
-================================
+============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
-
-  *
+.. automodule:: mlrun.model
+   :members:
+   :show-inheritance:
+   :no-undoc-members:
+   :exclude-members: ImageBuilder

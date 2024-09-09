@@ -1,10 +1,10 @@
 .. _mlrun.artifacts:
 
 mlrun.artifacts
-================================
+===============
 
-.. toctree::
-  :maxdepth: 1
-  :glob:
+.. automodule:: mlrun.artifacts
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
-  *

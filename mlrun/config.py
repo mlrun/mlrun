@@ -535,7 +535,7 @@ default_config = {
             },
             "kafka": {
                 "partition_count": 8,
-                "retention_period_hours": 24,
+                "replication_factor": 1,
                 "num_workers": 2,
                 "min_replicas": 0,
                 "max_replicas": 4,

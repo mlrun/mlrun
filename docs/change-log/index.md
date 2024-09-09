@@ -19,10 +19,13 @@
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring.|
 |ML-5460|The model monitoring now has a [per-endpoint view](../model-monitoring/index.html#model-and-model-monitoring-endpoints) that presents information about the actual inference of the model endpoint, including data on inputs, outputs and results.|
 |ML-5851|Model monitoring supports Kafka or V3IO as streaming platforms, and TDEngine or V3IO as TSDB platforms. See [Selecting the streaming and TSDB platforms](../model-monitoring/index.html#selecting-the-streaming-and-tsdb-platforms).|
 
+### Alerts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5287|You can now configure {ref}`alerts <alerts>` for model monitoring and other possible problem situations.|
 
 
 ### Projects
@@ -86,8 +89,9 @@
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-6052|New page: {ref}`log-artifacts`.|
-|NA     | New page: {ref}`mm-using-llm`.|
+|NA     |New tutorial: {ref}`genai-02-mm-llm`.|
 |NA     |Enhanced {ref}`model-monitoring-des`.|
+|NA     |[Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 
 
 
@@ -1080,7 +1084,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
-
+|ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

@@ -233,6 +233,27 @@ def test_is_logging_worker(host: str, is_logging_worker: bool):
     assert context.is_logging_worker() is is_logging_worker
 
 
+@pytest.mark.parametrize(
+    "owner",
+    [
+        "some-owner",
+        None,
+    ],
+)
+def test_artifact_owner(rundb_mock, owner):
+    run_dict = _generate_run_dict()
+    if owner:
+        run_dict["metadata"]["labels"][mlrun_constants.MLRunInternalLabels.owner] = (
+            owner
+        )
+
+    run = mlrun.run.RunObject.from_dict(run_dict)
+    context = mlrun.MLClientCtx.from_dict(run.to_dict())
+
+    artifact = context.log_artifact("artifact", body="123")
+    assert artifact.producer.get("owner") == owner
+
+
 def _generate_run_dict():
     return {
         "metadata": {

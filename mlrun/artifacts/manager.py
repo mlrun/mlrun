@@ -72,7 +72,12 @@ class ArtifactProducer:
         self.inputs = {}
 
     def get_meta(self) -> dict:
-        return {"kind": self.kind, "name": self.name, "tag": self.tag}
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "tag": self.tag,
+            "owner": self.owner,
+        }
 
     @property
     def uid(self):

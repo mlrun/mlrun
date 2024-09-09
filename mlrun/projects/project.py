@@ -18,6 +18,7 @@ import glob
 import http
 import importlib.util as imputil
 import json
+import os
 import pathlib
 import shutil
 import tempfile
@@ -4289,6 +4290,7 @@ class MlrunProject(ModelObj):
                     kind=producer_dict.get("kind", ""),
                     project=producer_project,
                     tag=producer_tag,
+                    owner=producer_dict.get("owner", ""),
                 ), True
 
         # do not retain the artifact's producer, replace it with the project as the producer
@@ -4298,6 +4300,7 @@ class MlrunProject(ModelObj):
             name=self.metadata.name,
             project=self.metadata.name,
             tag=project_producer_tag,
+            owner=self._resolve_artifact_owner(),
         ), False
 
     def _resolve_existing_artifact(
@@ -4336,6 +4339,9 @@ class MlrunProject(ModelObj):
 
     def _get_project_tag(self):
         return self._get_hexsha() or str(uuid.uuid4())
+
+    def _resolve_artifact_owner(self):
+        return os.getenv("V3IO_USERNAME") or self.spec.owner
 
 
 def _set_as_current_default_project(project: MlrunProject):

@@ -1235,7 +1235,7 @@ def _create_resources_of_all_kinds(
     function = {
         "bla": "blabla",
         "metadata": {"labels": labels},
-        "spec": {"asd": "asdasd"},
+        "spec": {"asd": "asdasd", "foo": 'adam'},
         "status": {"bla": "blabla"},
     }
     function_names = ["function_name_1", "function_name_2", "function_name_3"]
@@ -1434,7 +1434,7 @@ def _create_resources_of_all_kinds(
     db.store_datastore_profile(db_session, ds_profile)
 
 
-def _assert_resources_in_project(
+def  _assert_resources_in_project(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project_member_mode: str,

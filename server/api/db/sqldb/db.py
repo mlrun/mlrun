@@ -1754,24 +1754,33 @@ class SQLDB(DBInterface):
             function.setdefault("metadata", {})["name"] = name
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
-            foo_spec = function.get("spec", {}).get("foo")
-            func_foo_spec = None
-            if foo_spec:
-                func_foo_spec = FunctionSpecFoo(
-                    data=foo_spec,
-                )
-
             fn = Function(
                 name=name,
                 project=project,
                 uid=uid,
-                foo_spec=func_foo_spec,
             )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
         update_labels(fn, labels)
         fn.struct = function
         self._upsert(session, [fn])
+        foo_spec = function.get("spec", {}).get("foo")
+        foo_spec_obj = None
+        if foo_spec:
+            existing_foo_spec = session.query(FunctionSpecFoo).filter(FunctionSpecFoo.function_id == fn.id).one_or_none()
+            if existing_foo_spec:
+                fn.foo_spec = existing_foo_spec
+            else:
+                foo_spec_obj = FunctionSpecFoo(
+                    data=foo_spec,
+                    project=project,
+                    function_id=fn.id,
+                )
+                fn.foo_spec = existing_foo_spec
+        objects = [fn]
+        if foo_spec_obj is not None:
+            objects.append(foo_spec_obj)
+        self._upsert(session, objects)
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -1864,7 +1873,9 @@ class SQLDB(DBInterface):
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
-
+        self._delete(session).filter(
+            FunctionSpecFoo.project == project
+        )
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_class_labels(
@@ -1880,7 +1891,7 @@ class SQLDB(DBInterface):
         self._delete_multi_objects(
             session=session,
             main_table=Function,
-            related_tables=[Function.Tag, Function.Label],
+            related_tables=[Function.Tag, Function.Label, FunctionSpecFoo],
             project=project,
             main_table_identifier=Function.name,
             main_table_identifier_values=names,
@@ -4559,7 +4570,7 @@ class SQLDB(DBInterface):
                 config.httpdb.db.commit_retry_interval,
                 config.httpdb.db.commit_retry_timeout,
                 logger,
-                False,
+                True,
                 _try_commit_obj,
             )
 

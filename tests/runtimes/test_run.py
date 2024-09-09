@@ -38,6 +38,7 @@ def _get_runtime():
                 "org.apache.spark.examples.SparkPi",
                 "/spark/examples/jars/spark-examples_2.11-2.4.4.jar",
             ],
+            "foo": "bar",
             "image": "iguazio/shell:3.0_b5533_20201020062229",
             "mode": "pass",
             "description": "",

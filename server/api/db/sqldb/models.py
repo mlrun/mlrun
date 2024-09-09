@@ -776,18 +776,20 @@ with warnings.catch_warnings():
 
     class FunctionSpecFoo(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "function_spec_foos"
-
+        id = Column(Integer, primary_key=True)
         data = Column(String(length=255, collation=SQLTypesUtil.collation()))
-        function = relationship(Function, back_populates="foo_spec")
+        project = Column(
+            "project", String(length=255, collation=SQLTypesUtil.collation()), nullable=False
+        )
+        function = relationship(Function, back_populates="foo_spec", single_parent=True)
 
         function_id = Column(
             Integer,
-            ForeignKey("functions.id", ondelete="CASCADE"),
-            primary_key=True,
+            ForeignKey("functions.id"),
         )
 
         def get_identifier_string(self) -> str:
-            return f"{self.function.project}/{self.function_id}/{self.data}"
+            return f"{self.function.project}/foo_func_spec/{self.function_id}/{self.data}"
 
 
 # Must be after all table definitions

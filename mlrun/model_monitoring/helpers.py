@@ -265,13 +265,6 @@ def calculate_inputs_statistics(
                 counts.tolist(),
                 bins.tolist(),
             ]
-        elif "hist" in inputs_statistics[feature]:
-            # Comply with the other common features' histogram length
-            mlrun.common.model_monitoring.helpers.pad_hist(
-                mlrun.common.model_monitoring.helpers.Histogram(
-                    inputs_statistics[feature]["hist"]
-                )
-            )
         else:
             # If the feature is not in the sample set and doesn't have a histogram, remove it from the statistics:
             inputs_statistics.pop(feature)

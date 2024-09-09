@@ -303,8 +303,8 @@ class MonitoringDeployment:
                     },
                 )
                 stream_source.create_topics(
-                    num_partitions=config.model_endpoint_monitoring.serving_stream.v3io.partition_count,
-                    replication_factor=config.model_endpoint_monitoring.serving_stream.v3io.retention_period_hours,
+                    num_partitions=config.model_endpoint_monitoring.serving_stream.kafka.partition_count,
+                    replication_factor=config.model_endpoint_monitoring.serving_stream.kafka.retention_period_hours,
                 )
                 function = stream_source.add_nuclio_trigger(function)
                 function.spec.min_replicas = (

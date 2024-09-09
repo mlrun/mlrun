@@ -335,7 +335,7 @@ class MLClientCtx:
             "name": self.name,
             "kind": "run",
             "uri": uri,
-            "owner": get_in(self._labels, "owner"),
+            "owner": get_in(self._labels, mlrun_constants.MLRunInternalLabels.owner),
         }
         if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
             resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[

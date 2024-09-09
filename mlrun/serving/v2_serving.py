@@ -230,19 +230,8 @@ class V2ModelServer(StepToDict):
 
     @property
     def versioned_model_name(self):
-        if self._versioned_model_name is None:
-            # Generating version model value based on the model name and model version
-            if self.model_path and self.model_path.startswith("store://"):
-                # Enrich the model server with the model artifact metadata
-                self.get_model()
-                if not self.version:
-                    # Enrich the model version with the model artifact tag
-                    self.version = self.model_spec.tag
-                self.labels = self.model_spec.labels
-                self._versioned_model_name = f"{self.name}:{self.version}"
-            else:
-                self._versioned_model_name = f"{self.name}:latest"
-        return self._versioned_model_name
+        version = self.version or "latest"
+        return f"{self.name}:{version}"
 
     @property
     def model_endpoint_uid(self):
@@ -256,10 +245,6 @@ class V2ModelServer(StepToDict):
             )
         return self._model_endpoint_uid
 
-    @property
-    def partition_key(self):
-        return self.model_endpoint_uid if self.shard_by_endpoint is not False else None
-
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
@@ -267,6 +252,10 @@ class V2ModelServer(StepToDict):
         event_body = _extract_input_data(self._input_path, event.body)
         event_id = event.id
         op = event.path.strip("/")
+
+        partition_key = (
+            self.model_endpoint_uid if self.shard_by_endpoint is not False else None
+        )
 
         if event_body and isinstance(event_body, dict):
             op = op or event_body.get("operation")
@@ -292,7 +281,7 @@ class V2ModelServer(StepToDict):
                         request,
                         op=op,
                         error=exc,
-                        partition_key=self.partition_key,
+                        partition_key=partition_key,
                     )
                 raise exc
 
@@ -355,7 +344,7 @@ class V2ModelServer(StepToDict):
                         request,
                         op=op,
                         error=exc,
-                        partition_key=self.partition_key,
+                        partition_key=partition_key,
                     )
                 raise exc
 
@@ -381,7 +370,7 @@ class V2ModelServer(StepToDict):
             inputs, outputs = self.logged_results(request, response, op)
             if inputs is None and outputs is None:
                 self._model_logger.push(
-                    start, request, response, op, partition_key=self.partition_key
+                    start, request, response, op, partition_key=partition_key
                 )
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
@@ -392,7 +381,7 @@ class V2ModelServer(StepToDict):
                     track_request,
                     track_response,
                     op,
-                    partition_key=self.partition_key,
+                    partition_key=partition_key,
                 )
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
@@ -586,6 +575,15 @@ def _init_endpoint_record(
     except Exception as e:
         logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
+
+    # Generating version model value based on the model name and model version
+    if model.model_path and model.model_path.startswith("store://"):
+        # Enrich the model server with the model artifact metadata
+        model.get_model()
+        if not model.version:
+            # Enrich the model version with the model artifact tag
+            model.version = model.model_spec.tag
+        model.labels = model.model_spec.labels
 
     uid = model.model_endpoint_uid
 

@@ -537,7 +537,7 @@ default_config = {
                 "partition_count": 8,
                 "replication_factor": 1,
                 "num_workers": 2,
-                "min_replicas": 0,
+                "min_replicas": 1,
                 "max_replicas": 4,
             },
         },

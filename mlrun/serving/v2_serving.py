@@ -39,7 +39,7 @@ class V2ModelServer(StepToDict):
         protocol=None,
         input_path: str = None,
         result_path: str = None,
-        shard_by_endpoint: bool = True,
+        shard_by_endpoint: Optional[bool] = None,
         **kwargs,
     ):
         """base model serving class (v2), using similar API to KFServing v2 and Triton
@@ -92,6 +92,8 @@ class V2ModelServer(StepToDict):
                               this require that the event body will behave like a dict, example:
                               event: {"x": 5} , result_path="resp" means the returned response will be written
                               to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param shard_by_endpoint: whether to use the endpoint as the partition/sharding key when writing to model
+                                  monitoring stream. Defaults to True.
         :param kwargs:     extra arguments (can be accessed using self.get_param(key))
         """
         self.name = name
@@ -254,6 +256,10 @@ class V2ModelServer(StepToDict):
             )
         return self._model_endpoint_uid
 
+    @property
+    def partition_key(self):
+        return self.model_endpoint_uid if self.shard_by_endpoint is not False else None
+
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
@@ -286,7 +292,7 @@ class V2ModelServer(StepToDict):
                         request,
                         op=op,
                         error=exc,
-                        partition_key=self.model_endpoint_uid,
+                        partition_key=self.partition_key,
                     )
                 raise exc
 
@@ -349,7 +355,7 @@ class V2ModelServer(StepToDict):
                         request,
                         op=op,
                         error=exc,
-                        partition_key=self.model_endpoint_uid,
+                        partition_key=self.partition_key,
                     )
                 raise exc
 
@@ -375,7 +381,7 @@ class V2ModelServer(StepToDict):
             inputs, outputs = self.logged_results(request, response, op)
             if inputs is None and outputs is None:
                 self._model_logger.push(
-                    start, request, response, op, partition_key=self.model_endpoint_uid
+                    start, request, response, op, partition_key=self.partition_key
                 )
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
@@ -386,7 +392,7 @@ class V2ModelServer(StepToDict):
                     track_request,
                     track_response,
                     op,
-                    partition_key=self.model_endpoint_uid,
+                    partition_key=self.partition_key,
                 )
         event.body = _update_result_body(self._result_path, original_body, response)
         return event

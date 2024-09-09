@@ -233,6 +233,8 @@ class KafkaOutputStream:
         else:
             for record in data:
                 serialized_record = dump_record(record)
+                if isinstance(partition_key, str):
+                    partition_key = partition_key.encode("UTF-8")
                 self._kafka_producer.send(
                     self._topic, serialized_record, key=partition_key
                 )

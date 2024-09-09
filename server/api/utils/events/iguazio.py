@@ -114,7 +114,7 @@ class Client(base_events.BaseEventClient):
             ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
+            system_event=True,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 
@@ -139,7 +139,7 @@ class Client(base_events.BaseEventClient):
             description=f"Project {project} secret created",
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
+            system_event=True,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 
@@ -167,7 +167,7 @@ class Client(base_events.BaseEventClient):
             ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
+            system_event=True,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 
@@ -188,7 +188,7 @@ class Client(base_events.BaseEventClient):
             ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
+            system_event=True,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 

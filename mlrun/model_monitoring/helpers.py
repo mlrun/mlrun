@@ -63,7 +63,6 @@ def get_stream_path(
     )
 
     if not stream_uri or stream_uri == "v3io":
-        # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,

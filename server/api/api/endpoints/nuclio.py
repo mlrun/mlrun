@@ -17,6 +17,7 @@ import traceback
 import typing
 from http import HTTPStatus
 
+import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -526,9 +527,7 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
-            monitoring_deployment.check_if_credentials_are_set(
-                with_upgrade_case_check=True, client_version=client_version
-            )
+            monitoring_deployment.check_if_credentials_are_set()
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"
@@ -546,12 +545,18 @@ def _deploy_nuclio_runtime(
             )
 
         if serving_to_monitor:
-            if monitoring_deployment.should_redeploy_monitoring_stream(
-                fn_image=fn.spec.image, client_version=client_version
+            if (
+                fn.spec.image.startswith("mlrun/")
+                and client_version
+                and (
+                    semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+                    or "unstable" in client_version
+                )
             ):
-                # Redeploy the monitoring stream processing function
-                monitoring_deployment.deploy_model_monitoring_stream_processing(
-                    overwrite=True
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason="On deployment of serving-functions that are based on mlrun image "
+                    "('mlrun/') and set-tracking is enabled, client version must be >= 1.6.3",
                 )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(

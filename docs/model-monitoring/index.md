@@ -60,10 +60,11 @@ endpoint_store_connection = mysql+pymysql://<username>:<password>@<host>:<port>/
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys te onitoring app, `HistogramDataDriftApplication`, which is 
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is 
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
 * Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
 * Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+* The average of TVD & Hellinger as the general drift result.
 * Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
 You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 

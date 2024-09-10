@@ -1795,7 +1795,6 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: typing.Optional[str] = None,
-        foo_spec: typing.Optional[str] = None,
         project: typing.Optional[str] = None,
         tag: typing.Optional[str] = None,
         labels: list[str] = None,
@@ -1805,6 +1804,7 @@ class SQLDB(DBInterface):
         page_size: typing.Optional[int] = None,
         since: datetime = None,
         until: datetime = None,
+        foo_spec: typing.Optional[str] = None,
     ) -> list[dict]:
         project = project or mlrun.mlconf.default_project
         functions = []

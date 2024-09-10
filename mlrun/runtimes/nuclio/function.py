@@ -142,6 +142,7 @@ class NuclioSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -172,6 +173,7 @@ class NuclioSpec(KubeResourceSpec):
             security_context=security_context,
             clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            foo=foo,
         )
 
         self.base_spec = base_spec or {}

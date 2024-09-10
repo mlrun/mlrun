@@ -83,6 +83,7 @@ class DatabricksSpec(pod.KubeResourceSpec):
         security_context=None,
         clone_target_dir=None,
         state_thresholds=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -113,6 +114,7 @@ class DatabricksSpec(pod.KubeResourceSpec):
             security_context=security_context,
             clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            foo=foo,
         )
         self._termination_grace_period_seconds = 60
 

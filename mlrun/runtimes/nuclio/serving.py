@@ -152,6 +152,7 @@ class ServingSpec(NuclioSpec):
         clone_target_dir=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -193,6 +194,7 @@ class ServingSpec(NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             clone_target_dir=clone_target_dir,
             disable_default_http_trigger=disable_default_http_trigger,
+            foo=foo,
         )
 
         self.models = models or {}

@@ -18,6 +18,7 @@ from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.common.schemas.function
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 from mlrun.config import config
 
@@ -168,6 +169,7 @@ class Spark3JobSpec(KubeResourceSpec):
         security_context=None,
         clone_target_dir=None,
         state_thresholds=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -198,6 +200,7 @@ class Spark3JobSpec(KubeResourceSpec):
             security_context=security_context,
             clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            foo=foo,
         )
 
         self.driver_resources = driver_resources or {}
@@ -505,6 +508,7 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
+        mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
         self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
         self.with_executor_node_selection(
             node_name, node_selector, affinity, tolerations
@@ -537,6 +541,7 @@ class Spark3Runtime(KubejobRuntime):
         if affinity is not None:
             self.spec.driver_affinity = affinity
         if node_selector is not None:
+            mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
             self.spec.driver_node_selector = node_selector
         if tolerations is not None:
             self.spec.driver_tolerations = tolerations
@@ -568,6 +573,7 @@ class Spark3Runtime(KubejobRuntime):
         if affinity is not None:
             self.spec.executor_affinity = affinity
         if node_selector is not None:
+            mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
             self.spec.executor_node_selector = node_selector
         if tolerations is not None:
             self.spec.executor_tolerations = tolerations

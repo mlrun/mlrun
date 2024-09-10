@@ -50,6 +50,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         security_context=None,
         clone_target_dir=None,
         state_thresholds=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -81,6 +82,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             security_context=security_context,
             clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
+            foo=foo,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

@@ -80,6 +80,7 @@ class ApplicationSpec(NuclioSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
         internal_application_port=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -122,6 +123,7 @@ class ApplicationSpec(NuclioSpec):
             clone_target_dir=clone_target_dir,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            foo=foo,
         )
 
         # Override default min/max replicas (don't assume application is stateless)
@@ -438,8 +440,9 @@ class ApplicationRuntime(RemoteRuntime):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
         An application without an API gateway is not accessible.
-        :param name:                    The name of the API gateway, defaults to <function-name>-<function-tag>
-        :param path:                    Optional path of the API gateway, default value is "/"
+        :param name:                    The name of the API gateway
+        :param path:                    Optional path of the API gateway, default value is "/".
+            The given path should be supported by the deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)

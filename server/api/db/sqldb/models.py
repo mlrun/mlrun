@@ -779,7 +779,9 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         data = Column(String(length=255, collation=SQLTypesUtil.collation()))
         project = Column(
-            "project", String(length=255, collation=SQLTypesUtil.collation()), nullable=False
+            "project",
+            String(length=255, collation=SQLTypesUtil.collation()),
+            nullable=False,
         )
         function = relationship(Function, back_populates="foo_spec", single_parent=True)
 
@@ -789,7 +791,9 @@ with warnings.catch_warnings():
         )
 
         def get_identifier_string(self) -> str:
-            return f"{self.function.project}/foo_func_spec/{self.function_id}/{self.data}"
+            return (
+                f"{self.function.project}/foo_func_spec/{self.function_id}/{self.data}"
+            )
 
 
 # Must be after all table definitions

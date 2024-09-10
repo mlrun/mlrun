@@ -121,6 +121,7 @@ class ClientSpec(
             ),
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),
+            foo_spec=self._get_config_value_if_not_default("function.spec.foo"),
         )
 
     @staticmethod

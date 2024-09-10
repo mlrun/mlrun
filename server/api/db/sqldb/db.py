@@ -39,6 +39,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
@@ -1752,6 +1753,8 @@ class SQLDB(DBInterface):
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
+        if function_node_selector := get_in(function, "spec.node_selector"):
+            mlrun.k8s_utils.validate_node_selectors(function_node_selector)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(
@@ -1767,7 +1770,11 @@ class SQLDB(DBInterface):
         foo_spec = function.get("spec", {}).get("foo")
         foo_spec_obj = None
         if foo_spec:
-            existing_foo_spec = session.query(FunctionSpecFoo).filter(FunctionSpecFoo.function_id == fn.id).one_or_none()
+            existing_foo_spec = (
+                session.query(FunctionSpecFoo)
+                .filter(FunctionSpecFoo.function_id == fn.id)
+                .one_or_none()
+            )
             if existing_foo_spec:
                 fn.foo_spec = existing_foo_spec
             else:
@@ -1873,9 +1880,7 @@ class SQLDB(DBInterface):
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
-        self._delete(session).filter(
-            FunctionSpecFoo.project == project
-        )
+        self._delete(session, FunctionSpecFoo, project=project)
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_class_labels(

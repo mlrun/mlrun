@@ -39,6 +39,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
@@ -1751,6 +1752,8 @@ class SQLDB(DBInterface):
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
+        if function_node_selector := get_in(function, "spec.node_selector"):
+            mlrun.k8s_utils.validate_node_selectors(function_node_selector)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
+import warnings
 
 import kubernetes.client
 
@@ -133,7 +134,7 @@ def sanitize_label_value(value: str) -> str:
     return re.sub(r"([^a-zA-Z0-9_.-]|^[^a-zA-Z0-9]|[^a-zA-Z0-9]$)", "-", value[:63])
 
 
-def verify_label_key(key: str):
+def verify_label_key(key: str, allow_k8s_prefix: bool = False):
     """
     Verify that the label key is valid for Kubernetes.
     Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
@@ -146,6 +147,10 @@ def verify_label_key(key: str):
         name = parts[0]
     elif len(parts) == 2:
         prefix, name = parts
+        if len(name) == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Label key name cannot be empty when a prefix is set"
+            )
         if len(prefix) == 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Label key prefix cannot be empty"
@@ -173,7 +178,13 @@ def verify_label_key(key: str):
         mlrun.utils.regex.qualified_name,
     )
 
-    if key.startswith("k8s.io/") or key.startswith("kubernetes.io/"):
+    # Allow the use of Kubernetes reserved prefixes ('k8s.io/' or 'kubernetes.io/')
+    # only when setting node selectors, not when adding new labels.
+    if (
+        key.startswith("k8s.io/")
+        or key.startswith("kubernetes.io/")
+        and not allow_k8s_prefix
+    ):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Labels cannot start with 'k8s.io/' or 'kubernetes.io/'"
         )
@@ -185,3 +196,38 @@ def verify_label_value(value, label_key):
         value,
         mlrun.utils.regex.label_value,
     )
+
+
+def validate_node_selectors(
+    node_selectors: dict[str, str], raise_on_error: bool = True
+) -> bool:
+    """
+    Ensures that user-defined node selectors adhere to Kubernetes label standards:
+    - Validates that each key conforms to Kubernetes naming conventions, with specific rules for name and prefix.
+    - Ensures values comply with Kubernetes label value rules.
+    - If raise_on_error is True, raises errors for invalid selectors.
+    - If raise_on_error is False, logs warnings for invalid selectors.
+    """
+
+    # Helper function for handling errors or warnings
+    def handle_invalid(message):
+        if raise_on_error:
+            raise
+        else:
+            warnings.warn(
+                f"{message}\n"
+                f"The node selector you’ve set does not meet the validation rules for the current Kubernetes version. "
+                f"Please note that invalid node selectors may cause issues with function scheduling."
+            )
+
+    node_selectors = node_selectors or {}
+    for key, value in node_selectors.items():
+        try:
+            verify_label_key(key, allow_k8s_prefix=True)
+            verify_label_value(value, label_key=key)
+        except mlrun.errors.MLRunInvalidArgumentError as err:
+            # An error or warning is raised by handle_invalid due to validation failure.
+            # Returning False indicates validation failed, allowing us to exit the function.
+            handle_invalid(str(err))
+            return False
+    return True

@@ -70,7 +70,8 @@ class DocumentRetriever:
         :param llm:           A language model to use for answering questions.
         :param vector_store:  A vector store to use for storing and retrieving documents.
         :param verbose:       Whether to print debug information.
-        :param chain_type:    The type of chain to use.
+        :param chain_type:    Type of document combining chain to use. Should be one of "stuff",
+                              "map_reduce", "refine" and "map_rerank".
         :param search_kwargs: Additional keyword arguments to pass to the vector store.
         """
         # Create a prompt template for the documents for when they are retrieved to the llm
@@ -82,7 +83,7 @@ class DocumentRetriever:
         self.chain = RetrievalQAWithSourcesChain.from_chain_type(
             llm=llm,
             retriever=vector_store.as_retriever(search_kwargs=search_kwargs),
-            chain_type=chain_type or "stuff",  # "map_reduce",
+            chain_type=chain_type or "stuff",
             return_source_documents=True,
             chain_type_kwargs={"document_prompt": document_prompt},
             verbose=verbose,
@@ -90,7 +91,7 @@ class DocumentRetriever:
         self.cb = DocumentCallbackHandler()
         self.cb.verbose = verbose
         self.verbose = verbose
-        self.chain_type = chain_type  # TODO check what this is
+        self.chain_type = chain_type
 
     @classmethod
     def from_config(

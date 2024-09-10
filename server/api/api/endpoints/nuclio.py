@@ -37,6 +37,7 @@ from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_pre
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
 from server.api.api import deps
+from server.api.api.endpoints.model_monitoring import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.crud.secrets import Secrets, SecretsClientType
 
 router = APIRouter()
@@ -549,14 +550,16 @@ def _deploy_nuclio_runtime(
                 fn.spec.image.startswith("mlrun/")
                 and client_version
                 and (
-                    semver.Version.parse(client_version) < semver.Version.parse("1.6.3")
+                    semver.Version.parse(client_version)
+                    < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
                     or "unstable" in client_version
                 )
             ):
                 server.api.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,
-                    reason="On deployment of serving-functions that are based on mlrun image "
-                    "('mlrun/') and set-tracking is enabled, client version must be >= 1.6.3",
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
                 )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(

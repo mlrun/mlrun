@@ -168,6 +168,7 @@ class WorkflowRunners(
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
+                    node_selector=workflow_spec.workflow_runner_node_selector
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
@@ -363,6 +364,7 @@ class WorkflowRunners(
                     subpath=project.spec.subpath,
                 )
             )
+            run_object.spec.node_selector.update(workflow_spec.workflow_runner_node_selector)
 
         # Setting labels:
         return self._label_run_object(run_object, labels)

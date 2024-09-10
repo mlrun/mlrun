@@ -2987,6 +2987,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        workflow_runner_node_selector: dict[str,str] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3023,7 +3024,7 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-
+        :param workflow_runner_node_selector:
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3090,6 +3091,9 @@ class MlrunProject(ModelObj):
             )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+        if workflow_engine.engine == "remote" and workflow_runner_node_selector:
+            workflow_spec.workflow_runner_node_selector = workflow_runner_node_selector
+
 
         run = workflow_engine.run(
             self,

@@ -603,6 +603,17 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             body, {}, function_node_selector, function_node_selector
         )
 
+    def test_with_node_selection_invalid_ns(self):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        function_node_selector = {"function-label": "function=val"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            runtime.with_node_selection(node_selector=function_node_selector)
+
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

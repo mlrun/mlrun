@@ -609,7 +609,7 @@ def test_v2_health():
 
 
 def test_v2_mock():
-    host = create_graph_server(graph=RouterStep())
+    host = create_graph_server(graph=RouterStep(), function_uri="proj/abc")
     host.graph.add_route(
         "my", class_name=ModelTestingClass, model_path="", multiplier=100
     )

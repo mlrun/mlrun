@@ -22,6 +22,7 @@ from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas as schemas
 import mlrun.common.types
 from mlrun.model import ModelObj

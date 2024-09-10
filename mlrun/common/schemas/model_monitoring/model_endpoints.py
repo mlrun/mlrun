@@ -21,6 +21,7 @@ from typing import Any, NamedTuple, Optional
 from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
+import mlrun.common.model_monitoring
 import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus

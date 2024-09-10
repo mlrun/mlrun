@@ -123,7 +123,7 @@ class V2ModelServer(StepToDict):
             self.model = model
             self.ready = True
         self._versioned_model_name = None
-        self._model_endpoint_uid = None
+        self.model_endpoint_uid = None
         self.shard_by_endpoint = shard_by_endpoint
 
     def _load_and_update_state(self):
@@ -154,7 +154,9 @@ class V2ModelServer(StepToDict):
             return
 
         if not self.context.is_mock or self.context.monitoring_mock:
-            _init_endpoint_record(graph_server=server, model=self)
+            self.model_endpoint_uid = _init_endpoint_record(
+                graph_server=server, model=self
+            )
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -233,18 +235,6 @@ class V2ModelServer(StepToDict):
         version = self.version or "latest"
         return f"{self.name}:{version}"
 
-    @property
-    def model_endpoint_uid(self):
-        if self._model_endpoint_uid is None:
-            # Generating model endpoint ID based on function uri and model version
-            self._model_endpoint_uid = (
-                mlrun.common.model_monitoring.create_model_endpoint_uid(
-                    function_uri=self.context.server.function_uri,
-                    versioned_model=self.versioned_model_name,
-                ).uid
-            )
-        return self._model_endpoint_uid
-
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
@@ -252,6 +242,14 @@ class V2ModelServer(StepToDict):
         event_body = _extract_input_data(self._input_path, event.body)
         event_id = event.id
         op = event.path.strip("/")
+
+        # Generating model endpoint ID based on function uri and model version
+        self.model_endpoint_uid = (
+            mlrun.common.model_monitoring.create_model_endpoint_uid(
+                function_uri=self.context.server.function_uri,
+                versioned_model=self.versioned_model_name,
+            ).uid
+        )
 
         partition_key = (
             self.model_endpoint_uid if self.shard_by_endpoint is not False else None

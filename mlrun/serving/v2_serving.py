@@ -244,15 +244,13 @@ class V2ModelServer(StepToDict):
         op = event.path.strip("/")
 
         # Generating model endpoint ID based on function uri and model version
-        self.model_endpoint_uid = (
-            mlrun.common.model_monitoring.create_model_endpoint_uid(
-                function_uri=self.context.server.function_uri,
-                versioned_model=self.versioned_model_name,
-            ).uid
-        )
+        model_endpoint_uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
+            function_uri=self.context.server.function_uri,
+            versioned_model=self.versioned_model_name,
+        ).uid
 
         partition_key = (
-            self.model_endpoint_uid if self.shard_by_endpoint is not False else None
+            model_endpoint_uid if self.shard_by_endpoint is not False else None
         )
 
         if event_body and isinstance(event_body, dict):
@@ -583,7 +581,11 @@ def _init_endpoint_record(
             model.version = model.model_spec.tag
         model.labels = model.model_spec.labels
 
-    uid = model.model_endpoint_uid
+    # Generating model endpoint ID based on function uri and model version
+    uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
+        function_uri=graph_server.function_uri,
+        versioned_model=model.versioned_model_name,
+    ).uid
 
     try:
         model_ep = mlrun.get_run_db().get_model_endpoint(

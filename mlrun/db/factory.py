@@ -18,6 +18,7 @@ import mlrun.db
 import mlrun.db.httpdb
 import mlrun.db.nopdb
 import mlrun.utils.singleton
+from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
 
@@ -66,8 +67,6 @@ class RunDBFactory(
 
     @staticmethod
     def _verify_ssl() -> None:
-        from mlrun.config import config as mlconf
-
         if not mlconf.httpdb.http.verify:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

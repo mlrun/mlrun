@@ -22,8 +22,8 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.api.api.utils
 import server.api.utils.auth.verifier
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
-from server.api.api.endpoints.model_monitoring import MINIMUM_CLIENT_VERSION_FOR_MM
 
 router = fastapi.APIRouter(prefix="/projects/{project}/jobs")
 

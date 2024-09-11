@@ -25,13 +25,10 @@ import mlrun.common.schemas
 import server.api.api.utils
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
-
-# Minimum client version that supports model monitoring,
-# Will be fixed when MM will be defined as BC supported feature
-MINIMUM_CLIENT_VERSION_FOR_MM = "1.7.0"
 
 router = APIRouter(prefix="/projects/{project}/model-monitoring")
 

@@ -3,8 +3,6 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
-{ref}`notifications` are used to notify you or the system of an alert.
-
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)
@@ -13,14 +11,6 @@ Alerts are a mechanism for informing you about possible problem situations.
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
-
-
-**See also**
-```{toctree}
-:maxdepth: 1
-
-drift-detection-alert
-```
 
 ## System configuration 
 These variables control the basic alert behavior: 
@@ -64,6 +54,8 @@ You can optionally specify the frequency of the alert through the criteria field
 If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
+
+When you run `store_alert_config`, the alert is automatically reset.
 
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 

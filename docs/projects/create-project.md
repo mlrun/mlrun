@@ -15,7 +15,7 @@ A project is a container for all the assets, configuration, and code of a partic
 <a id="best-prac-projs"></a>
 ## Best Practices
 
-Ensure that no project name is used as the prefix of another project name, since this would affect retrieving pipelines from the KFP.
+Ensure that no project name is used as the prefix of another project name, since this would affect retrieving pipelines from Kubeflow pipelines.
 For example, do not name projects `my_project` and `my_project_sec`.
 
 <a id="create"></a>

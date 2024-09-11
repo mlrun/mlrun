@@ -2341,7 +2341,7 @@ class MlrunProject(ModelObj):
         | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
         | Creating a function with project source:
         |   1. Specifying a relative ``func`` path and with_repo=True.
-        |   2. Specifying a module ``handler`` (e.g. ``handler=package.package.func``).
+        |   2. Specifying a module ``handler`` (e.g. ``handler=package.package.func``) without ``func``.
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 

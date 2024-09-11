@@ -554,8 +554,8 @@ class HTTPRunDB(RunDBInterface):
                 or config.feature_store.default_targets
             )
             config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
-            config.httpdb.http.verify = (
-                server_cfg.get("verify") or config.httpdb.http.verify
+            config.httpdb.http.verify = config.httpdb.http.verify or server_cfg.get(
+                "verify"
             )
 
         except Exception as exc:

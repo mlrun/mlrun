@@ -2819,6 +2819,17 @@ class MlrunProject(ModelObj):
     ):
         """
         Reload function objects from specs and files.
+        The function objects are synced against the definitions spec in `self.spec._function_definitions`.
+        Referenced files/URLs in the function spec will be reloaded.
+        Function definitions are parsed by the following precedence:
+            1. Contains runtime spec.
+            2. Contains module in the project's context.
+            3. Contains path to function definition (yaml, DB, Hub).
+            4. Contains path to .ipynb or .py files.
+            5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+        If function definition is already an object, some project metadata updates will apply however,
+        it will not be reloaded.
+
         :param names:   Names of functions to reload, defaults to `self.spec._function_definitions.keys()`.
         :param always:  Force reloading the functions.
         :param save:    Whether to save the loaded functions or not.
@@ -2840,7 +2851,7 @@ class MlrunProject(ModelObj):
             if not function_definition:
                 if silent:
                     logger.warn(
-                        f"Function {name} definition was not found, skipping reload."
+                        "Function definition was not found, skipping reload", name=name
                     )
                     continue
 
@@ -2866,16 +2877,16 @@ class MlrunProject(ModelObj):
                 except FileNotFoundError as exc:
                     message = f"File {exc.filename} not found while syncing project functions."
                     if silent:
-                        message += f" Skipping {name} function reload."
-                        logger.warn(message)
+                        message += " Skipping function reload"
+                        logger.warn(message, name=name)
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:
-                    message += f" Skipping {name} function reload."
-                    logger.warn(message)
+                    message += " Skipping function reload"
+                    logger.warn(message, name=name)
                     continue
                 raise ValueError(message)
 

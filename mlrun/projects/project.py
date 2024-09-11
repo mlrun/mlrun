@@ -3094,6 +3094,9 @@ class MlrunProject(ModelObj):
         if workflow_engine.engine == "remote" and workflow_runner_node_selector:
             workflow_spec.workflow_runner_node_selector = workflow_runner_node_selector
 
+        if workflow_engine.engine != "remote" and workflow_runner_node_selector:
+            warnings.warn("Warninggggg")
+
 
         run = workflow_engine.run(
             self,

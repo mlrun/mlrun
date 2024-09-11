@@ -2442,7 +2442,6 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values": main_table_identifier_values,
         }
         logger.debug("Removed rows from table", **log_kwargs)
         session.commit()

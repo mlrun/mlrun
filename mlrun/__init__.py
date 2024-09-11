@@ -143,9 +143,6 @@ def set_environment(
         mlconf.force_run_local = mock_functions
         mlconf.mock_nuclio_deployment = mock_functions
 
-    # if not mlconf.httpdb.http.verify:
-    #     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
     # check connectivity and load remote defaults
     get_run_db()
     if api_path:

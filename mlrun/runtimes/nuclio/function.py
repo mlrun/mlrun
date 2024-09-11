@@ -495,6 +495,9 @@ class RemoteRuntime(KubeResource):
         extra_attributes = extra_attributes or {}
         if ack_window_size:
             extra_attributes["ackWindowSize"] = ack_window_size
+
+        v3io_access_key = self._resolve_v3io_access_key()
+
         self.add_trigger(
             name,
             V3IOStreamTrigger(
@@ -506,7 +509,7 @@ class RemoteRuntime(KubeResource):
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
-                access_key=mlrun.model.Credentials.generate_access_key,
+                access_key=v3io_access_key,
                 **kwargs,
             ),
         )
@@ -1241,6 +1244,13 @@ class RemoteRuntime(KubeResource):
                 )
 
         return self._resolve_invocation_url("", force_external_address)
+
+    @staticmethod
+    def _resolve_v3io_access_key():
+        # if nuclio version < 1.13.11 return None, otherwise return "$generate"
+        if not validate_nuclio_version_compatibility("1.13.11"):
+            return None
+        return mlrun.model.Credentials.generate_access_key
 
 
 def parse_logs(logs):

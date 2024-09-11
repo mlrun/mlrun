@@ -2810,47 +2810,81 @@ class MlrunProject(ModelObj):
             secrets=secrets or {},
         )
 
-    def sync_functions(self, names: list = None, always=True, save=False):
-        """reload function objects from specs and files"""
+    def sync_functions(
+        self,
+        names: list = None,
+        always: bool = True,
+        save: bool = False,
+        silent: bool = False,
+    ):
+        """
+        Reload function objects from specs and files.
+        :param names:   Names of functions to reload, defaults to `self.spec._function_definitions.keys()`.
+        :param always:  Force reloading the functions.
+        :param save:    Whether to save the loaded functions or not.
+        :param silent:  Whether to raise an exception when a function fails to load.
+
+        :returns: Dictionary of function objects
+        """
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = self.spec._function_objects
+        functions = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
-            funcs = {}
+            functions = {}
+
         origin = mlrun.runtimes.utils.add_code_metadata(self.spec.context)
         for name in names:
-            f = self.spec._function_definitions.get(name)
-            if not f:
-                raise ValueError(f"function named {name} not found")
+            function_definition = self.spec._function_definitions.get(name)
+            if not function_definition:
+                if silent:
+                    logger.warn(
+                        f"Function {name} definition was not found, skipping reload."
+                    )
+                    continue
+
+                raise ValueError(f"Function named {name} not found")
+
+            function_object = self.spec._function_objects.get(name, None)
+            is_base_runtime = isinstance(
+                function_object, mlrun.runtimes.base.BaseRuntime
+            )
             # If this function is already available locally, don't recreate it unless always=True
-            if (
-                isinstance(
-                    self.spec._function_objects.get(name, None),
-                    mlrun.runtimes.base.BaseRuntime,
-                )
-                and not always
-            ):
-                funcs[name] = self.spec._function_objects[name]
+            if is_base_runtime and not always:
+                functions[name] = function_object
                 continue
-            if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self, name)
-            else:
-                if not isinstance(f, dict):
-                    raise ValueError("function must be an object or dict")
+
+            # Reload the function
+            if hasattr(function_definition, "to_dict"):
+                name, func = _init_function_from_obj(function_definition, self, name)
+            elif isinstance(function_definition, dict):
                 try:
-                    name, func = _init_function_from_dict(f, self, name)
+                    name, func = _init_function_from_dict(
+                        function_definition, self, name
+                    )
                 except FileNotFoundError as exc:
-                    raise mlrun.errors.MLRunMissingDependencyError(
-                        f"File {exc.filename} not found while syncing project functions"
-                    ) from exc
+                    message = f"File {exc.filename} not found while syncing project functions."
+                    if silent:
+                        message += f" Skipping {name} function reload."
+                        logger.warn(message)
+                        continue
+
+                    raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+            else:
+                message = f"Function {name} must be an object or dict."
+                if silent:
+                    message += f" Skipping {name} function reload."
+                    logger.warn(message)
+                    continue
+                raise ValueError(message)
+
             func.spec.build.code_origin = origin
-            funcs[name] = func
+            functions[name] = func
             if save:
                 func.save(versioned=False)
 
-        self.spec._function_objects = funcs
+        self.spec._function_objects = functions
         self._initialized = True
         return self.spec._function_objects
 
@@ -3050,11 +3084,10 @@ class MlrunProject(ModelObj):
             )
 
         if engine not in ["remote"] and not schedule:
-            # For remote/scheduled runs we don't require the functions to be synced as they can be loaded dynamically
-            # during run
-            self.sync_functions(always=sync)
+            # For remote/scheduled runs there is no need to sync functions as they can be loaded dynamically during run
+            self.sync_functions(always=sync, silent=True)
             if not self.spec._function_objects:
-                raise ValueError(
+                logger.warn(
                     "There are no functions in the project."
                     " Make sure you've set your functions with project.set_function()."
                 )

@@ -1479,7 +1479,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     writer_step_name = "RedisNoSqlTarget"
 
     @staticmethod
-    def get_server_endpoint(path):
+    def get_server_endpoint(path, credentials_prefix=None):
         endpoint, uri = parse_path(path)
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds://"):
@@ -1497,7 +1497,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Provide Redis username and password only via secrets"
                 )
-            credentials_prefix = mlrun.get_secret_or_env(key="CREDENTIALS_PREFIX")
+            credentials_prefix = credentials_prefix or mlrun.get_secret_or_env(
+                key="CREDENTIALS_PREFIX"
+            )
             user = mlrun.get_secret_or_env(
                 "REDIS_USER", default="", prefix=credentials_prefix
             )
@@ -1517,7 +1519,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = self.get_server_endpoint(self.get_target_path())
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
 
         return Table(
             uri,
@@ -1526,7 +1530,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = self.get_server_endpoint(self.get_target_path())
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1577,6 +1583,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             class_name="mlrun.datastore.storeytargets.RedisNoSqlStoreyTarget",
             columns=column_list,
             table=table,
+            credentials_prefix=self.credentials_prefix,
             **self.attributes,
         )
 

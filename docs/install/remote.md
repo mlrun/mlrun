@@ -43,6 +43,14 @@ Run ```pip install mlrun```
 To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
+## Note for ARM64 (Apple Silicon) Users
+
+When using ARM64 (Apple Silicon), you need to use **conda** and install protobuf by running the following command:
+
+```bash
+conda install "protobuf>=3.20.3, <4" -y
+````
+
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 
    part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size 

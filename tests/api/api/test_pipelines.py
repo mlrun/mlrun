@@ -223,8 +223,9 @@ def test_list_pipelines_name_contains(
     run_name_filter: str,
     expected_runs_ids: list,
 ) -> None:
+    project_name = "test-project"
     server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value="test-project"
+        return_value=project_name
     )
     runs = _generate_list_runs_project_name_mocks()
     expected_page_size = (
@@ -236,6 +237,7 @@ def test_list_pipelines_name_contains(
         kfp_client_mock,
         runs,
         expected_page_size=expected_page_size,
+        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name),
     )
     response = client.get(
         f"projects/{project_name}/pipelines",

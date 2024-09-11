@@ -131,22 +131,13 @@ def test_plot_produce(tmp_path: Path) -> None:
 class TestCalculateInputsStatistics:
     _HIST = "hist"
     _DEFAULT_NUM_BINS = default_num_bins
-
-    @staticmethod
-    @pytest.fixture
-    def shared_feat() -> str:
-        return "orig_feat0"
-
-    @staticmethod
-    @pytest.fixture
-    def new_feat() -> str:
-        return "new_feat0"
+    _SHARED_FEATURE = "shared_feature"
 
     @classmethod
     @pytest.fixture
-    def sample_set_statistics(cls, shared_feat: str) -> dict:
+    def sample_set_statistics(cls) -> dict:
         return {
-            shared_feat: {
+            cls._SHARED_FEATURE: {
                 cls._HIST: [
                     [0, *list(np.random.randint(10, size=cls._DEFAULT_NUM_BINS)), 0],
                     [
@@ -158,25 +149,21 @@ class TestCalculateInputsStatistics:
             }
         }
 
-    @staticmethod
+    @classmethod
     @pytest.fixture
-    def inputs_df(shared_feat: str, new_feat: str) -> pd.DataFrame:
+    def inputs_df(cls) -> pd.DataFrame:
         return pd.DataFrame(
-            columns=[shared_feat, new_feat],
+            columns=[cls._SHARED_FEATURE, "feature_1"],
             data=np.random.randint(-15, 20, size=(9, 2)),
         )
 
-    @staticmethod
-    @pytest.fixture
-    def input_statistics(sample_set_statistics: dict, inputs_df: pd.DataFrame) -> dict:
-        return calculate_inputs_statistics(
+    @classmethod
+    def test_histograms_features(
+        cls, sample_set_statistics: dict, inputs_df: pd.DataFrame
+    ) -> None:
+        current_stats = calculate_inputs_statistics(
             sample_set_statistics=sample_set_statistics, inputs=inputs_df
         )
-
-    @classmethod
-    def test_histograms_length(
-        cls, shared_feat: str, new_feat: str, input_statistics: dict
-    ) -> None:
-        assert len(input_statistics[shared_feat][cls._HIST][0]) == len(
-            input_statistics[new_feat][cls._HIST][0]
-        ), "The lengths of the histograms do not match"
+        assert (
+            current_stats.keys() == sample_set_statistics.keys()
+        ), "Inputs statistics and the current statistics should have the same features"

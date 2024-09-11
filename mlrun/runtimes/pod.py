@@ -1347,19 +1347,25 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def _build_image(
         self,
-        builder_env,
-        force_build,
-        mlrun_version_specifier,
-        show_on_failure,
-        skip_deployed,
-        watch,
-        is_kfp,
-        with_mlrun,
+        builder_env: dict,
+        force_build: bool,
+        mlrun_version_specifier: typing.Optional[bool],
+        show_on_failure: bool,
+        skip_deployed: bool,
+        watch: bool,
+        is_kfp: bool,
+        with_mlrun: typing.Optional[bool],
     ):
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:
             watch = True
+
+        if skip_deployed and self.requires_build() and not self.is_deployed():
+            logger.warning(
+                f"Although {skip_deployed=}, build may be triggered due to function configuration. "
+                "See requires_build() and is_deployed() for reasoning."
+            )
 
         db = self._get_db()
         data = db.remote_builder(

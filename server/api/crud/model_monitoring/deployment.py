@@ -992,7 +992,7 @@ class MonitoringDeployment:
                     )
                 except Exception as exc:
                     # Raise an error that will be caught by the caller and skip the deletion of the stream
-                    raise mlrun.errors.MLRunStreamConnectionFailure(
+                    raise mlrun.errors.MLRunStreamConnectionFailureError(
                         f"Failed to delete v3io stream {stream_path}"
                     ) from exc
         elif stream_paths[0].startswith("kafka://"):

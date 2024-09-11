@@ -137,7 +137,8 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
-            path
+            path,
+            kwargs["credentials_prefix"] if "credentials_prefix" in kwargs else None,
         )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)

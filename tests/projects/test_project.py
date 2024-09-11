@@ -1017,6 +1017,9 @@ def test_import_artifact_retain_producer(rundb_mock):
         name="project-2", context=f"{base_path}/project_2", save=False
     )
 
+    # set project owners
+    project_1.spec.owner = "owner-1"
+
     # create an artifact with a 'run' producer
     artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
     run_name = "my-run"
@@ -1027,6 +1030,7 @@ def test_import_artifact_retain_producer(rundb_mock):
         kind="run",
         project=project_1.name,
         name=run_name,
+        owner=project_1.spec.owner,
     ).get_meta()
 
     # imitate the artifact being produced by a run with uri and without a tag
@@ -1039,6 +1043,7 @@ def test_import_artifact_retain_producer(rundb_mock):
         "kind": "run",
         "name": run_name,
         "tag": run_tag,
+        "owner": project_1.spec.owner,
     }
 
     # export the artifact
@@ -1107,6 +1112,30 @@ def test_replace_exported_artifact_producer(rundb_mock):
     loaded_artifact = project_3.get_artifact(key)
     assert loaded_artifact.producer != artifact.producer
     assert loaded_artifact.producer["name"] == project_3.name
+
+
+@pytest.mark.parametrize(
+    "project_owner,username",
+    [
+        ("project-owner", None),
+        (None, "username"),
+        ("project-owner", "username"),
+        (None, None),
+    ],
+)
+def test_artifact_owner(
+    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+):
+    if username:
+        monkeypatch.setenv("V3IO_USERNAME", username)
+
+    project = mlrun.new_project("artifact-owner", save=False)
+    project.spec.owner = project_owner
+    artifact = project.log_artifact("x", body="123", format="txt")
+    if username:
+        assert artifact.producer.get("owner") == username
+    else:
+        assert artifact.producer.get("owner") == project_owner
 
 
 @pytest.mark.parametrize(

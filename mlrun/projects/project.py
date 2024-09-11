@@ -2334,16 +2334,26 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, list[str]] = None,
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
-        """update or add a function object to the project
+        """
+        | Update or add a function object to the project.
+        | Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
 
-        function can be provided as an object (func) or a .py/.ipynb/.yaml url
-        support url prefixes::
+        | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
+        | Creating a function with project source:
+        |   1. Specifying a relative ``func`` path and with_repo=True.
+        |   2. Specifying a module ``handler`` (e.g. ``handler=package.package.func``).
+        | Creating a function with non project source is done by specifying a module ``handler`` and on the
+         returned function set the source with ``function.with_source_archive(<source>)``.
+        | Creating a nuclio/serving/application function from image is done by not specifying ``func`` or
+         ``handler`` and providing ``image`` instead.
 
-            object (s3://, v3io://, ..)
-            MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto-trainer:master
+        Support URL prefixes:
 
-        examples::
+            | Object (s3://, v3io://, ..)
+            | MLRun DB e.g. db://project/func:ver
+            | Functions hub/market: e.g. hub://auto-trainer:master
+
+        Examples::
 
             proj.set_function(func_object)
             proj.set_function(
@@ -2378,7 +2388,7 @@ class MlrunProject(ModelObj):
         :param requirements:        A list of python packages
         :param requirements_file:   Path to a python requirements file
 
-        :returns: function object
+        :returns: :py:class:`~mlrun.runtimes.BaseRuntime`
         """
         (
             resolved_function_name,

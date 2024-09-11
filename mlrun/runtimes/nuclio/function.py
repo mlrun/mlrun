@@ -506,6 +506,7 @@ class RemoteRuntime(KubeResource):
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
+                access_key=mlrun.model.Credentials.generate_access_key,
                 **kwargs,
             ),
         )

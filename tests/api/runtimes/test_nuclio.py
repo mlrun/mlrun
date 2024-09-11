@@ -109,7 +109,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         return {
             "kind": "v3ioStream",
             "name": parameters["name"],
-            "password": self.v3io_access_key,
+            "password": mlrun.model.Credentials.generate_access_key,
             "attributes": {
                 "containerName": container,
                 "streamPath": path,

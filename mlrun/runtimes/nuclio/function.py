@@ -1249,10 +1249,10 @@ class RemoteRuntime(KubeResource):
 
     @staticmethod
     def _resolve_v3io_access_key():
-        # if nuclio version < 1.13.11 return None, otherwise return "$generate"
-        if not validate_nuclio_version_compatibility("1.13.11"):
-            return None
-        return mlrun.model.Credentials.generate_access_key
+        # Nuclio supports generating access key for v3io stream trigger only from version 1.13.11
+        if validate_nuclio_version_compatibility("1.13.11"):
+            return mlrun.model.Credentials.generate_access_key
+        return None
 
 
 def parse_logs(logs):

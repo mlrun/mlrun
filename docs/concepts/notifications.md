@@ -72,7 +72,7 @@ Currently, the supported notification kinds and their params are as follows:
 					 Results would look like 
 					 ```
 					 {
-                       "message": "Run Completed [{'project': 'test-remote-workflow', 'name': 'func-func', 'host': 'func-func-pkt97', 'status': {'state': 'completed', 'results': {'return': 1}}}]"
+                       "message": "Run Completed [{'project': 'my-project', 'name': 'my-function', 'host': <run-host>, 'status': {'state': 'completed', 'results': <run-results>}}]"
                      }
 					 ```
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,

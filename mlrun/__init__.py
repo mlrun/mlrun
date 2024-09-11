@@ -32,8 +32,6 @@ from os import environ, path
 
 import dotenv
 import mlrun_pipelines
-import urllib3
-import urllib3.exceptions
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager

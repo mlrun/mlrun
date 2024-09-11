@@ -739,8 +739,12 @@ class HttpStore(DataStore):
         headers=None,
         auth=None,
     ):
+        # import here to prevent import cycle
+        from mlrun.config import config as mlconf
+
+        verify_ssl = mlconf.httpdb.http.verify
         try:
-            response = requests.get(url, headers=headers, auth=auth)
+            response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
         except OSError as exc:
             raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 

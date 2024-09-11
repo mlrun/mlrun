@@ -1,31 +1,17 @@
-# Copyright 2023 Iguazio
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-kind: artifact
+status:
+  state: created
 metadata:
-  key: x
-  project: inline
   iter: 0
-  tree: latest
+  project: inline
+  key: x
+  tree: b2cb8a03-76db-4144-8ef5-2c300b073e49
+kind: artifact
 spec:
   inline: '123'
   db_key: x
+  license: ''
   producer:
     kind: project
     name: inline
-    tag: latest
-  sources: []
-  license: ''
-status:
-  state: created
+    tag: b2cb8a03-76db-4144-8ef5-2c300b073e49
+    owner: require_Normalization

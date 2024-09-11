@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,7 +22,6 @@ import pandas as pd
 import pytest
 
 import mlrun
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.model_monitoring.applications.histogram_data_drift as histogram_data_drift
 import mlrun.serving
@@ -93,16 +91,11 @@ def plot_produce(context: mlrun.MLClientCtx):
             monitoring_context = mm_context.MonitoringApplicationContext(
                 graph_context=mlrun.serving.GraphContext(),
                 application_name="histogram-data-drift",
-                event={
-                    mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(
-                        inputs_statistics
-                    ),
-                    mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(
-                        sample_data_statistics
-                    ),
-                },
+                event={},
                 model_endpoint_dict={},
             )
+            monitoring_context._feature_stats = inputs_statistics
+            monitoring_context._sample_df_stats = sample_data_statistics
     # Patching `log_artifact` only for this test
     monitoring_context.log_artifact = context.log_artifact
     # Initialize the app

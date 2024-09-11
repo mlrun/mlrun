@@ -365,7 +365,12 @@ The zone label from the project level is completely removed, and the resulting c
 ```
 {"gpu": "true", "arch": "amd64"}
 ```
+### Preventing conflicts
 
+If you run a function and it is stuck with the status `pending` it's possible that the "specified" node selector does not exist. 
+Remember, the project and function level configurations override the service level and the function itself. Check the function.yaml and the 
+project.yaml for the node selector configurations. And check the UI (Projects > Jobs and workflows > Monitor jobs)
+for the node selector that was ultimately defined by all of the configurations and overrides.
 
 
 ### Runtimes
@@ -397,9 +402,10 @@ This logic becomes part of the Spark CRD, ensuring that it is consistently appli
 ### Best Practice
 
 Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
-For example, a Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
+For example:
+- A Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
 (and doesn't benefit from being assigned to a GPU node). 
-A Spark Function includes an executor and a driver; the driver also does not benefit from a GPU node.
+- A Spark Function includes an executor and a driver; the driver does not benefit from a GPU node.
 
 ### SDK configuration
 

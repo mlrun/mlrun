@@ -1,5 +1,4 @@
-# required for v3io client, see docs/requirements.txt for the constraint
+# Required for v3io-frames client through grpcio-tools:
+# https://github.com/v3io/frames/blob/5490b1e7f281a8c44ec679105957e181c3fa81fc/clients/py/requirements.txt#L4
+# grpcio-tools 1.48.2 requires protobuf<4.0dev,>=3.12.0
 protobuf>=3.20.3, <4
-
-# see requirements.txt for the constraint
-pyyaml>=5.4.1, <7

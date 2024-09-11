@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import uuid
 from copy import deepcopy
@@ -168,6 +169,8 @@ class MLClientCtx:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level, e.g. 'debug', 'info', 'error'"""
+        level = logging.getLevelName(value.upper())
+        self._logger.set_logger_level(level)
         self._log_level = value
 
     @property

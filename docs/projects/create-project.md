@@ -12,6 +12,12 @@ A project is a container for all the assets, configuration, and code of a partic
 - [Get a project from DB or create it](#get-or-create)
 - [Deleting a project](#deleting-a-project)
 
+<a id="best-prac-projs"></a>
+## Best Practices
+
+Ensure that no project name is used as the prefix of another project name, since this would affect retrieving pipelines from Kubeflow pipelines.
+For example, do not name projects `my_project` and `my_project_sec`.
+
 <a id="create"></a>
 ## Creating a project
 

@@ -2344,8 +2344,6 @@ class MlrunProject(ModelObj):
         |   2. Specifying a module ``handler`` (e.g. ``handler=package.package.func``).
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
-        | Creating a nuclio/serving/application function from image is done by not specifying ``func`` or
-         ``handler`` and providing ``image`` instead.
 
         Support URL prefixes:
 

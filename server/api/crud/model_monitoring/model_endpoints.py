@@ -601,7 +601,6 @@ class ModelEndpoints:
         Delete model monitoring stream resources.
 
         :param project_name:                  The name of the project.
-        :param db_session:                    A session that manages the current dialog with the database.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for

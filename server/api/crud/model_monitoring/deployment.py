@@ -975,9 +975,6 @@ class MonitoringDeployment:
         """
         Check if the model monitoring credentials are set. If not, raise an error.
 
-        :param with_upgrade_case_check:         If True, check if indeed the project is an old(<1.7.0) project
-                                                that had model monitoring, if indeed, set the credentials.
-        :param client_version:                  The client version.
         :raise mlrun.errors.MLRunBadRequestError:  if the credentials are not set.
         """
 
@@ -1029,7 +1026,6 @@ class MonitoringDeployment:
         :param replace_creds:             If True, the credentials will be set even if they are already set.
         :param _default_secrets_v3io:     Optional parameter for the upgrade process in which the v3io default secret
                                           key is set.
-        :param client_version:            The client version.
         :raise MLRunConflictError:        If the credentials are already set for the project and the user
                                           provided different creds.
         :raise MLRunInvalidMMStoreTypeError: If the user provided invalid credentials.
@@ -1113,18 +1109,17 @@ class MonitoringDeployment:
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                     "In CE mode, only kafka stream are supported for stream path"
                 )
-            elif stream_path:
-                if stream_path.startswith("kafka://") and "?topic" in stream_path:
-                    raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                        "Custom kafka topic is not allowed"
-                    )
-                elif not stream_path.startswith("kafka://") and (
-                    stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
-                ):
-                    raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                        "Currently only Kafka connection is supported for non-v3io stream,"
-                        "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
-                    )
+            elif stream_path.startswith("kafka://") and "?topic" in stream_path:
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                    "Custom kafka topic is not allowed"
+                )
+            elif not stream_path.startswith("kafka://") and (
+                stream_path != mm_constants.V3IO_MODEL_MONITORING_DB
+            ):
+                raise mlrun.errors.MLRunInvalidMMStoreTypeError(
+                    "Currently only Kafka connection is supported for non-v3io stream,"
+                    "please provide a full URL (e.g. kafka://<some_kafka_broker>:<port>)"
+                )
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path

@@ -1162,11 +1162,11 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":  # return list for mlrun<1.6.3 BC
+            elif kind == "stream":
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind,
-                )  # new stream uri (projects)
+                )
             else:
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,

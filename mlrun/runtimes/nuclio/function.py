@@ -496,7 +496,9 @@ class RemoteRuntime(KubeResource):
         if ack_window_size:
             extra_attributes["ackWindowSize"] = ack_window_size
 
-        v3io_access_key = self._resolve_v3io_access_key()
+        access_key = kwargs.pop("access_key", None)
+        if not access_key:
+            access_key = self._resolve_v3io_access_key()
 
         self.add_trigger(
             name,
@@ -509,7 +511,7 @@ class RemoteRuntime(KubeResource):
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
-                access_key=v3io_access_key,
+                access_key=access_key,
                 **kwargs,
             ),
         )

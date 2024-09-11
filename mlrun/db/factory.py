@@ -67,7 +67,7 @@ class RunDBFactory(
 
     @staticmethod
     def _verify_ssl() -> None:
-        if not mlconf.httpdb.http.verify:
+        if mlconf.httpdb.http.verify is False:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 

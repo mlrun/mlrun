@@ -326,7 +326,7 @@ default_config = {
         "http": {
             # when True, the client will verify the server's TLS
             # set to False for backwards compatibility.
-            "verify": False,
+            "verify": True,
         },
         "db": {
             "commit_retry_timeout": 30,

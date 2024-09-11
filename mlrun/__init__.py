@@ -32,6 +32,8 @@ from os import environ, path
 
 import dotenv
 import mlrun_pipelines
+import urllib3
+import urllib3.exceptions
 
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
@@ -140,6 +142,9 @@ def set_environment(
         mock_functions = "1" if mock_functions is True else mock_functions
         mlconf.force_run_local = mock_functions
         mlconf.mock_nuclio_deployment = mock_functions
+
+    # if not mlconf.httpdb.http.verify:
+    #     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     # check connectivity and load remote defaults
     get_run_db()

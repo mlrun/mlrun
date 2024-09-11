@@ -24,7 +24,6 @@ import pandas as pd
 import pyarrow
 import pytz
 import requests
-import urllib3
 from deprecated import deprecated
 
 import mlrun.config
@@ -740,14 +739,8 @@ class HttpStore(DataStore):
         headers=None,
         auth=None,
     ):
-        # import here to prevent import cycle
-        from mlrun.config import config as mlconf
-
-        verify_ssl = mlconf.httpdb.http.verify
         try:
-            if not verify_ssl:
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
+            response = requests.get(url, headers=headers, auth=auth)
         except OSError as exc:
             raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 

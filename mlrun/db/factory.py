@@ -59,6 +59,9 @@ class RunDBFactory(
             #  The SQLRunDB should always get its session from the FastAPI dependency injection.
             self._run_db = self._rundb_container.run_db(url)
 
+        import urllib3.exceptions
+        if not mlrun.mlconf.httpdb.http.verify:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self._run_db.connect(secrets=secrets)
         return self._run_db
 

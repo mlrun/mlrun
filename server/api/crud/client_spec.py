@@ -54,6 +54,7 @@ class ClientSpec(
             redis_url=config.redis.url,
             redis_type=config.redis.type,
             sql_url=config.sql.url,
+            verify=config.httpdb.http.verify,
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default

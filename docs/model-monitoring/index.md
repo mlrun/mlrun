@@ -54,7 +54,6 @@ In addition, internal model-monitoring metadata can be saved in MySQL or V3IO.
 We recommend the following versions:
 * TDEngine - `3.3.2.0`.
 * MySQL - `8.0.39`, or higher `8.0` compatible versions.
-* Kafka - `3.x` compatible versions, although older version may also work.
 
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
 There are three credentials you can set, and each one can have a different value. For example:

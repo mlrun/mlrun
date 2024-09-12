@@ -14,6 +14,7 @@
 #
 import os
 import uuid
+from copy import deepcopy
 
 import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
@@ -97,6 +98,7 @@ class WorkflowRunners(
             workflow_request=workflow_request,
             labels=labels,
         )
+        runner.spec.node_selector = deepcopy(run_spec.spec.node_selector)
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
@@ -168,7 +170,7 @@ class WorkflowRunners(
                     # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
-                    node_selector=workflow_spec.workflow_runner_node_selector
+                    node_selector=workflow_spec.workflow_runner_node_selector,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
@@ -231,6 +233,7 @@ class WorkflowRunners(
         )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+        runner.spec.node_selector = deepcopy(run_spec.spec.node_selector)
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
         #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
@@ -364,7 +367,9 @@ class WorkflowRunners(
                     subpath=project.spec.subpath,
                 )
             )
-            run_object.spec.node_selector.update(workflow_spec.workflow_runner_node_selector)
+            run_object.spec.node_selector.update(
+                workflow_spec.workflow_runner_node_selector
+            )
 
         # Setting labels:
         return self._label_run_object(run_object, labels)

@@ -2987,7 +2987,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
-        workflow_runner_node_selector: dict[str,str] = None,
+        workflow_runner_node_selector: dict[str, str] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3096,7 +3096,6 @@ class MlrunProject(ModelObj):
 
         if workflow_engine.engine != "remote" and workflow_runner_node_selector:
             warnings.warn("Warninggggg")
-
 
         run = workflow_engine.run(
             self,

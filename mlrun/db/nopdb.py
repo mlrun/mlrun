@@ -21,9 +21,9 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+from mlrun.lists import RunList
 
 from ..config import config
-from ..lists import RunList
 from ..utils import logger
 from .base import RunDBInterface
 
@@ -97,7 +97,13 @@ class NopDB(RunDBInterface):
         pass
 
     def list_functions_by_foo_spec(
-        self, foo_spec, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        foo_spec: str,
+        project: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+        since: datetime = None,
+        until: datetime = None,
     ):
         pass
 

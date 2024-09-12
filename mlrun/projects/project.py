@@ -3821,17 +3821,20 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_functions_by_foo_spec(self, foo_spec, tag=None, labels=None):
+    def list_functions_by_foo_spec(
+        self, foo_spec: str, tag: str = None, labels: list[str] = None
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
-        example::
+        Example::
 
             functions = project.list_functions_by_foo_spec(foo_spec="bar")
 
 
         :param foo_spec: Return only functions with a specific foo_spec.
-        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param tag:      Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
+        :param labels:   Return functions that have specific labels assigned to them.
+
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3961,7 +3964,7 @@ class MlrunProject(ModelObj):
         start_time_to: datetime = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """Retrieve a list of completed runs, filtered by various options.
 
         The returned result is a `` (list of dict), use `.to_objects()` to convert it to a list of RunObjects,
         `.show()` to view graphically in Jupyter, `.to_df()` to convert to a DataFrame, and `compare()` to

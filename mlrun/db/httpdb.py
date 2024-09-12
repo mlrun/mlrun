@@ -948,7 +948,6 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the runs belongs to.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
-        :param last: Deprecated - currently not used (will be removed in 1.8.0).
         :param iter: If ``True`` return runs from all iterations. Otherwise, return only runs whose ``iter`` is 0.
         :param start_time_from: Filter by run start time in ``[start_time_from, start_time_to]``.
         :param start_time_to: Filter by run start time in ``[start_time_from, start_time_to]``.
@@ -1384,7 +1383,13 @@ class HTTPRunDB(RunDBInterface):
         return self.process_paginated_responses(responses, "funcs")
 
     def list_functions_by_foo_spec(
-        self, foo_spec=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        foo_spec: str,
+        project: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+        since: datetime = None,
+        until: datetime = None,
     ):
         """Retrieve a list of functions, filtered by their foo spec.
 

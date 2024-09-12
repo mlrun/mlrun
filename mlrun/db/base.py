@@ -206,7 +206,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_functions_by_foo_spec(
-        self, foo_spec, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        foo_spec: str,
+        project: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+        since: datetime = None,
+        until: datetime = None,
     ):
         raise NotImplementedError
 

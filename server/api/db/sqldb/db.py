@@ -3262,23 +3262,25 @@ class SQLDB(DBInterface):
         return obj_id_tags
 
     def _generate_records_with_tags_assigned(
-        self, object_record, transform_fn, obj_id_tags, default_tag=None
+        self, object_record, transform_fn, obj_id_tags, default_tag=None, format_=None
     ):
         # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
         # there for some comments explaining the logic.
         results = []
         if default_tag:
-            results.append(transform_fn(object_record, default_tag))
+            results.append(transform_fn(object_record, default_tag, format_=format_))
         else:
             object_tags = obj_id_tags.get(object_record.id, [])
             if len(object_tags) == 0 and not object_record.uid.startswith(
                 unversioned_tagged_object_uid_prefix
             ):
-                new_object = transform_fn(object_record)
+                new_object = transform_fn(object_record, format_=format_)
                 results.append(new_object)
             else:
                 for object_tag in object_tags:
-                    results.append(transform_fn(object_record, object_tag))
+                    results.append(
+                        transform_fn(object_record, object_tag, format_=format_)
+                    )
         return results
 
     @staticmethod
@@ -3751,17 +3753,13 @@ class SQLDB(DBInterface):
 
         feature_sets = []
         for feature_set_record in query:
-            feature_set_formatted_record = (
-                mlrun.common.formatters.FeatureSetFormat.format_obj(
-                    feature_set_record, format_
-                )
-            )
             feature_sets.extend(
                 self._generate_records_with_tags_assigned(
-                    feature_set_formatted_record,
+                    feature_set_record,
                     self._transform_feature_set_model_to_schema,
                     obj_id_tags,
                     tag,
+                    format_=format_,
                 )
             )
         return mlrun.common.schemas.FeatureSetsOutput(feature_sets=feature_sets)
@@ -4734,8 +4732,12 @@ class SQLDB(DBInterface):
     def _transform_feature_set_model_to_schema(
         feature_set_record: FeatureSet,
         tag=None,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
+        feature_set_full_dict = mlrun.common.formatters.FeatureSetFormat.format_obj(
+            feature_set_full_dict, format_
+        )
         feature_set_resp = mlrun.common.schemas.FeatureSet(**feature_set_full_dict)
 
         feature_set_resp.metadata.tag = tag
@@ -4743,8 +4745,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_vector_model_to_schema(
-        feature_vector_record: FeatureVector,
-        tag=None,
+        feature_vector_record: FeatureVector, tag=None, format_=None
     ) -> mlrun.common.schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
         feature_vector_resp = mlrun.common.schemas.FeatureVector(

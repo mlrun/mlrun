@@ -28,8 +28,6 @@ class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
         return {
             FeatureSetFormat.full: None,
             FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(
-                [
-                    "name" "tags",
-                ]
+                ["kind", "metadata", "spec", "status.state"]
             ),
         }[_format]

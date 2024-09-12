@@ -16,11 +16,11 @@ import enum
 import json
 import re
 from datetime import datetime
-from typing import Any, NamedTuple, Optional
+from typing import Annotated, Any, NamedTuple, Optional
 
-from pydantic import BaseModel, Field, validator
-from pydantic.main import Extra
+from pydantic import BaseModel, Extra, Field, constr, validator
 
+import mlrun.common.model_monitoring
 import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
@@ -34,6 +34,9 @@ from .constants import (
     ResultStatusApp,
 )
 
+_MODEL_ENDPOINT_UID = constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
+ModelEndpointUID = Annotated[str, _MODEL_ENDPOINT_UID]
+
 
 class ModelMonitoringStoreKinds:
     # TODO: do changes in examples & demos In 1.5.0 remove
@@ -42,9 +45,9 @@ class ModelMonitoringStoreKinds:
 
 
 class ModelEndpointMetadata(BaseModel):
-    project: Optional[str] = ""
+    project: str
+    uid: ModelEndpointUID
     labels: Optional[dict] = {}
-    uid: Optional[str] = ""
 
     class Config:
         extra = Extra.allow
@@ -211,21 +214,12 @@ class ModelEndpointStatus(ObjectStatus):
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
-    metadata: ModelEndpointMetadata = ModelEndpointMetadata()
+    metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec = ModelEndpointSpec()
     status: ModelEndpointStatus = ModelEndpointStatus()
 
     class Config:
         extra = Extra.allow
-
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        if self.metadata.uid is None:
-            uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
-                function_uri=self.spec.function_uri,
-                versioned_model=self.spec.model,
-            )
-            self.metadata.uid = str(uid)
 
     def flat_dict(self):
         """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing
@@ -267,7 +261,7 @@ class ModelEndpoint(BaseModel):
         return flatten_dict
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict):
+    def from_flat_dict(cls, endpoint_dict: dict) -> "ModelEndpoint":
         """Create a `ModelEndpoint` object from an endpoint flattened dictionary. Because the provided dictionary
         is flattened, we pass it as is to the subclasses without splitting the keys into spec, metadata, and status.
 

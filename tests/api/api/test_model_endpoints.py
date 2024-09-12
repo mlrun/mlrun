@@ -315,7 +315,11 @@ def _mock_random_endpoint(
 
 def test_validate_model_endpoints_schema():
     # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
-    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint()
+    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=TEST_PROJECT, uid="a-12_"
+        )
+    )
     model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
 
     # Compare status

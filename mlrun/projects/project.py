@@ -26,6 +26,7 @@ import typing
 import uuid
 import warnings
 import zipfile
+from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
@@ -252,8 +253,7 @@ def new_project(
         project.spec.description = description
 
     if default_function_node_selector:
-        for key, val in default_function_node_selector.items():
-            project.spec.default_function_node_selector[key] = val
+        project.spec.default_function_node_selector = default_function_node_selector
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
@@ -875,7 +875,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
-        self.default_function_node_selector = default_function_node_selector or {}
+        self._default_function_node_selector = default_function_node_selector or None
 
     @property
     def source(self) -> str:
@@ -1049,6 +1049,14 @@ class ProjectSpec(ModelObj):
     def remove_artifact(self, key):
         if key in self._artifacts:
             del self._artifacts[key]
+
+    @property
+    def default_function_node_selector(self):
+        return self._default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, node_selector: dict[str, str]):
+        self._default_function_node_selector = deepcopy(node_selector)
 
     @property
     def build(self) -> ImageBuilder:

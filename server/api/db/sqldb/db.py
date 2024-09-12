@@ -1784,10 +1784,9 @@ class SQLDB(DBInterface):
                     function_id=fn.id,
                 )
                 fn.foo_spec = existing_foo_spec
-        objects = [fn]
         if foo_spec_obj is not None:
-            objects.append(foo_spec_obj)
-        self._upsert(session, objects)
+            self._upsert(session, [foo_spec_obj])
+
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
@@ -1880,7 +1879,6 @@ class SQLDB(DBInterface):
 
     def delete_function(self, session: Session, project: str, name: str):
         logger.debug("Removing function from db", project=project, name=name)
-        self._delete(session, FunctionSpecFoo, project=project)
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_function_tags(session, project, name, commit=False)
         self._delete_class_labels(
@@ -4574,7 +4572,7 @@ class SQLDB(DBInterface):
                 config.httpdb.db.commit_retry_interval,
                 config.httpdb.db.commit_retry_timeout,
                 logger,
-                True,
+                False,
                 _try_commit_obj,
             )
 

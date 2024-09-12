@@ -3970,7 +3970,7 @@ class MlrunProject(ModelObj):
         Example::
 
             # return a list of runs matching the name and label and compare
-            runs = project.list_runs(name="download", labels="owner=admin")
+            runs = project.list_completed_runs(name="download", labels="owner=admin")
             runs.compare()
 
             # multi-label filter can also be provided

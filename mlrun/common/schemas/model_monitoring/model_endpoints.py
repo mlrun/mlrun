@@ -34,8 +34,9 @@ from .constants import (
     ResultStatusApp,
 )
 
-_MODEL_ENDPOINT_UID = constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
-ModelEndpointUID = Annotated[str, _MODEL_ENDPOINT_UID]
+ModelEndpointUIDAnnotation = Annotated[
+    str, constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
+]
 
 
 class ModelMonitoringStoreKinds:
@@ -46,7 +47,7 @@ class ModelMonitoringStoreKinds:
 
 class ModelEndpointMetadata(BaseModel):
     project: str
-    uid: ModelEndpointUID
+    uid: ModelEndpointUIDAnnotation
     labels: Optional[dict] = {}
 
     class Config:

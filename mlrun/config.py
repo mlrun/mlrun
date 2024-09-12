@@ -1121,8 +1121,8 @@ class Config:
         project: str = "",
         kind: str = "",
         target: str = "online",
-        artifact_path: str = None,
-        function_name: str = None,
+        artifact_path: typing.Optional[str] = None,
+        function_name: typing.Optional[str] = None,
         **kwargs,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
@@ -1140,8 +1140,7 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind. Can be either a single path
-                                or a list of paths in the case of the online model monitoring stream path.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":

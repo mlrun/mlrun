@@ -17,6 +17,7 @@ import os
 import time
 import typing
 import uuid
+from http import HTTPStatus
 from pathlib import Path
 
 import fastapi
@@ -297,34 +298,36 @@ class MonitoringDeployment:
             )
             stream_source.create_topics(num_partitions=1, replication_factor=1)
             function = stream_source.add_nuclio_trigger(function)
-
+        elif stream_path.startswith("v3io://"):
+            if "projects" in stream_path:
+                stream_args = config.model_endpoint_monitoring.application_stream_args
+                access_key = self.model_monitoring_access_key
+                kwargs = {"access_key": self.model_monitoring_access_key}
+            else:
+                stream_args = config.model_endpoint_monitoring.serving_stream_args
+                access_key = os.getenv("V3IO_ACCESS_KEY")
+                kwargs = {}
+            if mlrun.mlconf.is_explicit_ack_enabled():
+                kwargs["explicit_ack_mode"] = "explicitOnly"
+                kwargs["worker_allocation_mode"] = "static"
+            server.api.api.endpoints.nuclio.create_model_monitoring_stream(
+                project=self.project,
+                stream_path=stream_path,
+                access_key=access_key,
+                stream_args=stream_args,
+            )
+            # Generate V3IO stream trigger
+            function.add_v3io_stream_trigger(
+                stream_path=stream_path,
+                name=f"monitoring_{function_name}_trigger",
+                **kwargs,
+            )
+        else:
+            server.api.api.utils.log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason="Unexpected stream path schema",
+            )
         if not mlrun.mlconf.is_ce_mode():
-            if stream_path.startswith("v3io://"):
-                if "projects" in stream_path:
-                    stream_args = (
-                        config.model_endpoint_monitoring.application_stream_args
-                    )
-                    access_key = self.model_monitoring_access_key
-                    kwargs = {"access_key": self.model_monitoring_access_key}
-                else:
-                    stream_args = config.model_endpoint_monitoring.serving_stream_args
-                    access_key = os.getenv("V3IO_ACCESS_KEY")
-                    kwargs = {}
-                if mlrun.mlconf.is_explicit_ack_enabled():
-                    kwargs["explicit_ack_mode"] = "explicitOnly"
-                    kwargs["worker_allocation_mode"] = "static"
-                server.api.api.endpoints.nuclio.create_model_monitoring_stream(
-                    project=self.project,
-                    stream_path=stream_path,
-                    access_key=access_key,
-                    stream_args=stream_args,
-                )
-                # Generate V3IO stream trigger
-                function.add_v3io_stream_trigger(
-                    stream_path=stream_path,
-                    name=f"monitoring_{function_name}_trigger",
-                    **kwargs,
-                )
             function = self._apply_access_key_and_mount_function(
                 function=function, function_name=function_name
             )

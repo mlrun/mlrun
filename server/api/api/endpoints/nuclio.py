@@ -546,14 +546,17 @@ def _deploy_nuclio_runtime(
             )
 
         if serving_to_monitor:
-            if (
-                fn.spec.image.startswith("mlrun/")
-                and client_version
-                and (
-                    semver.Version.parse(client_version)
-                    < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
-                    or "unstable" in client_version
+            if not client_version:
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be specified and  >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
                 )
+            elif fn.spec.image.startswith("mlrun/") and (
+                semver.Version.parse(client_version)
+                < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+                or "unstable" in client_version
             ):
                 server.api.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,

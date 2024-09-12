@@ -70,8 +70,6 @@ def get_stream_path(
             function_name=function_name,
         )
 
-    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
-        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, function_name=function_name
     )

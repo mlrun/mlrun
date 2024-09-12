@@ -18,6 +18,7 @@ from http import HTTPStatus
 import fastapi
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun
 import mlrun.common.schemas
 import server.api.api.deps
 import server.api.crud
@@ -108,6 +109,13 @@ def _get_files(
     secrets: dict = None,
     project: str = "",
 ):
+    if size > mlrun.mlconf.artifacts.limits.max_chunk_size:
+        log_and_raise(
+            HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value,
+            err=f"chunk size {size} exceeds the maximum allowed chunk size "
+            f"{mlrun.mlconf.artifacts.limits.max_chunk_size}",
+        )
+
     _, filename = objpath.split(objpath)
 
     objpath = get_obj_path(schema, objpath, user=user)

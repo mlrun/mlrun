@@ -3824,14 +3824,15 @@ class MlrunProject(ModelObj):
     def list_functions_by_foo_spec(self, foo_spec, tag=None, labels=None):
         """Retrieve a list of functions, filtered by specific criteria.
 
-        example::
+        Example::
 
             functions = project.list_functions_by_foo_spec(foo_spec="bar")
 
 
         :param foo_spec: Return only functions with a specific foo_spec.
-        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param tag:      Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
+        :param labels:   Return functions that have specific labels assigned to them.
+
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)

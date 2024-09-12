@@ -640,9 +640,24 @@ def test_feature_sets(create_server):
         partition_order="desc",
     )
     assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert all([feature_set.status.stats for feature_set in feature_sets])
+    assert all([feature_set.status.preview for feature_set in feature_sets])
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.spec.features) == 4
+    # test minimal feature_sets list:
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+        format_=mlrun.common.formatters.FeatureSetFormat.minimal,
+    )
+    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert not any([feature_set.status.stats for feature_set in feature_sets])
+    assert not any([feature_set.status.preview for feature_set in feature_sets])
+    assert all([feature_set.status.state for feature_set in feature_sets])
 
     # Create a feature-set that has no labels
     name = "feature_set_no_labels"

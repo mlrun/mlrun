@@ -2245,6 +2245,9 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
@@ -2262,6 +2265,10 @@ class HTTPRunDB(RunDBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+                :param format_: Format of the results. Possible values are:
+            - ``minimal`` - Return minimal project objects (minimization happens in the BE), not including
+             stats and preview for each feature set.
+            - ``full``  - Return full project objects.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
@@ -2274,6 +2281,7 @@ class HTTPRunDB(RunDBInterface):
             "entity": entities or [],
             "feature": features or [],
             "label": labels or [],
+            "format": format_,
         }
         if partition_by:
             params.update(

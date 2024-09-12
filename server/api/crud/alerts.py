@@ -14,6 +14,7 @@
 #
 
 import datetime
+import re
 
 import sqlalchemy.orm
 
@@ -285,8 +286,8 @@ class Alerts(
 
         return False
 
-    @staticmethod
-    def _validate_alert(alert, name, project):
+    def _validate_alert(self, alert, name, project):
+        self.validate_alert_name(alert.name)
         if name != alert.name:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
@@ -338,6 +339,13 @@ class Alerts(
         if alert.entities.project != project:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Invalid alert entity project ({alert.entities.project}) for alert {name} for project {project}"
+            )
+
+    @staticmethod
+    def validate_alert_name(name: str) -> None:
+        if not re.fullmatch(r"^[a-zA-Z0-9-]+$", name):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid alert name '{name}'. Alert names can only contain alphanumeric characters and hyphens."
             )
 
     @staticmethod

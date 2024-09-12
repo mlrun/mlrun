@@ -1,3 +1,5 @@
+.. _mlrun.run:
+
 mlrun.run
 =========
 
@@ -5,4 +7,3 @@ mlrun.run
    :members:
    :show-inheritance:
    :undoc-members:
-   

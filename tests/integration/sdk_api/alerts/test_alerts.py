@@ -237,7 +237,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert all_system_templates[2].template_name == "DataDriftSuspected"
 
         # generate an alert from a template
-        alert_name = "new_alert"
+        alert_name = "new-alert"
         alert_from_template = mlrun.alerts.alert.AlertConfig(
             name=alert_name,
             template=drift_template,

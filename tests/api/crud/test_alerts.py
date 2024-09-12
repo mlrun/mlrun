@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 
+from contextlib import AbstractContextManager
+from contextlib import nullcontext as does_not_raise
+
 import fastapi.concurrency
 import pytest
 import sqlalchemy.orm
@@ -28,7 +31,7 @@ async def test_process_event_no_cache(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     project = "project-name"
-    alert_name = "my_alert"
+    alert_name = "my-alert"
     entity = mlrun.common.schemas.alert.EventEntities(
         kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
         project=project,
@@ -78,3 +81,56 @@ async def test_process_event_no_cache(
         db, project=project, name=alert_name
     )
     assert alert.state == mlrun.common.schemas.alert.AlertActiveState.ACTIVE
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "alert_name, expectation",
+    [
+        ("invalid_name?", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("name with spaces", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("invalid/name", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("invalid@name", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("invalid_name", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("$indalid_name", pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        ("valid-name", does_not_raise()),
+        ("valid-name-123", does_not_raise()),
+    ],
+)
+async def test_validate_alert_name(
+    db: sqlalchemy.orm.Session,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+    alert_name: str,
+    expectation: AbstractContextManager,
+):
+    project = "project-name"
+    entity = mlrun.common.schemas.alert.EventEntities(
+        kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
+        project=project,
+        ids=[123],
+    )
+    event_kind = mlrun.common.schemas.alert.EventKind.FAILED
+    notification = mlrun.common.schemas.Notification(
+        kind="slack",
+        name="slack_notification",
+        secret_params={
+            "webhook": "https://hooks.slack.com/services/",
+        },
+        condition="oops",
+    )
+
+    alert_data = mlrun.common.schemas.alert.AlertConfig(
+        project=project,
+        name=alert_name,
+        summary="The job has failed",
+        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
+        entities=entity,
+        trigger=mlrun.common.schemas.alert.AlertTrigger(events=[event_kind]),
+        notifications=[
+            mlrun.common.schemas.AlertNotification(notification=notification)
+        ],
+    )
+    with expectation:
+        server.api.crud.Alerts().store_alert(
+            db, project=project, name=alert_name, alert_data=alert_data
+        )

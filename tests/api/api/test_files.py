@@ -15,12 +15,14 @@
 import unittest.mock
 from http import HTTPStatus
 
+import fastapi.exceptions
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 # fixtures for test, aren't used directly so we need to ignore the lint here
 import mlrun
+import server.api.api.endpoints.files
 from tests.common_fixtures import (  # noqa: F401
     patch_file_forbidden,
     patch_file_not_found,
@@ -92,3 +94,17 @@ def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) ->
     assert resp
     files_mock.assert_called_once_with(url=path, secrets=env_secrets, project="proj1")
     files_mock.reset_mock()
+
+
+def test_files_max_chunk_size_exceeded():
+    with pytest.raises(fastapi.exceptions.HTTPException) as exc:
+        server.api.api.endpoints.files._get_files(
+            unittest.mock.Mock(),
+            "s3://somebucket/some/path/file",
+            "user1",
+            mlrun.mlconf.artifacts.limits.max_chunk_size + 1,
+            0,
+            unittest.mock.Mock(),
+        )
+
+    assert exc.value.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value

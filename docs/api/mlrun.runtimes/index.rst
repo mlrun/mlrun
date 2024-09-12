@@ -7,4 +7,4 @@ mlrun.runtimes
   :maxdepth: 1
   :glob:
 
-  mlrun.runtimes
+  *

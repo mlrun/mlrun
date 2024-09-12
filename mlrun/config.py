@@ -27,6 +27,7 @@ import copy
 import json
 import os
 import typing
+import warnings
 from collections.abc import Mapping
 from datetime import timedelta
 from distutils.util import strtobool
@@ -35,6 +36,7 @@ from threading import Lock
 
 import dotenv
 import semver
+import urllib3.exceptions
 import yaml
 
 import mlrun.common.constants
@@ -1292,6 +1294,7 @@ def _do_populate(env=None, skip_errors=False):
     if data:
         config.update(data, skip_errors=skip_errors)
 
+    _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
 
 
@@ -1349,6 +1352,14 @@ def _convert_str(value, typ):
 
     # e.g. int('8080') → 8080
     return typ(value)
+
+
+def _configure_ssl_verification(verify_ssl: bool) -> None:
+    """Configure SSL verification warnings based on the setting."""
+    if not verify_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    else:
+        warnings.simplefilter("default", urllib3.exceptions.InsecureRequestWarning)
 
 
 def read_env(env=None, prefix=env_prefix):

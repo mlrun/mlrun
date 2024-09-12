@@ -11,14 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import urllib3.exceptions
 from dependency_injector import containers, providers
 
 import mlrun.db
 import mlrun.db.httpdb
 import mlrun.db.nopdb
 import mlrun.utils.singleton
-from mlrun.config import config as mlconf
 from mlrun.utils import logger
 
 
@@ -61,14 +59,8 @@ class RunDBFactory(
             #  The SQLRunDB should always get its session from the FastAPI dependency injection.
             self._run_db = self._rundb_container.run_db(url)
 
-        self._verify_ssl()
         self._run_db.connect(secrets=secrets)
         return self._run_db
-
-    @staticmethod
-    def _verify_ssl() -> None:
-        if mlconf.httpdb.http.verify is False:
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class RunDBContainer(containers.DeclarativeContainer):

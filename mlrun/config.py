@@ -27,7 +27,6 @@ import copy
 import json
 import os
 import typing
-import warnings
 from collections.abc import Mapping
 from datetime import timedelta
 from distutils.util import strtobool
@@ -1358,8 +1357,6 @@ def _configure_ssl_verification(verify_ssl: bool) -> None:
     """Configure SSL verification warnings based on the setting."""
     if not verify_ssl:
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    else:
-        warnings.simplefilter("default", urllib3.exceptions.InsecureRequestWarning)
 
 
 def read_env(env=None, prefix=env_prefix):

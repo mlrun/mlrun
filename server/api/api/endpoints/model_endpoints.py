@@ -441,12 +441,11 @@ async def _get_metrics_values_params(
             "Provided only one of start time, end time. Please provide both or neither."
         )
 
-    metrics_and_results = [
-        mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn) for fqn in name
-    ]
     metrics = []
     results = []
-    for m in metrics_and_results:
+    for fqn in name:
+        m = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
+        # TODO: validate against project name
         if m.type == mm_endpoints.ModelEndpointMonitoringMetricType.METRIC:
             metrics.append(m)
         else:

@@ -326,7 +326,7 @@ default_config = {
         "http": {
             # when True, the client will verify the server's TLS
             # set to False for backwards compatibility.
-            "verify": True,
+            "verify": False,
         },
         "db": {
             "commit_retry_timeout": 30,
@@ -1448,6 +1448,9 @@ def read_env(env=None, prefix=env_prefix):
     # The default function pod resource values are of type str; however, when reading from environment variable numbers,
     # it converts them to type int if contains only number, so we want to convert them to str.
     _convert_resources_to_str(config)
+
+    if verify_ssl := config.get("httpdb", {}).get("http", {}).get("verify", None):
+        config["httpdb"]["http"]["verify"] = strtobool(verify_ssl)
     return config
 
 

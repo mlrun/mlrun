@@ -68,4 +68,3 @@ class ClientSpec(pydantic.BaseModel):
     packagers: typing.Optional[dict]
     external_platform_tracking: typing.Optional[dict]
     alerts_mode: typing.Optional[str]
-    verify: typing.Optional[bool]

@@ -1,3 +1,5 @@
+.. _mlrun.feature_store:
+
 mlrun.feature_store
 ===================
 
@@ -17,5 +19,3 @@ mlrun.feature_store
    :exclude-members: MLRunStep
    :members:
    :special-members: __init__
-
-

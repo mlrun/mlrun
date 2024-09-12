@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Optional
 
@@ -295,7 +295,7 @@ class EndpointUID:
     function_hash_key: str
     model: str
     model_version: str
-    uid: Optional[str] = None
+    uid: str = field(init=False)
 
     def __post_init__(self):
         function_ref = (

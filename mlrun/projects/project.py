@@ -3832,7 +3832,8 @@ class MlrunProject(ModelObj):
 
 
         :param foo_spec: Return only functions with a specific foo_spec.
-        :param tag:      Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
+        :param tag:      Return function versions with specific tags.
+        To return only tagged functions, set tag to ``"*"``.
         :param labels:   Return functions that have specific labels assigned to them.
 
         :returns: List of function objects.

@@ -58,7 +58,7 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # create an alert with webhook notification
-        alert_name = "failure_webhook"
+        alert_name = "failure-webhook"
         alert_summary = "Job failed"
         run_id = "test-func-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
@@ -188,7 +188,9 @@ class TestAlerts(TestMLRunSystem):
         ]
 
         for alert_kind in alerts_kind_to_test:
-            alert_name = f"drift_webhook_{alert_kind.value}"
+            alert_name = mlrun.utils.helpers.normalize_name(
+                f"drift-webhook-{alert_kind}"
+            )
             alert_summary = "Model is drifting"
             self._create_alert_config(
                 self.project_name,
@@ -292,7 +294,7 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # create an alert with webhook notification that should trigger when the job fails twice in two minutes
-        alert_name = "failure_webhook"
+        alert_name = "failure-webhook"
         alert_summary = "Job failed"
         alert_criteria = alert_objects.AlertCriteria(period="2m", count=2)
         run_id = "test-func-handler"

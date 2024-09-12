@@ -4,7 +4,7 @@ mlrun.package
 =============
 
 MLRun package enables fully-automated experiment and pipeline tracking and reproducibility, and easy
-passing of python objects between remote jobs, while not requiring any form of editing to the actual function original code. 
+passing of python objects between remote jobs, while not requiring any form of editing to the actual function original code.
 Simply set the function code in a project and run it, MLRun takes care of the rest.
 
 MLRun uses packagers: classes that perform 2 tasks:

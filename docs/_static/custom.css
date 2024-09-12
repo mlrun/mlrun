@@ -1,12 +1,24 @@
-body {
-  --sd-color-card-background: #eff4f7;
+@@ -0,0 +1,24 @@
+@@media (min-width: 1200px){
+    .bd-main .bd-content .bd-article-container {
+    max-width: 100em;
+	width: 90%;
+    }	
 }
-
+@media(min-width: 1200px) {
+    .bd-page-width {
+		min-width: 75%;
+		max-width: 100%;
+	}
+    .bd-sidebar-primary {
+		flex-basis: 25rem;
+    }
+}
 div.navbar-brand-box {
 	padding-top: 1em !important; 
+	max-height: 5em;
 }
 
-.bd-search {
-    padding-top: 0.5rem !important;
-    padding-bottom: 0rem !important;
+.bd-sidebar-secondary{
+	width : 25rem
 }

@@ -16,15 +16,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 
 ## The notification object
-The notification object's schema is:
-- `kind`: str - notification kind (slack, git, etc...)
-- `when`: list[str] - run states on which to send the notification (completed, error, running)
-- `name`: str - notification name
-- `message`: str - notification message
-- `severity`: str - notification severity (info, warning, error, debug)
-- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-params-and-secrets))
-- `secret_params`: dict - secret data notification parameters (See definitions in [Notification Params and Secrets](#notification-kinds))
-- `condition`: str - jinja template for a condition that determines whether the notification is sent or not (See [Notification Conditions](#notification-conditions))
+See {ref}`~module-mlrun.common.schemas.notification`.
 
 
 ## Local vs. remote

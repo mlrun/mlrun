@@ -1359,6 +1359,8 @@ def _configure_ssl_verification(verify_ssl: bool) -> None:
     if not verify_ssl:
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     else:
+        # If the user changes the `verify` setting to `True` at runtime using `mlrun.set_env_from_file` after
+        # importing `mlrun`, we need to reload the `mlrun` configuration and enable this warning.
         warnings.simplefilter("default", urllib3.exceptions.InsecureRequestWarning)
 
 

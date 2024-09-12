@@ -37,6 +37,10 @@ from .constants import (
 ModelEndpointUIDAnnotation = Annotated[
     str, constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
 ]
+ProjectAnnotation = Annotated[
+    str,
+    constr(regex=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", min_length=1, max_length=63),
+]  # refer to `mlrun.utils.regex.project_name`
 
 
 class ModelMonitoringStoreKinds:
@@ -46,7 +50,7 @@ class ModelMonitoringStoreKinds:
 
 
 class ModelEndpointMetadata(BaseModel):
-    project: str
+    project: ProjectAnnotation
     uid: ModelEndpointUIDAnnotation
     labels: Optional[dict] = {}
 

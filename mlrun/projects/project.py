@@ -2339,9 +2339,9 @@ class MlrunProject(ModelObj):
         | Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
 
         | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
-        | Creating a function with project source:
-        |   1. Specifying a relative ``func`` path and with_repo=True.
-        |   2. Specifying a module ``handler`` (e.g. ``handler=package.package.func``) without ``func``.
+        | Creating a function with project source (specify ``with_repo=True``):
+        |   1. Specify a relative ``func`` path.
+        |   2. Specify a module ``handler`` (e.g. ``handler=package.package.func``) without ``func``.
         | Creating a function with non project source is done by specifying a module ``handler`` and on the
          returned function set the source with ``function.with_source_archive(<source>)``.
 
@@ -2354,19 +2354,31 @@ class MlrunProject(ModelObj):
         Examples::
 
             proj.set_function(func_object)
-            proj.set_function(
-                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
-            )
             proj.set_function("http://.../mynb.ipynb", "train")
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
-            # set function requirements
+            # Create a function from a single file
+            proj.set_function("./src/mycode.py", "ingest")
 
-            # by providing a list of packages
+            # Creating a function with project source
+            proj.set_function(
+                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
+            )
+            proj.set_function("ingest", handler="package.package.func", with_repo=True)
+
+            # Creating a function with non project source
+            func = proj.set_function(
+                "ingest", handler="package.package.func", with_repo=False
+            )
+            func.with_source_archive("git://github.com/mlrun/something.git")
+
+            # Set function requirements
+
+            # By providing a list of packages
             proj.set_function("my.py", requirements=["requests", "pandas"])
 
-            # by providing a path to a pip requirements file
+            # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
         :param func:                Function object or spec/code url, None refers to current Notebook

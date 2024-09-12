@@ -112,7 +112,8 @@ def _get_files(
     if size > mlrun.mlconf.artifacts.limits.max_chunk_size:
         log_and_raise(
             HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value,
-            err=f"chunk size {size} exceeds the maximum allowed chunk size",
+            err=f"chunk size {size} exceeds the maximum allowed chunk size "
+            f"{mlrun.mlconf.artifacts.limits.max_chunk_size}",
         )
 
     _, filename = objpath.split(objpath)

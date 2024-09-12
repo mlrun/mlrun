@@ -263,7 +263,7 @@ async def list_feature_sets(
         rows_per_partition,
         partition_sort_by,
         partition_order,
-        format_
+        format_,
     )
     feature_sets = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,

@@ -3711,7 +3711,7 @@ class SQLDB(DBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
-        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -3751,9 +3751,14 @@ class SQLDB(DBInterface):
 
         feature_sets = []
         for feature_set_record in query:
+            feature_set_formatted_record = (
+                mlrun.common.formatters.FeatureSetFormat.format_obj(
+                    feature_set_record, format_
+                )
+            )
             feature_sets.extend(
                 self._generate_records_with_tags_assigned(
-                    feature_set_record,
+                    feature_set_formatted_record,
                     self._transform_feature_set_model_to_schema,
                     obj_id_tags,
                     tag,

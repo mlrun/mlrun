@@ -596,7 +596,7 @@ def _create_feature_set(name):
                     5.6,
                     "13:30:00.222222",
                 ],
-            ]
+            ],
         },
         "some_other_field": "blabla",
     }

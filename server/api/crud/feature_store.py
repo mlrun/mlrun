@@ -16,12 +16,12 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
-import mlrun.common.formatters
 
 
 class FeatureStore(
@@ -147,7 +147,7 @@ class FeatureStore(
             rows_per_partition,
             partition_sort_by,
             partition_order,
-            format_ = format_
+            format_=format_,
         )
 
     def delete_feature_set(

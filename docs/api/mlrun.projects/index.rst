@@ -1,3 +1,5 @@
+.. _mlrun.projects:
+
 mlrun.projects
 ==============
 
@@ -5,4 +7,3 @@ mlrun.projects
    :members:
    :show-inheritance:
    :undoc-members:
-   

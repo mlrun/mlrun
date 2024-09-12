@@ -270,16 +270,11 @@ class TestTSDB:
             ResultData.CURRENT_STATS not in actual_columns
         ), "Current stats should not be written to the TSDB"
 
-        # TODO: Remove this assertion after the extra data is supported in TSDB (ML-7460)
-        assert (
-            ResultData.RESULT_EXTRA_DATA not in actual_columns
-        ), "The extra data should not be written to the TSDB"
-
         expected_columns = WriterEvent.list() + ResultData.list()
-        expected_columns.remove(ResultData.RESULT_EXTRA_DATA)
         expected_columns.remove(WriterEvent.END_INFER_TIME)
         expected_columns.remove(WriterEvent.DATA)
         expected_columns.remove(WriterEvent.EVENT_KIND)
+        expected_columns.remove(ResultData.CURRENT_STATS)
 
         # Assert that the record includes all the expected columns
         assert sorted(expected_columns) == sorted(actual_columns)
@@ -287,13 +282,14 @@ class TestTSDB:
         # Cleanup the resources and verify that the data was deleted
         writer._tsdb_connector.delete_tsdb_resources()
 
-        with pytest.raises(v3io_frames.errors.ReadError):
-            writer._tsdb_connector._get_records(
-                table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
-                filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
-                start="now-1d",
-                end="now+1d",
-            )
+        record_from_tsdb = writer._tsdb_connector._get_records(
+            table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
+            filter_query=f"endpoint_id=='{event[WriterEvent.ENDPOINT_ID]}'",
+            start="now-1d",
+            end="now+1d",
+        )
+
+        assert record_from_tsdb.empty
 
     @staticmethod
     @pytest.mark.parametrize(

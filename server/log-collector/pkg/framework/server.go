@@ -23,8 +23,7 @@ import (
 
 	"github.com/mlrun/mlrun/proto/build/health"
 
-	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
@@ -67,17 +66,13 @@ func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.Serv
 	// add panic recovery middleware
 	grpcServerOpts = append([]grpc.ServerOption{
 		grpc.StreamInterceptor(
-			grpcmiddleware.ChainStreamServer(
-				grpcrecovery.StreamServerInterceptor(
-					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
-				),
+			grpcrecovery.StreamServerInterceptor(
+				grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
 			),
 		),
 		grpc.UnaryInterceptor(
-			grpcmiddleware.ChainUnaryServer(
-				grpcrecovery.UnaryServerInterceptor(
-					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
-				),
+			grpcrecovery.UnaryServerInterceptor(
+				grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
 			),
 		),
 	}, grpcServerOpts...)

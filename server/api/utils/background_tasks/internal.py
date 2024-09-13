@@ -62,11 +62,17 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 f"Background task of kind '{kind}' already running"
             )
 
-        background_task = self._generate_background_task(name, kind, timeout)
+        project_name = None
+        if project := kwargs.get("project", None):
+            project_name = project.metadata.name if project else None
+
+        background_task = self._generate_background_task(
+            name, kind, timeout, project_name=project_name
+        )
         self._internal_background_tasks[name] = background_task
         self._set_active_task_name_by_kind(kind, name)
         task = functools.partial(
-            self.background_task_wrapper, name, function, *args, **kwargs
+            self.background_task_wrapper, background_task, function, *args, **kwargs
         )
         return task, name
 
@@ -164,7 +170,13 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             return None
 
     @server.api.utils.helpers.ensure_running_on_chief
-    async def background_task_wrapper(self, name: str, function, *args, **kwargs):
+    async def background_task_wrapper(
+        self,
+        background_task: mlrun.common.schemas.BackgroundTask,
+        function,
+        *args,
+        **kwargs,
+    ):
         try:
             if asyncio.iscoroutinefunction(function):
                 await function(*args, **kwargs)
@@ -178,16 +190,21 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 function_name=function.__name__,
                 exc=err_str,
                 tb=traceback.format_exc(),
+                name=background_task.metadata.name,
+                project=background_task.metadata.project,
             )
             self._update_background_task(
-                name, mlrun.common.schemas.BackgroundTaskState.failed, error=err_str
+                background_task.metadata.name,
+                mlrun.common.schemas.BackgroundTaskState.failed,
+                error=err_str,
             )
         else:
             self._update_background_task(
-                name, mlrun.common.schemas.BackgroundTaskState.succeeded
+                background_task.metadata.name,
+                mlrun.common.schemas.BackgroundTaskState.succeeded,
             )
         finally:
-            self._finish_active_task(name)
+            self._finish_active_task(background_task.metadata.name)
 
     def _update_background_task(
         self,
@@ -220,14 +237,14 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _generate_background_task(
-        name: str, kind: str, timeout: typing.Optional[int] = None
+        name: str,
+        kind: str,
+        timeout: typing.Optional[int] = None,
+        project_name: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
         metadata = mlrun.common.schemas.BackgroundTaskMetadata(
-            name=name,
-            kind=kind,
-            created=now,
-            updated=now,
+            name=name, kind=kind, created=now, updated=now, project=project_name
         )
         if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
             metadata.timeout = int(timeout)

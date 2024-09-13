@@ -43,8 +43,10 @@ import mlrun.launcher.factory
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
+from mlrun.common.schemas import ModelMonitoringMode
 from mlrun.config import config
 from mlrun.lists import ArtifactList
+from mlrun.model_monitoring import ModelEndpoint
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.utils import global_context
 from mlrun.utils import update_in
@@ -336,7 +338,7 @@ class RunDBMock:
 
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:
-            raise mlrun.errors.MLRunNotFoundError("Function not found")
+            raise mlrun.errors.MLRunNotFoundError(f"Function {function} not found")
         return self._functions[function]
 
     def delete_function(self, name: str, project: str = ""):
@@ -417,10 +419,11 @@ class RunDBMock:
         verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
-        func.status.external_invocation_urls = [
-            api_gateways.get_invoke_url()
-            for api_gateways in self._api_gateways.values()
-        ]
+        if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
+            func.status.external_invocation_urls = [
+                api_gateways.get_invoke_url()
+                for api_gateways in self._api_gateways.values()
+            ]
         return "ready", last_log_timestamp
 
     def deploy_nuclio_function(
@@ -437,6 +440,10 @@ class RunDBMock:
         verbose: bool = False,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
+        func.status.external_invocation_urls = [
+            api_gateways.get_invoke_url()
+            for api_gateways in self._api_gateways.values()
+        ]
         return "ready", last_log_timestamp
 
     def store_api_gateway(
@@ -623,6 +630,13 @@ class RunDBMock:
 
         assert categories == expected_categories
 
+    def get_model_endpoint(self, project: str, endpoint_id: str):
+        mep = ModelEndpoint()
+        mep.metadata.uid = endpoint_id
+        mep.metadata.project = project
+        mep.spec.monitoring_mode = ModelMonitoringMode.enabled
+        return mep
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -637,6 +651,7 @@ def rundb_mock() -> RunDBMock:
 
     orig_db_path = config.dbpath
     config.dbpath = "http://localhost:12345"
+    mock_object.patch_model_endpoint = unittest.mock.Mock()
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
     with tempfile.TemporaryDirectory() as tmp_dir:

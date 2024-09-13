@@ -21,6 +21,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
+import mlrun.k8s_utils
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
 import mlrun.projects.operations
@@ -229,9 +230,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
             project_node_selector = project.spec.default_function_node_selector
-            run.spec.node_selector = mlrun.runtimes.utils.resolve_node_selectors(
+            resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
                 project_node_selector, run.spec.node_selector
             )
+            # Validate node selectors before enrichment
+            mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
+            run.spec.node_selector = resolved_node_selectors
         return run
 
     def enrich_runtime(

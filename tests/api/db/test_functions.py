@@ -273,7 +273,7 @@ def test_list_functions_with_format(db: DBInterface, db_session: Session):
             "default_class": "some_class",
             "graph": "some_graph",
             "preemption_mode": "some_preemption_mode",
-            "node_selector": "some_node_selector",
+            "node_selector": {"some_node_selector": "value"},
             "priority_class_name": "some_priority_class_name",
             "extra_field": "extra_field",
         },

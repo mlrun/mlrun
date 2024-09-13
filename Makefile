@@ -590,7 +590,7 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		mysql/mysql-server:8.0 \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 

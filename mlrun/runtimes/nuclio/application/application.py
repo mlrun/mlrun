@@ -15,6 +15,7 @@ import pathlib
 import typing
 
 import nuclio
+import nuclio.auth
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
@@ -432,18 +433,22 @@ class ApplicationRuntime(RemoteRuntime):
         authentication_creds: tuple[str, str] = None,
         ssl_redirect: bool = None,
         set_as_default: bool = False,
+        gateway_timeout: typing.Optional[int] = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
         An application without an API gateway is not accessible.
-        :param name:                    The name of the API gateway, defaults to <function-name>-<function-tag>
-        :param path:                    Optional path of the API gateway, default value is "/"
+        :param name:                    The name of the API gateway
+        :param path:                    Optional path of the API gateway, default value is "/".
+            The given path should be supported by the deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)
         :param ssl_redirect:            Set True to force SSL redirect, False to disable. Defaults to
                                         mlrun.mlconf.force_api_gateway_ssl_redirect()
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
+        :param gateway_timeout:         nginx ingress timeout in sec (request timeout, when will the gateway return an
+                                        error)
 
         :return:    The API gateway URL
         """
@@ -457,14 +462,21 @@ class ApplicationRuntime(RemoteRuntime):
                 f"Non-default API gateway cannot use the default gateway name, {name=}."
             )
 
+        if (
+            authentication_mode == schemas.APIGatewayAuthenticationMode.basic
+            and not authentication_creds
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Authentication credentials not provided"
+            )
+
         ports = self.spec.internal_application_port if direct_port_access else []
 
         api_gateway = APIGateway(
             APIGatewayMetadata(
                 name=name,
                 namespace=self.metadata.namespace,
-                labels=self.metadata.labels,
-                annotations=self.metadata.annotations,
+                labels=self.metadata.labels.copy(),
             ),
             APIGatewaySpec(
                 functions=[self],
@@ -474,6 +486,7 @@ class ApplicationRuntime(RemoteRuntime):
             ),
         )
 
+        api_gateway.with_gateway_timeout(gateway_timeout)
         if ssl_redirect is None:
             ssl_redirect = mlrun.mlconf.force_api_gateway_ssl_redirect()
         if ssl_redirect:
@@ -511,9 +524,21 @@ class ApplicationRuntime(RemoteRuntime):
         logger.info("Successfully created API gateway", url=url)
         return url
 
+    def delete_api_gateway(self, name: str):
+        """
+        Delete API gateway by name.
+        Refreshes the application status to update api gateway and invocation URLs.
+        :param name:    The API gateway name
+        """
+        self._get_db().delete_api_gateway(name=name, project=self.metadata.project)
+        if name == self.status.api_gateway_name:
+            self.status.api_gateway_name = None
+            self.status.api_gateway = None
+        self._get_state()
+
     def invoke(
         self,
-        path: str,
+        path: str = "",
         body: typing.Optional[typing.Union[str, bytes, dict]] = None,
         method: str = None,
         headers: dict = None,
@@ -521,13 +546,23 @@ class ApplicationRuntime(RemoteRuntime):
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
         mock: bool = None,
+        credentials: tuple[str, str] = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
+
         # If the API Gateway is not ready or not set, try to invoke the function directly (without the API Gateway)
         if not self.status.api_gateway:
             logger.warning(
                 "Default API gateway is not configured, invoking function invocation URL."
+            )
+            # create a requests auth object if credentials are provided and not already set in the http client kwargs
+            auth = http_client_kwargs.pop("auth", None) or (
+                nuclio.auth.AuthInfo(
+                    username=credentials[0], password=credentials[1]
+                ).to_requests_auth()
+                if credentials
+                else None
             )
             return super().invoke(
                 path,
@@ -538,10 +573,9 @@ class ApplicationRuntime(RemoteRuntime):
                 force_external_address,
                 auth_info,
                 mock,
+                auth=auth,
                 **http_client_kwargs,
             )
-
-        credentials = (auth_info.username, auth_info.password) if auth_info else None
 
         if not method:
             method = "POST" if body else "GET"

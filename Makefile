@@ -659,7 +659,7 @@ vale-docs: ## Run vale check for docs and sorts ignore.txt file
 
 .PHONY: linkcheck
 linkcheck:
-	make clean
+	make html-docs
 	make -C docs/ linkcheck
 
 .PHONY: release

@@ -48,7 +48,7 @@ You can ingest data directly from a DataFrame, by calling the feature set {py:cl
 process that runs as a Kubernetes job. This is useful if there is a large ingestion process, or if there is a recurrent ingestion and you 
 want to schedule the job. 
 
-MLRun can also leverage [Nuclio](https://nuclio.io/docs/latest/) to perform real-time ingestion by calling the {py:class}`~mlrun.feature_store.deploy_ingestion_service` function. This means that during 
+MLRun can also leverage [Nuclio](https://docs.nuclio.io/docs/latest/) to perform real-time ingestion by calling the {py:class}`~mlrun.feature_store.deploy_ingestion_service` function. This means that during 
 serving you can update feature values, and not just read them. For example, you can update a sliding window aggregation as part of a model 
 serving process.
 

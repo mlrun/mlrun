@@ -85,7 +85,9 @@ linkcheck_ignore = {
     r"^\.\./[^/]+\.html#.*$",
     r"^(?!https?:\/\/).*",
     r"http:\/\/localhost:\d+",
-    "https://myservice/path ",
+    "https://myservice/path",
+    "https://openai.com/research/whisper",
+    "https://platform.openai.com/docs/.*",
 }
 linkcheck_anchors = True
 

@@ -25,6 +25,7 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 import mlrun.alerts.alert
@@ -1017,6 +1018,9 @@ def test_import_artifact_retain_producer(rundb_mock):
         name="project-2", context=f"{base_path}/project_2", save=False
     )
 
+    # set project owners
+    project_1.spec.owner = "owner-1"
+
     # create an artifact with a 'run' producer
     artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
     run_name = "my-run"
@@ -1027,6 +1031,7 @@ def test_import_artifact_retain_producer(rundb_mock):
         kind="run",
         project=project_1.name,
         name=run_name,
+        owner=project_1.spec.owner,
     ).get_meta()
 
     # imitate the artifact being produced by a run with uri and without a tag
@@ -1039,6 +1044,7 @@ def test_import_artifact_retain_producer(rundb_mock):
         "kind": "run",
         "name": run_name,
         "tag": run_tag,
+        "owner": project_1.spec.owner,
     }
 
     # export the artifact
@@ -1107,6 +1113,30 @@ def test_replace_exported_artifact_producer(rundb_mock):
     loaded_artifact = project_3.get_artifact(key)
     assert loaded_artifact.producer != artifact.producer
     assert loaded_artifact.producer["name"] == project_3.name
+
+
+@pytest.mark.parametrize(
+    "project_owner,username",
+    [
+        ("project-owner", None),
+        (None, "username"),
+        ("project-owner", "username"),
+        (None, None),
+    ],
+)
+def test_artifact_owner(
+    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+):
+    if username:
+        monkeypatch.setenv("V3IO_USERNAME", username)
+
+    project = mlrun.new_project("artifact-owner", save=False)
+    project.spec.owner = project_owner
+    artifact = project.log_artifact("x", body="123", format="txt")
+    if username:
+        assert artifact.producer.get("owner") == username
+    else:
+        assert artifact.producer.get("owner") == project_owner
 
 
 @pytest.mark.parametrize(
@@ -2334,6 +2364,28 @@ def test_store_alert_config_missing_alert_data(alert_data):
         mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
     ):
         project.store_alert_config(alert_data=alert_data)
+
+
+def test_run_project_sync_functions_fails_silently(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        }
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    # Sync should fail silently and run should fail as the functions were not saved
+    run_status = proj.run(name)
+    assert run_status.state == RunStatuses.failed
+    assert "Function tstfunc not found" in str(run_status.exc)
 
 
 class TestModelMonitoring:

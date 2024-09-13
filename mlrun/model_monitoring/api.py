@@ -147,8 +147,7 @@ def record_results(
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
-    :param context:                  MLRun context. Note that the context is required for logging the artifacts
-                                     following the batch drift job.
+    :param context:                  MLRun context. Note that the context is required generating the model endpoint.
     :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
                                      used for doing the drift analysis. Please make sure that the dataframe includes
                                      both feature names and label columns.

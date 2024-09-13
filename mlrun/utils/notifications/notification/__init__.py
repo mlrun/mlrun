@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import enum
-import typing
 
 from mlrun.common.schemas.notification import NotificationKind
 

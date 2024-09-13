@@ -154,6 +154,11 @@ class Projects(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         model_monitoring_access_key: str = None,
     ):
+        logger.debug(
+            "Deleting project resources",
+            project_name=name,
+        )
+
         # Delete schedules before runtime resources - otherwise they will keep getting created
         # We skip notification secrets because, the entire project secret will be deleted later
         # so there's no need to delete individual entries from the secret.
@@ -163,6 +168,10 @@ class Projects(
             skip_notification_secrets=True,
         )
 
+        logger.debug(
+            "Deleting project runtime resources",
+            project_name=name,
+        )
         # delete runtime resources
         server.api.crud.RuntimeResources().delete_runtime_resources(
             session,
@@ -182,6 +191,10 @@ class Projects(
         ):
             server.api.crud.Logs().delete_project_logs_legacy(name)
 
+        logger.debug(
+            "Deleting project alert events",
+            project_name=name,
+        )
         server.api.crud.Events().delete_project_alert_events(name)
 
         # get model monitoring application names, important for deleting model monitoring resources
@@ -194,6 +207,10 @@ class Projects(
             )
         )
 
+        logger.debug(
+            "Getting monitoring applications to delete",
+            project_name=name,
+        )
         model_monitoring_applications = (
             model_monitoring_deployment._get_monitoring_application_to_delete(
                 delete_user_applications=True
@@ -201,23 +218,49 @@ class Projects(
         )
 
         # delete db resources
+        logger.debug(
+            "Deleting project related resources",
+            project_name=name,
+        )
         server.api.utils.singletons.db.get_db().delete_project_related_resources(
             session, name
         )
 
         # wait for nuclio to delete the project as well, so it won't create new resources after we delete them
+        logger.debug(
+            "Waiting for nuclio project deletion",
+            project_name=name,
+        )
         self._wait_for_nuclio_project_deletion(name, session, auth_info)
 
-        # delete model monitoring resources
-        server.api.crud.ModelEndpoints().delete_model_endpoints_resources(
-            project_name=name,
-            db_session=session,
-            model_monitoring_applications=model_monitoring_applications,
-            model_monitoring_access_key=model_monitoring_access_key,
-        )
+        try:
+            # delete model monitoring resources
+            logger.debug(
+                "Deleting model endpoints resources",
+                project_name=name,
+            )
+            server.api.crud.ModelEndpoints().delete_model_endpoints_resources(
+                project_name=name,
+                db_session=session,
+                model_monitoring_applications=model_monitoring_applications,
+                model_monitoring_access_key=model_monitoring_access_key,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete model monitoring resources", project_name=name
+            )
+            raise exc
 
         if mlrun.mlconf.is_api_running_on_k8s():
+            logger.debug(
+                "Deleting project secrets",
+                project_name=name,
+            )
             self._delete_project_secrets(name)
+            logger.debug(
+                "Deleting project configmaps",
+                project_name=name,
+            )
             self._delete_project_configmaps(name)
 
     def get_project(

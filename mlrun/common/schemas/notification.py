@@ -22,11 +22,38 @@ import mlrun.common.types
 
 
 class NotificationKind(mlrun.common.types.StrEnum):
-    console = "console"
-    git = "git"
-    ipython = "ipython"
-    slack = "slack"
-    webhook = "webhook"
+    """Currently, the supported notification kinds and their params are as follows:"""
+
+    console: str = "console"
+    """no params, local only"""
+
+    git: str = "git"
+    """
+    **token** - The git token to use for the git notification.\n
+    **repo** - The git repo to which to send the notification.\n
+    **issue** - The git issue to which to send the notification.\n
+    **merge_request** -
+     In GitLab (as opposed to GitHub), merge requests and issues are separate entities.
+     If using merge request, the issue will be ignored, and vice versa.\n
+    **server** - The git server to which to send the notification.\n
+    **gitlab** - (bool) Whether the git server is GitLab or not.\n
+    """
+
+    ipython: str = "ipython"
+    """no params, local only"""
+
+    slack: str = "slack"
+    """**webhook** - The slack webhook to which to send the notification."""
+
+    webhook: str = "webhook"
+    """
+    **url** - The webhook url to which to send the notification.\n
+    **method** - The http method to use when sending the notification (GET, POST, PUT, etc…).\n
+    **headers** - (dict) The http headers to send with the notification.\n
+    **override_body** - (dict) The body to send with the notification.\n
+    **verify_ssl** -
+     (bool) Whether SSL certificates are validated during HTTP requests or not, The default is set to True.
+    """
 
 
 class NotificationSeverity(mlrun.common.types.StrEnum):

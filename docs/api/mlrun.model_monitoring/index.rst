@@ -1,3 +1,5 @@
+.. _mlrun.model_monitoring:
+
 mlrun.model_monitoring
 ======================
 

@@ -49,6 +49,17 @@ def test_ensure_reverse_proxy_configurations():
     _assert_function_handler(fn)
 
 
+def test_ensure_basic_credentials_configuration():
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        fn.create_api_gateway(
+            name="api-gateway",
+            authentication_mode=mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        )
+
+
 def test_create_application_runtime_with_command(rundb_mock, igz_version_mock):
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun", command="echo"
@@ -240,6 +251,37 @@ def test_application_api_gateway_ssl_redirect(rundb_mock, igz_version_mock):
     assert api_gateway is not None
     assert ssl_redirect_annotation in api_gateway.metadata.annotations
     assert api_gateway.metadata.annotations[ssl_redirect_annotation] == "true"
+
+
+@pytest.mark.parametrize("gateway_timeout", [50, None, 0])
+def test_application_api_gateway_timeout_annotations(rundb_mock, gateway_timeout):
+    function: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    function.deploy(create_default_api_gateway=False)
+    function.create_api_gateway(
+        name="my-gateway", gateway_timeout=gateway_timeout, set_as_default=True
+    )
+
+    annotations = [
+        "nginx.ingress.kubernetes.io/proxy-connect-timeout",
+        "nginx.ingress.kubernetes.io/proxy-read-timeout",
+        "nginx.ingress.kubernetes.io/proxy-send-timeout",
+    ]
+    api_gateway = function.status.api_gateway
+    assert api_gateway is not None
+    for annotation in annotations:
+        if gateway_timeout:
+            annotation_value = api_gateway.metadata.annotations.get(annotation)
+            assert annotation_value == str(gateway_timeout)
+            assert int(annotation_value) == gateway_timeout
+            assert annotation not in function.metadata.annotations
+        else:
+            assert annotation not in api_gateway.metadata.annotations
+            assert annotation not in function.metadata.annotations
 
 
 def test_application_runtime_resources(rundb_mock, igz_version_mock):

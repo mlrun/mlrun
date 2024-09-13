@@ -39,6 +39,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
@@ -1751,6 +1752,8 @@ class SQLDB(DBInterface):
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
+        if function_node_selector := get_in(function, "spec.node_selector"):
+            mlrun.k8s_utils.validate_node_selectors(function_node_selector)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(
@@ -2439,7 +2442,6 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values": main_table_identifier_values,
         }
         logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
@@ -4635,7 +4637,7 @@ class SQLDB(DBInterface):
             session.delete(obj)
         session.commit()
 
-    def _find_lables(self, session, cls, label_cls, labels):
+    def _find_labels(self, session, cls, label_cls, labels):
         return session.query(cls).join(label_cls).filter(label_cls.name.in_(labels))
 
     def _add_labels_filter(self, session, query, cls, labels):
@@ -5483,7 +5485,7 @@ class SQLDB(DBInterface):
         return self._query(session, BackgroundTask, project=project)
 
     def _delete_background_tasks(self, session: Session, project: str):
-        logger.debug("Removing background tasks from db", project=project)
+        logger.debug("Removing project background tasks from db", project=project)
         for background_task_name in self._list_project_background_task_names(
             session, project
         ):

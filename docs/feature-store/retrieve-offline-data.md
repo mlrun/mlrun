@@ -31,6 +31,7 @@ Once instantiated with a target, the feature vector holds a reference to the ins
 
 You can also use MLRun's {py:meth}`~mlrun.projects.MlrunProject.log_dataset` to log the specific dataset to the project as a specific dataset resource.
 
+You can use the additional_filters attribute while reading from ParquetTarget, similar to additional_filters in [ParquetSource](sources-targets.md#parquet-source).
 ## Training
 
 Training your model using the feature store is a fairly simple task. (The offline dataset can also be used for your EDA.)

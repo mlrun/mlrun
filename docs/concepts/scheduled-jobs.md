@@ -3,6 +3,10 @@
 
 Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
+> Schedules have a minimum interval that will be allowed between two scheduled jobs. By default, a job is not allowed to be scheduled twice in a 10-minute period 
+> Currently, schedules like */13 * * * * (every 13th minute), in which the job would trigger at the 52nd minute and then again at the start of the next hour (minute 0) (with only 8 minutes between runs) are not allowed. 
+> See mlrun.mlconf.httpdb.scheduling for service schedules configuration. 
+
 ## Creating a job and scheduling it
 
 MLRun makes it very simple to add a schedule to a given `job`. To showcase this, the following job runs the code below, which resides in a file titled `schedule.py`:

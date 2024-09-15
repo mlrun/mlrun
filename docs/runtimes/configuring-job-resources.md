@@ -367,10 +367,21 @@ The zone label from the project level is completely removed, and the resulting c
 ```
 ### Preventing conflicts
 
-If you run a function and it is stuck with the status `pending` it's possible that the "specified" node selector does not exist. 
-Remember, the project and function level configurations override the service level and the function itself. Check the function.yaml and the 
-project.yaml for the node selector configurations. And check the UI (Projects > Jobs and workflows > Monitor jobs)
-for the node selector that was ultimately defined by all of the configurations and overrides.
+If your function run is stuck with the status `pending`, it's possible that the "specified" node selector does not exist. There are three 
+levels of node selectors in MLRun: function, project, and service. At runtime, the system combines these selectors and applies the resolved 
+configuration to the pod.
+
+How to Investigate:
+1. Check the Configuration Files: Look in the function.yaml and project.yaml files to see if there are any node selector settings.
+2. Review Node Selectors in the UI: Go to Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector. This shows the node selector 
+that was ultimately defined for the run after combining the function, project, and service settings.
+3. Check Pod Errors in the UI: Go to Projects > Jobs and Workflows > Monitor Job > Pods, where you can see the pod details. If no nodes are found 
+that match the specified node selector, the error is displayed here.
+
+Resolving Conflicts:</br>
+If the node selectors from the function, project, or service levels, conflict or result in an impossible combination, you can resolve 
+the issue by specifying the conflicting node selector key with an empty string value on your function. Be cautious with this approach 
+and consult your project admin before making changes to ensure it won’t cause other issues.
 
 
 ### Runtimes

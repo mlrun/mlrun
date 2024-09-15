@@ -100,6 +100,7 @@ class MemoizationCache:
         self._cache = {}
 
     def memoize(self, *args, **kwargs):
+        # kwargs are not been memoized
         memo_key = tuple(id(arg) for arg in args)
         result = self._cache.get(memo_key, self._not_found_object)
         if result is self._not_found_object:

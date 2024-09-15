@@ -27,6 +27,7 @@ import copy
 import json
 import os
 import typing
+import warnings
 from collections.abc import Mapping
 from datetime import timedelta
 from distutils.util import strtobool
@@ -35,6 +36,7 @@ from threading import Lock
 
 import dotenv
 import semver
+import urllib3.exceptions
 import yaml
 
 import mlrun.common.constants
@@ -151,6 +153,11 @@ default_config = {
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
         "datasets": {
             "max_preview_columns": 100,
+        },
+        "limits": {
+            "max_chunk_size": 1024 * 1024 * 1,  # 1MB
+            "max_preview_size": 1024 * 1024 * 10,  # 10MB
+            "max_download_size": 1024 * 1024 * 100,  # 100MB
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -326,7 +333,7 @@ default_config = {
         "http": {
             # when True, the client will verify the server's TLS
             # set to False for backwards compatibility.
-            "verify": False,
+            "verify": True,
         },
         "db": {
             "commit_retry_timeout": 30,
@@ -1292,6 +1299,7 @@ def _do_populate(env=None, skip_errors=False):
     if data:
         config.update(data, skip_errors=skip_errors)
 
+    _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
 
 
@@ -1349,6 +1357,16 @@ def _convert_str(value, typ):
 
     # e.g. int('8080') → 8080
     return typ(value)
+
+
+def _configure_ssl_verification(verify_ssl: bool) -> None:
+    """Configure SSL verification warnings based on the setting."""
+    if not verify_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    else:
+        # If the user changes the `verify` setting to `True` at runtime using `mlrun.set_env_from_file` after
+        # importing `mlrun`, we need to reload the `mlrun` configuration and enable this warning.
+        warnings.simplefilter("default", urllib3.exceptions.InsecureRequestWarning)
 
 
 def read_env(env=None, prefix=env_prefix):

@@ -556,7 +556,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         alert_config = mlrun.alerts.alert.AlertConfig(
             project=self.project_name,
-            name=mlrun.common.schemas.alert.EventKind.MM_APP_FAILED,
+            name=mlrun.utils.helpers.normalize_name(
+                mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
+            ),
             summary="An invalid event has been detected in the model monitoring application",
             severity=alert_objects.AlertSeverity.HIGH,
             entities=alert_objects.EventEntities(
@@ -704,7 +706,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         # Validate alert configuration
         alert = alerts[0]
-        assert alert.name == mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
+        assert alert.name == mlrun.utils.helpers.normalize_name(
+            mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
+        )
         assert alert.trigger["events"] == [
             mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
         ]

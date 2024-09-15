@@ -435,11 +435,11 @@ class TestFeatureStore(TestMLRunSystem):
         pq_path = f"{tmpdir}/features.parquet"
         resp.to_parquet(pq_path)
         read_back_df = pd.read_parquet(pq_path)
-        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
+        assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
         csv_path = f"{tmpdir}/features.csv"
         resp.to_csv(csv_path)
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
-        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
+        assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
 
         assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
         assert df_no_time.index.name is None
@@ -1416,7 +1416,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
+        assert_frame_equal(resp_df, expected, check_dtype=False)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -1810,7 +1810,7 @@ class TestFeatureStore(TestMLRunSystem):
         default_file_path = quotes_set.get_target_path(TargetTypes.parquet)
         side_file_path = quotes_set.get_target_path(non_default_target_name)
 
-        side_file_out = pd.read_csv(side_file_path)
+        side_file_out = pd.read_csv(side_file_path, parse_dates=["time"])
         default_file_out = pd.read_parquet(default_file_path)
         # default parquet target is partitioned
         default_file_out.drop(
@@ -1818,13 +1818,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
-        assert all(self._split_graph_expected_default == default_file_out.round(2))
-        assert all(self._split_graph_expected_default == ing_out.round(2))
-        assert all(self._split_graph_expected_default == inf_out.round(2))
-
-        assert all(
-            self._split_graph_expected_side.sort_index(axis=1)
-            == side_file_out.sort_index(axis=1).round(2)
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            default_file_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            ing_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            inf_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_side.sort_index(axis=1),
+            side_file_out.sort_index(axis=1).round(2),
+            check_dtype=False,
         )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -1942,7 +1954,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         df = pd.read_parquet(quotes_set.get_target_path())
-        assert all(df.columns.values == columns)
+        assert df.columns.tolist() == columns
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -1952,6 +1964,7 @@ class TestFeatureStore(TestMLRunSystem):
             "csv-align", "ticker", quotes, timestamp_key="time", targets=targets
         )
         csv_df = csv_align_set.to_dataframe()
+        csv_df["time"] = csv_df["time"].astype("datetime64[us]")
 
         features = ["csv-align.*"]
         csv_vec = fstore.FeatureVector("csv-align-vector", features)
@@ -1968,8 +1981,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(parquet_vec)
         parquet_vec_df = resp.to_dataframe()
 
-        assert all(csv_df == parquet_df)
-        assert all(csv_vec_df == parquet_vec_df)
+        assert_frame_equal(csv_df, parquet_df, check_dtype=False)
+        assert_frame_equal(csv_vec_df, parquet_vec_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2000,7 +2013,7 @@ class TestFeatureStore(TestMLRunSystem):
         columns = ["department", "room"] if with_columns else None
         df_from_partitioned = measurements_partitioned.to_dataframe(columns)
         df_from_nonpartitioned = measurements_nonpartitioned.to_dataframe(columns)
-        assert df_from_partitioned.equals(df_from_nonpartitioned)
+        assert_frame_equal(df_from_partitioned, df_from_nonpartitioned)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2050,7 +2063,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # patient_id (index) and timestamp (timestamp_key) are not in features list
         assert features + ["timestamp"] == list(reference_df.columns)
-        assert df.equals(reference_df), "output dataframe is different from expected"
+        assert_frame_equal(df, reference_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2098,8 +2111,8 @@ class TestFeatureStore(TestMLRunSystem):
         final_path2 = feature_set.get_target_path(name="parquet2")
         parquet2 = pd.read_parquet(final_path2)
 
-        assert all(parquet1 == quotes.set_index("ticker"))
-        assert all(parquet1 == parquet2)
+        assert_frame_equal(parquet1, quotes.set_index("ticker"), check_dtype=False)
+        assert_frame_equal(parquet1, parquet2, check_dtype=False)
 
         os.remove(final_path1)
         os.remove(final_path2)
@@ -2539,7 +2552,7 @@ class TestFeatureStore(TestMLRunSystem):
         off_df = off_df.sort_values(by=["temdojgz", "bikyseca", "nkxuonfx"]).sort_index(
             axis=1
         )
-        pd.testing.assert_frame_equal(
+        assert_frame_equal(
             off_df,
             orig_df,
             check_dtype=False,
@@ -3573,11 +3586,11 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = prediction_set.ingest(df)
 
             read_back_df = pd.read_parquet(outdir)
-            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
+            assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
             expected_df.index.name = "id"
-            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
+            assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -3609,7 +3622,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"{prediction_set.get_target_path()}year=2022/month=01/day=01/hour=01/"
             )
 
-            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
+            assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame(
                 {
@@ -3622,7 +3635,7 @@ class TestFeatureStore(TestMLRunSystem):
                 index=["a", "b"],
             )
             expected_df.index.name = "id"
-            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
+            assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     # regression test for #2557
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -5110,7 +5123,9 @@ def verify_ingest(
     if infer:
         data.set_index(keys=keys, inplace=True)
     for idx in range(len(df)):
-        assert all(df.values[idx] == data.values[idx])
+        assert_frame_equal(
+            df, data, check_dtype=False, check_categorical=False, check_index_type=False
+        )
 
 
 def prepare_feature_set(

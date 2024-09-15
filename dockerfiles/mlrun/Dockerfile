@@ -73,13 +73,23 @@ RUN conda config --add channels conda-forge && \
     conda clean -aqy
 
 # Install MLRun:
+COPY ./dockerfiles ./dockerfiles
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
+COPY ./dev-requirements.txt  .
+COPY ./conda-arm64-requirements.txt  .
+COPY ./packages.py .
+COPY ./dependencies.py  .
+COPY ./setup.py .
+COPY ./README.md .
+COPY ./mlrun/utils/version/version.json mlrun/utils/version/version.json
+
+
+
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt
-
+    -r mlrun-image-requirements.txt  --no-cache-dir --no-build-isolation && python -m pip install .[complete]  --no-cache-dir --no-build-isolation
 COPY . .
-RUN python -m pip install .[complete]
+

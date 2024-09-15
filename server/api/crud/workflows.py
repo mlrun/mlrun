@@ -367,9 +367,10 @@ class WorkflowRunners(
                     subpath=project.spec.subpath,
                 )
             )
-            run_object.spec.node_selector.update(
-                workflow_spec.workflow_runner_node_selector
-            )
+            if workflow_spec.workflow_runner_node_selector:
+                run_object.spec.node_selector.update(
+                    workflow_spec.workflow_runner_node_selector
+                )
 
         # Setting labels:
         return self._label_run_object(run_object, labels)

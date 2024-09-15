@@ -372,10 +372,10 @@ levels of node selectors in MLRun: function, project, and service. At runtime, t
 configuration to the pod.
 
 How to Investigate:
-1. Check the Configuration Files: Look in the function.yaml and project.yaml files to see if there are any node selector settings.
-2. Review Node Selectors in the UI: Go to Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector. This shows the node selector 
+1. Check the Configuration Files: Look in the `function.yaml` and `project.yaml` files to see if there are any node selector settings.
+2. Review Node Selectors in the UI: Go to **Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector**. This shows the node selector 
 that was ultimately defined for the run after combining the function, project, and service settings.
-3. Check Pod Errors in the UI: Go to Projects > Jobs and Workflows > Monitor Job > Pods, where you can see the pod details. If no nodes are found 
+3. Check Pod Errors in the UI: Go to **Projects > Jobs and Workflows > Monitor Job > Pods**, where you can see the pod details. If no nodes are found 
 that match the specified node selector, the error is displayed here.
 
 Resolving Conflicts:</br>

@@ -19,6 +19,8 @@ from typing import NamedTuple, Optional
 from unittest.mock import Mock, patch
 
 import nuclio
+import numpy as np
+import pandas as pd
 import pytest
 from v3io.dataplane.response import HttpResponseError
 
@@ -129,6 +131,59 @@ def test_pad_features_hist(
     pad_features_hist(feature_stats)
     for feat_name, feat in feature_stats.items():
         _check_padded_hist_spec(feat["hist"], orig_feature_stats_hist_data[feat_name])
+
+
+def generate_sample_data(
+    feature_stats: FeatureStats,
+    num_samples: int = 50,
+) -> pd.DataFrame:
+    data = {}
+    for feature in feature_stats.keys():
+        data[feature] = []
+        for sample in range(num_samples):
+            loc = np.random.uniform(
+                low=feature_stats[feature]["hist"][1][0],
+                high=feature_stats[feature]["hist"][1][-1],
+            )
+            feature_data = np.random.normal(loc=loc, scale=1.5, size=1)
+            data[feature].append(float(feature_data))
+    return pd.DataFrame(data)
+
+
+def test_calculate_input_statistics(
+    feature_stats: FeatureStats,
+) -> None:
+    """In the following test we will generate a sample data and calculate the input statistics based on the feature
+    statistics. In addition, we will add a string feature to the sample data and check that it was removed from the
+    input statistics."""
+
+    input_data = generate_sample_data(feature_stats)
+
+    # add string feature to input data
+    input_data["str_feat"] = "blabla"
+    current_stats = mlrun.model_monitoring.helpers.calculate_inputs_statistics(
+        sample_set_statistics=feature_stats,
+        inputs=input_data,
+    )
+    # check that the string feature was removed
+    assert "str_feat" not in current_stats.keys()
+
+    # check that the current_stats have the same keys as the feature_stats
+    assert current_stats.keys() == feature_stats.keys()
+
+    # validate the expected keys in a certain feature statistics
+    feature_statistics = current_stats[next(iter(feature_stats))]
+    assert list(feature_statistics.keys()) == [
+        "count",
+        "mean",
+        "std",
+        "min",
+        "25%",
+        "50%",
+        "75%",
+        "max",
+        "hist",
+    ]
 
 
 class TestBatchInterval:

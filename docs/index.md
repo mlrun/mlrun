@@ -61,7 +61,7 @@ Removing inappropriate data at an early stage saves resources that would otherwi
 {bdg-link-info}`Guardrails for data management<./genai/data-mgmt/guardrails-data.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -76,11 +76,11 @@ preprocess (prepare) the data, run the training pipeline, and evaluate the model
 {bdg-link-info}`Working with RAG <./genai/development/working-with-rag.html>`
 {bdg-link-info}`Evalating LLMs <./genai/development/evaluating-llms.html>`
 {bdg-link-info}`Fine tuning LLMS <./genai/development/fine-tuning-llms.html>`
-<br> {octicon}`code-square` **Demo:**
+<br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 {bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -95,13 +95,13 @@ inferring results using one or more models, and driving actions.
 {bdg-link-info}`Serving gen AI models <./genai/deployment/genai_serving.html>`
 {bdg-link-info}`GPU utilization <./genai/deployment/gpu_utilization.html>`
 {bdg-link-info}`Gen AI realtime serving graph <./genai/deployment/genai_serving_graph.html>`
-<br> {octicon}`code-square` **Tutorials:**
+<br> {octicon}`code-square` **Tutorial:**
 {bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
-<br> {octicon}`code-square` **Demo:**
+<br> {octicon}`code-square` **Demos:**
 {bdg-link-success}`Call center demo <https://github.com/mlrun/demo-call-center>`
 {bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 {bdg-link-success}`Interactive bot demo using LLMs <https://github.com/mlrun/demo-llm-bot/blob/main>`
-<br> {octicon}`video` **Videos:**
+<br> {octicon}`video` **Video:**
 {bdg-link-warning}`Call center <https://youtu.be/YycMbxRgLBA>`
 `````
 
@@ -112,9 +112,12 @@ Collect production data, metadata, and metrics to tune the model and application
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Model monitoring using LLM <./genai/live-ops/monitoring-llm.html>`
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
 <br> {octicon}`code-square` **Demo:**
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
 
 ## MLOps tasks
@@ -131,23 +134,33 @@ Collect production data, metadata, and metrics to tune the model and application
 ```
 
 ```{grid-item-card} Ingest and process data
+:columns: 4
 :text-align: center
 :link: ./data-prep/index.html
 ```
 
 ```{grid-item-card} Develop and train models 
+:columns: 4
 :text-align: center
 :link: ./development/index.html
 ```
 
 ```{grid-item-card} Deploy models and app
+:columns: 4
 :text-align: center
 :link: ./deployment/index.html
 ```
 
-```{grid-item-card} Monitor and alert
+```{grid-item-card} Model Monitoring
+:columns: 4
 :text-align: center
 :link: ./monitoring/index.html
+```
+
+```{grid-item-card} Alerts and Notifications
+:columns: 4
+:text-align: center
+:link: ./concepts/alerts-notifications.html
 ```
 
 ````
@@ -241,8 +254,8 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Monitor and alert <monitoring>`
-{bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
@@ -313,7 +326,7 @@ MLRun includes the following major components:
 
 **{ref}`Real-time monitoring <monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
-
+**{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on runs and pipelines.
 
 
 ```{toctree}

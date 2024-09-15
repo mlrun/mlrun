@@ -1086,7 +1086,9 @@ class OfflineVectorResponse:
     def to_dataframe(self, to_pandas=True):
         """return result as dataframe"""
         if self.status != "completed":
-            raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
+            raise mlrun.errors.MLRunTaskNotReadyError(
+                "feature vector dataset is not ready"
+            )
         return self._merger.get_df(to_pandas=to_pandas)
 
     def to_parquet(self, target_path, **kw):

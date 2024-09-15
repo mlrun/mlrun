@@ -844,10 +844,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
-        mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime(self.runtime_kind)
-
         node_name = "some-node-name"
+        mlconf.nuclio_version = "1.6.3"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_node_selection(node_name=node_name)
+
+        mlconf.nuclio_version = "1.5.21"
         function.with_node_selection(node_name=node_name)
 
         self.execute_function(function)
@@ -856,6 +859,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
 
+        mlconf.nuclio_version = "1.6.10"
         config_node_selector = {
             "label-1": "val1",
             "label-2": "val2",
@@ -871,6 +875,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.assert_node_selection(node_selector=config_node_selector)
 
         function = self._generate_runtime(self.runtime_kind)
+
+        invalid_node_selector = {"label-3": "val=3"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            function.with_node_selection(node_selector=invalid_node_selector)
 
         node_selector = {
             "label-3": "val3",
@@ -1206,6 +1217,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11", "1.5.9"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.9", "1.7.0"
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "2.0.0"

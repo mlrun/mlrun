@@ -70,7 +70,7 @@ You can also view some metadata about the feature vector, including all the feat
 ### Feature vectors with different entities and complex joins
 
 ```{admonition} Note
-Tech Preview
+This feature is currently in Tech Preview status.
 ```
 
 You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 

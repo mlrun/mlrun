@@ -18,6 +18,7 @@ import glob
 import http
 import importlib.util as imputil
 import json
+import os
 import pathlib
 import shutil
 import tempfile
@@ -25,6 +26,7 @@ import typing
 import uuid
 import warnings
 import zipfile
+from copy import deepcopy
 from os import environ, makedirs, path
 from typing import Callable, Optional, Union
 
@@ -251,8 +253,7 @@ def new_project(
         project.spec.description = description
 
     if default_function_node_selector:
-        for key, val in default_function_node_selector.items():
-            project.spec.default_function_node_selector[key] = val
+        project.spec.default_function_node_selector = default_function_node_selector
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
@@ -874,7 +875,7 @@ class ProjectSpec(ModelObj):
         # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
         # whether it is mandatory for a run (raise exception on collection error) or not.
         self.custom_packagers = custom_packagers or []
-        self.default_function_node_selector = default_function_node_selector or {}
+        self._default_function_node_selector = default_function_node_selector or None
 
     @property
     def source(self) -> str:
@@ -1048,6 +1049,14 @@ class ProjectSpec(ModelObj):
     def remove_artifact(self, key):
         if key in self._artifacts:
             del self._artifacts[key]
+
+    @property
+    def default_function_node_selector(self):
+        return self._default_function_node_selector
+
+    @default_function_node_selector.setter
+    def default_function_node_selector(self, node_selector: dict[str, str]):
+        self._default_function_node_selector = deepcopy(node_selector)
 
     @property
     def build(self) -> ImageBuilder:
@@ -1557,15 +1566,15 @@ class MlrunProject(ModelObj):
         self,
         item,
         body=None,
-        tag="",
-        local_path="",
-        artifact_path=None,
-        format=None,
-        upload=None,
-        labels=None,
-        target_path=None,
+        tag: str = "",
+        local_path: str = "",
+        artifact_path: Optional[str] = None,
+        format: Optional[str] = None,
+        upload: Optional[bool] = None,
+        labels: Optional[dict[str, str]] = None,
+        target_path: Optional[str] = None,
         **kwargs,
-    ):
+    ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
 
         If the artifact already exists with the same key and tag, it will be overwritten.
@@ -1664,7 +1673,7 @@ class MlrunProject(ModelObj):
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: str = None,
+        label_column: Optional[str] = None,
         **kwargs,
     ) -> DatasetArtifact:
         """
@@ -1741,15 +1750,15 @@ class MlrunProject(ModelObj):
         artifact_path=None,
         upload=None,
         labels=None,
-        inputs: list[Feature] = None,
-        outputs: list[Feature] = None,
-        feature_vector: str = None,
-        feature_weights: list = None,
+        inputs: Optional[list[Feature]] = None,
+        outputs: Optional[list[Feature]] = None,
+        feature_vector: Optional[str] = None,
+        feature_weights: Optional[list] = None,
         training_set=None,
         label_column=None,
         extra_data=None,
         **kwargs,
-    ):
+    ) -> ModelArtifact:
         """Log a model artifact and optionally upload it to datastore
 
         If the model already exists with the same key and tag, it will be overwritten.
@@ -3040,8 +3049,9 @@ class MlrunProject(ModelObj):
                 "Remote repo is not defined, use .create_remote() + push()"
             )
 
-        if engine not in ["remote"]:
-            # for remote runs we don't require the functions to be synced as they can be loaded dynamically during run
+        if engine not in ["remote"] and not schedule:
+            # For remote/scheduled runs we don't require the functions to be synced as they can be loaded dynamically
+            # during run
             self.sync_functions(always=sync)
             if not self.spec._function_objects:
                 raise ValueError(
@@ -4288,6 +4298,7 @@ class MlrunProject(ModelObj):
                     kind=producer_dict.get("kind", ""),
                     project=producer_project,
                     tag=producer_tag,
+                    owner=producer_dict.get("owner", ""),
                 ), True
 
         # do not retain the artifact's producer, replace it with the project as the producer
@@ -4297,6 +4308,7 @@ class MlrunProject(ModelObj):
             name=self.metadata.name,
             project=self.metadata.name,
             tag=project_producer_tag,
+            owner=self._resolve_artifact_owner(),
         ), False
 
     def _resolve_existing_artifact(
@@ -4335,6 +4347,9 @@ class MlrunProject(ModelObj):
 
     def _get_project_tag(self):
         return self._get_hexsha() or str(uuid.uuid4())
+
+    def _resolve_artifact_owner(self):
+        return os.getenv("V3IO_USERNAME") or self.spec.owner
 
 
 def _set_as_current_default_project(project: MlrunProject):

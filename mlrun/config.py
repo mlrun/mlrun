@@ -152,6 +152,11 @@ default_config = {
         "datasets": {
             "max_preview_columns": 100,
         },
+        "limits": {
+            "max_chunk_size": 1024 * 1024 * 1,  # 1MB
+            "max_preview_size": 1024 * 1024 * 10,  # 10MB
+            "max_download_size": 1024 * 1024 * 100,  # 100MB
+        },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -863,7 +868,7 @@ class Config:
                     f"Unable to decode {attribute_path}"
                 )
             parsed_attribute_value = json.loads(decoded_attribute_value)
-            if type(parsed_attribute_value) != expected_type:
+            if not isinstance(parsed_attribute_value, expected_type):
                 raise mlrun.errors.MLRunInvalidArgumentTypeError(
                     f"Expected type {expected_type}, got {type(parsed_attribute_value)}"
                 )

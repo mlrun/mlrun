@@ -444,15 +444,15 @@ async def _get_metrics_values_params(
     metrics = []
     results = []
     for fqn in name:
-        m = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
-        if m.project != project:
+        metric = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
+        if metric.project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Metric '{fqn}' does not belong to the project '{project}'."
             )
-        if m.type == mm_constants.ModelEndpointMonitoringMetricType.METRIC:
-            metrics.append(m)
+        if metric.type == mm_constants.ModelEndpointMonitoringMetricType.METRIC:
+            metrics.append(metric)
         else:
-            results.append(m)
+            results.append(metric)
 
     return _MetricsValuesParams(
         project=project,

@@ -24,7 +24,7 @@ import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
-    _FQN_REGEX,
+    FQN_REGEX,
     EndpointType,
     EventFieldType,
     EventKeyMetrics,
@@ -298,7 +298,7 @@ def _compose_full_name(
 
 
 def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
-    match = _FQN_REGEX.fullmatch(fqn)
+    match = FQN_REGEX.fullmatch(fqn)
     if match is None:
         raise ValueError("The fully qualified name is not in the expected format")
     return ModelEndpointMonitoringMetric.parse_obj(

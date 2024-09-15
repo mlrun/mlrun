@@ -383,13 +383,13 @@ class ModelEndpointMonitoringMetricType(StrEnum):
 
 
 _FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
-_FQN_PATTERN = (
+FQN_PATTERN = (
     rf"^(?P<project>{_FQN_PART_PATTERN})\."
     rf"(?P<app>{_FQN_PART_PATTERN})\."
     rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
     rf"(?P<name>{_FQN_PART_PATTERN})$"
 )
-_FQN_REGEX = re.compile(_FQN_PATTERN)
+FQN_REGEX = re.compile(FQN_PATTERN)
 
 
 ModelEndpointUIDAnnotation = Annotated[

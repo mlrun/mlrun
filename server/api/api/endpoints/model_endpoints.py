@@ -403,7 +403,7 @@ async def _get_metrics_values_params(
     endpoint_id: mm_constants.ModelEndpointUIDAnnotation,
     name: Annotated[
         list[str],
-        Query(pattern=mm_constants._FQN_PATTERN),
+        Query(pattern=mm_constants.FQN_PATTERN),
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,

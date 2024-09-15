@@ -15,7 +15,9 @@
 import hashlib
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Annotated, Optional
+
+from pydantic import constr
 
 import mlrun.common.constants
 import mlrun.common.helpers
@@ -372,3 +374,13 @@ _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_I
 
 
 V3IO_MODEL_MONITORING_DB = "v3io"
+
+
+ModelEndpointUIDAnnotation = Annotated[
+    str, constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
+]
+
+ProjectAnnotation = Annotated[
+    str,
+    constr(regex=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", min_length=1, max_length=63),
+]  # refer to `mlrun.utils.regex.project_name`

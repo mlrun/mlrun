@@ -16,9 +16,9 @@ import enum
 import json
 import re
 from datetime import datetime
-from typing import Annotated, Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
-from pydantic import BaseModel, Extra, Field, constr, validator
+from pydantic import BaseModel, Extra, Field, validator
 
 import mlrun.common.model_monitoring
 import mlrun.common.types
@@ -29,18 +29,12 @@ from .constants import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    ModelEndpointUIDAnnotation,
     ModelMonitoringMode,
+    ProjectAnnotation,
     ResultKindApp,
     ResultStatusApp,
 )
-
-ModelEndpointUIDAnnotation = Annotated[
-    str, constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
-]
-ProjectAnnotation = Annotated[
-    str,
-    constr(regex=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", min_length=1, max_length=63),
-]  # refer to `mlrun.utils.regex.project_name`
 
 
 class ModelMonitoringStoreKinds:

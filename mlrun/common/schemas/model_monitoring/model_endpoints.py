@@ -12,15 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import json
 from datetime import datetime
 from typing import Any, NamedTuple, Optional
 
 from pydantic import BaseModel, Extra, Field, validator
-
-import mlrun.common.model_monitoring
-import mlrun.common.types
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
@@ -240,9 +236,7 @@ class ModelEndpoint(BaseModel):
 
                 # If the value is not from type str or bool (e.g. dict), convert it into a JSON string
                 # for matching the database required format
-                if not isinstance(current_value, (str, bool, int)) or isinstance(
-                    current_value, enum.IntEnum
-                ):
+                if not isinstance(current_value, (str, bool, int)):
                     flatten_dict[key] = json.dumps(current_value)
                 else:
                     flatten_dict[key] = current_value

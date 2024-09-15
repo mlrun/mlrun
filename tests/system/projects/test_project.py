@@ -595,6 +595,17 @@ class TestProject(TestMLRunSystem):
         function = project.get_function("func-1", ignore_cache=True)
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
+    def _load_remote_pipeline_project(self, name):
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+            allow_cross_project=True,
+        )
+        return project
+
     def _test_remote_pipeline_from_github(
         self,
         name,
@@ -604,14 +615,7 @@ class TestProject(TestMLRunSystem):
         watch=False,
         notification_steps=None,
     ):
-        project_dir = f"{projects_dir}/{name}"
-        shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.load_project(
-            project_dir,
-            "git://github.com/mlrun/project-demo.git",
-            name=name,
-            allow_cross_project=True,
-        )
+        project = self._load_remote_pipeline_project(name=name)
 
         nuclio_function_url = None
         notifications = []
@@ -649,15 +653,8 @@ class TestProject(TestMLRunSystem):
         workflow_runner_name = f"workflow-runner-{workflow_name}"
         runner_node_selector = {"kubernetes.io/arch": "amd64"}
         project_default_function_node_selector = {"kubernetes.io/os": "linux"}
-        project_dir = f"{projects_dir}/{project_name}"
-        shutil.rmtree(project_dir, ignore_errors=True)
 
-        project = mlrun.load_project(
-            project_dir,
-            "git://github.com/mlrun/project-demo.git",
-            name=project_name,
-            allow_cross_project=True,
-        )
+        project = self._load_remote_pipeline_project(name=project_name)
         project.spec.default_function_node_selector = (
             project_default_function_node_selector
         )

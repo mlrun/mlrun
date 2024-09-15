@@ -16,9 +16,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Annotated, Optional
-
-from pydantic import constr
+from typing import Optional
 
 import mlrun.common.constants
 import mlrun.common.helpers
@@ -391,12 +389,7 @@ FQN_PATTERN = (
 )
 FQN_REGEX = re.compile(FQN_PATTERN)
 
+# refer to `mlrun.utils.regex.project_name`
+PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
 
-ModelEndpointUIDAnnotation = Annotated[
-    str, constr(regex=r"^[a-zA-Z0-9_-]+$", min_length=1)
-]
-
-ProjectAnnotation = Annotated[
-    str,
-    constr(regex=r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", min_length=1, max_length=63),
-]  # refer to `mlrun.utils.regex.project_name`
+MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"

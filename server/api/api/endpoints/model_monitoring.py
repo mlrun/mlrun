@@ -18,7 +18,7 @@ from typing import Annotated, Optional
 
 import fastapi
 import semver
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -76,7 +76,9 @@ async def _verify_authorization(
 
 
 async def _common_parameters(
-    project: mlrun.common.schemas.model_monitoring.model_endpoints.ProjectAnnotation,
+    project: Annotated[
+        str, Path(regex=mlrun.common.schemas.model_monitoring.constants.PROJECT_PATTERN)
+    ],
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],

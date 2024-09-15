@@ -124,7 +124,7 @@ class ArtifactManager:
 
         self.artifact_db = db
         self.input_artifacts = {}
-        self.artifacts = {}
+        self.artifact_uris = {}
 
     @staticmethod
     def ensure_artifact_source_file_exists(item, path, body):
@@ -156,14 +156,12 @@ class ArtifactManager:
 
     def artifact_list(self, full=False):
         artifacts = []
-        for artifact in self.artifacts.values():
-            if isinstance(artifact, dict):
-                artifacts.append(artifact)
+        for artifacts_uri in self.artifact_uris.values():
+            artifact: Artifact = mlrun.datastore.get_store_resource(artifacts_uri)
+            if full:
+                artifacts.append(artifact.to_dict())
             else:
-                if full:
-                    artifacts.append(artifact.to_dict())
-                else:
-                    artifacts.append(artifact.base_dict())
+                artifacts.append(artifact.base_dict())
         return artifacts
 
     def log_artifact(
@@ -302,7 +300,7 @@ class ArtifactManager:
         item.target_path = target_path
 
         item.before_log()
-        self.artifacts[key] = item
+        self.artifact_uris[key] = item.uri
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             # before uploading the item, we want to ensure that its tags are valid,
@@ -319,8 +317,8 @@ class ArtifactManager:
         )
         return item
 
-    def update_artifact(self, producer, item):
-        self.artifacts[item.key] = item
+    def update_artifact(self, producer, item: Artifact):
+        self.artifact_uris[item.key] = item.uri
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
     def _log_to_db(self, key, project, sources, item, tag=None):

@@ -216,7 +216,7 @@ class ContextHandler:
                     )
             # Link packages:
             self._packagers_manager.link_packages(
-                additional_artifacts=self._context.artifacts,
+                additional_artifact_uris=self._context.artifact_uris,
                 additional_results=self._context.results,
             )
             # Log the packed results and artifacts:

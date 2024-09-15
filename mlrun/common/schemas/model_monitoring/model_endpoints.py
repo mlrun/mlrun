@@ -14,7 +14,7 @@
 
 import json
 from datetime import datetime
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, TypeVar
 
 from pydantic import BaseModel, Extra, Field, validator
 
@@ -32,6 +32,8 @@ from .constants import (
     ResultKindApp,
     ResultStatusApp,
 )
+
+Model = TypeVar("Model", bound=BaseModel)
 
 
 class ModelMonitoringStoreKinds:
@@ -60,7 +62,7 @@ class ModelEndpointMetadata(BaseModel):
             json_parse_values = [EventFieldType.LABELS]
 
         return _mapping_attributes(
-            base_model=cls,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -94,7 +96,7 @@ class ModelEndpointSpec(ObjectSpec):
                 EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
-            base_model=cls,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -199,7 +201,7 @@ class ModelEndpointStatus(ObjectStatus):
                 EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
-            base_model=cls,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -334,20 +336,18 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 
 def _mapping_attributes(
-    base_model: type[BaseModel],
-    flattened_dictionary: dict,
-    json_parse_values: list = None,
-):
+    model_class: type[Model], flattened_dictionary: dict, json_parse_values: list
+) -> Model:
     """Generate a `BaseModel` object with the provided dictionary attributes.
 
-    :param base_model:           `BaseModel` object (e.g. `ModelEndpointMetadata`).
+    :param model_class:          `BaseModel` class (e.g. `ModelEndpointMetadata`).
     :param flattened_dictionary: Flattened dictionary that contains the model endpoint attributes.
     :param json_parse_values:    List of dictionary keys with a JSON string value that will be parsed into a
                                  dictionary using json.loads().
     """
     # Get the fields of the provided base model object. These fields will be used to filter to relevent keys
     # from the flattened dictionary.
-    wanted_keys = base_model.__fields__.keys()
+    wanted_keys = model_class.__fields__.keys()
 
     # Generate a filtered flattened dictionary that will be parsed into the BaseModel object
     dict_to_parse = {}
@@ -361,7 +361,7 @@ def _mapping_attributes(
             else:
                 dict_to_parse[field_key] = flattened_dictionary[field_key]
 
-    return base_model.parse_obj(dict_to_parse)
+    return model_class.parse_obj(dict_to_parse)
 
 
 def _json_loads_if_not_none(field: Any) -> Any:

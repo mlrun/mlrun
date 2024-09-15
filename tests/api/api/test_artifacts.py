@@ -161,6 +161,37 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.OK.value
 
 
+def test_store_artifact_with_iteration(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client)
+    iteration = 3
+    json = _generate_artifact_body(iteration=iteration)
+    resp = unversioned_client.put(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{KEY}?tag={TAG}",
+        json=json,
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Change a spec that is not included in UID hash
+    json["metadata"]["labels"]["a"] = "b"
+    resp = unversioned_client.put(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{KEY}?tag={TAG}",
+        json=json,
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact_dict = resp.json()
+    assert artifact_dict["metadata"]["labels"]["a"] == json["metadata"]["labels"]["a"]
+    assert artifact_dict["metadata"]["iter"] == iteration
+
+    artifacts_path = (
+        LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"?iter={iteration}"
+    )
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2  # latest and TAG
+    assert artifacts[0]["metadata"]["iter"] == iteration
+
+
 def test_create_artifact(db: Session, unversioned_client: TestClient):
     _create_project(unversioned_client, prefix="v1")
     data = _generate_artifact_body(tree="some-tree")
@@ -924,6 +955,7 @@ def _generate_artifact_body(
     tag=None,
     body=None,
     producer=None,
+    iteration=None,
 ):
     tree = tree or str(uuid.uuid4())
     producer = producer or {"kind": "api", "uri": "my-uri:3000"}
@@ -945,6 +977,8 @@ def _generate_artifact_body(
     }
     if tag:
         data["metadata"]["tag"] = tag
+    if iteration is not None:
+        data["metadata"]["iter"] = iteration
     if body:
         data["spec"] = {"body": body}
 

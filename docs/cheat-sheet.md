@@ -256,7 +256,7 @@ mpijob.run()
 #### Dask
 
 ```python
-project = mlrun.get_or_create_project(dask)
+project = mlrun.get_or_create_project("dask")
 dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
@@ -274,7 +274,7 @@ dask.client
 import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
-project = mlrun.get_or_create_project(spark)
+project = mlrun.get_or_create_project("spark")
 spark = project.set_function(
     kind="spark", command=read_csv_filepath, name="sparkreadcsv"
 )
@@ -1242,7 +1242,7 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-project = mlrun.get_or_create_project(dask_cluster)
+project = mlrun.get_or_create_project(dask-cluster)
 dask_cluster = project.set_function(
     name="dask-cluster", kind="dask", image="mlrun/ml-base"
 )

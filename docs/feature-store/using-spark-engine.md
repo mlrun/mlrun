@@ -96,8 +96,8 @@ def ingest_handler(context):
 ```
 You can run your PySpark code for ingesting data into the feature store by adding:
 ```python
-def my_spark_func(df, context=None):
-    return df.filter("bid>55")  # PySpark code
+   def my_spark_func(df, context=None):
+     return df.filter("bid>55")  # PySpark code
 ```
 ```python
 # mlrun: end-code

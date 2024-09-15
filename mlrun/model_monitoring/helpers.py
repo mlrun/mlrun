@@ -18,6 +18,10 @@ import typing
 import numpy as np
 import pandas as pd
 
+if typing.TYPE_CHECKING:
+    from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
+
 import mlrun
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
@@ -30,10 +34,6 @@ from mlrun.common.schemas.model_monitoring.model_endpoints import (
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
-
-if typing.TYPE_CHECKING:
-    from mlrun.db.base import RunDBInterface
-    from mlrun.projects import MlrunProject
 
 
 class _BatchDict(typing.TypedDict):

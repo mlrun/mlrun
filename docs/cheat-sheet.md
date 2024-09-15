@@ -1242,7 +1242,7 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-project = mlrun.get_or_create_project(dask-cluster)
+project = mlrun.get_or_create_project(dask - cluster)
 dask_cluster = project.set_function(
     name="dask-cluster", kind="dask", image="mlrun/ml-base"
 )

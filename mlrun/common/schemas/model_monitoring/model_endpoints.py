@@ -56,12 +56,11 @@ class ModelEndpointMetadata(BaseModel):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [EventFieldType.LABELS]
 
         return _mapping_attributes(
-            base_model=new_object,
+            base_model=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -88,7 +87,6 @@ class ModelEndpointSpec(ObjectSpec):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
                 EventFieldType.FEATURE_NAMES,
@@ -96,7 +94,7 @@ class ModelEndpointSpec(ObjectSpec):
                 EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
-            base_model=new_object,
+            base_model=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -190,7 +188,6 @@ class ModelEndpointStatus(ObjectStatus):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
                 EventFieldType.FEATURE_STATS,
@@ -202,7 +199,7 @@ class ModelEndpointStatus(ObjectStatus):
                 EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
-            base_model=new_object,
+            base_model=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -337,7 +334,7 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 
 def _mapping_attributes(
-    base_model: BaseModel,
+    base_model: type[BaseModel],
     flattened_dictionary: dict,
     json_parse_values: list = None,
 ):

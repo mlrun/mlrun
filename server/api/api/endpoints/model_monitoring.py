@@ -76,7 +76,7 @@ async def _verify_authorization(
 
 
 async def _common_parameters(
-    project: str,
+    project: mlrun.common.schemas.model_monitoring.model_endpoints.ProjectAnnotation,
     auth_info: Annotated[
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],

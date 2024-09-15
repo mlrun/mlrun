@@ -18,6 +18,10 @@ from typing import Any, NamedTuple, Optional, TypeVar
 
 from pydantic import BaseModel, Extra, Field, validator
 
+# TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
+# At the moment `make lint` fails if this is removed.
+import mlrun.common.model_monitoring
+
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
     FQN_REGEX,

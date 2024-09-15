@@ -525,13 +525,28 @@ class ModelEndpoints:
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         # TODO : adjust for ce scenario
-        stream_paths = server.api.crud.model_monitoring.get_stream_path(
+        stream_path = server.api.crud.model_monitoring.get_stream_path(
             project=project_name,
         )
-        if stream_paths[0].startswith("v3io") and (
+        if stream_path.startswith("v3io") and (
             not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api
         ):
             return
+        elif stream_path.startswith("v3io") and not model_monitoring_access_key:
+            # Generate V3IO Access Key
+            try:
+                model_monitoring_access_key = server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+                    db_session,
+                    project_name,
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                )
+
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Project does not exist in Iguazio, skipping deletion of model monitoring stream resources",
+                    project_name=project_name,
+                )
+                return
 
         try:
             self.verify_project_has_no_model_endpoints(project_name=project_name)
@@ -568,9 +583,7 @@ class ModelEndpoints:
                 tsdb_connector.delete_tsdb_resources()
         self._delete_model_monitoring_stream_resources(
             project_name=project_name,
-            db_session=db_session,
             model_monitoring_applications=model_monitoring_applications,
-            stream_paths=stream_paths,
             model_monitoring_access_key=model_monitoring_access_key,
         )
         logger.debug(
@@ -581,20 +594,15 @@ class ModelEndpoints:
     @staticmethod
     def _delete_model_monitoring_stream_resources(
         project_name: str,
-        db_session: sqlalchemy.orm.Session,
         model_monitoring_applications: typing.Optional[list[str]],
-        stream_paths: typing.Optional[list[str]] = None,
         model_monitoring_access_key: typing.Optional[str] = None,
     ) -> None:
         """
         Delete model monitoring stream resources.
 
         :param project_name:                  The name of the project.
-        :param db_session:                    A session that manages the current dialog with the database.
         :param model_monitoring_applications: A list of model monitoring applications that their resources should
                                               be deleted.
-        :param stream_paths:                  A list of stream paths to delete. If using Kafka, the stream path
-                                              represents the related topic.
         :param model_monitoring_access_key:   The access key for the model monitoring resources. Relevant only for
                                               V3IO resources.
         """
@@ -602,21 +610,6 @@ class ModelEndpoints:
             "Deleting model monitoring stream resources",
             project_name=project_name,
         )
-        if stream_paths[0].startswith("v3io") and not model_monitoring_access_key:
-            # Generate V3IO Access Key
-            try:
-                model_monitoring_access_key = server.api.api.endpoints.nuclio.process_model_monitoring_secret(
-                    db_session,
-                    project_name,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-                )
-
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(
-                    "Project does not exist in Iguazio, skipping deletion of model monitoring stream resources",
-                    project_name=project_name,
-                )
-                return
 
         model_monitoring_applications = model_monitoring_applications or []
 

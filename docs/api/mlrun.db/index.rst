@@ -1,3 +1,5 @@
+.. _mlrun.db:
+
 mlrun.db
 ========
 

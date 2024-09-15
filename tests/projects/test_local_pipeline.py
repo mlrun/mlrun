@@ -31,7 +31,6 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             str(f"{self.assets_path / self.pipeline_path}"),
             "tstfunc",
             image="mlrun/mlrun",
-            # kind="job"
         )
 
     def test_set_artifact(self, rundb_mock):

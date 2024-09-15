@@ -40,7 +40,7 @@ demos
 :gutter: 2
 
 ```{grid-item-card} Deploy LLM using MLRun
-:link: ./tutorials/genai_01_basic_tutorial.html
+:link: ./genai_01_basic_tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
 ```{grid-item-card} Model monitoring using LLM
@@ -83,7 +83,7 @@ Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift
 ```
 
 ```{grid-item-card} Add MLOps to existing code
-:link: ./06-add-mlops-to-code.html
+:link: ./07-add-mlops-to-code.html
 Turn a Kaggle research notebook to a production ML micro-service with minimal code changes using MLRun.
 ```
 
@@ -93,7 +93,7 @@ Understand MLRun feature store with a simple example: build, transform, and serv
 ```
 
 ```{grid-item-card} Batch inference and drift detection
-:link: ./07-batch-infer.html
+:link: ./06-batch-infer.html
 Use MLRun batch inference function (from MLRun Function Hub), run it as a batch job, and generate drift reports.
 ```
 

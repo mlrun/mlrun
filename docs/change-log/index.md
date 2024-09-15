@@ -1084,8 +1084,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5573|The default value of feature-set ingest() infer_options is "all" (which includes Preview) and as a result, during ingest, preview is done as well. As a result, if a validator was configured for a feature, each violation causes two messages to be printed.|NA|v1.6.0|
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted.|Abort the job from the SDK instead of from the UI, or upgrade the client. |1.6.0|
 |ML-5876|The maximum length of project name + the longest function name for `project.enable_model_monitoring` is 63 chars. |Keep the name combination at a maximum of 63 chars. |v1.6.0|
-|ML-7196||NA| v1.7.0|
+|ML-7196|                                          |NA| v1.7.0|
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|
+|ML-7554| API gateway OAuth2 mode                                                            |                            | v1.7.0|
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

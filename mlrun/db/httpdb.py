@@ -1374,20 +1374,14 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-            logger.info(
-                "Using default grace period for runtime resources deletion",
-                grace_period=grace_period,
-            )
-
         params = {
             "label-selector": label_selector,
             "kind": kind,
             "object-id": object_id,
             "force": force,
-            "grace-period": grace_period,
         }
+        if grace_period is not None:
+            params["grace-period"] = grace_period
         error = "Failed deleting runtime resources"
         project_path = project if project else "*"
         response = self.api_call(

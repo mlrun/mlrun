@@ -539,7 +539,6 @@ default_config = {
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
-            "stream": "",  # TODO: Delete in 1.9.0
             "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
@@ -552,7 +551,6 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
-        "store_type": "v3io-nosql",  # TODO: Delete in 1.9.0
         "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connection": "",
@@ -1130,10 +1128,10 @@ class Config:
         project: str = "",
         kind: str = "",
         target: str = "online",
-        artifact_path: str = None,
-        function_name: str = None,
+        artifact_path: typing.Optional[str] = None,
+        function_name: typing.Optional[str] = None,
         **kwargs,
-    ) -> typing.Union[str, list[str]]:
+    ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
         :param project:         Project name.
@@ -1149,8 +1147,7 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind. Can be either a single path
-                                or a list of paths in the case of the online model monitoring stream path.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":
@@ -1171,18 +1168,11 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":  # return list for mlrun<1.6.3 BC
-                return [
-                    # TODO: remove the first stream in 1.9.0
-                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project,
-                        kind=kind,
-                    ),  # old stream uri (pipelines) for BC ML-6043
-                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                        project=project,
-                        kind=kind,
-                    ),  # new stream uri (projects)
-                ]
+            elif kind == "stream":
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project,
+                    kind=kind,
+                )
             else:
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,

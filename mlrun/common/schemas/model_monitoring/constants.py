@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Annotated, Optional
@@ -374,6 +375,21 @@ _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_I
 
 
 V3IO_MODEL_MONITORING_DB = "v3io"
+
+
+class ModelEndpointMonitoringMetricType(StrEnum):
+    RESULT = "result"
+    METRIC = "metric"
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+_FQN_PATTERN = (
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+_FQN_REGEX = re.compile(_FQN_PATTERN)
 
 
 ModelEndpointUIDAnnotation = Annotated[

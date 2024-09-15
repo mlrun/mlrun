@@ -367,7 +367,7 @@ async def get_model_endpoint_monitoring_metrics(
                 run_in_threadpool(
                     get_model_endpoint_metrics,
                     endpoint_id=endpoint_id,
-                    type=mm_endpoints.ModelEndpointMonitoringMetricType.RESULT,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                 )
             )
         )
@@ -377,7 +377,7 @@ async def get_model_endpoint_monitoring_metrics(
                 run_in_threadpool(
                     get_model_endpoint_metrics,
                     endpoint_id=endpoint_id,
-                    type=mm_endpoints.ModelEndpointMonitoringMetricType.METRIC,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                 )
             )
         )
@@ -403,7 +403,7 @@ async def _get_metrics_values_params(
     endpoint_id: mm_constants.ModelEndpointUIDAnnotation,
     name: Annotated[
         list[str],
-        Query(pattern=mm_endpoints._FQN_PATTERN),
+        Query(pattern=mm_constants._FQN_PATTERN),
     ],
     start: Optional[datetime] = None,
     end: Optional[datetime] = None,
@@ -449,7 +449,7 @@ async def _get_metrics_values_params(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Metric '{fqn}' does not belong to the project '{project}'."
             )
-        if m.type == mm_endpoints.ModelEndpointMonitoringMetricType.METRIC:
+        if m.type == mm_constants.ModelEndpointMonitoringMetricType.METRIC:
             metrics.append(m)
         else:
             results.append(m)

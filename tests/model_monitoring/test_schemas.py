@@ -18,9 +18,11 @@ from typing import Optional
 
 import pytest
 
+from mlrun.common.schemas.model_monitoring.constants import (
+    ModelEndpointMonitoringMetricType,
+)
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
-    ModelEndpointMonitoringMetricType,
     _parse_metric_fqn_to_monitoring_metric,
 )
 

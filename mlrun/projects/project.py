@@ -3060,7 +3060,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
-        workflow_runner_node_selector: dict[str, str] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3167,16 +3167,18 @@ class MlrunProject(ModelObj):
             )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
-        if workflow_engine.engine == "remote" and workflow_runner_node_selector:
-            workflow_spec.workflow_runner_node_selector = workflow_runner_node_selector
-
-        if workflow_engine.engine != "remote" and workflow_runner_node_selector:
-            warnings.warn(
-                "The 'workflow_runner_node_selector' is only applicable when using a remote engine. "
-                "It defines the node selector for the workflow runner pod, which is not created when "
-                "the engine is not set to 'remote'. "
-                "The run will proceed, but this setting will have no effect."
-            )
+        if workflow_runner_node_selector:
+            if workflow_engine.engine == "remote":
+                workflow_spec.workflow_runner_node_selector = (
+                    workflow_runner_node_selector
+                )
+            else:
+                warnings.warn(
+                    "The 'workflow_runner_node_selector' is only applicable when using a remote engine. "
+                    "It defines the node selector for the workflow runner pod, which is not created when "
+                    "the engine is not set to 'remote'. "
+                    "The run will proceed, but this setting will have no effect."
+                )
 
         run = workflow_engine.run(
             self,

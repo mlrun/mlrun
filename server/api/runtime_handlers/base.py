@@ -125,7 +125,7 @@ class BaseRuntimeHandler(ABC):
         # 'force' is used to skip waiting X seconds *after* pod terminated.
         # 'grace_period' is used to set the time to wait *after* the pod terminated and before it's deleted.
         # if force is True and grace period is 0, simply delete the pod without waiting.
-        resource_deletion_grace_period = 0 if True and grace_period == 0 else None
+        resource_deletion_grace_period = 0 if force and grace_period == 0 else None
         # We currently don't support removing runtime resources in non k8s env
         if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return

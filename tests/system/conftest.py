@@ -29,6 +29,10 @@ from _pytest.runner import CallInfo
 from _pytest.terminal import TerminalReporter
 
 
+def pytest_configure(config):
+    os.environ["MLRUN_HTTPDB__HTTP__VERIFY"] = "false"
+
+
 def pytest_sessionstart(session):
     # caching test results
     session.results = collections.defaultdict(TestReport)

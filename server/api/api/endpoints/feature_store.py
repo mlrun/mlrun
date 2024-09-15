@@ -240,7 +240,7 @@ async def list_feature_sets(
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
-    format_: str = Query(mlrun.common.formatters.FeatureSetFormat.full, alias="format"),
+    format_: str = Query(mlrun.common.formatters.FeatureSetFormat.minimal, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

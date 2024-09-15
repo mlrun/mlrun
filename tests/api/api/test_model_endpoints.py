@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import string
 import typing
@@ -27,12 +27,9 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    ObjectStoreFactory,
-    StoreBase,
-)
+from mlrun.model_monitoring.db.stores import StoreBase
 
-TEST_PROJECT = "test_model_endpoints"
+TEST_PROJECT = "test-model-endpoints"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY

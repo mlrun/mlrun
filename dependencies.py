@@ -30,8 +30,8 @@ def extra_requirements() -> dict[str, list[str]]:
     #       there as well
     extras_require = {
         "s3": [
-            "boto3>=1.28.0,<1.29.0",
-            "aiobotocore>=2.5.0,<2.8",
+            "boto3>=1.28.0,<1.36",
+            "aiobotocore>=2.5.0,<2.16",
             "s3fs>=2023.9.2, <2024.7",
         ],
         "azure-blob-storage": [

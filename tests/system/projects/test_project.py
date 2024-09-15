@@ -641,6 +641,60 @@ class TestProject(TestMLRunSystem):
                 nuclio_function_url, notification_steps
             )
 
+    def test_remote_pipeline_with_workflow_runner_node_selector(self):
+        project_name = "rmtpipe-kfp-github"
+        self.custom_project_names_to_delete.append(project_name)
+
+        workflow_name = "neflow"
+        workflow_runner_name = f"workflow-runner-{workflow_name}"
+        runner_node_selector = {"kubernetes.io/arch": "amd64"}
+        project_default_function_node_selector = {"kubernetes.io/os": "linux"}
+        project_dir = f"{projects_dir}/{project_name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=project_name,
+            allow_cross_project=True,
+        )
+        project.spec.default_function_node_selector = (
+            project_default_function_node_selector
+        )
+        project.save()
+
+        project.run(
+            workflow_name,
+            watch=False,
+            local=False,
+            engine="remote",
+            workflow_runner_node_selector=runner_node_selector,
+        )
+        runner_run_result = project.list_runs(name=workflow_runner_name)[0]
+        assert runner_run_result["spec"]["node_selector"] == {
+            **project_default_function_node_selector,
+            **runner_node_selector,
+        }
+
+        # Test scheduled workflow
+        schedule = "*/30 * * * *"
+        project.run(
+            workflow_name,
+            watch=False,
+            local=False,
+            engine="remote",
+            workflow_runner_node_selector=runner_node_selector,
+            schedule=schedule,
+        )
+
+        # Invoke the workflow manually
+        mlrun.get_run_db().invoke_schedule(project=project_name, name=workflow_name)
+        runner_run_result = project.list_runs(labels="job-type=workflow-runner")[0]
+        assert runner_run_result["spec"]["node_selector"] == {
+            **project_default_function_node_selector,
+            **runner_node_selector,
+        }
+
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"
         self.custom_project_names_to_delete.append(project_name)

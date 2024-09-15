@@ -3167,7 +3167,12 @@ class MlrunProject(ModelObj):
             workflow_spec.workflow_runner_node_selector = workflow_runner_node_selector
 
         if workflow_engine.engine != "remote" and workflow_runner_node_selector:
-            warnings.warn("Warninggggg")
+            warnings.warn(
+                "The 'workflow_runner_node_selector' is only applicable when using a remote engine. "
+                "It defines the node selector for the workflow runner pod, which is not created when "
+                "the engine is not set to 'remote'. "
+                "The run will proceed, but this setting will have no effect."
+            )
 
         run = workflow_engine.run(
             self,

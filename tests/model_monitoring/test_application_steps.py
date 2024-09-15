@@ -206,7 +206,6 @@ def test_push_result_to_monitoring_writer_stream(
                 result = result.to_dict()
                 data_from_file = json.loads(loaded_data["data"])
 
-                result[ResultData.CURRENT_STATS] = "{}"
                 if len(result["result_extra_data"]) <= 998:
                     assert (
                         data_from_file[ResultData.RESULT_EXTRA_DATA]

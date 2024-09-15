@@ -115,7 +115,6 @@ class TDEngineConnector(TSDBConnector):
             table_name = (
                 f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
-            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric

@@ -140,7 +140,6 @@ class ResultData(MonitoringStrEnum):
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
-    CURRENT_STATS = "current_stats"
 
 
 class EventLiveStats:

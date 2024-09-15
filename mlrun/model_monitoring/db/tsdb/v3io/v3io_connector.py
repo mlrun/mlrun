@@ -338,7 +338,6 @@ class V3IOTSDBConnector(TSDBConnector):
         elif kind == mm_schemas.WriterEventKind.RESULT:
             table = self.tables[mm_schemas.V3IOTSDBTables.APP_RESULTS]
             index_cols = index_cols_base + [mm_schemas.ResultData.RESULT_NAME]
-            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
         else:
             raise ValueError(f"Invalid {kind = }")
 

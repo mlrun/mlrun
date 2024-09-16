@@ -447,8 +447,8 @@ Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.co
 and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
-- Configure node selection on the function level in the **Projects | <project> | Settings**, by adding or removing 
-Key:Value pairs.
+- Configure node selection on the function level in the **Projects | Settings**, by adding or removing 
+**Key:Value** pairs.
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 

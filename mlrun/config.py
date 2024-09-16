@@ -1104,11 +1104,11 @@ class Config:
             mlrun.db.get_run_db(value, force_reconnect=True)
 
     @property
-    def verify(self):
+    def verify(self) -> bool:
         return self._http_verify_ssl
 
     @verify.setter
-    def verify(self, value):
+    def verify(self, value: bool):
         self._http_verify_ssl = value
         _configure_ssl_verification(value)
 

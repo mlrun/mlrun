@@ -406,6 +406,8 @@ class MonitoringApplicationController:
         :param tsdb_connector:              (mlrun.model_monitoring.db.tsdb.TSDBConnector) TSDB connector
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
+        # if false the endpoint represent batch infer step.
+        has_stream = endpoint[mm_constants.EventFieldType.STREAM_PATH] != ""
         try:
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
@@ -414,7 +416,7 @@ class MonitoringApplicationController:
                     application=application,
                     first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
                     last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
-                    has_stream=endpoint[mm_constants.EventFieldType.STREAM_PATH] != "",
+                    has_stream=has_stream,
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():
@@ -426,7 +428,7 @@ class MonitoringApplicationController:
                     if isinstance(
                         prediction_metric,
                         mm_schemas.ModelEndpointMonitoringMetricNoData,
-                    ):
+                    ) and has_stream:
                         logger.info(
                             "No data found for the given interval",
                             start=start_infer_time,

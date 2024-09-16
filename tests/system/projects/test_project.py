@@ -595,61 +595,11 @@ class TestProject(TestMLRunSystem):
         function = project.get_function("func-1", ignore_cache=True)
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
-    def _load_remote_pipeline_project(self, name):
-        project_dir = f"{projects_dir}/{name}"
-        shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.load_project(
-            project_dir,
-            "git://github.com/mlrun/project-demo.git",
-            name=name,
-            allow_cross_project=True,
-        )
-        return project
-
-    def _test_remote_pipeline_from_github(
-        self,
-        name,
-        workflow_name,
-        engine=None,
-        local=None,
-        watch=False,
-        notification_steps=None,
-    ):
-        project = self._load_remote_pipeline_project(name=name)
-
-        nuclio_function_url = None
-        notifications = []
-        if notification_steps:
-            # nuclio function for storing notifications, to validate the notifications from the pipeline
-            nuclio_function_url = notification_helpers.deploy_notification_nuclio(
-                project
-            )
-            notifications = self._generate_pipeline_notifications(nuclio_function_url)
-
-        run = project.run(
-            workflow_name,
-            watch=watch,
-            local=local,
-            engine=engine,
-            notifications=notifications,
-        )
-
-        assert (
-            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
-        ), "pipeline failed"
-        # run.run_id can be empty in case of a local engine:
-        assert run.run_id is not None, "workflow's run id failed to fetch"
-
-        if notification_steps:
-            self._assert_pipeline_notification_steps(
-                nuclio_function_url, notification_steps
-            )
-
     def test_remote_pipeline_with_workflow_runner_node_selector(self):
         project_name = "rmtpipe-kfp-github"
         self.custom_project_names_to_delete.append(project_name)
 
-        workflow_name = "neflow"
+        workflow_name = "newflow"
         workflow_runner_name = f"workflow-runner-{workflow_name}"
         runner_node_selector = {"kubernetes.io/arch": "amd64"}
         project_default_function_node_selector = {"kubernetes.io/os": "linux"}
@@ -674,7 +624,7 @@ class TestProject(TestMLRunSystem):
         }
 
         # Test scheduled workflow
-        schedule = "*/30 * * * *"
+        schedule = "0 0 30 2 *"
         project.run(
             workflow_name,
             watch=False,
@@ -1737,3 +1687,53 @@ class TestProject(TestMLRunSystem):
             notification_data_steps[step.get("step_kind")] += 1
 
         assert notification_data_steps == notification_steps
+
+    def _load_remote_pipeline_project(self, name):
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+            allow_cross_project=True,
+        )
+        return project
+
+    def _test_remote_pipeline_from_github(
+        self,
+        name,
+        workflow_name,
+        engine=None,
+        local=None,
+        watch=False,
+        notification_steps=None,
+    ):
+        project = self._load_remote_pipeline_project(name=name)
+
+        nuclio_function_url = None
+        notifications = []
+        if notification_steps:
+            # nuclio function for storing notifications, to validate the notifications from the pipeline
+            nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+                project
+            )
+            notifications = self._generate_pipeline_notifications(nuclio_function_url)
+
+        run = project.run(
+            workflow_name,
+            watch=watch,
+            local=local,
+            engine=engine,
+            notifications=notifications,
+        )
+
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
+        # run.run_id can be empty in case of a local engine:
+        assert run.run_id is not None, "workflow's run id failed to fetch"
+
+        if notification_steps:
+            self._assert_pipeline_notification_steps(
+                nuclio_function_url, notification_steps
+            )

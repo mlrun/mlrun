@@ -3100,7 +3100,7 @@ class MlrunProject(ModelObj):
         :param workflow_runner_node_selector:
                           Defines the node selector for the workflow runner pod when using a remote engine.
                           This allows you to control and specify where the workflow runner pod will be scheduled.
-                          This setting is only relevant when the engine is set to 'remote',
+                          This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
                           and it will be ignored if the workflow is not run on a remote engine.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """

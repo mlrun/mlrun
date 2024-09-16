@@ -779,8 +779,8 @@ class Config:
         return val
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath setter to work
-        if attr == "dbpath":
+        # in order for the dbpath and verify setters to work
+        if attr in {"dbpath", "verify"}:
             super().__setattr__(attr, value)
         else:
             self._cfg[attr] = value
@@ -1103,6 +1103,15 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 
+    @property
+    def verify(self):
+        return self._http_verify_ssl
+
+    @verify.setter
+    def verify(self, value):
+        self._http_verify_ssl = value
+        _configure_ssl_verification(value)
+
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1289,7 +1298,6 @@ def _do_populate(env=None, skip_errors=False):
     if data:
         config.update(data, skip_errors=skip_errors)
 
-    _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
 
 

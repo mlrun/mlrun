@@ -65,8 +65,7 @@ class TestMLRunSystem:
     @classmethod
     def setup_class(cls):
         env = cls._get_env_from_file()
-        cls._test_env.update(env)
-        cls._setup_env(cls._get_env_from_file())
+        cls._setup_env(env)
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
@@ -229,7 +228,9 @@ class TestMLRunSystem:
             if env_var in os.environ:
                 cls._old_env[env_var] = os.environ[env_var]
 
-            if value:
+            if isinstance(value, bool):
+                os.environ[env_var] = "true" if value else "false"
+            elif value:
                 os.environ[env_var] = value
 
         # reload the config so changes to the env vars will take effect

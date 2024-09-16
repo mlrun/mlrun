@@ -1,3 +1,5 @@
+.. _mlrun.model:
+
 mlrun.model
 ============
 

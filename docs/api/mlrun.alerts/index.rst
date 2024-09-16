@@ -1,10 +1,8 @@
 .. _mlrun.alerts:
 
-mlrun.alerts
-============
-
-.. toctree::
-  :maxdepth: 1
-  :glob:
-
-  mlrun.alerts.alert
+mlrun.alerts.alert
+=============================
+.. automodule:: mlrun.alerts.alert
+   :members:
+   :show-inheritance:
+   :undoc-members:

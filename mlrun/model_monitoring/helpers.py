@@ -63,7 +63,6 @@ def get_stream_path(
     )
 
     if not stream_uri or stream_uri == "v3io":
-        # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
@@ -71,8 +70,6 @@ def get_stream_path(
             function_name=function_name,
         )
 
-    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
-        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, function_name=function_name
     )

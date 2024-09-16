@@ -439,6 +439,12 @@ class BaseStoreTarget(DataTargetBase):
         self.storage_options = storage_options
         self.schema = schema or {}
         self.credentials_prefix = credentials_prefix
+        if credentials_prefix:
+            warnings.warn(
+                "The 'credentials_prefix' parameter is deprecated and will be removed in "
+                "1.9.0. Please use datastore profiles instead.",
+                FutureWarning,
+            )
 
         self._target = None
         self._resource = None

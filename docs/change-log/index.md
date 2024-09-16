@@ -1065,6 +1065,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA | v1.3.0|
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
+|ML-3867|Cannot search for project owners by first name. |NA| v1.4.0|
 |ML-6839|Schedules have a minimum interval between two scheduled jobs. By default, a job cannot be scheduled to run more than 2 times in 10 minutes. See {ref}`scheduled-jobs`.| NA | v1.6.3 |
 |ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source. | v1.4.0 |	
 |ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |

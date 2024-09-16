@@ -94,8 +94,9 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 Which you can deploy with:
 
 ```python
+project = mlrun.get_or_create_project("prediction")
 # Create the serving function from the code above
-fn = mlrun.code_to_function("<function_name>", kind="serving")
+fn = project.set_function(name="<function_name>", kind="serving")
 
 # Add a specific model to the serving function
 fn.add_model(

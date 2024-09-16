@@ -630,7 +630,7 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
 
     feature_sets = db.list_feature_sets(
         project=project,
@@ -639,13 +639,13 @@ def test_feature_sets(create_server):
         partition_sort_by="updated",
         partition_order="desc",
     )
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
     assert all([feature_set.status.stats for feature_set in feature_sets])
     assert all([feature_set.status.preview for feature_set in feature_sets])
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.spec.features) == 4
-    # test minimal feature_sets list:
+    # test minimal feature set list
     feature_sets = db.list_feature_sets(
         project=project,
         partition_by="name",
@@ -654,7 +654,7 @@ def test_feature_sets(create_server):
         partition_order="desc",
         format_=mlrun.common.formatters.FeatureSetFormat.minimal,
     )
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
     assert not any([feature_set.status.stats for feature_set in feature_sets])
     assert not any([feature_set.status.preview for feature_set in feature_sets])
     assert all([feature_set.status.state for feature_set in feature_sets])

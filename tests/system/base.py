@@ -219,21 +219,35 @@ class TestMLRunSystem:
             return yaml.safe_load(f)
 
     @classmethod
+    def _process_env_var(cls, key, value):
+        if key in os.environ:
+            # Save old env vars for returning them on teardown
+            cls._old_env[key] = os.environ[key]
+
+        # Set the environment variable
+        if isinstance(value, bool):
+            os.environ[key] = "true" if value else "false"
+        elif value is not None:
+            os.environ[key] = value
+
+    @classmethod
     def _setup_env(cls, env: dict):
         cls._logger.debug("Setting up test environment")
         cls._test_env.update(env)
 
-        # save old env vars for returning them on teardown
-        for env_var, value in env.items():
-            if env_var in os.environ:
-                cls._old_env[env_var] = os.environ[env_var]
+        # Define the keys to process first
+        ordered_keys = ["MLRUN_HTTPDB__HTTP__VERIFY"]
 
-            if isinstance(value, bool):
-                os.environ[env_var] = "true" if value else "false"
-            elif value:
-                os.environ[env_var] = value
+        # Process ordered keys
+        for key in ordered_keys & env.keys():
+            cls._process_env_var(key, env[key])
 
-        # reload the config so changes to the env vars will take effect
+        # Process remaining keys
+        for key, value in env.items():
+            if key not in ordered_keys:
+                cls._process_env_var(key, value)
+
+        # Reload the config so changes to the env vars will take effect
         mlrun.mlconf.reload()
 
     @classmethod

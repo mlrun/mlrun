@@ -87,7 +87,7 @@ async def store_artifact(
     key: str,
     tree: str = None,
     tag: str = None,
-    iter: int = 0,
+    iter: int = None,
     object_uid: str = Query(None, alias="object-uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -100,6 +100,8 @@ async def store_artifact(
     )
 
     producer_id = tree
+    if iter is None:
+        iter = artifact.metadata.iter or 0
     logger.debug(
         "Storing artifact",
         project=project,

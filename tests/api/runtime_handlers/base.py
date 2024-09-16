@@ -422,7 +422,11 @@ class TestRuntimeHandlerBase:
         expected_service_names: list[str], expected_service_namespace: str = None
     ):
         calls = [
-            unittest.mock.call(expected_service_name, expected_service_namespace)
+            unittest.mock.call(
+                expected_service_name,
+                expected_service_namespace,
+                grace_period_seconds=None,
+            )
             for expected_service_name in expected_service_names
         ]
         if not expected_service_names:

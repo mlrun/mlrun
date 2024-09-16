@@ -13,9 +13,9 @@
 s3fs>=2023.9.2, <2024.7
 gcsfs>=2023.9.2, <2024.7
 ossfs==2023.12.0
-boto3>=1.28.0,<1.29.0
+boto3>=1.28.0,<1.36
 oss2==2.18.1
-aiobotocore>=2.5.0,<2.8
+aiobotocore>=2.5.0,<2.16
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
 azure-core~=1.24

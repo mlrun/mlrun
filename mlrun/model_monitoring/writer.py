@@ -21,7 +21,6 @@ import mlrun.common.schemas.alert as alert_objects
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
-    HistogramDataDriftApplicationConstants,
     MetricData,
     ResultData,
     ResultKindApp,
@@ -243,28 +242,6 @@ class ModelMonitoringWriter(StepToDict):
                 event_value=event_value,
                 project_name=self.project,
                 result_kind=event[ResultData.RESULT_KIND],
-            )
-
-        if (
-            kind == WriterEventKind.RESULT
-            and event[WriterEvent.APPLICATION_NAME]
-            == HistogramDataDriftApplicationConstants.NAME
-            and event[ResultData.RESULT_NAME]
-            == HistogramDataDriftApplicationConstants.GENERAL_RESULT_NAME
-        ):
-            endpoint_id = event[WriterEvent.ENDPOINT_ID]
-            logger.info(
-                "Updating the model endpoint with metadata specific to the histogram "
-                "data drift app",
-                endpoint_id=endpoint_id,
-            )
-            attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
-            attributes[EventFieldType.DRIFT_STATUS] = str(
-                attributes[EventFieldType.DRIFT_STATUS]
-            )
-            self._app_result_store.update_model_endpoint(
-                endpoint_id=endpoint_id,
-                attributes=attributes,
             )
 
         logger.info("Model monitoring writer finished handling event")

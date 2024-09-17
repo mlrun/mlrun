@@ -525,10 +525,6 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )
-            config.model_endpoint_monitoring.store_type = (
-                server_cfg.get("model_endpoint_monitoring_store_type")
-                or config.model_endpoint_monitoring.store_type
-            )
             config.model_endpoint_monitoring.endpoint_store_connection = (
                 server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
                 or config.model_endpoint_monitoring.endpoint_store_connection

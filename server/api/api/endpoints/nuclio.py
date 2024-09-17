@@ -556,7 +556,7 @@ def _deploy_nuclio_runtime(
             elif fn.spec.image.startswith("mlrun/") and (
                 semver.Version.parse(client_version)
                 < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
-                or "unstable" in client_version
+                and "unstable" not in client_version
             ):
                 server.api.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,

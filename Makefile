@@ -321,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file

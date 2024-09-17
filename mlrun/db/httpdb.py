@@ -332,19 +332,18 @@ class HTTPRunDB(RunDBInterface):
         first_page_params["page"] = 1
         first_page_params["page-size"] = config.httpdb.pagination.default_page_size
         response = _api_call(first_page_params)
-        page_token = response.json().get("pagination", {}).get("page-token")
-        if not page_token:
-            yield response
-            return
+
+        yield response
+        page_token = response.json().get("pagination", {}).get("page-token", None)
 
         while page_token:
-            yield response
             try:
                 response = _api_call({"page-token": page_token})
             except mlrun.errors.MLRunNotFoundError:
                 # pagination token expired
                 break
 
+            yield response
             page_token = response.json().get("pagination", {}).get("page-token", None)
 
     @staticmethod

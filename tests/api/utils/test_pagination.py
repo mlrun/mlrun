@@ -158,9 +158,6 @@ async def test_paginate_request(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
 
-    logger.info("Saving token for next assert")
-    token = pagination_info.page_token
-
     logger.info(
         "Requesting third page, which is the end of the items and should return empty response"
     )

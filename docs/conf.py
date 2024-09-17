@@ -170,6 +170,7 @@ autodoc_mock_imports = [
     "tensorflow",
     "tensorboard",
     "torch",
+    "tqdm",
     "lightgbm",
     "xgboost",
     "onnx",

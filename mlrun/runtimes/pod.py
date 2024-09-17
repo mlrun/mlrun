@@ -1363,7 +1363,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
         if skip_deployed and self.requires_build() and not self.is_deployed():
             logger.warning(
-                f"Although {skip_deployed=}, build may be triggered due to function configuration. "
+                f"Even though {skip_deployed=}, the build might be triggered due to the function's configuration. "
                 "See requires_build() and is_deployed() for reasoning."
             )
 

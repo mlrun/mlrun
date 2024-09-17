@@ -1,7 +1,8 @@
-import mlrun
 import openai
 from datasets import Dataset
 from huggingface_hub import create_repo, login
+
+import mlrun
 from mlrun import MLClientCtx
 
 
@@ -16,7 +17,7 @@ def is_banking_related(client, question):
     result = client.chat.completions.create(model="gpt-4",
                                             messages=[{"role": "user", "content": prompt}])
     content = result.choices[0].message.content
-    
+
     return content[0]
 
 def generate_llm_right_answer(client, question):
@@ -24,8 +25,9 @@ def generate_llm_right_answer(client, question):
     prompt = f"""
     Please provide answer to the following question.
     In case it is banking related, please answer it.
-    In case the question is not banking related, 
-    please reject it with "As a banking agent, I am not allowed to talk on this subject. Is there anything else I can help with?"
+    In case the question is not banking related,
+    please reject it with:
+    "As a banking agent, I am not allowed to talk on this subject. Is there anything else I can help with?"
     The question:
     {question}
     """

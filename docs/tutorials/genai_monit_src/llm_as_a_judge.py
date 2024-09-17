@@ -18,14 +18,17 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, Union
 
-import mlrun
-import mlrun.common.schemas
 import openai
 import pandas as pd
 import transformers
+
+import mlrun
+import mlrun.common.schemas
 from mlrun.model import ModelObj
 from mlrun.model_monitoring.applications import (
-    ModelMonitoringApplicationBaseV2, ModelMonitoringApplicationResult)
+    ModelMonitoringApplicationBaseV2,
+    ModelMonitoringApplicationResult,
+)
 from mlrun.utils import logger
 
 # These prompt are used to generate the grade for LLM-as a judge
@@ -47,11 +50,13 @@ from mlrun.utils import logger
 SINGLE_GRADE_PROMPT = """
 Task:
 Please act as an impartial judge and evaluate the quality of the response provided by an
-AI assistant to the user question displayed below. You will be given the definition of {name}, grading rubric, context information.
-Your task is to determine a numerical score of {name} for the response. 
-You must use the grading rubric to determine your score. 
-You must also give an explanation about how did you determine the score step-by-step. Please use chain of thinking.
-Examples could be included below for your reference. 
+AI assistant to the user question displayed below.
+You will be given the definition of {name}, grading rubric, context information.
+Your task is to determine a numerical score of {name} for the response.
+You must use the grading rubric to determine your score.
+You must also give an explanation about how did you determine the score step-by-step.
+Please use chain of thinking.
+Examples could be included below for your reference.
 Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
@@ -71,11 +76,12 @@ Answer the following question and return as a python dictionary:
 
 PAIR_GRADE_PROMPT = """
 Task:
-Your task is to determine two numerical score of {name} for the responses from two AI assistants. 
-You must use the grading rubric to determine your scores. 
-You must also give an explanation about how did you determine the scores step-by-step. 
+Your task is to determine two numerical score of {name} for the responses from two AI assistants.
+You must use the grading rubric to determine your scores.
+You must also give an explanation about how did you determine the scores step-by-step.
 Please using chain of thinking.
-Examples could be included below for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+Examples could be included below for your reference.
+Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
 [User Question]:
@@ -99,12 +105,14 @@ Answer the following question and return as a python dictionary:
 
 REF_GRADE_PROMPT = """
 Task:
-Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. 
-You must use the grading rubric to determine your scores. 
-You must use the ground truth of the response. 
-You need to give an explanation about how did you compare with the ground truth of the response to determine the scores step-by-step. 
+Your task is to determine two numerical score of {name} for the responses
+from two AI assistants with the ground truth of the response.
+You must use the grading rubric to determine your scores.
+You must use the ground truth of the response.
+You need to give an explanation about how did you compare with the ground truth of the
+response to determine the scores step-by-step.
 Please using chain of thinking.
-Examples could be included below for your reference. 
+Examples could be included below for your reference.
 Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
@@ -122,10 +130,10 @@ Make sure you understand the grading rubric and use the examples before completi
 {rubric}
 Answer the following question and return as a python dictionary:
 {{"score_a": <a numerical score of {name} for the response>,
-"explanation_a": <a string value of an explanation about how did you compare with 
+"explanation_a": <a string value of an explanation about how did you compare with
 the ground truth of the response to determine the score step-by-step>,
 "score_b": <a numerical score of {name} for the response>,
-"explanation_b": <a string value of an explanation about how did you compare with 
+"explanation_b": <a string value of an explanation about how did you compare with
 the ground truth of the response to determine the score step-by-step>,
 }}
 [Output]:
@@ -225,7 +233,7 @@ class BaseJudge(ModelObj, ABC):
             logger.info(f"Extracting the score and explanation from the result:\n{response}")
         try:
             return ast.literal_eval(response)
-        except:
+        except Exception:
             score = 0
             explanation = "Failed to retrieve judge's decision"
             return {
@@ -245,7 +253,7 @@ class BaseJudge(ModelObj, ABC):
             logger.info(f"Extracting the score and explanation from the result:\n{response}")
         try:
             return ast.literal_eval(response)
-        except:
+        except Exception:
             score = 0
             explanation = "Failed to retrieve judge's decision"
             return {

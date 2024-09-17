@@ -1,11 +1,12 @@
 import os
 from typing import Any
 
-import mlrun
 import torch
-from mlrun.serving.v2_serving import V2ModelServer
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+import mlrun
+from mlrun.serving.v2_serving import V2ModelServer
 
 
 class LLMModelServer(V2ModelServer):
@@ -78,7 +79,7 @@ class HuggingFaceHandler(PlatformHandler):
             os.environ["HF_TOKEN"] = huggingface_api_token
 
         self.model_name = model_name
-        # Load the HuggingFace model using langchain:        
+        # Load the HuggingFace model using langchain:
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         device_map = kwargs.get("device_map", "auto")
 

@@ -94,7 +94,7 @@ async def _delete_runtime_resources(
     kind: typing.Optional[str] = None,
     object_id: typing.Optional[str] = None,
     force: bool = False,
-    grace_period: int = mlrun.mlconf.runtime_resources_deletion_grace_period,
+    grace_period: typing.Optional[int] = None,
     return_body: bool = True,
 ) -> typing.Union[
     mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput, fastapi.Response

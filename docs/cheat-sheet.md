@@ -241,7 +241,8 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 #### MPIJob (Horovod)
 
 ```python
-mpijob = mlrun.code_to_function(
+project = mlrun.get_or_create_project("mpijob")
+mpijob = project.set_function(
     name="my-mpijob",
     filename="my_mpijob.py",
     kind="mpijob",
@@ -255,7 +256,8 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project("dask")
+dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = "NodePort"
@@ -272,8 +274,10 @@ dask.client
 import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
-
-spark = mlrun.new_function(kind="spark", command=read_csv_filepath, name="sparkreadcsv")
+project = mlrun.get_or_create_project("spark")
+spark = project.set_function(
+    kind="spark", command=read_csv_filepath, name="sparkreadcsv"
+)
 spark.with_driver_limits(cpu="1300m")
 spark.with_driver_requests(cpu=1, mem="512m")
 spark.with_executor_limits(cpu="1400m")
@@ -1242,7 +1246,10 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project(dask - cluster)
+dask_cluster = project.set_function(
+    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+)
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

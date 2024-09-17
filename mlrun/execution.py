@@ -634,7 +634,9 @@ class MLClientCtx:
         :param viewer:        Kubeflow viewer type
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param src_path:      Deprecated, use local_path
-        :param upload:        Upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        A set of key/value labels to tag the artifact with
         :param format:        Optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key

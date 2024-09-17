@@ -1109,6 +1109,8 @@ class Config:
 
     @verify.setter
     def verify(self, value: bool):
+        # This setter configures SSL certificate verification. It ensures that SSL verification is set before
+        # establishing a connection, which happens when the `dbpath` setter is called.
         self._http_verify_ssl = value
         _configure_ssl_verification(value)
 

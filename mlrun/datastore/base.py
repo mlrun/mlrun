@@ -24,7 +24,6 @@ import pandas as pd
 import pyarrow
 import pytz
 import requests
-import urllib3
 from deprecated import deprecated
 
 import mlrun.config
@@ -156,6 +155,18 @@ class DataStore:
 
     def put(self, key, data, append=False):
         pass
+
+    def _prepare_put_data(self, data, append=False):
+        mode = "a" if append else "w"
+        if isinstance(data, bytearray):
+            data = bytes(data)
+
+        if isinstance(data, bytes):
+            return data, f"{mode}b"
+        elif isinstance(data, str):
+            return data, mode
+        else:
+            raise TypeError(f"Unable to put a value of type {type(self).__name__}")
 
     def stat(self, key):
         pass
@@ -733,8 +744,6 @@ class HttpStore(DataStore):
 
         verify_ssl = mlconf.httpdb.http.verify
         try:
-            if not verify_ssl:
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
         except OSError as exc:
             raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")

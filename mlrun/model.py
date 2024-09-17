@@ -487,7 +487,7 @@ class ImageBuilder(ModelObj):
 
     def __init__(
         self,
-        functionSourceCode=None,
+        functionSourceCode=None,  # noqa: N803 - should be "snake_case", kept for BC
         source=None,
         image=None,
         base_image=None,
@@ -681,7 +681,8 @@ class ImageBuilder(ModelObj):
 class Notification(ModelObj):
     """Notification object
 
-    :param kind: notification implementation kind - slack, webhook, etc.
+    :param kind: notification implementation kind - slack, webhook, etc. See
+        :py:class:`mlrun.common.schemas.notification.NotificationKind`
     :param name: for logging and identification
     :param message: message content in the notification
     :param severity: severity to display in the notification

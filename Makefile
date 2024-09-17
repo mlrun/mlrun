@@ -321,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file
@@ -590,7 +590,7 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		mysql/mysql-server:8.0 \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 

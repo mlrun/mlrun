@@ -37,6 +37,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ModelEndpointTarget,
     ProjectSecretKeys,
 )
+from mlrun.model_monitoring.db import StoreBase, TSDBConnector
 from mlrun.utils import logger
 
 
@@ -48,14 +49,12 @@ class EventStreamProcessor:
         parquet_batching_max_events: int,
         parquet_batching_timeout_secs: int,
         parquet_target: str,
-        sample_window: int = 10,
         aggregate_windows: typing.Optional[list[str]] = None,
-        aggregate_period: str = "30s",
+        aggregate_period: str = "5m",
         model_monitoring_access_key: str = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
-        self.sample_window = sample_window
         self.aggregate_windows = aggregate_windows or ["5m", "1h"]
         self.aggregate_period = aggregate_period
 
@@ -133,7 +132,8 @@ class EventStreamProcessor:
     def apply_monitoring_serving_graph(
         self,
         fn: mlrun.runtimes.ServingRuntime,
-        secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
+        tsdb_connector: TSDBConnector,
+        endpoint_store: StoreBase,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -161,8 +161,8 @@ class EventStreamProcessor:
            using CE, the parquet target path is based on the defined MLRun artifact path.
 
         :param fn: A serving function.
-        :param secret_provider: An optional callable function that provides the connection string from the project
-                                secret.
+        :param tsdb_connector: Time series database connector.
+        :param endpoint_store: KV/SQL store used for endpoint data.
         """
 
         graph = typing.cast(
@@ -188,10 +188,6 @@ class EventStreamProcessor:
             "ForwardError",
             after="extract_endpoint",
             _fn="(event.get('error') is not None)",
-        )
-
-        tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project, secret_provider=secret_provider
         )
 
         tsdb_connector.handle_model_error(
@@ -306,23 +302,8 @@ class EventStreamProcessor:
                 table=self.kv_path,
             )
 
-        store_object = mlrun.model_monitoring.get_store_object(
-            project=self.project, secret_provider=secret_provider
-        )
-        if store_object.type == ModelEndpointTarget.V3IO_NOSQL:
+        if endpoint_store.type == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
-
-        # Emits the event in window size of events based on sample_window size (10 by default)
-        def apply_storey_sample_window():
-            graph.add_step(
-                "storey.steps.SampleWindow",
-                name="sample",
-                after="Rename",
-                window_size=self.sample_window,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        apply_storey_sample_window()
 
         tsdb_connector.apply_monitoring_stream_steps(graph=graph)
 
@@ -341,11 +322,12 @@ class EventStreamProcessor:
         # Write the Parquet target file, partitioned by key (endpoint_id) and time.
         def apply_parquet_target():
             graph.add_step(
-                "mlrun.datastore.storeytargets.ParquetStoreyTarget",
+                "storey.ParquetTarget",
                 name="ParquetTarget",
                 after="ProcessBeforeParquet",
                 graph_shape="cylinder",
                 path=self.parquet_path,
+                storage_options=self.storage_options,
                 max_events=self.parquet_batching_max_events,
                 flush_after_seconds=self.parquet_batching_timeout_secs,
                 attributes={"infer_columns_from_data": True},

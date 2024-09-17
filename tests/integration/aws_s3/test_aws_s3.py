@@ -121,13 +121,13 @@ class TestAwsS3:
         self._bucket_path = f"{self.prefix_path}{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = f"{self.run_dir_url}{object_file}"
+        self.object_url = f"{self.run_dir_url}{object_file}"
 
     def _perform_aws_s3_tests(self, secrets=None):
         #  TODO split to smaller tests, according to datastore's tests convention.
-        logger.info(f"Object URL: {self._object_url}")
+        logger.info(f"Object URL: {self.object_url}")
 
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
         df_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.csv"
         df_data_item = mlrun.run.get_dataitem(df_url, secrets=secrets)
@@ -144,7 +144,7 @@ class TestAwsS3:
 
         dir_list = mlrun.run.get_dataitem(self.run_dir_url).listdir()
 
-        assert self._object_url.replace(f"{self.run_dir_url}/", "") in dir_list
+        assert self.object_url.replace(f"{self.run_dir_url}/", "") in dir_list
         assert df_url.replace(f"{self.run_dir_url}/", "") in dir_list
 
         blob_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.blob"
@@ -304,8 +304,20 @@ class TestAwsS3:
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
 
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type S3Store",
+        ):
+            data_item.put(123)
+
     def test_large_upload(self):
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         file_size = 1024 * 1024 * 100
         chunk_size = 1024 * 1024 * 10
 
@@ -379,7 +391,7 @@ class TestAwsS3:
                 os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
                 os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
 
-        data_item = mlrun.run.get_dataitem(self._object_url)
+        data_item = mlrun.run.get_dataitem(self.object_url)
         with pytest.raises(PermissionError):
             data_item.delete()
 

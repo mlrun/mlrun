@@ -18,7 +18,7 @@ from os import path
 sys.path.insert(0, "..")
 
 
-def current_version():
+def current_version() -> str:
     root = path.dirname(path.dirname(path.abspath(__file__)))
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
@@ -37,12 +37,12 @@ author = "Iguazio"
 
 master_doc = "contents"
 
-# The short X.Y version
-version = current_version()
-version = version[: version.rfind(".")]
-
 # The full version, including alpha/beta/rc tags
 release = current_version()
+
+# The short X.Y version
+version = release
+version = version[: version.rfind(".")]
 
 
 # -- General configuration ---------------------------------------------------

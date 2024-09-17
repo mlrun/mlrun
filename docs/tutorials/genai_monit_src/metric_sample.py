@@ -2,7 +2,6 @@ from mlrun.execution import MLClientCtx
 
 
 def sample(context: MLClientCtx, metric_name: str):
-
     # Get the metric value from the application monitoring
 
     prj = context.get_project_object()

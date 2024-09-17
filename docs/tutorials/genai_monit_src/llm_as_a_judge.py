@@ -159,13 +159,13 @@ class BaseJudge(ModelObj, ABC):
     """
 
     def __init__(
-            self,
-            metric_name: str,
-            judge_type: str,
-            model_name: str,
-            prompt_template: str = None,
-            prompt_config: dict[str, str] = None,
-            verbose: bool = True,
+        self,
+        metric_name: str,
+        judge_type: str,
+        model_name: str,
+        prompt_template: str = None,
+        prompt_config: dict[str, str] = None,
+        verbose: bool = True,
     ):
         """
         Initialize the class.
@@ -184,12 +184,16 @@ class BaseJudge(ModelObj, ABC):
         self.verbose = verbose
         judge_type = judge_type.casefold()
         if judge_type not in JudgeTypes.to_list():
-            raise ValueError(f"Judge type ({judge_type}) not supported. Please choose one of: {JudgeTypes.to_list()}")
+            raise ValueError(
+                f"Judge type ({judge_type}) not supported. Please choose one of: {JudgeTypes.to_list()}"
+            )
         self.judge_type = judge_type
 
         if not self.prompt_template:
             if self.judge_type == JudgeTypes.custom_grading.value:
-                raise ValueError("Must pass `prompt_template` when using custom-grading judge type")
+                raise ValueError(
+                    "Must pass `prompt_template` when using custom-grading judge type"
+                )
             if self.judge_type == JudgeTypes.single_grading.value:
                 self.prompt_template = SINGLE_GRADE_PROMPT
             elif self.judge_type == JudgeTypes.pairwise_grading.value:
@@ -197,7 +201,9 @@ class BaseJudge(ModelObj, ABC):
             else:
                 self.prompt_template = REF_GRADE_PROMPT
 
-    def _fill_prompt(self, answer: str, question: str = None, reference: str = None) -> str:
+    def _fill_prompt(
+        self, answer: str, question: str = None, reference: str = None
+    ) -> str:
         """
         Fill the prompt template with the prompt config
 
@@ -212,7 +218,10 @@ class BaseJudge(ModelObj, ABC):
             self.prompt_config["question"] = question
 
         # Updating prompt config:
-        if self.judge_type in [JudgeTypes.single_grading.value, JudgeTypes.custom_grading.value]:
+        if self.judge_type in [
+            JudgeTypes.single_grading.value,
+            JudgeTypes.custom_grading.value,
+        ]:
             self.prompt_config["answer"] = answer
         else:
             self.prompt_config["answerA"] = answer
@@ -230,7 +239,9 @@ class BaseJudge(ModelObj, ABC):
 
     def _extract_single_grade_score_explanation(self, response: str):
         if self.verbose:
-            logger.info(f"Extracting the score and explanation from the result:\n{response}")
+            logger.info(
+                f"Extracting the score and explanation from the result:\n{response}"
+            )
         try:
             return ast.literal_eval(response)
         except Exception:
@@ -250,7 +261,9 @@ class BaseJudge(ModelObj, ABC):
         :returns:   the score and the explanation
         """
         if self.verbose:
-            logger.info(f"Extracting the score and explanation from the result:\n{response}")
+            logger.info(
+                f"Extracting the score and explanation from the result:\n{response}"
+            )
         try:
             return ast.literal_eval(response)
         except Exception:
@@ -309,7 +322,6 @@ class BaseJudge(ModelObj, ABC):
             if question:
                 result = [question] + result
             result_df.loc[i] = result
-
 
         return result_df
 
@@ -412,14 +424,14 @@ class BaseJudge(ModelObj, ABC):
 
 class OpenAIJudge(BaseJudge, ABC):
     def __init__(
-            self,
-            metric_name: str,
-            judge_type: str,
-            model_name: str,
-            prompt_template: str = None,
-            prompt_config: dict[str, str] = None,
-            verbose: bool = True,
-            benchmark_model_name: str = None,
+        self,
+        metric_name: str,
+        judge_type: str,
+        model_name: str,
+        prompt_template: str = None,
+        prompt_config: dict[str, str] = None,
+        verbose: bool = True,
+        benchmark_model_name: str = None,
     ):
         super().__init__(
             metric_name=metric_name,
@@ -456,20 +468,20 @@ class OpenAIJudge(BaseJudge, ABC):
 
 class HuggingfaceJudge(BaseJudge, ABC):
     def __init__(
-            self,
-            metric_name: str,
-            judge_type: str,
-            model_name: str,
-            prompt_template: str = None,
-            prompt_config: dict[str, str] = None,
-            verbose: bool = True,
-            model_config: dict[str, Any] = None,
-            tokenizer_config: dict[str, Any] = None,
-            model_infer_config: dict[str, Any] = None,
-            benchmark_model_name: str = None,
-            benchmark_model_config: dict[str, Any] = None,
-            benchmark_tokenizer_config: dict[str, Any] = None,
-            benchmark_model_infer_config: dict[str, Any] = None,
+        self,
+        metric_name: str,
+        judge_type: str,
+        model_name: str,
+        prompt_template: str = None,
+        prompt_config: dict[str, str] = None,
+        verbose: bool = True,
+        model_config: dict[str, Any] = None,
+        tokenizer_config: dict[str, Any] = None,
+        model_infer_config: dict[str, Any] = None,
+        benchmark_model_name: str = None,
+        benchmark_model_config: dict[str, Any] = None,
+        benchmark_tokenizer_config: dict[str, Any] = None,
+        benchmark_model_infer_config: dict[str, Any] = None,
     ):
         super().__init__(
             metric_name=metric_name,
@@ -486,13 +498,19 @@ class HuggingfaceJudge(BaseJudge, ABC):
             logger.info(f"Loading the judge model {self.model_name} from Huggingface")
 
         # Loading the model:
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_name, **self.tokenizer_config)
-        self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_name, **self.model_config)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+            self.model_name, **self.tokenizer_config
+        )
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(
+            self.model_name, **self.model_config
+        )
 
         # Loading the benchmark model if needed:
         if self.judge_type != JudgeTypes.single_grading.value:
             if self.verbose:
-                logger.info(f"Loading the benchmark model {self.model_name} from Huggingface")
+                logger.info(
+                    f"Loading the benchmark model {self.model_name} from Huggingface"
+                )
             self.benchmark_model_name = benchmark_model_name
             self.benchmark_model_config = benchmark_model_config or {}
             self.benchmark_tokenizer_config = benchmark_tokenizer_config or {}
@@ -529,7 +547,9 @@ class HuggingfaceJudge(BaseJudge, ABC):
         )
 
         response_ids = outputs[0]
-        response = self.benchmark_tokenizer.decode(response_ids, skip_special_tokens=True)
+        response = self.benchmark_tokenizer.decode(
+            response_ids, skip_special_tokens=True
+        )
 
         return response
 
@@ -547,16 +567,16 @@ STATUS_RESULT_MAPPING = {
 
 class LLMAsAJudgeApplication(ModelMonitoringApplicationBaseV2):
     def __init__(
-            self,
-            **kwargs,
+        self,
+        **kwargs,
     ):
         framework = kwargs.pop("framework")
         self.name = "llm-as-a-judge"
         self.llm_judge = FRAMEWORKS[framework](**kwargs)
 
     def do_tracking(
-            self,
-            monitoring_context,
+        self,
+        monitoring_context,
     ) -> Union[
         ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
     ]:
@@ -572,7 +592,11 @@ class LLMAsAJudgeApplication(ModelMonitoringApplicationBaseV2):
         )
 
         # calculate value:
-        score_column = "score" if self.llm_judge.judge_type == JudgeTypes.single_grading.value else "score_a"
+        score_column = (
+            "score"
+            if self.llm_judge.judge_type == JudgeTypes.single_grading.value
+            else "score_a"
+        )
         mean_score = judge_result[score_column].mean()
 
         # get status:

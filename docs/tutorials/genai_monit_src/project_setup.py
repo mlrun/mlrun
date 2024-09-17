@@ -29,11 +29,13 @@ def setup(
     """
 
     # Adding secrets to the projects:
-    project.set_secrets({
-        "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        "OPENAI_API_BASE": os.environ["OPENAI_BASE_URL"],
-        "HF_TOKEN": os.environ["HF_TOKEN"],
-    })
+    project.set_secrets(
+        {
+            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+            "OPENAI_API_BASE": os.environ["OPENAI_BASE_URL"],
+            "HF_TOKEN": os.environ["HF_TOKEN"],
+        }
+    )
 
     # Unpack parameters:
     source = project.get_param(key="source")
@@ -104,22 +106,28 @@ def _build_image(project: mlrun.projects.MlrunProject):
 
 
 def _set_function(
-        project: mlrun.projects.MlrunProject,
-        func: str,
-        name: str,
-        kind: str,
-        gpus: int = 0,
-        node_name: str = None,
-        image: str = None,
+    project: mlrun.projects.MlrunProject,
+    func: str,
+    name: str,
+    kind: str,
+    gpus: int = 0,
+    node_name: str = None,
+    image: str = None,
 ):
     # Set the given function:
     mlrun_function = project.set_function(
-        func=func, name=name, kind=kind, with_repo=False, image=image,
+        func=func,
+        name=name,
+        kind=kind,
+        with_repo=False,
+        image=image,
     ).apply(mlrun.auto_mount())
 
     # Configure GPUs according to the given kind:
     if gpus >= 1:
-        mlrun_function.with_node_selection(node_selector={"app.iguazio.com/node-group": "added-t4x4"})
+        mlrun_function.with_node_selection(
+            node_selector={"app.iguazio.com/node-group": "added-t4x4"}
+        )
         # All GPUs for the single job:
         mlrun_function.with_limits(gpus=gpus)
 

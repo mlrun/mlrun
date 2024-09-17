@@ -11,28 +11,23 @@ from mlrun.serving.v2_serving import V2ModelServer
 
 class LLMModelServer(V2ModelServer):
     def __init__(
-            self,
-            context: mlrun.MLClientCtx = None,
-            name: str = None,
-            model_path: str = None,
-            llm_type: str = "HuggingFace",
-            model_name: str = None,
-            **kwargs
+        self,
+        context: mlrun.MLClientCtx = None,
+        name: str = None,
+        model_path: str = None,
+        llm_type: str = "HuggingFace",
+        model_name: str = None,
+        **kwargs,
     ):
         """
-                Initialize a serving class for general llm usage.
-                :param context:         For internal use (passed in init).
-                :param name:            The name of this server to be initialized
-                :param model_path:      If the model is already trained and saved, the path to the model file.
-                :param llm_type:        The type of the llm platform to use. Currently only "OpenAI" is supported.
-                :param model_name:      The model's name to use in the llm platform.
+        Initialize a serving class for general llm usage.
+        :param context:         For internal use (passed in init).
+        :param name:            The name of this server to be initialized
+        :param model_path:      If the model is already trained and saved, the path to the model file.
+        :param llm_type:        The type of the llm platform to use. Currently only "OpenAI" is supported.
+        :param model_name:      The model's name to use in the llm platform.
         """
-        super().__init__(
-            name=name,
-            context=context,
-            model_path=model_path,
-            **kwargs
-        )
+        super().__init__(name=name, context=context, model_path=model_path, **kwargs)
         self.llm_type = llm_type
         self.model = None
         self.model_name = model_name
@@ -49,8 +44,12 @@ class LLMModelServer(V2ModelServer):
 
         self.generate_kwargs = kwargs.pop("generate_kwargs", {})
 
-    def load(self, ):
-        self.model = PLATFORM_MAPPING[self.llm_type](self.context, model_name=self.model_name, **self.my_kwargs)
+    def load(
+        self,
+    ):
+        self.model = PLATFORM_MAPPING[self.llm_type](
+            self.context, model_name=self.model_name, **self.my_kwargs
+        )
 
     def predict(self, request: dict[str, Any]):
         inputs = request.get("inputs", [])
@@ -98,13 +97,13 @@ class HuggingFaceHandler(PlatformHandler):
             self.model = model.merge_and_unload()
 
     def _invoke(self, inputs, **kwargs):
-        input_ids, attention_mask = self.tokenizer(inputs[0], return_tensors="pt").values()
-        input_ids = input_ids.to('cuda')
-        attention_mask = attention_mask.to('cuda')
-        outputs =  self.model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            **kwargs
+        input_ids, attention_mask = self.tokenizer(
+            inputs[0], return_tensors="pt"
+        ).values()
+        input_ids = input_ids.to("cuda")
+        attention_mask = attention_mask.to("cuda")
+        outputs = self.model.generate(
+            input_ids=input_ids, attention_mask=attention_mask, **kwargs
         )
 
         # Remove input:

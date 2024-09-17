@@ -134,6 +134,14 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             current_page = last_pagination_info.page + 1
             page_size = last_pagination_info.page_size
 
+        if page_size and len(result) < page_size:
+            # on the last page, we don't return the token, but we keep it live in the cache
+            # so the client can access previous pages
+            self._logger.debug(
+                "Last page, not returning token", token=token, method=method.__name__
+            )
+            last_pagination_info.page_token = None
+
         return result, last_pagination_info.dict(by_alias=True)
 
     async def paginate_request(
@@ -151,6 +159,11 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
         if not PaginatedMethods.method_is_supported(method):
             raise NotImplementedError(
                 f"Pagination is not supported for method {method}"
+            )
+
+        if token and len(method_kwargs) > 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Pagination token and query filter cannot be provided together"
             )
 
         if page_size is None and token is None:

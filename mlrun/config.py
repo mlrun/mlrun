@@ -780,7 +780,7 @@ class Config:
 
     def __setattr__(self, attr, value):
         # in order for the dbpath and verify setters to work
-        if attr in {"dbpath", "verify"}:
+        if attr == "dbpath":
             super().__setattr__(attr, value)
         else:
             self._cfg[attr] = value
@@ -1100,19 +1100,11 @@ class Config:
             # importing here to avoid circular dependency
             import mlrun.db
 
+            # It ensures that SSL verification is set before establishing a connection
+            _configure_ssl_verification(self.httpdb.http.verify)
+
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
-
-    @property
-    def verify(self) -> bool:
-        return self._http_verify_ssl
-
-    @verify.setter
-    def verify(self, value: bool):
-        # This setter configures SSL certificate verification. It ensures that SSL verification is set before
-        # establishing a connection, which happens when the `dbpath` setter is called.
-        self._http_verify_ssl = value
-        _configure_ssl_verification(value)
 
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
@@ -1300,6 +1292,7 @@ def _do_populate(env=None, skip_errors=False):
     if data:
         config.update(data, skip_errors=skip_errors)
 
+    _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
 
 

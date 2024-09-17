@@ -337,12 +337,10 @@ class HTTPRunDB(RunDBInterface):
             yield response
             return
 
-        params_with_page_token = deepcopy(params) or {}
-        params_with_page_token["page-token"] = page_token
         while page_token:
             yield response
             try:
-                response = _api_call(params_with_page_token)
+                response = _api_call({"page-token": page_token})
             except mlrun.errors.MLRunNotFoundError:
                 # pagination token expired
                 break

@@ -215,7 +215,7 @@ class _BatchWindowGenerator:
             # If the endpoint does not have a stream, `last_updated` should be
             # the minimum between the current time and the last updated time.
             # This compensates for the bumping mechanism - see
-            # `bump_model_endpoint_last_request`.
+            # `update_model_endpoint_last_request`.
             last_updated = min(int(datetime_now().timestamp()), last_updated)
             logger.debug(
                 "The endpoint does not have a stream", last_updated=last_updated

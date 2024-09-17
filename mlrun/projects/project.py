@@ -67,13 +67,7 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
-from ..utils import (
-    is_ipython,
-    is_relative_path,
-    is_yaml_path,
-    logger,
-    update_in,
-)
+from ..utils import is_jupyter, is_relative_path, is_yaml_path, logger, update_in
 from ..utils.clones import (
     add_credentials_git_remote_url,
     clone_git,
@@ -1599,7 +1593,9 @@ class MlrunProject(ModelObj):
         :param format:        artifact file format: csv, png, ..
         :param tag:           version tag
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param upload:        upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        a set of key/value labels to tag the artifact with
 
         :returns: artifact object
@@ -2436,7 +2432,7 @@ class MlrunProject(ModelObj):
         ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if is_ipython:
+            if is_jupyter:
                 from IPython import get_ipython
 
                 kernel = get_ipython()

@@ -536,7 +536,13 @@ def test_tracking_on_serving(
     # Adjust the required request endpoint and body
     endpoint = "build/function"
     json_body = _generate_build_function_request(function)
-    response = client.post(endpoint, data=json_body)
+    response = client.post(
+        endpoint,
+        data=json_body,
+        headers={
+            mlrun.common.schemas.HeaderNames.client_version: "1.7.0",
+        },
+    )
 
     assert response.status_code == 200
 

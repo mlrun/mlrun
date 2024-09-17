@@ -162,11 +162,6 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
                 f"Pagination is not supported for method {method}"
             )
 
-        if token and len(method_kwargs) > 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Pagination token and query filter cannot be provided together"
-            )
-
         if page_size is None and token is None:
             self._logger.debug(
                 "No token or page size provided, returning all records", method=method

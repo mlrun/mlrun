@@ -136,7 +136,8 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
 
         if page_size and len(result) < page_size:
             # on the last page, we don't return the token, but we keep it live in the cache
-            # so the client can access previous pages
+            # so the client can access previous pages.
+            # the token will be revoked after some time of none-usage.
             self._logger.debug(
                 "Last page, not returning token", token=token, method=method.__name__
             )
@@ -206,11 +207,10 @@ class Paginator(metaclass=mlrun.utils.singleton.Singleton):
             )
         except (RuntimeError, StopIteration) as exc:
             if isinstance(exc, StopIteration) or "StopIteration" in str(exc):
+                # don't revoke the token here as we might still want to go to previous pages.
+                # the token will be revoked after some time of none-usage.
                 self._logger.debug(
                     "End of pagination", token=token, method=method.__name__
-                )
-                self._pagination_cache.delete_pagination_cache_record(
-                    session, key=token
                 )
                 return [], None
             raise

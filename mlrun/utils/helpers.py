@@ -271,11 +271,9 @@ def validate_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
     """
     Validates the size of the artifact body.
 
-    Args:
-        body: The artifact body, which can be a string, bytes, or None.
+    :param body: The artifact body, which can be a string, bytes, or None.
 
-    Raises:
-        mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
+    :raises mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
     """
     if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
         raise mlrun.errors.MLRunBadRequestError(

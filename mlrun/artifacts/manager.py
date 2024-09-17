@@ -23,7 +23,7 @@ import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
-    validate_inline_artifact_body_size,
+    validate_artifact_body_size,
 )
 
 from ..utils import (
@@ -188,7 +188,7 @@ class ArtifactManager:
         Log an artifact to the DB and upload it to the artifact store.
         :param producer: The producer of the artifact, the producer depends on where the artifact is being logged.
         :param item: The artifact to log.
-        :param body: The body of the artifact.
+        :param body: The body of the artifact. the maximim size
         :param target_path: The target path of the artifact. (cannot be a relative path)
                             If not provided, the artifact will be stored in the default artifact path.
                             If provided and is a remote path (e.g. s3://bucket/path), no artifact will be uploaded
@@ -223,7 +223,7 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         validate_artifact_key_name(key, "artifact.key")
-        validate_inline_artifact_body_size(item.spec.inline)
+        validate_artifact_body_size(item.spec.get_body())
         src_path = local_path or item.src_path  # TODO: remove src_path
         self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):

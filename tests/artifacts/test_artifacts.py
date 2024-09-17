@@ -402,7 +402,6 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
 def test_ensure_fail_on_oversized_artifact(body_size, expectation):
     artifact = mlrun.artifacts.Artifact(
         "artifact-name",
-        is_inline=True,
         body="a" * body_size,
     )
     context = mlrun.get_or_create_ctx("test")

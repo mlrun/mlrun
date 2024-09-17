@@ -267,7 +267,16 @@ def validate_artifact_key_name(
     )
 
 
-def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
+def validate_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
+    """
+    Validates the size of the artifact body.
+
+    Args:
+        body: The artifact body, which can be a string, bytes, or None.
+
+    Raises:
+        mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
+    """
     if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
         raise mlrun.errors.MLRunBadRequestError(
             "The body of the artifact exceeds the maximum allowed size. "
@@ -275,6 +284,7 @@ def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> 
             "This increases the size of the project yaml file and could affect the project during loading and saving. "
             "More information is available at"
             "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
+            "Please use `src_path` instead."
         )
 
 

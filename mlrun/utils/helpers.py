@@ -283,8 +283,8 @@ def validate_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
             "Avoid embedding the artifact body. "
             "This increases the size of the project yaml file and could affect the project during loading and saving. "
             "More information is available at "
-            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts. "
-            "For larger objects, please use the `src_path` parameter to log artifacts through files instead."
+            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts."
+            " For larger objects, please use the `src_path` parameter to log artifacts through files instead."
         )
 
 

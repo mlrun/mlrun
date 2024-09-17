@@ -177,6 +177,8 @@ class Projects(
             session,
             label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={name}",
             force=True,
+            # immediate deletion of resources
+            grace_period=0,
         )
         if mlrun.mlconf.kfp_url:
             logger.debug("Removing KFP pipelines project resources", project_name=name)

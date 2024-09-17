@@ -198,12 +198,11 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Handling services deletion
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
@@ -226,7 +225,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             try:
                 if force or service.metadata.name in service_names:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
-                        service.metadata.name, namespace
+                        service.metadata.name,
+                        namespace,
+                        grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
             except ApiException as exc:

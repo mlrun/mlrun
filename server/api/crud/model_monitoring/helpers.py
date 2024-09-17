@@ -83,7 +83,7 @@ def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
     stream_uri: typing.Optional[str] = None,
-) -> list[str]:
+) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations.
 
@@ -102,7 +102,6 @@ def get_stream_path(
     )
 
     if not stream_uri or stream_uri == "v3io":
-        # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
@@ -110,20 +109,9 @@ def get_stream_path(
             function_name=function_name,
         )
 
-    if isinstance(
-        stream_uri, list
-    ):  # ML-6043 - server side gets the new  and the old stream uris.
-        return [
-            mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-                stream_uri=stream_uri_item, project=project, function_name=function_name
-            )
-            for stream_uri_item in stream_uri
-        ]
-    return [
-        mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-            stream_uri=stream_uri, project=project, function_name=function_name
-        )
-    ]
+    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+        stream_uri=stream_uri, project=project, function_name=function_name
+    )
 
 
 def get_store_object(project: str) -> mlrun.model_monitoring.db.stores.StoreBase:

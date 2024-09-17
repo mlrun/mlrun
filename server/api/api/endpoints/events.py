@@ -54,10 +54,12 @@ async def post_event(
     )
 
     if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
-        raise HTTPException(
-            status_code=HTTPStatus.FORBIDDEN.value,
-            detail="Alerts are disabled",
+        logger.debug(
+            "Alerts are disabled, skipping event processing",
+            project=project,
+            event_name=name,
         )
+        return
 
     if (
         mlrun.mlconf.httpdb.clusterization.role

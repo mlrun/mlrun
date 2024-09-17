@@ -188,7 +188,7 @@ class ArtifactManager:
         Log an artifact to the DB and upload it to the artifact store.
         :param producer: The producer of the artifact, the producer depends on where the artifact is being logged.
         :param item: The artifact to log.
-        :param body: The body of the artifact. the maximim size
+        :param body: The body of the artifact.
         :param target_path: The target path of the artifact. (cannot be a relative path)
                             If not provided, the artifact will be stored in the default artifact path.
                             If provided and is a remote path (e.g. s3://bucket/path), no artifact will be uploaded

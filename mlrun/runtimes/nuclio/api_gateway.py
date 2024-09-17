@@ -587,6 +587,12 @@ class APIGateway(ModelObj):
             self.metadata.annotations, gateway_timeout
         )
 
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations in the metadata of the api gateway"""
+        for key, value in annotations.items():
+            self.metadata.annotations[key] = str(value)
+        return self
+
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):
         project = api_gateway.metadata.labels.get(

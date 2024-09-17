@@ -24,7 +24,6 @@ from typing import NamedTuple, Optional, Union, cast
 import nuclio
 
 import mlrun
-import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.model_monitoring.db.stores

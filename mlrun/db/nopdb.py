@@ -16,8 +16,6 @@
 import datetime
 from typing import Optional, Union
 
-from sqlalchemy.testing.util import total_size
-
 import mlrun.alerts
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
@@ -77,14 +75,14 @@ class NopDB(RunDBInterface):
         pass
 
     def list_runtime_resources(
-            self,
-            project: Optional[str] = None,
-            label_selector: Optional[str] = None,
-            kind: Optional[str] = None,
-            object_id: Optional[str] = None,
-            group_by: Optional[
-                mlrun.common.schemas.ListRuntimeResourcesGroupByField
-            ] = None,
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,

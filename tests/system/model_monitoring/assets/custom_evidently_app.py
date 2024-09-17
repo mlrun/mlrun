@@ -128,7 +128,7 @@ if _HAS_EVIDENTLY:
 
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
-    NAME = "evidently-app-test-v2"
+    NAME = "evidently-app-test"
 
     def __init__(
         self,

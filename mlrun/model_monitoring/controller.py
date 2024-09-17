@@ -425,10 +425,7 @@ class MonitoringApplicationController:
                         start=start_infer_time,
                         end=end_infer_time,
                     )
-                    if isinstance(
-                        prediction_metric,
-                        mm_schemas.ModelEndpointMonitoringMetricNoData,
-                    ) and has_stream:
+                    if not prediction_metric.data and has_stream:
                         logger.info(
                             "No data found for the given interval",
                             start=start_infer_time,

@@ -130,7 +130,7 @@ html_theme_options = {
     "home_page_in_toc": False,
     "repository_branch": "development",
     "show_navbar_depth": 1,
-    "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
+    # "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',  # https://github.com/executablebooks/sphinx-book-theme/issues/810
     "extra_footer": "",
 }
 

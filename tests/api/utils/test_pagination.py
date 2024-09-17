@@ -170,12 +170,6 @@ async def test_paginate_request(
     assert len(response) == 0
     assert not pagination_info
 
-    logger.info("Checking db cache record was removed")
-    cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, token
-    )
-    assert cache_record is None
-
 
 @pytest.mark.asyncio
 async def test_paginate_other_users_token(

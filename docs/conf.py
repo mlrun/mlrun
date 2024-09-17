@@ -92,6 +92,8 @@ source_suffix = {
     ".md": "myst-nb",
 }
 
+nitpicky = False  # TODO: Change to `True`.
+
 # versionwarning configuration
 versionwarning_default_message = (
     "This is not the latest documentation. See {stable} instead."

@@ -1,8 +1,11 @@
-import mlrun
-from mlrun.serving.v2_serving import V2ModelServer
-from typing import Dict, Any
 import os
+from typing import Any
+
+import mlrun
 import torch
+from mlrun.serving.v2_serving import V2ModelServer
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class LLMModelServer(V2ModelServer):
@@ -34,11 +37,11 @@ class LLMModelServer(V2ModelServer):
         self.model_name = model_name
 
         self.my_kwargs = {}
-        
+
         adapter = kwargs.pop("adapter", None)
         if adapter:
             self.my_kwargs["adapter"] = adapter
-            
+
         device_map = kwargs.pop("device_map", None)
         if device_map:
             self.my_kwargs["device_map"] = device_map
@@ -48,7 +51,7 @@ class LLMModelServer(V2ModelServer):
     def load(self, ):
         self.model = PLATFORM_MAPPING[self.llm_type](self.context, model_name=self.model_name, **self.my_kwargs)
 
-    def predict(self, request: Dict[str, Any]):
+    def predict(self, request: dict[str, Any]):
         inputs = request.get("inputs", [])
         kwargs = request.get("kwargs", self.generate_kwargs)
         return [self.model.invoke(inputs, **kwargs)[0]["generated_text"]]
@@ -70,15 +73,12 @@ class HuggingFaceHandler(PlatformHandler):
     def __init__(self, context, model_name, task="text-generation", **kwargs):
         super().__init__(context, model_name)
         # Look for the HuggingFace API token in the environment variables or secrets:
-        huggingface_api_token = context.get_secret(key="HF_TOKEN") 
+        huggingface_api_token = context.get_secret(key="HF_TOKEN")
         if huggingface_api_token:
             os.environ["HF_TOKEN"] = huggingface_api_token
 
         self.model_name = model_name
         # Load the HuggingFace model using langchain:        
-        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-        from peft import PeftModel, AutoPeftModelForCausalLM
-        
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         device_map = kwargs.get("device_map", "auto")
 
@@ -94,8 +94,8 @@ class HuggingFaceHandler(PlatformHandler):
         # Merge adapter with base model
         if "adapter" in kwargs:
             model = PeftModel.from_pretrained(self.model, kwargs["adapter"])
-            self.model = model.merge_and_unload() 
-        
+            self.model = model.merge_and_unload()
+
     def _invoke(self, inputs, **kwargs):
         input_ids, attention_mask = self.tokenizer(inputs[0], return_tensors="pt").values()
         input_ids = input_ids.to('cuda')
@@ -105,7 +105,7 @@ class HuggingFaceHandler(PlatformHandler):
             attention_mask=attention_mask,
             **kwargs
         )
-        
+
         # Remove input:
         outputs = self.tokenizer.decode(outputs[0])
         outputs = outputs.split(inputs[0])[-1].replace(self.tokenizer.eos_token, "")

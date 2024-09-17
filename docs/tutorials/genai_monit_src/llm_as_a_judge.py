@@ -16,14 +16,13 @@ import ast
 import enum
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
-
-import openai
-import pandas as pd
-import transformers
+from typing import Any, Union
 
 import mlrun
 import mlrun.common.schemas
+import openai
+import pandas as pd
+import transformers
 from mlrun.model import ModelObj
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBaseV2, ModelMonitoringApplicationResult)
@@ -49,8 +48,11 @@ SINGLE_GRADE_PROMPT = """
 Task:
 Please act as an impartial judge and evaluate the quality of the response provided by an
 AI assistant to the user question displayed below. You will be given the definition of {name}, grading rubric, context information.
-Your task is to determine a numerical score of {name} for the response. You must use the grading rubric to determine your score. You must also give an explanation about how did you determine the score step-by-step. Please use chain of thinking.
-Examples could be included below for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+Your task is to determine a numerical score of {name} for the response. 
+You must use the grading rubric to determine your score. 
+You must also give an explanation about how did you determine the score step-by-step. Please use chain of thinking.
+Examples could be included below for your reference. 
+Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
 [User Question]:
@@ -69,7 +71,10 @@ Answer the following question and return as a python dictionary:
 
 PAIR_GRADE_PROMPT = """
 Task:
-Your task is to determine two numerical score of {name} for the responses from two AI assistants. You must use the grading rubric to determine your scores. You must also give an explanation about how did you determine the scores step-by-step. Please using chain of thinking.
+Your task is to determine two numerical score of {name} for the responses from two AI assistants. 
+You must use the grading rubric to determine your scores. 
+You must also give an explanation about how did you determine the scores step-by-step. 
+Please using chain of thinking.
 Examples could be included below for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
@@ -94,8 +99,13 @@ Answer the following question and return as a python dictionary:
 
 REF_GRADE_PROMPT = """
 Task:
-Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. You must use the grading rubric to determine your scores. You must use the ground truth of the response. You need to give an explanation about how did you compare with the ground truth of the response to determine the scores step-by-step. Please using chain of thinking.
-Examples could be included below for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. 
+You must use the grading rubric to determine your scores. 
+You must use the ground truth of the response. 
+You need to give an explanation about how did you compare with the ground truth of the response to determine the scores step-by-step. 
+Please using chain of thinking.
+Examples could be included below for your reference. 
+Make sure you understand the grading rubric and use the examples before completing the task.
 [Examples]:
 {examples}
 [User Question]:
@@ -112,9 +122,11 @@ Examples could be included below for your reference. Make sure you understand th
 {rubric}
 Answer the following question and return as a python dictionary:
 {{"score_a": <a numerical score of {name} for the response>,
-"explanation_a": <a string value of an explanation about how did you compare with the ground truth of the response to determine the score step-by-step>,
+"explanation_a": <a string value of an explanation about how did you compare with 
+the ground truth of the response to determine the score step-by-step>,
 "score_b": <a numerical score of {name} for the response>,
-"explanation_b": <a string value of an explanation about how did you compare with the ground truth of the response to determine the score step-by-step>,
+"explanation_b": <a string value of an explanation about how did you compare with 
+the ground truth of the response to determine the score step-by-step>,
 }}
 [Output]:
 """
@@ -144,7 +156,7 @@ class BaseJudge(ModelObj, ABC):
             judge_type: str,
             model_name: str,
             prompt_template: str = None,
-            prompt_config: Dict[str, str] = None,
+            prompt_config: dict[str, str] = None,
             verbose: bool = True,
     ):
         """
@@ -201,7 +213,7 @@ class BaseJudge(ModelObj, ABC):
 
             if self.judge_type == JudgeTypes.reference_grading.value:
                 self.prompt_config["reference"] = reference
-        
+
         if self.verbose:
             logger.info("Constructing the prompt")
         prompt = self.prompt_template.format(**self.prompt_config)
@@ -213,7 +225,7 @@ class BaseJudge(ModelObj, ABC):
             logger.info(f"Extracting the score and explanation from the result:\n{response}")
         try:
             return ast.literal_eval(response)
-        except Exception as e:
+        except:
             score = 0
             explanation = "Failed to retrieve judge's decision"
             return {
@@ -221,7 +233,7 @@ class BaseJudge(ModelObj, ABC):
                 "explanation": explanation,
             }
 
-    def _extract_pairwise_grade_score_explanation(self, response) -> Dict[str, Any]:
+    def _extract_pairwise_grade_score_explanation(self, response) -> dict[str, Any]:
         """
         Extract the score and the explanation from the response.
 
@@ -233,7 +245,7 @@ class BaseJudge(ModelObj, ABC):
             logger.info(f"Extracting the score and explanation from the result:\n{response}")
         try:
             return ast.literal_eval(response)
-        except Exception as e:
+        except:
             score = 0
             explanation = "Failed to retrieve judge's decision"
             return {
@@ -249,15 +261,15 @@ class BaseJudge(ModelObj, ABC):
         if self.verbose:
             logger.info("Computing the metrics over all data")
         return method(sample_df)
-    
+
     def _custom_grading(self, sample_df: pd.DataFrame):
         question = "question" in sample_df.columns
         columns = ["question", "answer", "score", "explanation"]
         if not question:
             columns.remove("question")
-            
+
         result_df = pd.DataFrame(columns=columns)
-        
+
         for i in range(len(sample_df)):
             answer = sample_df.loc[i, "answer"]
             if question:
@@ -277,7 +289,7 @@ class BaseJudge(ModelObj, ABC):
                 prompt = self._fill_prompt(
                     answer=answer,
                 )
-    
+
             # Invoking the judge model:
             content = self._invoke(prompt)
 
@@ -292,7 +304,7 @@ class BaseJudge(ModelObj, ABC):
 
 
         return result_df
-    
+
     def _single_grading(self, sample_df: pd.DataFrame):
         result_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
         for i in range(len(sample_df)):
@@ -397,7 +409,7 @@ class OpenAIJudge(BaseJudge, ABC):
             judge_type: str,
             model_name: str,
             prompt_template: str = None,
-            prompt_config: Dict[str, str] = None,
+            prompt_config: dict[str, str] = None,
             verbose: bool = True,
             benchmark_model_name: str = None,
     ):
@@ -418,7 +430,7 @@ class OpenAIJudge(BaseJudge, ABC):
             api_key=api_key,
             base_url=base_url,
         )
-        
+
     def _invoke(self, prompt: str, model_name: str = None) -> str:
         model_name = model_name or self.model_name
         # Invoke OpenAI model:
@@ -441,15 +453,15 @@ class HuggingfaceJudge(BaseJudge, ABC):
             judge_type: str,
             model_name: str,
             prompt_template: str = None,
-            prompt_config: Dict[str, str] = None,
+            prompt_config: dict[str, str] = None,
             verbose: bool = True,
-            model_config: Dict[str, Any] = None,
-            tokenizer_config: Dict[str, Any] = None,
-            model_infer_config: Dict[str, Any] = None,
+            model_config: dict[str, Any] = None,
+            tokenizer_config: dict[str, Any] = None,
+            model_infer_config: dict[str, Any] = None,
             benchmark_model_name: str = None,
-            benchmark_model_config: Dict[str, Any] = None,
-            benchmark_tokenizer_config: Dict[str, Any] = None,
-            benchmark_model_infer_config: Dict[str, Any] = None,
+            benchmark_model_config: dict[str, Any] = None,
+            benchmark_tokenizer_config: dict[str, Any] = None,
+            benchmark_model_infer_config: dict[str, Any] = None,
     ):
         super().__init__(
             metric_name=metric_name,
@@ -543,7 +555,7 @@ class LLMAsAJudgeApplication(ModelMonitoringApplicationBaseV2):
         judge_result = self.llm_judge.judge(monitoring_context.sample_df)
 
         # log artifact:
-        pattern = re.compile("[ :\+\.]")
+        pattern = re.compile("[ :+.]")
         tag = re.sub(pattern, "-", str(monitoring_context.end_infer_time))
         monitoring_context.log_dataset(
             key=self.llm_judge.metric_name,

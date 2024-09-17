@@ -1,22 +1,12 @@
-import shutil
-import tempfile
-from abc import ABC
-from typing import Dict, List
-
-import numpy as np
 import torch
-from datasets import load_dataset
-from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training
 import transformers
+from datasets import load_dataset
+from mlrun.execution import MLClientCtx
+from peft import LoraConfig, prepare_model_for_kbit_training
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                          BitsAndBytesConfig, PreTrainedModel,
-                          PreTrainedTokenizer, TrainerCallback, TrainerControl,
-                          TrainerState, TrainingArguments)
+                          BitsAndBytesConfig)
 from trl import ORPOConfig, ORPOTrainer
 
-from mlrun.execution import MLClientCtx
-from mlrun.frameworks._common import CommonTypes, MLRunInterface
-from trl import ORPOConfig, ORPOTrainer, setup_chat_format
 
 def train(
     context: MLClientCtx,
@@ -26,7 +16,7 @@ def train(
     device: str,
 ):
     import os
-    
+
     transformers.logging.set_verbosity_warning()
     os.environ["HF_TOKEN"] = context.get_secret(key="HF_TOKEN")
     dataset = load_dataset(dataset, split="train").shuffle(seed=42)
@@ -70,7 +60,7 @@ def train(
     )
 
     model = prepare_model_for_kbit_training(model)
-    
+
     orpo_args = ORPOConfig(
         # learning_rate=1e-3,
         learning_rate=5e-5,
@@ -108,4 +98,3 @@ def train(
     # Apply training with evaluation:
     context.logger.info(f"training '{new_model}' based on '{base_model}'")
     trainer.train()
-

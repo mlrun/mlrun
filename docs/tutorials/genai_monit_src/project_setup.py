@@ -15,7 +15,7 @@ import os
 
 import mlrun
 
-     
+
 def setup(
     project: mlrun.projects.MlrunProject,
 ) -> mlrun.projects.MlrunProject:
@@ -27,7 +27,7 @@ def setup(
 
     :returns: A fully prepared project for this demo.
     """
-    
+
     # Adding secrets to the projects:
     project.set_secrets({
         "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
@@ -38,8 +38,8 @@ def setup(
     # Unpack parameters:
     source = project.get_param(key="source")
     default_image = project.get_param(key="default_image")
-    gpus = project.get_param(key="gpus", default=0)
-    node_name = project.get_param(key="node_name", default=None)
+    # gpus = project.get_param(key="gpus", default=0)
+    # node_name = project.get_param(key="node_name", default=None)
 
     # Set the project git source:
     if source:
@@ -52,7 +52,7 @@ def setup(
         _build_image(project=project)
     else:
         project.set_default_image(default_image)
-    
+
     # Set functions
     _set_function(
         project=project,
@@ -77,7 +77,6 @@ def setup(
         kind="job",
         image="mlrun/mlrun",
     )
-    
     _set_function(
         project=project,
         func="generate_ds.py",
@@ -85,7 +84,7 @@ def setup(
         kind="job",
         image="gcr.io/iguazio/llm-serving:1.7.0",
     )
-    
+
     # Save and return the project:
     project.save()
     return project
@@ -123,14 +122,12 @@ def _set_function(
         mlrun_function.with_node_selection(node_selector={"app.iguazio.com/node-group": "added-t4x4"})
         # All GPUs for the single job:
         mlrun_function.with_limits(gpus=gpus)
-        
+
         mlrun_function.spec.min_replicas = 1
         mlrun_function.spec.max_replicas = 1
-        
+
     # Set the node selection:
     elif node_name:
         mlrun_function.with_node_selection(node_name=node_name)
     # Save:
     mlrun_function.save()
-
-

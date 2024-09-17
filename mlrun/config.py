@@ -779,7 +779,7 @@ class Config:
         return val
 
     def __setattr__(self, attr, value):
-        # in order for the dbpath and verify setters to work
+        # in order for the dbpath setter to work
         if attr == "dbpath":
             super().__setattr__(attr, value)
         else:

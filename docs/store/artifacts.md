@@ -48,7 +48,7 @@ For each artifact, you can view its content, its location, the artifact type, la
 the producer of the artifact, the artifact owner, last update date, and type-specific information.
 You can download the artifact. You can also tag and remove tags from artifacts using the UI.
 
-The UI limits the artifact query display to 1000 records. You can add filters to narrow the target records. 
+The UI limits the artifact query display to 1000 records. You can add filters to narrow the query results. 
 (Each search could results in a different set of records.) 
 
 

@@ -383,6 +383,18 @@ async def list_project_summaries(
             projects_output.projects,
             auth_info,
         )
+    allowed_project_names = [
+        project
+        for project in allowed_project_names
+        if server.api.utils.auth.verifier.AuthVerifier().query_project_resoue_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.project_summaries,
+            project_name=project,
+            resource_name="",
+            action=mlrun.common.schemas.AuthorizationAction.read,
+            auth_info=auth_info,
+            raise_on_forbidden=False,
+        )
+    ]
     return await get_project_member().list_project_summaries(
         db_session,
         owner,

@@ -126,12 +126,12 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_artifacts(
         self,
-        name="",
-        project="",
-        tag="",
-        labels=None,
-        since=None,
-        until=None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        tag: Optional[str] = "",
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
@@ -159,7 +159,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifacts(self, name="", project="", tag="", labels=None):
+    def del_artifacts(
+        self,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        tag: Optional[str] = "",
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+    ):
         pass
 
     @abstractmethod
@@ -181,8 +187,8 @@ class RunDBInterface(ABC):
         project: Optional[str] = "",
         tag: Optional[str] = "",
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
     ):
         pass
 
@@ -605,7 +611,7 @@ class RunDBInterface(ABC):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,

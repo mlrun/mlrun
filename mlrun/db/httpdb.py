@@ -1264,8 +1264,8 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         tag: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 

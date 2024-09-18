@@ -1100,6 +1100,9 @@ class Config:
             # importing here to avoid circular dependency
             import mlrun.db
 
+            # It ensures that SSL verification is set before establishing a connection
+            _configure_ssl_verification(self.httpdb.http.verify)
+
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 

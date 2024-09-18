@@ -282,8 +282,8 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            mlrun.utils.helpers.validate_inline_artifact_body_size(
-                artifact["spec"]["inline"]
+            mlrun.utils.helpers.validate_artifact_body_size(
+                artifact["spec"]["inline"], is_inline=True
             )
 
     def _delete_artifact_data(

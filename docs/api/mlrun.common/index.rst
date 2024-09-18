@@ -4,7 +4,7 @@ mlrun.common
 ============
 
 .. toctree::
-  :maxdepth: 1
+  :maxdepth: 2
   :glob:
 
   mlrun.common.schemas/index

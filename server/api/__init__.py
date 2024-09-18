@@ -12,3 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# Minimum client version that supports model monitoring,
+# Will be fixed when MM will be defined as BC supported feature
+MINIMUM_CLIENT_VERSION_FOR_MM = (
+    "1.7.0-rc43"  # can be changed to 1.7.0 before 1.7.0 release
+)

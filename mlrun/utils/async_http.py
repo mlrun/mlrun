@@ -237,7 +237,7 @@ class _CustomRequestContext(_RequestContext):
                 retry_wait = self._retry_options.get_timeout(
                     attempt=current_attempt, response=None
                 )
-                self._logger.debug(
+                self._logger.warning(
                     "Request failed on retryable exception, retrying",
                     retry_wait_secs=retry_wait,
                     method=params.method,

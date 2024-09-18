@@ -117,7 +117,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
 
     count = 10
     dead_count = 0
-    blue_lables_count = 0
+    blue_labels_count = 0
     ooga_name_count = 0
     not_latest_count = 0
     for i in range(count):
@@ -129,7 +129,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
             dead_count = dead_count + 1
         if i % 3 == 0:
             feature_set["metadata"]["labels"] = {"owner": "somebody", "color": "blue"}
-            blue_lables_count = blue_lables_count + 1
+            blue_labels_count = blue_labels_count + 1
         if i % 4 == 0:
             feature_set["metadata"]["name"] = f"ooga_booga_{i}"
             ooga_name_count = ooga_name_count + 1
@@ -147,7 +147,7 @@ def test_list_feature_vectors(db: Session, client: TestClient) -> None:
         "feature_vectors",
         project_name,
         "label=color=blue&label=owner",
-        blue_lables_count,
+        blue_labels_count,
     )
     _list_and_assert_objects(
         client, "feature_vectors", project_name, "label=owner", count

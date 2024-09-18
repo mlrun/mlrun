@@ -49,21 +49,29 @@ For example:
 ## Selecting the streaming and TSDB platforms
 
 Model monitoring supports Kafka or V3io as streaming platforms, and TDEngine or V3IO as TSDB platforms.
-In addition, internal model-monitoring metadata can be saved in MySQL (8.0 and higher) or V3IO.  
+In addition, internal model-monitoring metadata can be saved in MySQL or V3IO.
+
+We recommend the following versions:
+* TDEngine - `3.3.2.0`.
+* MySQL - `8.0.39`, or higher `8.0` compatible versions.
+
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
 There are three credentials you can set, and each one can have a different value. For example:
-```
-stream_path = kafka://<some_kafka_broker>:<port> | "v3io"
-tsdb_connection = taosws://<username>:<password>@<host>:<port> | "v3io"
-endpoint_store_connection = mysql+pymysql://<username>:<password>@<host>:<port>/<db_name> | v3io 
+```py
+stream_path = "kafka://<some_kafka_broker>:<port>"  # or "v3io"
+tsdb_connection = "taosws://<username>:<password>@<host>:<port>"  # or "v3io"
+endpoint_store_connection = (
+    "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"  # or "v3io"
+)
 ```
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys te onitoring app, `HistogramDataDriftApplication`, which is 
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is 
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
 * Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
 * Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+* The average of TVD & Hellinger as the general drift result.
 * Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
 You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 

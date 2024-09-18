@@ -16,7 +16,7 @@ import json
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from IPython.core.display import HTML, display
+from IPython.display import HTML, display
 
 import mlrun
 

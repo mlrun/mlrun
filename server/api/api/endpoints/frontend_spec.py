@@ -86,6 +86,11 @@ def get_frontend_spec(
         allowed_artifact_path_prefixes_list=get_allowed_path_prefixes_list(),
         ce=config.ce.to_dict(),
         internal_labels=config.internal_labels(),
+        artifact_limits=mlrun.common.schemas.ArtifactLimits(
+            max_chunk_size=config.artifacts.limits.max_chunk_size,
+            max_preview_size=config.artifacts.limits.max_preview_size,
+            max_download_size=config.artifacts.limits.max_download_size,
+        ),
     )
 
 

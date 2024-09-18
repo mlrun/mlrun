@@ -796,7 +796,14 @@ class Config:
         for key, value in cfg.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
-                    getattr(self, key).update(value)
+                    try:
+                        getattr(self, key).update(value)
+                    except AttributeError as exc:
+                        config_value = getattr(self, key)
+                        if not isinstance(config_value, (dict, Config)):
+                            raise ValueError(
+                                f"Can not update `{key}` config. Expected a configuration but received {type(config_value)}"
+                            ) from exc
                 else:
                     try:
                         setattr(self, key, value)

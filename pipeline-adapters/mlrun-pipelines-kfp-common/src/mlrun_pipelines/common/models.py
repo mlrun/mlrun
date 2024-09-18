@@ -16,7 +16,15 @@
 from enum import Enum
 
 
-class RunStatuses(str, Enum):
+class StrEnum(str, Enum):
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
+
+
+class RunStatuses(StrEnum):
     """
     Class for different types of statuses a 'PipelineRun' can have using an enum type.
     Beyond enumerating all possible statuses, this class ensures comparisons are case-insensitive.
@@ -102,3 +110,9 @@ class RunStatuses(str, Enum):
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
         ]
+
+
+class EngineType(StrEnum):
+    LOCAL = "local"
+    REMOTE = "remote"
+    KFP = "kfp"

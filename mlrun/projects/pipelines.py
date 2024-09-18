@@ -28,7 +28,11 @@ import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.notifications
+from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.config import config
 from mlrun.errors import err_to_str
+from mlrun.run import _run_pipeline, wait_for_pipeline_completion
+from mlrun.runtimes.pod import AutoMountType
 from mlrun.utils import (
     get_ui_url,
     logger,
@@ -36,29 +40,24 @@ from mlrun.utils import (
     retry_until_successful,
 )
 
-from ..common.helpers import parse_versioned_object_uri
-from ..config import config
-from ..run import _run_pipeline, wait_for_pipeline_completion
-from ..runtimes.pod import AutoMountType
-
 
 def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
-        if engine_kind == "kfp":
+        if engine_kind == mlrun_pipelines.common.EngineType.KFP:
             logger.warning(
                 "Running kubeflow pipeline locally, note some ops may not run locally!"
             )
-        elif engine_kind == "remote":
+        elif engine_kind == mlrun_pipelines.common.EngineType.REMOTE:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
                 "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
-    if not engine_kind or engine_kind == "kfp":
+    if not engine_kind or engine_kind == mlrun_pipelines.common.EngineType.KFP:
         return _KFPRunner
-    if engine_kind == "local":
+    if engine_kind == mlrun_pipelines.common.EngineType.LOCAL:
         return _LocalRunner
-    if engine_kind == "remote":
+    if engine_kind == mlrun_pipelines.common.EngineType.REMOTE:
         return _RemoteRunner
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Provided workflow engine is not supported. engine_kind={engine_kind}"
@@ -313,7 +312,11 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, copy_function=True, try_auto_mount=True
+    project: "Project",
+    function: "BaseRuntime",
+    decorator: typing.Callable = None,
+    copy_function: bool = True,
+    try_auto_mount: bool = True,
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -357,8 +360,11 @@ def enrich_function_object(
 
     if try_auto_mount:
         if (
-            decorator and AutoMountType.is_auto_modifier(decorator)
-        ) or project.spec.disable_auto_mount:
+            (decorator and AutoMountType.is_auto_modifier(decorator))
+            or project.spec.disable_auto_mount
+            or project.spec.workflows[0]["engine"]
+            == mlrun_pipelines.common.EngineType.KFP
+        ):
             f.spec.disable_auto_mount = True
         f.try_auto_mount_based_on_config()
 

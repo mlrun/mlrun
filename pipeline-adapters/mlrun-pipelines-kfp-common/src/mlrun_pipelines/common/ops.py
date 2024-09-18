@@ -13,13 +13,17 @@
 # limitations under the License.
 #
 
+import io
 import json
 import os
 import warnings
+import zipfile
 from copy import deepcopy
 from typing import Union
 
 import mlrun_pipelines.common.models
+import yaml
+from kubernetes.client import V1EnvVar
 
 import mlrun
 import mlrun.common.constants
@@ -680,3 +684,130 @@ def _enrich_node_selector(function):
         project_node_selector, function_node_selector
     )
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
+
+
+def enrich_kfp_workflow_credentials(
+    byte_buffer: bytes,
+    content_type: str,
+    env_vars: list[V1EnvVar],
+) -> bytes:
+    if content_type.endswith("zip"):
+        modified_zip_bytes = _enrich_kfp_workflow_zip_credentials(
+            yaml_bytes=byte_buffer,
+            env_vars=env_vars,
+        )
+        return modified_zip_bytes
+    elif content_type.endswith("yaml") or content_type.endswith("plain"):
+        modified_yaml_bytes = _enrich_kfp_workflow_yaml_credentials(
+            yaml_bytes=byte_buffer,
+            env_vars=env_vars,
+        )
+        return modified_yaml_bytes
+    else:
+        raise ValueError(f"Unsupported content type {content_type}")
+
+
+def _enrich_kfp_workflow_zip_credentials(
+    byte_buffer: bytes,
+    env_vars: list[V1EnvVar],
+) -> bytes:
+    in_memory_zip = io.BytesIO(byte_buffer)
+    with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
+        file_list = zip_read.namelist()
+        files_data = {}
+        for file_name in file_list:
+            with zip_read.open(file_name) as f:
+                files_data[file_name] = f.read()
+
+    for file_name, file_data in files_data.items():
+        if file_name.endswith(".yaml") or file_name.endswith(".yml"):
+            modified_yaml = _enrich_kfp_workflow_yaml_credentials(
+                yaml_bytes=file_data,
+                env_vars=env_vars,
+            )
+            files_data[file_name] = modified_yaml
+
+    out_memory_zip = io.BytesIO()
+    with zipfile.ZipFile(out_memory_zip, "w") as zip_write:
+        for file_name, file_data in files_data.items():
+            zip_write.writestr(file_name, file_data)
+
+    return out_memory_zip.getvalue()
+
+
+def _enrich_kfp_workflow_yaml_credentials(
+    yaml_bytes: bytes,
+    env_vars: list[V1EnvVar],
+) -> bytes:
+    """
+    Modifies the given workflow dictionary to add environment variables from a Kubernetes secret
+    to the container specifications.
+    The function checks if the workflow is compatible with KFP v1 or KFP v2 and adds the
+    environment variables accordingly.
+
+    Parameters:
+    - workflow_dict: dict representing the workflow
+
+    Returns:
+    - None (the dict is modified in place)
+    """
+    workflow_dict = yaml.safe_load(yaml_bytes)
+    # Determine the KFP version by checking the 'apiVersion' field
+    api_version = (
+        workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
+    )
+
+    if "argoproj.io" in api_version:  # KFP Argo Workflow
+        for template in workflow_dict["spec"]["templates"]:
+            if "container" in template:
+                container = template["container"]
+                for env_var in env_vars:
+                    if env_var.value_from is not None:
+                        env_var = {
+                            "name": env_var.name,
+                            "valueFrom": {
+                                "secretKeyRef": {
+                                    "name": env_var.value_from.secret_key_ref.name,
+                                    "key": env_var.value_from.secret_key_ref.key,
+                                }
+                            },
+                        }
+                    else:
+                        env_var = {
+                            "name": env_var.name,
+                            "value": env_var.value,
+                        }
+                    if "env" in container and container["env"] is not None:
+                        container["env"].append(env_var)
+                    else:
+                        container["env"] = [env_var]
+        return yaml.safe_dump(workflow_dict).encode()
+
+    elif "tekton.dev" in api_version:  # KFP Tekton Pipeline
+        for task in workflow_dict["spec"].get("tasks", []):
+            if "name" in task:
+                step = task.get("stepTemplate", {})
+                for env_var in env_vars:
+                    if env_var.value_from is not None:
+                        env_var = {
+                            "name": env_var.name,
+                            "valueFrom": {
+                                "secretKeyRef": {
+                                    "name": env_var.value_from.secret_key_ref.name,
+                                    "key": env_var.value_from.secret_key_ref.key,
+                                }
+                            },
+                        }
+                    else:
+                        env_var = {
+                            "name": env_var.name,
+                            "value": env_var.value,
+                        }
+                    if "env" in step and step["env"] is not None:
+                        step["env"].append(env_var)
+                    else:
+                        step["env"] = [env_var]
+                task["stepTemplate"] = step
+        return yaml.safe_dump(workflow_dict).encode()
+    else:
+        raise ValueError("Unknown or unsupported KFP version. No changes made.")

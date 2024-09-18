@@ -70,7 +70,8 @@ def _create_enriched_mlrun_workflow(
 
         # enrich each pipeline step with your desire k8s attribute
         for kfp_step_template in workflow["spec"]["templates"]:
-            if kfp_step_template.get("container"):
+            container = kfp_step_template.get("container")
+            if container is not None:
                 for function_obj in functions:
                     # we condition within each function since the comparison between the function and
                     # the kfp pod may change depending on the attribute type.
@@ -84,6 +85,13 @@ def _create_enriched_mlrun_workflow(
                         kfp_step_template,
                         function_obj,
                     )
+                env_vars = container.get("env", [])
+                container["env"] = [
+                    env_var
+                    for env_var in env_vars
+                    if env_var["name"] not in ["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"]
+                ]
+
     except mlrun.errors.MLRunInvalidArgumentError:
         raise
     except Exception as err:

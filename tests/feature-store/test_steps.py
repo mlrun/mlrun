@@ -760,3 +760,31 @@ def get_data(with_none=False):
         },
     )
     return data, data_ref
+
+
+# ML-7868
+@pytest.mark.parametrize("engine", ["storey", "pandas"])
+def test_parquet_source_with_category(rundb_mock, engine):
+    df = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4],
+        }
+    )
+    df["my_category"] = df["id"].astype("category")
+    feature_set = fstore.FeatureSet(
+        "fs-default-value",
+        entities=["id"],
+        engine=engine,
+    )
+
+    # Mocking
+    output_path = tempfile.TemporaryDirectory()
+    feature_set._run_db = rundb_mock
+    feature_set.reload = unittest.mock.Mock()
+    feature_set.save = unittest.mock.Mock()
+    feature_set.purge_targets = unittest.mock.Mock()
+
+    feature_set.ingest(
+        source=df,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+    )

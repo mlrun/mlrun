@@ -612,8 +612,6 @@ class TestProject(TestMLRunSystem):
 
         project.run(
             workflow_name,
-            watch=False,
-            local=False,
             engine="remote",
             workflow_runner_node_selector=runner_node_selector,
         )
@@ -627,8 +625,6 @@ class TestProject(TestMLRunSystem):
         schedule = "0 0 30 2 *"
         project.run(
             workflow_name,
-            watch=False,
-            local=False,
             engine="remote",
             workflow_runner_node_selector=runner_node_selector,
             schedule=schedule,

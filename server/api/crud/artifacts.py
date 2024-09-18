@@ -40,7 +40,7 @@ class Artifacts(
         artifact: dict,
         object_uid: str = None,
         tag: str = "latest",
-        iter: int = 0,
+        iter: int = None,
         project: str = None,
         producer_id: str = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -82,7 +82,7 @@ class Artifacts(
         key: str,
         artifact: dict,
         tag: str = "latest",
-        iter: int = 0,
+        iter: int = None,
         producer_id: str = None,
         project: str = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -282,8 +282,8 @@ class Artifacts(
                         err=err_to_str(err),
                     )
         if "spec" in artifact and "inline" in artifact["spec"]:
-            mlrun.utils.helpers.validate_inline_artifact_body_size(
-                artifact["spec"]["inline"]
+            mlrun.utils.helpers.validate_artifact_body_size(
+                artifact["spec"]["inline"], is_inline=True
             )
 
     def _delete_artifact_data(

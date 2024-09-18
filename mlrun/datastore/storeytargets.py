@@ -89,8 +89,8 @@ class StreamStoreyTarget(storey.StreamTarget):
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
         access_key = storage_options.get("v3io_access_key")
-        storage = (
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
+        storage = V3ioDriver(
+            webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
         )
 
         if storage_options:
@@ -137,7 +137,8 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
-            path
+            path,
+            kwargs.pop("credentials_prefix", None),
         )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)

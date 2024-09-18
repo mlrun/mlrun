@@ -1,3 +1,5 @@
+.. _mlrun.config:
+
 mlrun.config
 ============
 
@@ -5,3 +7,4 @@ mlrun.config
    :members:
    :show-inheritance:
    :undoc-members:
+

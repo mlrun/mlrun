@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import typing
 import warnings
 
 from mlrun_pipelines.common.ops import build_op
@@ -143,11 +143,11 @@ class KubejobRuntime(KubeResource):
 
     def deploy(
         self,
-        watch=True,
-        with_mlrun=None,
-        skip_deployed=False,
-        is_kfp=False,
-        mlrun_version_specifier=None,
+        watch: bool = True,
+        with_mlrun: typing.Optional[bool] = None,
+        skip_deployed: bool = False,
+        is_kfp: bool = False,
+        mlrun_version_specifier: typing.Optional[bool] = None,
         builder_env: dict = None,
         show_on_failure: bool = False,
         force_build: bool = False,

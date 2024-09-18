@@ -25,6 +25,7 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
 import mlrun.alerts.alert
@@ -2363,6 +2364,28 @@ def test_store_alert_config_missing_alert_data(alert_data):
         mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
     ):
         project.store_alert_config(alert_data=alert_data)
+
+
+def test_run_project_sync_functions_fails_silently(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        }
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    # Sync should fail silently and run should fail as the functions were not saved
+    run_status = proj.run(name)
+    assert run_status.state == RunStatuses.failed
+    assert "Function tstfunc not found" in str(run_status.exc)
 
 
 class TestModelMonitoring:

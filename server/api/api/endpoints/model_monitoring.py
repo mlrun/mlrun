@@ -17,12 +17,15 @@ from dataclasses import dataclass
 from typing import Annotated, Optional
 
 import fastapi
+import semver
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.api.utils
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
@@ -50,9 +53,19 @@ class _CommonParams:
 
 
 async def _verify_authorization(
-    project: str, auth_info: mlrun.common.schemas.AuthInfo
+    project: str, auth_info: mlrun.common.schemas.AuthInfo, client_version: str
 ) -> None:
     """Verify project authorization"""
+    if (
+        semver.Version.parse(client_version)
+        < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+        and "unstable" not in client_version
+    ):
+        server.api.api.utils.log_and_raise(
+            http.HTTPStatus.BAD_REQUEST.value,
+            reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
+            f"Please upgrade your client accordingly.",
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
@@ -68,16 +81,22 @@ async def _common_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ) -> _CommonParams:
     """
     Verify authorization and return common parameters.
 
-    :param project:    Project name.
-    :param auth_info:  The auth info of the request.
-    :param db_session: A session that manages the current dialog with the database.
+    :param project:         Project name.
+    :param auth_info:       The auth info of the request.
+    :param db_session:      A session that manages the current dialog with the database.
+    :param client_version:  The client version.
     :returns:          A `_CommonParameters` object that contains the input data.
     """
-    await _verify_authorization(project=project, auth_info=auth_info)
+    await _verify_authorization(
+        project=project, auth_info=auth_info, client_version=client_version
+    )
     return _CommonParams(
         project=project,
         auth_info=auth_info,
@@ -93,9 +112,6 @@ async def enable_model_monitoring(
     deploy_histogram_data_drift_app: bool = True,
     rebuild_images: bool = False,
     fetch_credentials_from_sys_config: bool = False,
-    client_version: Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.client_version
-    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -115,7 +131,6 @@ async def enable_model_monitoring(
     :param rebuild_images:                    If true, force rebuild of model monitoring infrastructure images
                                               (controller, writer & stream).
     :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
-    :param client_version:                    The client version.
 
     """
     MonitoringDeployment(
@@ -129,7 +144,6 @@ async def enable_model_monitoring(
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         rebuild_images=rebuild_images,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
-        client_version=client_version,
     )
 
 
@@ -213,9 +227,6 @@ async def disable_model_monitoring(
     delete_histogram_data_drift_app: bool = True,
     delete_user_applications: bool = False,
     user_application_list: list[str] = None,
-    client_version: Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.client_version
-    ),
 ):
     """
     Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -239,7 +250,6 @@ async def disable_model_monitoring(
                                                 Default all the applications.
                                                 Note: you have to set delete_user_applications to True
                                                 in order to delete the desired application.
-    :param client_version:                      The client version.
 
     """
     tasks = await MonitoringDeployment(
@@ -254,7 +264,6 @@ async def disable_model_monitoring(
         delete_user_applications=delete_user_applications,
         user_application_list=user_application_list,
         background_tasks=background_tasks,
-        client_version=client_version,
     )
     response.status_code = http.HTTPStatus.ACCEPTED.value
     return tasks

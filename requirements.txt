@@ -29,7 +29,7 @@ v3io-frames~=0.10.14
 semver~=3.0
 dependency-injector~=4.41
 # should be identical to gcs and s3fs.
-fsspec>=2023.9.2, <2024.4
+fsspec>=2023.9.2, <2024.7
 v3iofs~=0.1.17
 storey~=1.7.24
 inflection~=0.5.0

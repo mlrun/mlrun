@@ -338,7 +338,7 @@ class RunDBMock:
 
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:
-            raise mlrun.errors.MLRunNotFoundError("Function not found")
+            raise mlrun.errors.MLRunNotFoundError(f"Function {function} not found")
         return self._functions[function]
 
     def delete_function(self, name: str, project: str = ""):

@@ -136,10 +136,11 @@ There are multiple data source options including HTTP, Kafka, Kinesis, v3io stre
 Due to the asynchronous nature of feature store's execution engine, errors are not returned, but rather logged and pushed to the defined
 error stream. <br>
 ```python
-# Create a real time function that receives http requests
+# Create a project, then a real time function that receives http requests
 # the "ingest" function runs the feature engineering logic on live events
+project = mlrun.get_or_create_project("real-time")
 source = HTTPSource()
-func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+func = project.set_function(name="ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
 my_set.deploy_ingestion_service(source, run_config=config)
 ```

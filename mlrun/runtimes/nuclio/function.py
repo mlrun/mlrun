@@ -306,7 +306,7 @@ class RemoteRuntime(KubeResource):
 
     def _validate_triggers(self, spec):
         # ML-7763 / NUC-233
-        min_nuclio_version = "1.13.10"
+        min_nuclio_version = "1.13.12"
         if mlconf.nuclio_version and semver.VersionInfo.parse(
             mlconf.nuclio_version
         ) < semver.VersionInfo.parse(min_nuclio_version):

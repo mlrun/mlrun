@@ -41,3 +41,38 @@ class ImageBuilder(pydantic.BaseModel):
 
     class Config:
         extra = pydantic.Extra.allow
+
+
+class LabelsModel(pydantic.BaseModel):
+    """
+    A model for handling project labels.
+
+    This class accepts either a dictionary or a list for filtering by labels.
+
+    :param labels:
+            - If a dictionary is provided, it should be in the format
+              {'label_name': 'value'}. This will be converted to a list of strings
+              in the format 'label_name=value'.
+            - If a list is provided, all items must be strings. Each string can either
+              be a simple label name (e.g., 'label1') or a key-value pair in the format
+              'label=value'.
+            - If no labels are specified, the default is an empty list.
+    """
+
+    labels: typing.Optional[typing.Union[dict[str, str], list[str]]]
+
+    @pydantic.validator("labels", pre=True)
+    @classmethod
+    def validate_labels(cls, labels):
+        if labels is None:
+            return []
+
+        if isinstance(labels, list):
+            if not all(isinstance(item, str) for item in labels):
+                raise ValueError("All items in the list must be strings.")
+            return labels
+
+        if isinstance(labels, dict):
+            return [f"{key}={value}" for key, value in labels.items()]
+
+        raise ValueError("Invalid labels format. Must be a dict or a list of strings.")

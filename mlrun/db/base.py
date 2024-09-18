@@ -291,7 +291,7 @@ class RunDBInterface(ABC):
         self,
         owner: str = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass

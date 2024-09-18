@@ -1097,7 +1097,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+            a list of "label=value" (match label key and value) or a list of "label" (match just label key) strings.
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -1117,9 +1117,7 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
 
-        labels = labels or []
-        if isinstance(labels, dict):
-            labels = [f"{key}={value}" for key, value in labels.items()]
+        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
 
         params = {
             "name": name,
@@ -2694,7 +2692,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Union[
             str, mlrun.common.formatters.ProjectFormat
         ] = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
@@ -2706,15 +2704,18 @@ class HTTPRunDB(RunDBInterface):
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
             - ``full``  - Return full project objects.
 
-        :param labels: Filter by labels attached to the project.
+        :param labels: Filter by labels attached to the project. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or a list of "label" (match just label key) strings.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
+
+        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
 
         params = {
             "owner": owner,
             "state": state,
             "format": format_,
-            "label": labels or [],
+            "label": labels,
         }
 
         error_message = f"Failed listing projects, query: {params}"

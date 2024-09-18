@@ -802,7 +802,8 @@ class Config:
                         config_value = getattr(self, key)
                         if not isinstance(config_value, (dict, Config)):
                             raise ValueError(
-                                f"Can not update `{key}` config. Expected a configuration but received {type(config_value)}"
+                                f"Can not update `{key}` config. "
+                                f"Expected a configuration but received {type(config_value)}"
                             ) from exc
                 else:
                     try:

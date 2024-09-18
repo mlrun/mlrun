@@ -766,6 +766,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return hashlib.sha224(access_key.encode()).hexdigest()
 
     @staticmethod
+    @raise_for_status_code
     def _validate_paginated_list_retry(
         exc: ApiException, retry_count: int, max_retry: int, resource_name: str
     ):

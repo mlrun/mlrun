@@ -223,6 +223,8 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         validate_artifact_key_name(key, "artifact.key")
+
+        # TODO: Create a tmp file, write the body to it, and use it as `local_path` instead of validating the body size.
         validate_artifact_body_size(item.spec.get_body())
         src_path = local_path or item.src_path  # TODO: remove src_path
         self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)

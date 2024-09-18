@@ -4183,6 +4183,9 @@ class HTTPRunDB(RunDBInterface):
         :param event_data: The data of the event.
         :param project:    The project that the event belongs to.
         """
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            logger.warning("Alerts are disabled, event will not be generated")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/events/{name}"
         error_message = f"post event {project}/events/{name}"

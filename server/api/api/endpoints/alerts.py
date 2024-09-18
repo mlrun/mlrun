@@ -20,7 +20,6 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-import mlrun.common.schemas.alert
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief

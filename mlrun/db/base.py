@@ -130,8 +130,8 @@ class RunDBInterface(ABC):
         project: Optional[str] = "",
         tag: Optional[str] = "",
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since=None,
+        until=None,
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
@@ -187,8 +187,8 @@ class RunDBInterface(ABC):
         project: Optional[str] = "",
         tag: Optional[str] = "",
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since=None,
+        until=None,
     ):
         pass
 

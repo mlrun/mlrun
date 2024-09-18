@@ -63,7 +63,7 @@ class LabelsModel(pydantic.BaseModel):
 
     @pydantic.validator("labels", pre=True)
     @classmethod
-    def validate_labels(cls, labels):
+    def validate_labels(cls, labels) -> list[str]:
         if labels is None:
             return []
 

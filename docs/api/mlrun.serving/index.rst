@@ -1,3 +1,5 @@
+.. _mlrun.serving:
+
 mlrun.serving
 ==============
 

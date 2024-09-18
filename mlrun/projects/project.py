@@ -67,13 +67,7 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
-from ..utils import (
-    is_ipython,
-    is_relative_path,
-    is_yaml_path,
-    logger,
-    update_in,
-)
+from ..utils import is_jupyter, is_relative_path, is_yaml_path, logger, update_in
 from ..utils.clones import (
     add_credentials_git_remote_url,
     clone_git,
@@ -1599,7 +1593,9 @@ class MlrunProject(ModelObj):
         :param format:        artifact file format: csv, png, ..
         :param tag:           version tag
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param upload:        upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        a set of key/value labels to tag the artifact with
 
         :returns: artifact object
@@ -2334,31 +2330,51 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, list[str]] = None,
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
-        """update or add a function object to the project
+        """
+        | Update or add a function object to the project.
+        | Function can be provided as an object (func) or a .py/.ipynb/.yaml URL.
 
-        function can be provided as an object (func) or a .py/.ipynb/.yaml url
-        support url prefixes::
+        | Creating a function from a single file is done by specifying ``func`` and disabling ``with_repo``.
+        | Creating a function with project source (specify ``with_repo=True``):
+        |   1. Specify a relative ``func`` path.
+        |   2. Specify a module ``handler`` (e.g. ``handler=package.package.func``) without ``func``.
+        | Creating a function with non project source is done by specifying a module ``handler`` and on the
+         returned function set the source with ``function.with_source_archive(<source>)``.
 
-            object (s3://, v3io://, ..)
-            MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto-trainer:master
+        Support URL prefixes:
 
-        examples::
+            | Object (s3://, v3io://, ..)
+            | MLRun DB e.g. db://project/func:ver
+            | Functions hub/market: e.g. hub://auto-trainer:master
+
+        Examples::
 
             proj.set_function(func_object)
-            proj.set_function(
-                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
-            )
             proj.set_function("http://.../mynb.ipynb", "train")
             proj.set_function("./func.yaml")
             proj.set_function("hub://get_toy_data", "getdata")
 
-            # set function requirements
+            # Create a function from a single file
+            proj.set_function("./src/mycode.py", "ingest")
 
-            # by providing a list of packages
+            # Creating a function with project source
+            proj.set_function(
+                "./src/mycode.py", "ingest", image="myrepo/ing:latest", with_repo=True
+            )
+            proj.set_function("ingest", handler="package.package.func", with_repo=True)
+
+            # Creating a function with non project source
+            func = proj.set_function(
+                "ingest", handler="package.package.func", with_repo=False
+            )
+            func.with_source_archive("git://github.com/mlrun/something.git")
+
+            # Set function requirements
+
+            # By providing a list of packages
             proj.set_function("my.py", requirements=["requests", "pandas"])
 
-            # by providing a path to a pip requirements file
+            # By providing a path to a pip requirements file
             proj.set_function("my.py", requirements="requirements.txt")
 
         :param func:                Function object or spec/code url, None refers to current Notebook
@@ -2378,7 +2394,7 @@ class MlrunProject(ModelObj):
         :param requirements:        A list of python packages
         :param requirements_file:   Path to a python requirements file
 
-        :returns: function object
+        :returns: :py:class:`~mlrun.runtimes.BaseRuntime`
         """
         (
             resolved_function_name,
@@ -2419,7 +2435,7 @@ class MlrunProject(ModelObj):
         ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if is_ipython:
+            if is_jupyter:
                 from IPython import get_ipython
 
                 kernel = get_ipython()
@@ -2810,47 +2826,92 @@ class MlrunProject(ModelObj):
             secrets=secrets or {},
         )
 
-    def sync_functions(self, names: list = None, always=True, save=False):
-        """reload function objects from specs and files"""
+    def sync_functions(
+        self,
+        names: list = None,
+        always: bool = True,
+        save: bool = False,
+        silent: bool = False,
+    ):
+        """
+        Reload function objects from specs and files.
+        The function objects are synced against the definitions spec in `self.spec._function_definitions`.
+        Referenced files/URLs in the function spec will be reloaded.
+        Function definitions are parsed by the following precedence:
+            1. Contains runtime spec.
+            2. Contains module in the project's context.
+            3. Contains path to function definition (yaml, DB, Hub).
+            4. Contains path to .ipynb or .py files.
+            5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+        If function definition is already an object, some project metadata updates will apply however,
+        it will not be reloaded.
+
+        :param names:   Names of functions to reload, defaults to `self.spec._function_definitions.keys()`.
+        :param always:  Force reloading the functions.
+        :param save:    Whether to save the loaded functions or not.
+        :param silent:  Whether to raise an exception when a function fails to load.
+
+        :returns: Dictionary of function objects
+        """
         if self._initialized and not always:
             return self.spec._function_objects
 
-        funcs = self.spec._function_objects
+        functions = self.spec._function_objects
         if not names:
             names = self.spec._function_definitions.keys()
-            funcs = {}
+            functions = {}
+
         origin = mlrun.runtimes.utils.add_code_metadata(self.spec.context)
         for name in names:
-            f = self.spec._function_definitions.get(name)
-            if not f:
-                raise ValueError(f"function named {name} not found")
+            function_definition = self.spec._function_definitions.get(name)
+            if not function_definition:
+                if silent:
+                    logger.warn(
+                        "Function definition was not found, skipping reload", name=name
+                    )
+                    continue
+
+                raise ValueError(f"Function named {name} not found")
+
+            function_object = self.spec._function_objects.get(name, None)
+            is_base_runtime = isinstance(
+                function_object, mlrun.runtimes.base.BaseRuntime
+            )
             # If this function is already available locally, don't recreate it unless always=True
-            if (
-                isinstance(
-                    self.spec._function_objects.get(name, None),
-                    mlrun.runtimes.base.BaseRuntime,
-                )
-                and not always
-            ):
-                funcs[name] = self.spec._function_objects[name]
+            if is_base_runtime and not always:
+                functions[name] = function_object
                 continue
-            if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self, name)
-            else:
-                if not isinstance(f, dict):
-                    raise ValueError("function must be an object or dict")
+
+            # Reload the function
+            if hasattr(function_definition, "to_dict"):
+                name, func = _init_function_from_obj(function_definition, self, name)
+            elif isinstance(function_definition, dict):
                 try:
-                    name, func = _init_function_from_dict(f, self, name)
+                    name, func = _init_function_from_dict(
+                        function_definition, self, name
+                    )
                 except FileNotFoundError as exc:
-                    raise mlrun.errors.MLRunMissingDependencyError(
-                        f"File {exc.filename} not found while syncing project functions"
-                    ) from exc
+                    message = f"File {exc.filename} not found while syncing project functions."
+                    if silent:
+                        message += " Skipping function reload"
+                        logger.warn(message, name=name)
+                        continue
+
+                    raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+            else:
+                message = f"Function {name} must be an object or dict."
+                if silent:
+                    message += " Skipping function reload"
+                    logger.warn(message, name=name)
+                    continue
+                raise ValueError(message)
+
             func.spec.build.code_origin = origin
-            funcs[name] = func
+            functions[name] = func
             if save:
                 func.save(versioned=False)
 
-        self.spec._function_objects = funcs
+        self.spec._function_objects = functions
         self._initialized = True
         return self.spec._function_objects
 
@@ -2995,6 +3056,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3031,7 +3093,11 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-
+        :param workflow_runner_node_selector:
+                          Defines the node selector for the workflow runner pod when using a remote engine.
+                          This allows you to control and specify where the workflow runner pod will be scheduled.
+                          This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
+                          and it will be ignored if the workflow is not run on a remote engine.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3050,11 +3116,10 @@ class MlrunProject(ModelObj):
             )
 
         if engine not in ["remote"] and not schedule:
-            # For remote/scheduled runs we don't require the functions to be synced as they can be loaded dynamically
-            # during run
-            self.sync_functions(always=sync)
+            # For remote/scheduled runs there is no need to sync functions as they can be loaded dynamically during run
+            self.sync_functions(always=sync, silent=True)
             if not self.spec._function_objects:
-                raise ValueError(
+                logger.warn(
                     "There are no functions in the project."
                     " Make sure you've set your functions with project.set_function()."
                 )
@@ -3098,6 +3163,16 @@ class MlrunProject(ModelObj):
             )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+        if workflow_runner_node_selector:
+            if workflow_engine.engine == "remote":
+                workflow_spec.workflow_runner_node_selector = (
+                    workflow_runner_node_selector
+                )
+            else:
+                logger.warn(
+                    "'workflow_runner_node_selector' applies only to remote engines"
+                    " and is ignored for non-remote runs."
+                )
 
         run = workflow_engine.run(
             self,

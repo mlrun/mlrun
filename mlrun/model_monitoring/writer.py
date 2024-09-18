@@ -160,7 +160,9 @@ class ModelMonitoringWriter(StepToDict):
             event_kind = f"{event_kind}_detected"
         else:
             event_kind = f"{event_kind}_suspected"
-        return alert_objects.EventKind(value=event_kind)
+        return alert_objects.EventKind(
+            value=mlrun.utils.helpers.normalize_name(event_kind)
+        )
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:

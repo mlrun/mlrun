@@ -23,7 +23,7 @@ import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
-    validate_inline_artifact_body_size,
+    validate_artifact_body_size,
 )
 
 from ..utils import (
@@ -200,7 +200,9 @@ class ArtifactManager:
         :param artifact_path: The path to store the artifact.
          If not provided, the artifact will be stored in the default artifact path.
         :param format: The format of the artifact. (e.g. csv, json, html, etc.)
-        :param upload: Whether to upload the artifact or not.
+        :param upload: Whether to upload the artifact to the datastore. If not provided, and the
+        `local_path` is not a directory, upload occurs by default. Directories are uploaded only when this
+        flag is explicitly set to `True`.
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
@@ -221,7 +223,11 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         validate_artifact_key_name(key, "artifact.key")
-        validate_inline_artifact_body_size(item.spec.inline)
+
+        # TODO: Create a tmp file, write the body to it, and use it as `local_path` instead of validating the body size.
+        validate_artifact_body_size(
+            body=item.spec.get_body(), is_inline=item.is_inline()
+        )
         src_path = local_path or item.src_path  # TODO: remove src_path
         self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):

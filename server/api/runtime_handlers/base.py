@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import traceback
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
@@ -115,16 +116,30 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: typing.Optional[int] = None,
     ):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
+
+        # set resource deletion grace period to 0 when explicitly requested by force and grace period.
+        # 'force' is used to skip waiting X seconds *after* pod terminated.
+        # 'grace_period' is used to set the time to wait *after* the pod terminated and before it's deleted.
+        # if force is True and grace period is 0, simply delete the pod without waiting.
+        resource_deletion_grace_period = 0 if force and grace_period == 0 else None
         # We currently don't support removing runtime resources in non k8s env
         if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
+        logger.debug(
+            "Deleting runtime resources",
+            resource_deletion_grace_period=resource_deletion_grace_period,
+            label_selector=label_selector,
+            force=force,
+            grace_period=grace_period,
+            crd_plural=crd_plural,
+        )
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
                 db,
@@ -133,6 +148,7 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
+                resource_deletion_grace_period,
             )
         else:
             deleted_resources = self._delete_pod_resources(
@@ -142,6 +158,7 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
+                resource_deletion_grace_period,
             )
         self._delete_extra_resources(
             db,
@@ -151,6 +168,7 @@ class BaseRuntimeHandler(ABC):
             label_selector,
             force,
             grace_period,
+            resource_deletion_grace_period,
         )
 
     def delete_runtime_object_resources(
@@ -160,10 +178,8 @@ class BaseRuntimeHandler(ABC):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = None,
+        grace_period: typing.Optional[int] = None,
     ):
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
@@ -672,7 +688,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """
-        Override this to list resources other then pods or CRDs (which are handled by the base class)
+        Override this to list resources other than pods or CRDs (which are handled by the base class)
         """
         return response
 
@@ -703,13 +719,11 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Override this to handle deletion of resources other than pods or CRDs (which are handled by the base class)
         Note that this is happening after the deletion of the CRDs or the pods
-        Note to add this at the beginning:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         """
         pass
 
@@ -1015,9 +1029,8 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ) -> list[dict]:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         deleted_pods = []
         for pod in server.api.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
             namespace, selector=label_selector
@@ -1059,7 +1072,9 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace
+                    pod.metadata.name,
+                    namespace,
+                    grace_period_seconds=resource_deletion_grace_period,
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
@@ -1078,9 +1093,8 @@ class BaseRuntimeHandler(ABC):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ) -> list[dict]:
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
@@ -1149,6 +1163,7 @@ class BaseRuntimeHandler(ABC):
                         crd_version,
                         crd_plural,
                         namespace,
+                        resource_deletion_grace_period,
                     )
                     deleted_crds.append(crd_object)
                 except Exception as exc:

@@ -1,7 +1,10 @@
-mlrun.artifacts
+.. _mlrun.execution:
+
+mlrun.execution
 ===============
 
-.. automodule:: mlrun.artifacts
+.. automodule:: mlrun.execution
    :members:
    :show-inheritance:
    :undoc-members:
+

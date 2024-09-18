@@ -305,9 +305,21 @@ class KVStoreBase(StoreBase):
                 endpoint_id = endpoint_dict[mm_schemas.EventFieldType.ENDPOINT_ID]
             else:
                 endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
+
+            logger.debug(
+                "Deleting model endpoint resources from the V3IO KV table",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
+
             self.delete_model_endpoint(
                 endpoint_id,
             )
+
+        logger.debug(
+            "Successfully deleted model monitoring endpoints from the V3IO KV table",
+            project=self.project,
+        )
 
         # Delete remain records in the KV
         all_records = self.client.kv.new_cursor(

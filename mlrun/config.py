@@ -27,6 +27,7 @@ import copy
 import json
 import os
 import typing
+import warnings
 from collections.abc import Mapping
 from datetime import timedelta
 from distutils.util import strtobool
@@ -35,6 +36,7 @@ from threading import Lock
 
 import dotenv
 import semver
+import urllib3.exceptions
 import yaml
 
 import mlrun.common.constants
@@ -151,6 +153,11 @@ default_config = {
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
         "datasets": {
             "max_preview_columns": 100,
+        },
+        "limits": {
+            "max_chunk_size": 1024 * 1024 * 1,  # 1MB
+            "max_preview_size": 1024 * 1024 * 10,  # 10MB
+            "max_download_size": 1024 * 1024 * 100,  # 100MB
         },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
@@ -326,7 +333,7 @@ default_config = {
         "http": {
             # when True, the client will verify the server's TLS
             # set to False for backwards compatibility.
-            "verify": False,
+            "verify": True,
         },
         "db": {
             "commit_retry_timeout": 30,
@@ -532,7 +539,6 @@ default_config = {
         "store_prefixes": {
             "default": "v3io:///users/pipelines/{project}/model-endpoints/{kind}",
             "user_space": "v3io:///projects/{project}/model-endpoints/{kind}",
-            "stream": "",  # TODO: Delete in 1.9.0
             "monitoring_application": "v3io:///users/pipelines/{project}/monitoring-apps/",
         },
         # Offline storage path can be either relative or a full path. This path is used for general offline data
@@ -545,7 +551,6 @@ default_config = {
         "parquet_batching_max_events": 10_000,
         "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.db.stores.ObjectStoreFactory for available options
-        "store_type": "v3io-nosql",  # TODO: Delete in 1.9.0
         "endpoint_store_connection": "",
         # See mlrun.model_monitoring.db.tsdb.ObjectTSDBFactory for available options
         "tsdb_connection": "",
@@ -791,7 +796,21 @@ class Config:
         for key, value in cfg.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
-                    getattr(self, key).update(value)
+                    # ignore the `skip_errors` flag here
+                    # if the key does not align with what mlrun config expects it is a user
+                    # input error that can lead to unexpected behavior.
+                    # raise the exception to ensure configuration is loaded correctly and do not
+                    # ignore any errors.
+                    config_value = getattr(self, key)
+                    try:
+                        config_value.update(value)
+                    except AttributeError as exc:
+                        if not isinstance(config_value, (dict, Config)):
+                            raise ValueError(
+                                f"Can not update `{key}` config. "
+                                f"Expected a configuration but received {type(value)}"
+                            ) from exc
+                        raise exc
                 else:
                     try:
                         setattr(self, key, value)
@@ -1095,6 +1114,9 @@ class Config:
             # importing here to avoid circular dependency
             import mlrun.db
 
+            # It ensures that SSL verification is set before establishing a connection
+            _configure_ssl_verification(self.httpdb.http.verify)
+
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 
@@ -1123,10 +1145,10 @@ class Config:
         project: str = "",
         kind: str = "",
         target: str = "online",
-        artifact_path: str = None,
-        function_name: str = None,
+        artifact_path: typing.Optional[str] = None,
+        function_name: typing.Optional[str] = None,
         **kwargs,
-    ) -> typing.Union[str, list[str]]:
+    ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
         :param project:         Project name.
@@ -1142,8 +1164,7 @@ class Config:
                                 relative artifact path will be taken from the global MLRun artifact path.
         :param function_name:    Application name, None for model_monitoring_stream.
 
-        :return:                Full configured path for the provided kind. Can be either a single path
-                                or a list of paths in the case of the online model monitoring stream path.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":
@@ -1164,18 +1185,11 @@ class Config:
                     if function_name is None
                     else f"{kind}-{function_name.lower()}",
                 )
-            elif kind == "stream":  # return list for mlrun<1.6.3 BC
-                return [
-                    # TODO: remove the first stream in 1.9.0
-                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project,
-                        kind=kind,
-                    ),  # old stream uri (pipelines) for BC ML-6043
-                    mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
-                        project=project,
-                        kind=kind,
-                    ),  # new stream uri (projects)
-                ]
+            elif kind == "stream":
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project,
+                    kind=kind,
+                )
             else:
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                     project=project,
@@ -1292,6 +1306,7 @@ def _do_populate(env=None, skip_errors=False):
     if data:
         config.update(data, skip_errors=skip_errors)
 
+    _configure_ssl_verification(config.httpdb.http.verify)
     _validate_config(config)
 
 
@@ -1349,6 +1364,16 @@ def _convert_str(value, typ):
 
     # e.g. int('8080') → 8080
     return typ(value)
+
+
+def _configure_ssl_verification(verify_ssl: bool) -> None:
+    """Configure SSL verification warnings based on the setting."""
+    if not verify_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    else:
+        # If the user changes the `verify` setting to `True` at runtime using `mlrun.set_env_from_file` after
+        # importing `mlrun`, we need to reload the `mlrun` configuration and enable this warning.
+        warnings.simplefilter("default", urllib3.exceptions.InsecureRequestWarning)
 
 
 def read_env(env=None, prefix=env_prefix):

@@ -4637,7 +4637,7 @@ class SQLDB(DBInterface):
             session.delete(obj)
         session.commit()
 
-    def _find_lables(self, session, cls, label_cls, labels):
+    def _find_labels(self, session, cls, label_cls, labels):
         return session.query(cls).join(label_cls).filter(label_cls.name.in_(labels))
 
     def _add_labels_filter(self, session, query, cls, labels):

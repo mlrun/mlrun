@@ -143,7 +143,7 @@ the profiles. Access to private attributes is restricted to applications running
 
 * `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
   parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: `https://oss-cn-hangzhou.aliyuncs.com`
 
 
 ## Azure data store

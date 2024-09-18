@@ -796,6 +796,11 @@ class Config:
         for key, value in cfg.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
+                    # ignore the `skip_errors` flag here
+                    # if the key does not align with what mlrun config expects it is a user
+                    # input error that can lead to unexpected behavior.
+                    # raise the exception to ensure configuration is loaded correctly and do not
+                    # ignore any errors.
                     try:
                         getattr(self, key).update(value)
                     except AttributeError as exc:
@@ -803,8 +808,9 @@ class Config:
                         if not isinstance(config_value, (dict, Config)):
                             raise ValueError(
                                 f"Can not update `{key}` config. "
-                                f"Expected a configuration but received {type(config_value)}"
+                                f"Expected a configuration but received {type(value)}"
                             ) from exc
+                        raise exc
                 else:
                     try:
                         setattr(self, key, value)

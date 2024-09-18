@@ -1,3 +1,4 @@
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -861,9 +862,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return "".join(
             random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
         )
-
-
-# Copyright 2023 Iguazio
 
 
 class BasePod:

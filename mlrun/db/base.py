@@ -176,7 +176,13 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_functions(
-        self, name=None, project="", tag="", labels=None, since=None, until=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = "",
+        tag: Optional[str] = "",
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        since=None,
+        until=None,
     ):
         pass
 

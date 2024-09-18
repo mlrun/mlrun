@@ -1142,7 +1142,7 @@ class HTTPRunDB(RunDBInterface):
         return values
 
     def del_artifacts(
-        self, name=None, project=None, tag=None, labels=None, days_ago=0, tree=None
+        self, name=None, project=None, tag=None, labels: Optional[Union[dict[str, str], list[str]]] = None, days_ago=0, tree=None
     ):
         """Delete artifacts referenced by the parameters.
 
@@ -1150,15 +1150,18 @@ class HTTPRunDB(RunDBInterface):
             :py:func:`~list_artifacts` for more details.
         :param project: Project that artifacts belong to.
         :param tag: Choose artifacts who are assigned this tag.
-        :param labels: Choose artifacts which are labeled.
+        :param labels: Choose artifacts which are labeled. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or a list of "label" (match just label key) strings.
         :param days_ago: This parameter is deprecated and not used.
         """
         project = project or config.default_project
+        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+
         params = {
             "name": name,
             "tag": tag,
             "tree": tree,
-            "label": labels or [],
+            "label": labels,
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
@@ -1250,23 +1253,32 @@ class HTTPRunDB(RunDBInterface):
                 )
 
     def list_functions(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        since=None,
+        until=None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param labels: Return functions that have specific labels assigned to them. Labels can either be a dictionary
+            {"label": "value"} or a list of "label=value" (match label key and value) or a list of "label"
+            (match just label key) strings.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
+        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
         }
@@ -3198,7 +3210,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
@@ -3222,8 +3234,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
-         label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: A list of labels to filter by. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or a list of "label" (match just label key) strings.
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
                       Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
@@ -3236,9 +3248,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{project}/model-endpoints"
-
-        if labels and isinstance(labels, dict):
-            labels = [f"{key}={value}" for key, value in labels.items()]
+        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
 
         response = self.api_call(
             method="GET",
@@ -3246,7 +3256,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "label": labels or [],
+                "label": labels,
                 "start": start,
                 "end": end,
                 "metric": metrics or [],

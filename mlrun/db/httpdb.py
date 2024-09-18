@@ -25,6 +25,7 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
+import pydantic
 import requests
 import semver
 from mlrun_pipelines.utils import compile_pipeline
@@ -1116,8 +1117,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-
-        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        labels = self._validate_labels(labels)
 
         params = {
             "name": name,
@@ -1161,7 +1161,7 @@ class HTTPRunDB(RunDBInterface):
         :param days_ago: This parameter is deprecated and not used.
         """
         project = project or config.default_project
-        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        labels = self._validate_labels(labels)
 
         params = {
             "name": name,
@@ -1280,7 +1280,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
-        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        labels = self._validate_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2726,8 +2726,7 @@ class HTTPRunDB(RunDBInterface):
             a list of "label=value" (match label key and value) or a list of "label" (match just label key) strings.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
-
-        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        labels = self._validate_labels(labels)
 
         params = {
             "owner": owner,
@@ -3254,7 +3253,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{project}/model-endpoints"
-        labels = mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        labels = self._validate_labels(labels)
 
         response = self.api_call(
             method="GET",
@@ -4326,6 +4325,14 @@ class HTTPRunDB(RunDBInterface):
         for item in response:
             results.append(mlrun.common.schemas.AlertTemplate(**item))
         return results
+
+    def _validate_labels(self, labels):
+        try:
+            return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunValueError(
+                "Invalid labels format. Must be a dictionary of strings or a list of strings."
+            ) from exc
 
 
 def _as_json(obj):

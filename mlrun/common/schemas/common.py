@@ -63,7 +63,7 @@ class LabelsModel(pydantic.BaseModel):
 
     labels: typing.Optional[typing.Union[dict[str, str], list[str]]]
 
-    @pydantic.validator("labels", pre=True)
+    @pydantic.validator("labels")
     @classmethod
     def validate(cls, labels) -> list[str]:
         if labels is None:
@@ -82,5 +82,5 @@ class LabelsModel(pydantic.BaseModel):
             return [f"{key}={value}" for key, value in labels.items()]
 
         raise mlrun.errors.MLRunValueError(
-            "Invalid labels format. Must be a dict or a list of strings."
+            "Invalid labels format. Must be a dictionary of strings or a list of strings."
         )

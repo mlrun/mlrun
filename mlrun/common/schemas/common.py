@@ -45,7 +45,7 @@ class ImageBuilder(pydantic.BaseModel):
 
 class LabelsModel(pydantic.BaseModel):
     """
-    A model for handling project labels.
+    A model for handling labels.
 
     This class accepts either a dictionary or a list for filtering by labels.
 

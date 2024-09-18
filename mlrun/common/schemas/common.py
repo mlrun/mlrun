@@ -16,6 +16,8 @@ import typing
 
 import pydantic
 
+import mlrun.errors
+
 
 class ImageBuilder(pydantic.BaseModel):
     functionSourceCode: typing.Optional[str] = None  # noqa: N815
@@ -63,16 +65,22 @@ class LabelsModel(pydantic.BaseModel):
 
     @pydantic.validator("labels", pre=True)
     @classmethod
-    def validate_labels(cls, labels) -> list[str]:
+    def validate(cls, labels) -> list[str]:
         if labels is None:
             return []
 
         if isinstance(labels, list):
             if not all(isinstance(item, str) for item in labels):
-                raise ValueError("All items in the list must be strings.")
+                raise mlrun.errors.MLRunValueError(
+                    "All items in the list must be strings."
+                )
             return labels
 
         if isinstance(labels, dict):
+            if not labels:
+                return []
             return [f"{key}={value}" for key, value in labels.items()]
 
-        raise ValueError("Invalid labels format. Must be a dict or a list of strings.")
+        raise mlrun.errors.MLRunValueError(
+            "Invalid labels format. Must be a dict or a list of strings."
+        )

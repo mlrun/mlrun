@@ -89,20 +89,16 @@ class Provider(
         if server.api.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
-            print("ADAM: REQUEST FROM LEADER, IGNORE AUTH")
             return True
         if self._check_allowed_project_owners_cache(resource, auth_info):
-            print("ADAM: CHECK CACHE RESULTED TRUE, IGNORE AUTH")
             return True
         body = self._generate_permission_request_body(resource, action, auth_info)
-        print(f"ADAM: OPA CHECK BODY {body}")
         if self._log_level > 5:
             logger.debug("Sending request to OPA", body=body)
         async with self._send_request_to_api(
             "POST", self._permission_query_path, json=body
         ) as response:
             response_body = await response.json()
-            print(f"ADAM: OPA CHECK BODY RESPONSE {response_body}")
         if self._log_level > 5:
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]

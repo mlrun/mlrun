@@ -2265,10 +2265,9 @@ class HTTPRunDB(RunDBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
-                :param format_: Format of the results. Possible values are:
-            - ``minimal`` - Return minimal project objects (minimization happens in the BE), not including
-             stats and preview for each feature set.
-            - ``full``  - Return full project objects.
+        :param format_: Format of the results. Possible values are:
+            - ``minimal`` - Return minimal feature set objects, not including stats and preview for each feature set.
+            - ``full`` - Return full feature set objects.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 

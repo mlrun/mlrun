@@ -801,10 +801,10 @@ class Config:
                     # input error that can lead to unexpected behavior.
                     # raise the exception to ensure configuration is loaded correctly and do not
                     # ignore any errors.
+                    config_value = getattr(self, key)
                     try:
-                        getattr(self, key).update(value)
+                        config_value.update(value)
                     except AttributeError as exc:
-                        config_value = getattr(self, key)
                         if not isinstance(config_value, (dict, Config)):
                             raise ValueError(
                                 f"Can not update `{key}` config. "

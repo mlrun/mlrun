@@ -1142,7 +1142,13 @@ class HTTPRunDB(RunDBInterface):
         return values
 
     def del_artifacts(
-        self, name=None, project=None, tag=None, labels: Optional[Union[dict[str, str], list[str]]] = None, days_ago=0, tree=None
+        self,
+        name=None,
+        project=None,
+        tag=None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        days_ago=0,
+        tree=None,
     ):
         """Delete artifacts referenced by the parameters.
 

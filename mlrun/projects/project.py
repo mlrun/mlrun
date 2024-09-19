@@ -3169,7 +3169,7 @@ class MlrunProject(ModelObj):
                     workflow_runner_node_selector
                 )
             else:
-                logger.debug(
+                logger.warn(
                     "'workflow_runner_node_selector' applies only to remote engines"
                     " and is ignored for non-remote runs."
                 )

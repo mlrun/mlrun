@@ -24,6 +24,7 @@ import re
 import string
 import sys
 import typing
+import uuid
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module, reload
@@ -40,7 +41,7 @@ import semver
 import yaml
 from dateutil import parser
 from mlrun_pipelines.models import PipelineRun
-from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -111,13 +112,11 @@ def get_artifact_target(item: dict, project=None):
     tree = item["metadata"].get("tree")
     tag = item["metadata"].get("tag")
 
-    kind = item.get("kind")
-    if kind in ["dataset", "model", "artifact"] and db_key:
+    if item.get("kind") in {"dataset", "model", "artifact"} and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
-        if tag:
-            target = f"{target}:{tag}"
+        target += f":{tag}" if tag else ":latest"
         if tree:
-            target = f"{target}@{tree}"
+            target += f"@{tree}"
         return target
 
     return item["spec"].get("target_path")
@@ -134,18 +133,25 @@ def is_legacy_artifact(artifact):
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
-is_ipython = False
+is_ipython = False  # is IPython terminal, including Jupyter
+is_jupyter = False  # is Jupyter notebook/lab terminal
 try:
-    import IPython
+    import IPython.core.getipython
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (cant show html)
-    if ipy and "Terminal" not in str(type(ipy)):
-        is_ipython = True
-except ImportError:
+    ipy = IPython.core.getipython.get_ipython()
+
+    is_ipython = ipy is not None
+    is_jupyter = (
+        is_ipython
+        # not IPython
+        and "Terminal" not in str(type(ipy))
+    )
+
+    del ipy
+except ModuleNotFoundError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
+if is_jupyter and config.nest_asyncio_enabled in ["1", "True"]:
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -268,15 +274,29 @@ def validate_artifact_key_name(
     )
 
 
-def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
+def validate_artifact_body_size(
+    body: typing.Union[str, bytes, None], is_inline: bool
+) -> None:
+    """
+    Validates the size of the artifact body.
+
+    :param body: The artifact body, which can be a string, bytes, or None.
+    :param is_inline: A flag indicating whether the artifact body is inline.
+
+    :raises mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
+    """
     if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
-        raise mlrun.errors.MLRunBadRequestError(
-            "The body of the artifact exceeds the maximum allowed size. "
-            "Avoid embedding the artifact body. "
-            "This increases the size of the project yaml file and could affect the project during loading and saving. "
-            "More information is available at"
-            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
-        )
+        error_message = "The body of the artifact exceeds the maximum allowed size. "
+        if is_inline:
+            error_message += (
+                "Avoid embedding the artifact body. This increases the size of the project yaml file and could "
+                "affect the project during loading and saving. "
+            )
+        else:
+            error_message += (
+                "For larger artifacts, consider logging them through files instead."
+            )
+        raise mlrun.errors.MLRunBadRequestError(error_message)
 
 
 def validate_v3io_stream_consumer_group(
@@ -1008,6 +1028,23 @@ def get_workflow_url(project, id=None):
     return url
 
 
+def get_kfp_project_filter(project_name: str) -> str:
+    """
+    Generates a filter string for KFP runs, using a substring predicate
+    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
+    with a specific project. The 'op: 9' operator indicates that the filter checks if the
+    project name appears as a substring in the run's name, ensuring that we can identify
+    runs belonging to the desired project.
+    """
+    is_substring_op = 9
+    project_name_filter = {
+        "predicates": [
+            {"key": "name", "op": is_substring_op, "string_value": project_name}
+        ]
+    }
+    return json.dumps(project_name_filter)
+
+
 def are_strings_in_exception_chain_messages(
     exception: Exception, strings_list: list[str]
 ) -> bool:
@@ -1405,11 +1442,27 @@ def is_running_in_jupyter_notebook() -> bool:
     Check if the code is running inside a Jupyter Notebook.
     :return: True if running inside a Jupyter Notebook, False otherwise.
     """
-    import IPython
+    return is_jupyter
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal, it isn't a Jupyter ipython
-    return ipy and "Terminal" not in str(type(ipy))
+
+def create_ipython_display():
+    """
+    Create an IPython display object and fill it with initial content.
+    We can later use the returned display_id with the update_display method to update the content.
+    If IPython is not installed, a warning will be logged and None will be returned.
+    """
+    if is_ipython:
+        import IPython
+
+        display_id = uuid.uuid4().hex
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
+        IPython.display.display(content, display_id=display_id)
+        return display_id
+
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
 
 
 def as_number(field_name, field_value):
@@ -1620,28 +1673,25 @@ def additional_filters_warning(additional_filters, class_name):
         )
 
 
-def merge_with_precedence(first_dict: dict, second_dict: dict) -> dict:
+def merge_dicts_with_precedence(*dicts: dict) -> dict:
     """
-    Merge two dictionaries with precedence given to keys from the second dictionary.
+    Merge multiple dictionaries with precedence given to keys from later dictionaries.
 
-    This function merges two dictionaries, `first_dict` and `second_dict`, where keys from `second_dict`
-    take precedence in case of conflicts. If both dictionaries contain the same key,
-    the value from `second_dict` will overwrite the value from `first_dict`.
+    This function merges an arbitrary number of dictionaries, where keys from dictionaries later
+    in the argument list take precedence over keys from dictionaries earlier in the list. If all
+    dictionaries contain the same key, the value from the last dictionary with that key will
+    overwrite the values from earlier dictionaries.
 
     Example:
         >>> first_dict = {"key1": "value1", "key2": "value2"}
         >>> second_dict = {"key2": "new_value2", "key3": "value3"}
-        >>> merge_with_precedence(first_dict, second_dict)
-        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'value3'}
+        >>> third_dict = {"key3": "new_value3", "key4": "value4"}
+        >>> merge_dicts_with_precedence(first_dict, second_dict, third_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'new_value3', 'key4': 'value4'}
 
-    Note:
-    - The merge operation uses the ** operator in Python, which combines key-value pairs
-      from each dictionary. Later dictionaries take precedence when there are conflicting keys.
+    - If no dictionaries are provided, the function returns an empty dictionary.
     """
-    return {
-        **(first_dict or {}),
-        **(second_dict or {}),
-    }
+    return {k: v for d in dicts if d for k, v in d.items()}
 
 
 def validate_component_version_compatibility(
@@ -1685,11 +1735,21 @@ def validate_component_version_compatibility(
             )
         return True
 
+    # Feature might have been back-ported e.g. nuclio node selection is supported from
+    # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
+    # then against 1.5.x
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
-        if parsed_current_version < parsed_min_version:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
             return False
-    return True
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
 
 
 def format_alert_summary(
@@ -1705,6 +1765,22 @@ def is_parquet_file(file_path, format_=None):
     return (file_path and file_path.endswith((".parquet", ".pq"))) or (
         format_ == "parquet"
     )
+
+
+def validate_single_def_handler(function_kind: str, code: str):
+    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+    # it would override MLRun's wrapper
+    if function_kind == "mlrun":
+        # Find all lines that start with "def handler("
+        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        matches = pattern.findall(code)
+
+        # Only MLRun's wrapper handler (footer) can be in the code
+        if len(matches) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The code file contains a function named “handler“, which is reserved. "
+                + "Use a different name for your function."
+            )
 
 
 def _reload(module, max_recursion_depth):

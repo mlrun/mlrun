@@ -14,6 +14,7 @@
 #
 
 import datetime
+import re
 
 import sqlalchemy.orm
 
@@ -153,7 +154,7 @@ class Alerts(
         event_data: mlrun.common.schemas.Event,
     ):
         state = self._get_alert_state_cached()(session, alert_id)
-        if state.active:
+        if state["active"]:
             return
 
         alert = self._get_alert_by_id_cached()(session, alert_id)
@@ -169,10 +170,18 @@ class Alerts(
 
                 if alert.criteria.period is not None:
                     # adjust the sliding window of events
+                    # in case the EventEntityKind is JOB then we should consider the runs monitoring interval here
+                    # because the monitoring runs might miss events occurring just before the interval.
+                    offset = 0
+                    if (
+                        alert.entities.kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB
+                    ):
+                        offset = int(mlconfig.monitoring.runs.interval)
                     self._normalize_events(
                         state_obj,
                         server.api.utils.helpers.string_to_timedelta(
-                            alert.criteria.period, raise_on_error=False
+                            alert.criteria.period, offset, raise_on_error=False
                         ),
                     )
 
@@ -182,15 +191,18 @@ class Alerts(
                 send_notification = True
 
             active = False
+            update_state = True
             if send_notification:
-                state.count += 1
+                state["count"] += 1
                 logger.debug("Sending notifications for alert", name=alert.name)
                 AlertNotificationPusher().push(alert, event_data)
 
                 if alert.reset_policy == "auto":
                     self.reset_alert(session, alert.project, alert.name)
+                    update_state = False
                 else:
                     active = True
+                    state["active"] = True
                     self._get_alert_state_cached().cache_replace(
                         state, session, alert.id
                     )
@@ -200,20 +212,15 @@ class Alerts(
                     session,
                     alert.project,
                     alert.name,
-                    count=state.count,
+                    count=state["count"],
                     last_updated=event_data.timestamp,
                     obj=state_obj,
                     active=active,
                 )
 
-            self._states[alert.id] = state_obj
-
-        else:
-            logger.debug(
-                "The entity of the alert does not match the one in event",
-                name=alert.name,
-                event=event_data.entity.ids[0],
-            )
+            if update_state:
+                # we don't want to update the state if reset_alert() was called, as we will override the reset
+                self._states[alert.id] = state_obj
 
     def populate_event_cache(self, session: sqlalchemy.orm.Session):
         try:
@@ -233,7 +240,9 @@ class Alerts(
     def _get_alert_by_id_cached(cls):
         if not cls._alert_cache:
             cls._alert_cache = server.api.utils.lru_cache.LRUCache(
-                server.api.utils.singletons.db.get_db().get_alert_by_id, maxsize=1000
+                server.api.utils.singletons.db.get_db().get_alert_by_id,
+                maxsize=1000,
+                ignore_args_for_hash=[0],
             )
 
         return cls._alert_cache
@@ -242,7 +251,9 @@ class Alerts(
     def _get_alert_state_cached(cls):
         if not cls._alert_state_cache:
             cls._alert_state_cache = server.api.utils.lru_cache.LRUCache(
-                server.api.utils.singletons.db.get_db().get_alert_state, maxsize=1000
+                server.api.utils.singletons.db.get_db().get_alert_state_dict,
+                maxsize=1000,
+                ignore_args_for_hash=[0],
             )
         return cls._alert_state_cache
 
@@ -275,8 +286,8 @@ class Alerts(
 
         return False
 
-    @staticmethod
-    def _validate_alert(alert, name, project):
+    def _validate_alert(self, alert, name, project):
+        self.validate_alert_name(alert.name)
         if name != alert.name:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
@@ -331,6 +342,13 @@ class Alerts(
             )
 
     @staticmethod
+    def validate_alert_name(name: str) -> None:
+        if not re.fullmatch(r"^[a-zA-Z0-9-]+$", name):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid alert name '{name}'. Alert names can only contain alphanumeric characters and hyphens."
+            )
+
+    @staticmethod
     def _normalize_events(obj, period):
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         events = obj["events"]
@@ -357,7 +375,8 @@ class Alerts(
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert)
 
-    def _delete_notifications(self, alert: mlrun.common.schemas.AlertConfig):
+    @staticmethod
+    def _delete_notifications(alert: mlrun.common.schemas.AlertConfig):
         for notification in alert.notifications:
             server.api.api.utils.delete_notification_params_secret(
                 alert.project, notification.notification

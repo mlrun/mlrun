@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+from datetime import datetime
+from typing import Any
 
 import mlrun.feature_store.steps
 from mlrun.common.schemas.model_monitoring import (
@@ -19,6 +20,25 @@ from mlrun.common.schemas.model_monitoring import (
     EventKeyMetrics,
     EventLiveStats,
 )
+from mlrun.utils import logger
+
+
+def _normalize_dict_for_v3io_frames(event: dict[str, Any]) -> dict[str, Any]:
+    """
+    Normalize user defined keys - input data to a model and its predictions,
+    to a form V3IO frames tolerates.
+
+    The dictionary keys should conform to '^[a-zA-Z_:]([a-zA-Z0-9_:])*$'.
+    """
+    prefix = "_"
+
+    def norm_key(key: str) -> str:
+        key = key.replace("-", "_")  # hyphens `-` are not allowed
+        if key and key[0].isdigit():  # starting with a digit is not allowed
+            return prefix + key
+        return key
+
+    return {norm_key(k): v for k, v in event.items()}
 
 
 class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
@@ -68,8 +88,8 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         # endpoint_features includes the event values of each feature and prediction
         endpoint_features = {
             EventFieldType.RECORD_TYPE: EventKeyMetrics.ENDPOINT_FEATURES,
-            **event[EventFieldType.NAMED_PREDICTIONS],
-            **event[EventFieldType.NAMED_FEATURES],
+            **_normalize_dict_for_v3io_frames(event[EventFieldType.NAMED_PREDICTIONS]),
+            **_normalize_dict_for_v3io_frames(event[EventFieldType.NAMED_FEATURES]),
             **base_event,
         }
         # Create a dictionary that includes both base_metrics and endpoint_features
@@ -115,3 +135,24 @@ class FilterAndUnpackKeys(mlrun.feature_store.steps.MapClass):
             else:
                 unpacked[key] = new_event[key]
         return unpacked if unpacked else None
+
+
+class ErrorExtractor(mlrun.feature_store.steps.MapClass):
+    def __init__(self, **kwargs):
+        """
+        Prepare the event for insertion into the errors TSDB table.
+        """
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        error = event.get("error")
+        timestamp = datetime.fromisoformat(event.get("when"))
+        endpoint_id = event[EventFieldType.ENDPOINT_ID]
+        event = {
+            EventFieldType.MODEL_ERROR: str(error),
+            EventFieldType.ENDPOINT_ID: endpoint_id,
+            EventFieldType.TIMESTAMP: timestamp,
+            EventFieldType.ERROR_COUNT: 1.0,
+        }
+        logger.info("Write error to errors TSDB table", event=event)
+        return event

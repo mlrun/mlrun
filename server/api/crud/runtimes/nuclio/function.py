@@ -40,6 +40,9 @@ import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
 
+# Configmap objects on Kubernetes have 1Mb size limit
+SERVING_SPEC_MAX_LENGTH = 1048576
+
 
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
@@ -285,15 +288,26 @@ def _compile_function_config(
         # TODO: remove in 1.9.0.
         can_pass_via_cm = (
             not client_version
-            or (semver.Version.parse(client_version) >= semver.Version.parse("1.7.0"))
+            or (
+                semver.Version.parse(client_version)
+                >= semver.Version.parse("1.7.0-rc30")
+            )
             or "unstable" in client_version
         )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
+        serving_spec_len = len(serving_spec.encode("utf-8"))
         if (
             can_pass_via_cm
-            and len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
         ):
+            if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                    + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                    + "in the returned json, and check if the function runs successfully. "
+                    + "Repeat as necessary to get the spec to an allowed size"
+                )
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )
@@ -317,6 +331,12 @@ def _compile_function_config(
                 "volumeMount": volume_mount,
             }
         else:
+            if not can_pass_via_cm:
+                logger.debug(
+                    "Client version does not support passing serving spec via ConfigMap",
+                    client_version=client_version,
+                    serving_spec_length=len(serving_spec),
+                )
             env_dict["SERVING_SPEC_ENV"] = serving_spec
 
     # resolve sidecars images
@@ -442,6 +462,7 @@ def _resolve_and_set_nuclio_runtime(
     )
 
     # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
+    # TODO: remove in 1.8, default to 3.9
     if server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
         "0.0.0", "1.6.0"
     ) and nuclio_runtime in [
@@ -491,6 +512,18 @@ def _resolve_and_set_build_requirements_and_commands(function, config):
         commands.append(f"python -m pip install {encoded_requirements}")
 
     mlrun.utils.update_in(config, "spec.build.commands", commands)
+
+
+def _resolve_node_selector(run_db, project_name, function_node_selector):
+    project_node_selector = {}
+
+    if run_db and project_name:
+        if project := run_db.get_project(project_name):
+            project_node_selector = project.spec.default_function_node_selector
+
+    return mlrun.runtimes.utils.resolve_node_selectors(
+        project_node_selector, function_node_selector
+    )
 
 
 def _add_mlrun_to_requirements_if_needed(config, function):
@@ -544,12 +577,16 @@ def _set_function_scheduling_params(function, nuclio_spec):
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        # We do not merge the project node selectors here to prevent discrepancies between nuclio and mlrun functions,
-        # and instead, we delegate the merge logic to nuclio.
-        # This approach ensures that mlrun functions remain clean from per-system selectors,
-        # maintaining consistent behavior across nuclio and mlrun environments.
-        if function.spec.node_selector:
-            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
+        # This approach ensures that node selector settings from both the project and MLRun service levels
+        # are incorporated into the Nuclio config.
+        if node_selector := _resolve_node_selector(
+            function._get_db(), function.metadata.project, function.spec.node_selector
+        ):
+            nuclio_spec.set_config(
+                "spec.nodeSelector",
+                node_selector,
+            )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:

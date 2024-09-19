@@ -97,18 +97,17 @@ class WorkflowRunners(
             workflow_request=workflow_request,
             labels=labels,
         )
+        workflow_spec = workflow_request.spec
+        if workflow_spec.workflow_runner_node_selector:
+            runner.spec.node_selector.update(
+                workflow_spec.workflow_runner_node_selector
+            )
+
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
 
-        if workflow_request.notifications:
-            run_spec.spec.notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
-        workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
             "task": run_spec.to_dict(),
@@ -142,6 +141,11 @@ class WorkflowRunners(
         :returns: RunObject ready for schedule.
         """
         meta_uid = uuid.uuid4().hex
+
+        notifications = [
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
+        ]
 
         source, save, is_context = self._validate_source(
             project, workflow_request.source
@@ -177,6 +181,7 @@ class WorkflowRunners(
                     project.metadata.name,
                     meta_uid,
                 ),
+                notifications=notifications,
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -229,14 +234,12 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
-        notifications = None
-        if workflow_request and workflow_request.notifications:
-            notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+        workflow_spec_node_selector = (
+            workflow_request.spec.workflow_runner_node_selector
+        )
+        if workflow_spec_node_selector:
+            runner.spec.node_selector.update(workflow_spec_node_selector)
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
         #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
@@ -244,7 +247,6 @@ class WorkflowRunners(
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
-            notifications=notifications,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -320,6 +322,13 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
+        notifications = None
+        if workflow_request:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications or []
+            ]
+
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(
@@ -337,6 +346,7 @@ class WorkflowRunners(
                     wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
+                notifications=notifications,
             ),
             metadata=RunMetadata(name=run_name),
         )

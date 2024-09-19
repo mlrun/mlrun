@@ -17,6 +17,7 @@ from typing import Any, Union, cast
 
 import numpy as np
 import pandas as pd
+from deprecated import deprecated
 
 import mlrun
 import mlrun.model_monitoring.applications.context as mm_context
@@ -112,6 +113,13 @@ class ModelMonitoringApplicationBaseV2(MonitoringApplicationToDict, ABC):
         raise NotImplementedError
 
 
+# TODO: Remove in 1.9.0
+@deprecated(
+    version="1.7.0",
+    reason="The `ModelMonitoringApplicationBase` class is deprecated from "
+    "version 1.7.0 and will be removed in version 1.9.0. "
+    "Use `ModelMonitoringApplicationBaseV2` as your application's base class.",
+)
 class ModelMonitoringApplicationBase(MonitoringApplicationToDict, ABC):
     """
     A base class for a model monitoring application.

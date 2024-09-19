@@ -743,3 +743,11 @@ class DropFeatures(StepToDict, MLRunStep):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"DropFeatures can only drop features, not entities: {dropped_entities}"
             )
+        if feature_set.spec.label_column in features:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"DropFeatures can not drop label_column: {feature_set.spec.label_column}"
+            )
+        if feature_set.spec.timestamp_key in features:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"DropFeatures can not drop timestamp_key: {feature_set.spec.timestamp_key}"
+            )

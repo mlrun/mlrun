@@ -14,6 +14,8 @@
 #
 import os
 import os.path
+import tempfile
+import time
 import uuid
 
 import dask.dataframe as dd
@@ -111,21 +113,21 @@ class TestAwsS3:
         if use_datastore_profile:
             os.environ["AWS_ACCESS_KEY_ID"] = "wrong_access_key"
             os.environ["AWS_SECRET_ACCESS_KEY"] = "wrong_token"
-            prefix_path = f"ds://{self.profile_name}/"
+            self.prefix_path = f"ds://{self.profile_name}/"
         else:
             os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = self._secret_access_key
-            prefix_path = "s3://"
-        self._bucket_path = f"{prefix_path}{self.bucket_name}"
+            self.prefix_path = "s3://"
+        self._bucket_path = f"{self.prefix_path}{self.bucket_name}"
         self.run_dir_url = f"{self._bucket_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self._object_url = f"{self.run_dir_url}{object_file}"
+        self.object_url = f"{self.run_dir_url}{object_file}"
 
     def _perform_aws_s3_tests(self, secrets=None):
         #  TODO split to smaller tests, according to datastore's tests convention.
-        logger.info(f"Object URL: {self._object_url}")
+        logger.info(f"Object URL: {self.object_url}")
 
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        data_item = mlrun.run.get_dataitem(self.object_url, secrets=secrets)
         data_item.put(self.test_string)
         df_url = f"{self.run_dir_url}/df_{uuid.uuid4()}.csv"
         df_data_item = mlrun.run.get_dataitem(df_url, secrets=secrets)
@@ -142,7 +144,7 @@ class TestAwsS3:
 
         dir_list = mlrun.run.get_dataitem(self.run_dir_url).listdir()
 
-        assert self._object_url.replace(f"{self.run_dir_url}/", "") in dir_list
+        assert self.object_url.replace(f"{self.run_dir_url}/", "") in dir_list
         assert df_url.replace(f"{self.run_dir_url}/", "") in dir_list
 
         blob_url = f"{self.run_dir_url}/file_{uuid.uuid4()}.blob"
@@ -301,3 +303,99 @@ class TestAwsS3:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(self, data):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type S3Store",
+        ):
+            data_item.put(123)
+
+    def test_large_upload(self):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        file_size = 1024 * 1024 * 100
+        chunk_size = 1024 * 1024 * 10
+
+        first_start_time = time.monotonic()
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
+            num_chunks = file_size // chunk_size
+            remainder = file_size % chunk_size
+            for _ in range(num_chunks):
+                chunk = os.urandom(chunk_size)
+                temp_file.write(chunk)
+            if remainder:
+                chunk = os.urandom(remainder)
+                temp_file.write(chunk)
+            temp_file.flush()
+            temp_file.seek(0)
+
+            logger.info(
+                f"s3 test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
+                "seconds"
+            )
+            start_time = time.monotonic()
+            data_item.upload(temp_file.name)
+            logger.info(
+                f"s3 test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
+            with tempfile.NamedTemporaryFile(
+                suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
+                start_time = time.monotonic()
+                data_item.download(temp_file_download.name)
+                logger.info(
+                    f"s3 test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
+                )
+                with (
+                    open(temp_file.name, "rb") as file1,
+                    open(temp_file_download.name, "rb") as file2,
+                ):
+                    chunk_number = 1
+                    while True:
+                        chunk1 = file1.read(chunk_size)
+                        chunk2 = file2.read(chunk_size)
+                        if not chunk1 and not chunk2:
+                            break
+                        if chunk1 != chunk2:
+                            raise AssertionError(
+                                f"expected chunk different from the result."
+                                f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
+                            )
+                        chunk_number += 1
+
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+        os.environ.pop("AWS_SECRET_ACCESS_KEY")
+        os.environ.pop("AWS_ACCESS_KEY_ID")
+
+        credentials_dict = (
+            {"secret_key": fake_token, "access_key_id": self.access_key_id}
+            if fake_token
+            else {}
+        )
+        if use_datastore_profile:
+            self.profile = DatastoreProfileS3(
+                name=self.profile_name, **credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["AWS_SECRET_ACCESS_KEY"] = fake_token
+                os.environ["AWS_ACCESS_KEY_ID"] = self.access_key_id
+
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises(PermissionError):
+            data_item.delete()
+
+    def test_rm_file_not_found(self):
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

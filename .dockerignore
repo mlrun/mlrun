@@ -27,6 +27,7 @@ mlrun.egg-info
 **/test-aws-s3.yml
 **/test-google-cloud-storage.yml
 **/test-dbfs-store.yml
+**/test-redis.yml
 
 **/google-big-query-credentials.json
 

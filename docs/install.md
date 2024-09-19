@@ -24,14 +24,12 @@ There are several deployment options:
    This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but simpler for deployment.
 - {ref}`Kubernetes cluster<install-on-kubernetes>`: Deploy an MLRun server on Kubernetes.
    This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
-- {ref}`Amazon Web Services (AWS)<install-on-AWS>`: Deploy an MLRun server on AWS.
-   This option is the easiest way to install MLRun cluster and use cloud-based services. The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 
 ## Set up your client
 
-You can work with your favorite IDE (e.g. Pycharm, VScode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
+You can work with your favorite IDE (e.g. PyCharm, VSCode, Jupyter, Colab, etc.). Read how to configure your client against the deployed
 MLRun server in {ref}`install-remote`.
 
 Once you have installed and configured MLRun, follow the [Quick Start tutorial](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html) and additional {ref}`Tutorials and Examples<tutorial>` to learn how to use MLRun to develop and deploy machine learning applications to production.
@@ -58,7 +56,7 @@ See also {ref}`images-usage`.
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
 which is implemented by Iguazio during installation, and applied system-wide:
-- Override: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
+- Override: Use the user id of the user that triggered the current run or use the `nogroupid` for group id. Requires Iguazio v3.5.1.
 - Disabled: Security context is not auto applied (the system applies the root user). (default)
 
 ### Security context
@@ -89,8 +87,6 @@ Some services do not support security context yet:
 :hidden:
 :maxdepth: 1
 
-install/local-docker
 install/kubernetes
-install/aws-install
 install/remote
 ```

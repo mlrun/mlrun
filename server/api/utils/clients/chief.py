@@ -221,7 +221,7 @@ class Client(
 
     async def store_alert(
         self, project: str, name: str, request: fastapi.Request, json: dict
-    ) -> fastapi.Response:
+    ) -> typing.Union[fastapi.Response, mlrun.common.schemas.AlertConfig]:
         """
         Alerts are running only on chief
         """
@@ -240,7 +240,7 @@ class Client(
         )
 
     async def reset_alert(
-        self, project: str, name: int, request: fastapi.Request
+        self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
         Alerts are running only on chief

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -90,14 +91,6 @@ def test_get_project_with_pre_060_record(
     )
     # when GET performed on a project of the old format - we're upgrading it to the new format - ensuring it happened
     assert updated_record.full_object is not None
-
-
-def _generate_and_insert_pre_060_record(
-    db_session: sqlalchemy.orm.Session, project_name: str
-):
-    pre_060_record = Project(name=project_name)
-    db_session.add(pre_060_record)
-    db_session.commit()
 
 
 def test_list_project(
@@ -219,11 +212,13 @@ def test_create_project(
     db_session: sqlalchemy.orm.Session,
 ):
     project = _generate_project()
+    project_summary = _generate_project_summary()
     db.create_project(
         db_session,
         project.copy(deep=True),
     )
     _assert_project(db, db_session, project)
+    _assert_project_summary(db, db_session, project_summary)
 
 
 def test_store_project_creation(
@@ -322,11 +317,60 @@ def test_delete_project(
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_project(db_session, project_name)
 
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        db.get_project_summary(db_session, project_name)
 
-def _generate_project():
+
+def test_refresh_project_summaries(db: DBInterface, db_session: sqlalchemy.orm.Session):
+    project_summaries = [
+        _generate_project_summary("project-summary-1"),
+        _generate_project_summary("project-summary-2"),
+    ]
+
+    for summary in project_summaries:
+        project = _generate_project(summary.name)
+        db.create_project(db_session, project)
+
+    # Delete one of the projects without deleting its summary
+    with unittest.mock.patch.object(db, "_delete_project_summary"):
+        db.delete_project(db_session, "project-summary-2")
+
+    # Create project without project summary
+    summary = _generate_project_summary("project-summary-3")
+    project_summaries.append(summary)
+    project = _generate_project(summary.name)
+    with unittest.mock.patch.object(db, "_append_project_summary"):
+        db.create_project(db_session, project)
+
+    db_session.delete = unittest.mock.MagicMock()
+    db_session.add = unittest.mock.MagicMock()
+    db_session.commit = unittest.mock.MagicMock()
+
+    db.refresh_project_summaries(db_session, project_summaries)
+
+    # Assert that 'project-summary-1' was updated
+    assert db_session.add.call_count == 1
+    added_summary = db_session.add.call_args[0][0]
+    assert added_summary.project == "project-summary-1"
+
+    # Assert that 'project-summary-2' was deleted
+    assert db_session.delete.call_count == 1
+    deleted_summary = db_session.delete.call_args[0][0]
+    assert deleted_summary.project == "project-summary-2"
+
+
+def _generate_and_insert_pre_060_record(
+    db_session: sqlalchemy.orm.Session, project_name: str
+):
+    pre_060_record = Project(name=project_name)
+    db_session.add(pre_060_record)
+    db_session.commit()
+
+
+def _generate_project(name="project-name"):
     return mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
-            name="project-name",
+            name=name,
             created=datetime.datetime.utcnow() - datetime.timedelta(seconds=1),
             labels={
                 "some-label": "some-label-value",
@@ -335,6 +379,15 @@ def _generate_project():
         spec=mlrun.common.schemas.ProjectSpec(
             description="some description", owner="owner-name"
         ),
+    )
+
+
+def _generate_project_summary(
+    project="project-name",
+) -> mlrun.common.schemas.ProjectSummary:
+    return mlrun.common.schemas.ProjectSummary(
+        name=project,
+        updated=datetime.datetime.utcnow(),
     )
 
 
@@ -354,6 +407,25 @@ def _assert_project(
             expected_project.metadata.labels,
             project_output.metadata.labels,
             ignore_order=True,
+        )
+        == {}
+    )
+
+
+def _assert_project_summary(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+    expected_project_summary: mlrun.common.schemas.ProjectSummary,
+):
+    project_summary_output = db.get_project_summary(
+        db_session, expected_project_summary.name
+    )
+    assert (
+        deepdiff.DeepDiff(
+            expected_project_summary,
+            project_summary_output,
+            ignore_order=True,
+            exclude_paths="root.updated",
         )
         == {}
     )

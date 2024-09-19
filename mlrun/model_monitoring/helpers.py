@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 
 import mlrun
+import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas
-from mlrun.common.schemas.model_monitoring import (
-    EventFieldType,
-)
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.data_types.infer
+import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricType,
@@ -35,7 +35,6 @@ from mlrun.utils import logger
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
     from mlrun.projects import MlrunProject
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 
 
 class _BatchDict(typing.TypedDict):
@@ -45,33 +44,32 @@ class _BatchDict(typing.TypedDict):
 
 
 def get_stream_path(
-    project: str = None,
+    project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
+    stream_uri: typing.Optional[str] = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
 
     :param project:             Project name.
-    :param function_name:    Application name. Default is model_monitoring_stream.
+    :param function_name:       Application name. Default is model_monitoring_stream.
+    :param stream_uri:          Stream URI. If provided, it will be used instead of the one from the project secret.
 
     :return:                    Monitoring stream path to the relevant application.
     """
 
-    stream_uri = mlrun.get_secret_or_env(
-        mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+    stream_uri = stream_uri or mlrun.get_secret_or_env(
+        mm_constants.ProjectSecretKeys.STREAM_PATH
     )
 
     if not stream_uri or stream_uri == "v3io":
-        # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+            kind=mm_constants.FileTargetKind.STREAM,
             target="online",
             function_name=function_name,
         )
 
-    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
-        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, function_name=function_name
     )
@@ -79,7 +77,7 @@ def get_stream_path(
 
 def get_monitoring_parquet_path(
     project: "MlrunProject",
-    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+    kind: str = mm_constants.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project and kind. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
@@ -111,12 +109,9 @@ def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -
 
     """
 
-    return (
-        mlrun.get_secret_or_env(
-            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
-            secret_provider=secret_provider,
-        )
-        or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    return mlrun.get_secret_or_env(
+        key=mm_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+        secret_provider=secret_provider,
     )
 
 
@@ -129,12 +124,9 @@ def get_tsdb_connection_string(
     :return:                Valid TSDB connection string.
     """
 
-    return (
-        mlrun.get_secret_or_env(
-            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION,
-            secret_provider=secret_provider,
-        )
-        or mlrun.mlconf.model_endpoint_monitoring.tsdb_connection
+    return mlrun.get_secret_or_env(
+        key=mm_constants.ProjectSecretKeys.TSDB_CONNECTION,
+        secret_provider=secret_provider,
     )
 
 
@@ -184,7 +176,7 @@ def _get_monitoring_time_window_from_controller_run(
 def update_model_endpoint_last_request(
     project: str,
     model_endpoint: ModelEndpoint,
-    current_request: datetime,
+    current_request: datetime.datetime,
     db: "RunDBInterface",
 ) -> None:
     """
@@ -195,7 +187,8 @@ def update_model_endpoint_last_request(
     :param current_request: current request time
     :param db:              DB interface.
     """
-    if model_endpoint.spec.stream_path != "":
+    is_model_server_endpoint = model_endpoint.spec.stream_path != ""
+    if is_model_server_endpoint:
         current_request = current_request.isoformat()
         logger.info(
             "Update model endpoint last request time (EP with serving)",
@@ -207,14 +200,15 @@ def update_model_endpoint_last_request(
         db.patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            attributes={EventFieldType.LAST_REQUEST: current_request},
+            attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
-    else:
+    else:  # model endpoint without any serving function - close the window "manually"
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
         except mlrun.errors.MLRunNotFoundError:
-            logger.debug(
-                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
+            logger.warn(
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet.\n"
+                "Call `project.enable_model_monitoring()` first."
             )
             return
 
@@ -236,7 +230,7 @@ def update_model_endpoint_last_request(
         db.patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
-            attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
+            attributes={mm_constants.EventFieldType.LAST_REQUEST: bumped_last_request},
         )
 
 
@@ -256,12 +250,11 @@ def calculate_inputs_statistics(
 
     # Use `DFDataInfer` to calculate the statistics over the inputs:
     inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
-        df=inputs,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
+        df=inputs, options=mlrun.data_types.infer.InferOptions.Histogram
     )
 
     # Recalculate the histograms over the bins that are set in the sample-set of the end point:
-    for feature in inputs_statistics.keys():
+    for feature in list(inputs_statistics):
         if feature in sample_set_statistics:
             counts, bins = np.histogram(
                 inputs[feature].to_numpy(),
@@ -271,13 +264,9 @@ def calculate_inputs_statistics(
                 counts.tolist(),
                 bins.tolist(),
             ]
-        elif "hist" in inputs_statistics[feature]:
-            # Comply with the other common features' histogram length
-            mlrun.common.model_monitoring.helpers.pad_hist(
-                mlrun.common.model_monitoring.helpers.Histogram(
-                    inputs_statistics[feature]["hist"]
-                )
-            )
+        else:
+            # If the feature is not in the sample set and doesn't have a histogram, remove it from the statistics:
+            inputs_statistics.pop(feature)
 
     return inputs_statistics
 
@@ -329,4 +318,36 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
         type=ModelEndpointMonitoringMetricType.METRIC,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
         full_name=get_invocations_fqn(project),
+    )
+
+
+def enrich_model_endpoint_with_model_uri(
+    model_endpoint: ModelEndpoint,
+    model_obj: mlrun.artifacts.ModelArtifact,
+):
+    """
+    Enrich the model endpoint object with the model uri from the model object. We will use a unique reference
+    to the model object that includes the project, db_key, iter, and tree.
+    In addition, we verify that the model object is of type `ModelArtifact`.
+
+    :param model_endpoint:    An object representing the model endpoint that will be enriched with the model uri.
+    :param model_obj:         An object representing the model artifact.
+
+    :raise: `MLRunInvalidArgumentError` if the model object is not of type `ModelArtifact`.
+    """
+    mlrun.utils.helpers.verify_field_of_type(
+        field_name="model_endpoint.spec.model_uri",
+        field_value=model_obj,
+        expected_type=mlrun.artifacts.ModelArtifact,
+    )
+
+    # Update model_uri with a unique reference to handle future changes
+    model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+        project=model_endpoint.metadata.project,
+        key=model_obj.db_key,
+        iter=model_obj.iter,
+        tree=model_obj.tree,
+    )
+    model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
+        kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
     )

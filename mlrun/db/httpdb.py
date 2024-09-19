@@ -525,10 +525,6 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )
-            config.model_endpoint_monitoring.store_type = (
-                server_cfg.get("model_endpoint_monitoring_store_type")
-                or config.model_endpoint_monitoring.store_type
-            )
             config.model_endpoint_monitoring.endpoint_store_connection = (
                 server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
                 or config.model_endpoint_monitoring.endpoint_store_connection
@@ -1015,7 +1011,7 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object-uid": uid,
         }
         if iter is not None:
             params["iter"] = str(iter)
@@ -1051,7 +1047,7 @@ class HTTPRunDB(RunDBInterface):
             "key": key,
             "tag": tag,
             "tree": tree,
-            "uid": uid,
+            "object-uid": uid,
             "iter": iter,
             "deletion_strategy": deletion_strategy,
         }
@@ -1071,8 +1067,8 @@ class HTTPRunDB(RunDBInterface):
         project=None,
         tag=None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        since=None,
-        until=None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
         iter: int = None,
         best_iteration: bool = False,
         kind: str = None,
@@ -1102,8 +1098,8 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
-        :param since: Not in use in :py:class:`HTTPRunDB`.
-        :param until: Not in use in :py:class:`HTTPRunDB`.
+        :param since: Return artifacts updated after this date (as datetime object).
+        :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
             ``None`` (default) return artifacts from all iterations.
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
@@ -1137,6 +1133,8 @@ class HTTPRunDB(RunDBInterface):
             "format": format_,
             "producer_uri": producer_uri,
             "limit": limit,
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
@@ -1253,13 +1251,17 @@ class HTTPRunDB(RunDBInterface):
                     function_name=name,
                 )
 
-    def list_functions(self, name=None, project=None, tag=None, labels=None):
+    def list_functions(
+        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
-        :param tag: Return function versions with specific tags.
+        :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Return functions that have specific labels assigned to them.
+        :param since: Return functions updated after this date (as datetime object).
+        :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
@@ -1267,6 +1269,8 @@ class HTTPRunDB(RunDBInterface):
             "name": name,
             "tag": tag,
             "label": labels or [],
+            "since": datetime_to_iso(since),
+            "until": datetime_to_iso(until),
         }
         error = "list functions"
         path = f"projects/{project}/functions"
@@ -1366,20 +1370,14 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-            logger.info(
-                "Using default grace period for runtime resources deletion",
-                grace_period=grace_period,
-            )
-
         params = {
             "label-selector": label_selector,
             "kind": kind,
             "object-id": object_id,
             "force": force,
-            "grace-period": grace_period,
         }
+        if grace_period is not None:
+            params["grace-period"] = grace_period
         error = "Failed deleting runtime resources"
         project_path = project if project else "*"
         response = self.api_call(
@@ -1678,7 +1676,7 @@ class HTTPRunDB(RunDBInterface):
             last_log_timestamp = float(
                 resp.headers.get("x-mlrun-last-timestamp", "0.0")
             )
-            if func.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+            if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
                 mlrun.runtimes.nuclio.function.enrich_nuclio_function_from_headers(
                     func, resp.headers
                 )
@@ -3372,7 +3370,7 @@ class HTTPRunDB(RunDBInterface):
                                          By default, the image is mlrun/mlrun.
         """
         self.api_call(
-            method=mlrun.common.types.HTTPMethod.POST,
+            method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/model-monitoring-controller",
             params={
                 "base_period": base_period,
@@ -3467,7 +3465,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             if delete_resources:
                 logger.info(
-                    "Model Monitoring is being disable",
+                    "Model Monitoring is being disabled",
                     project_name=project,
                 )
             if delete_user_applications:
@@ -3546,17 +3544,19 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         """
         Set the credentials for the model monitoring application.
 
         :param project:     Project name.
         :param credentials: Credentials to set.
+        :param replace_creds:       If True, will override the existing credentials.
         """
         self.api_call(
             method=mlrun.common.types.HTTPMethod.POST,
             path=f"projects/{project}/model-monitoring/set-model-monitoring-credentials",
-            params={**credentials},
+            params={**credentials, "replace_creds": replace_creds},
         )
 
     def create_hub_source(
@@ -4206,6 +4206,9 @@ class HTTPRunDB(RunDBInterface):
         :param project:    The project that the alert belongs to.
         :returns:          The created/modified alert.
         """
+        if not alert_data:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"
         error_message = f"put alert {project}/alerts/{alert_name}"
@@ -4214,6 +4217,8 @@ class HTTPRunDB(RunDBInterface):
             if isinstance(alert_data, AlertConfig)
             else AlertConfig.from_dict(alert_data)
         )
+        # Validation is necessary here because users can directly invoke this function
+        # through `mlrun.get_run_db().store_alert_config()`.
         alert_instance.validate_required_fields()
 
         alert_data = alert_instance.to_dict()

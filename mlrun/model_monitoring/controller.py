@@ -15,6 +15,7 @@
 import concurrent.futures
 import datetime
 import json
+import multiprocessing
 import os
 import re
 from collections.abc import Iterator
@@ -218,7 +219,7 @@ class _BatchWindowGenerator:
             # If the endpoint does not have a stream, `last_updated` should be
             # the minimum between the current time and the last updated time.
             # This compensates for the bumping mechanism - see
-            # `bump_model_endpoint_last_request`.
+            # `update_model_endpoint_last_request`.
             last_updated = min(int(datetime_now().timestamp()), last_updated)
             logger.debug(
                 "The endpoint does not have a stream", last_updated=last_updated
@@ -273,26 +274,14 @@ class MonitoringApplicationController:
     Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
-    def __init__(
-        self,
-        mlrun_context: mlrun.run.MLClientCtx,
-        project: str,
-    ):
-        """
-        Initialize Monitoring Application Processor object.
+    def __init__(self) -> None:
+        """Initialize Monitoring Application Controller"""
+        self.project = cast(str, mlrun.mlconf.default_project)
+        self.project_obj = mlrun.load_project(name=self.project, url=self.project)
 
-        :param mlrun_context:               An MLRun context.
-        :param project:                     Project name.
-        """
-        self.context = mlrun_context
-        self.project = project
-        self.project_obj = mlrun.get_or_create_project(project)
+        logger.debug(f"Initializing {self.__class__.__name__}", project=self.project)
 
-        mlrun_context.logger.debug(
-            f"Initializing {self.__class__.__name__}", project=project
-        )
-
-        self.db = mlrun.model_monitoring.get_store_object(project=project)
+        self.db = mlrun.model_monitoring.get_store_object(project=self.project)
 
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=json.loads(
@@ -322,95 +311,94 @@ class MonitoringApplicationController:
         return access_key
 
     def _initialize_v3io_configurations(self) -> None:
-        self.v3io_framesd = mlrun.mlconf.v3io_framesd
-        self.v3io_api = mlrun.mlconf.v3io_api
         self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+            v3io_access_key=self.model_monitoring_access_key,
+            v3io_api=mlrun.mlconf.v3io_api,
         )
 
-    def run(self, event: nuclio.Event):
+    def run(self) -> None:
         """
-        Main method for run all the relevant monitoring applications on each endpoint
-
-        :param event:   trigger event
+        Main method for run all the relevant monitoring applications on each endpoint.
+        This method handles the following:
+        1. List model endpoints
+        2. List applications
+        3. Check model monitoring windows
+        4. Send data to applications
+        5. Delete old parquets
         """
         logger.info("Start running monitoring controller")
         try:
             applications_names = []
-            endpoints = self.db.list_model_endpoints()
+            endpoints = self.db.list_model_endpoints(include_stats=True)
             if not endpoints:
-                self.context.logger.info(
-                    "No model endpoints found", project=self.project
-                )
+                logger.info("No model endpoints found", project=self.project)
                 return
             monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
-                # Gets only application in ready state
                 applications_names = list(
-                    {
-                        app.metadata.name
-                        for app in monitoring_functions
-                        if (
-                            app.status.state == "ready"
-                            # workaround for the default app, as its `status.state` is `None`
-                            or app.metadata.name
-                            == mm_constants.HistogramDataDriftApplicationConstants.NAME
-                        )
-                    }
+                    {app.metadata.name for app in monitoring_functions}
                 )
+            # if monitoring_functions: - TODO : ML-7700
+            #   Gets only application in ready state
+            #   applications_names = list(
+            #       {
+            #           app.metadata.name
+            #           for app in monitoring_functions
+            #           if (
+            #               app.status.state == "ready"
+            #               # workaround for the default app, as its `status.state` is `None`
+            #               or app.metadata.name
+            #               == mm_constants.HistogramDataDriftApplicationConstants.NAME
+            #           )
+            #       }
+            #   )
             if not applications_names:
-                self.context.logger.info(
-                    "No monitoring functions found", project=self.project
-                )
+                logger.info("No monitoring functions found", project=self.project)
                 return
-            self.context.logger.info(
+            logger.info(
                 "Starting to iterate over the applications",
                 applications=applications_names,
             )
 
         except Exception as e:
-            self.context.logger.error(
+            logger.error(
                 "Failed to list endpoints and monitoring applications",
                 exc=err_to_str(e),
             )
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-        pool = concurrent.futures.ProcessPoolExecutor(
+        with concurrent.futures.ProcessPoolExecutor(
             max_workers=min(len(endpoints), 10),
-        )
-        futures = []
-        for endpoint in endpoints:
-            if (
-                endpoint[mm_constants.EventFieldType.ACTIVE]
-                and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
-                == mm_constants.ModelMonitoringMode.enabled.value
-            ):
-                # Skip router endpoint:
+            # On Linux, the default is "fork" (this is set to change in Python 3.14), which inherits the current heap
+            # and resources (such as sockets), which is not what we want (ML-7160)
+            mp_context=multiprocessing.get_context("spawn"),
+        ) as pool:
+            for endpoint in endpoints:
                 if (
-                    int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
-                    == mm_constants.EndpointType.ROUTER
+                    endpoint[mm_constants.EventFieldType.ACTIVE]
+                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                    == mm_constants.ModelMonitoringMode.enabled.value
                 ):
-                    # Router endpoint has no feature stats
-                    logger.info(
-                        f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
+                    # Skip router endpoint:
+                    if (
+                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                        == mm_constants.EndpointType.ROUTER
+                    ):
+                        # Router endpoint has no feature stats
+                        logger.info(
+                            f"{endpoint[mm_constants.EventFieldType.UID]} is router, skipping"
+                        )
+                        continue
+                    pool.submit(
+                        MonitoringApplicationController.model_endpoint_process,
+                        endpoint=endpoint,
+                        applications_names=applications_names,
+                        batch_window_generator=self._batch_window_generator,
+                        project=self.project,
+                        parquet_directory=self.parquet_directory,
+                        storage_options=self.storage_options,
+                        model_monitoring_access_key=self.model_monitoring_access_key,
                     )
-                    continue
-                future = pool.submit(
-                    MonitoringApplicationController.model_endpoint_process,
-                    endpoint=endpoint,
-                    applications_names=applications_names,
-                    batch_window_generator=self._batch_window_generator,
-                    project=self.project,
-                    parquet_directory=self.parquet_directory,
-                    storage_options=self.storage_options,
-                    model_monitoring_access_key=self.model_monitoring_access_key,
-                )
-                futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-            if result:
-                self.context.log_results(result)
 
         self._delete_old_parquet(endpoints=endpoints)
 
@@ -424,7 +412,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[dict[str, list[str]]]:
+    ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -437,10 +425,8 @@ class MonitoringApplicationController:
         :param parquet_directory:           (str) Directory to store application parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
-
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
-        start_times: set[datetime.datetime] = set()
         try:
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
@@ -518,15 +504,11 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-                    start_times.add(start_infer_time)
         except Exception:
             logger.exception(
                 "Encountered an exception",
                 endpoint_id=endpoint[mm_constants.EventFieldType.UID],
             )
-
-        if start_times:
-            return {endpoint_id: [str(t) for t in sorted(list(start_times))]}
 
     def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
         """
@@ -614,7 +596,6 @@ class MonitoringApplicationController:
                 project=project,
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
-            mm_constants.ApplicationEvent.MLRUN_CONTEXT: {},  # TODO : for future use by ad-hoc batch infer
         }
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
@@ -673,3 +654,13 @@ class MonitoringApplicationController:
             ),
         )
         return offline_response
+
+
+def handler(context: nuclio.Context, event: nuclio.Event) -> None:
+    """
+    Run model monitoring application processor
+
+    :param context: the Nuclio context
+    :param event:   trigger event
+    """
+    MonitoringApplicationController().run()

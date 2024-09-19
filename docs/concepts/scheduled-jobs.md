@@ -3,6 +3,10 @@
 
 Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
+> Schedules have a minimum interval that will be allowed between two scheduled jobs. By default, a job is not allowed to be scheduled twice in a 10-minute period 
+> Currently, schedules like */13 * * * * (every 13th minute), in which the job would trigger at the 52nd minute and then again at the start of the next hour (minute 0) (with only 8 minutes between runs) are not allowed. 
+> See mlrun.mlconf.httpdb.scheduling for service schedules configuration. 
+
 ## Creating a job and scheduling it
 
 MLRun makes it very simple to add a schedule to a given `job`. To showcase this, the following job runs the code below, which resides in a file titled `schedule.py`:
@@ -12,12 +16,13 @@ def hello(context):
     print("You just ran a scheduled job!")
 ```
 
-To create the job, use the `code_to_function` syntax and specify the `kind` like below:
+To create the job, use the `set_function` syntax and specify the `kind` like below:
 
 ```python
 import mlrun
 
-job = mlrun.code_to_function(
+project = mlrun.get_or_create_project("schedule")
+job = project.set_function(
     name="my-scheduled-job",  # Name of the job (displayed in console and UI)
     filename="schedule.py",  # Python file or Jupyter notebook to run
     kind="job",  # Run as a job
@@ -54,7 +59,7 @@ To use a remote source you can either put your code in Git or archive it and the
 * To set project source use the `project.set_source` method.
 * To set workflow use the `project.set_workflow` method.  
 
-To use a different remote source, specify the source URL whe running the workflow with `project.run(source=<source-URL>)` method.  
+To use a different remote source, specify the source URL when running the workflow with `project.run(source=<source-URL>)` method.  
 You can also use a context path to load the project from a local directory contained in the image used for execution:
 * To set project source use the `project.set_source` method (make sure `pull_at_runtime` is set to `False`).
 * To build the image with the project yaml and code use `project.build_image` method. Optionally specify a `target_dir` for the project content.

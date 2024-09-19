@@ -21,6 +21,7 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.lists
 
 from ..config import config
 from ..utils import logger
@@ -73,6 +74,22 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
+    def list_runtime_resources(
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
+    ) -> Union[
+        mlrun.common.schemas.RuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
+        return []
+
     def read_run(
         self,
         uid,
@@ -108,7 +125,7 @@ class NopDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
-        pass
+        return mlrun.lists.RunList()
 
     def del_run(self, uid, project="", iter=0):
         pass
@@ -149,7 +166,7 @@ class NopDB(RunDBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
     ):
-        pass
+        return mlrun.lists.ArtifactList()
 
     def del_artifact(
         self,
@@ -178,8 +195,10 @@ class NopDB(RunDBInterface):
     def delete_function(self, name: str, project: str = ""):
         pass
 
-    def list_functions(self, name=None, project="", tag="", labels=None):
-        pass
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
+        return []
 
     def tag_objects(
         self,
@@ -419,7 +438,7 @@ class NopDB(RunDBInterface):
         ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
-        pass
+        return mlrun.common.schemas.PipelinesOutput(runs=[], total_size=0)
 
     def create_project_secrets(
         self,
@@ -738,6 +757,7 @@ class NopDB(RunDBInterface):
         self,
         project: str,
         credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass
 

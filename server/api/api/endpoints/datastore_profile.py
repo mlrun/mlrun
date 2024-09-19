@@ -26,7 +26,7 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
-from mlrun.datastore.datastore_profile import DatastoreProfile as ds
+from mlrun.datastore.datastore_profile import DatastoreProfile as DSProfile
 from server.api.api.utils import log_and_raise
 
 router = APIRouter()
@@ -62,7 +62,7 @@ async def store_datastore_profile(
             HTTPStatus.BAD_REQUEST.value,
             reason="The project name provided in the URI does not match the one specified in the DatastoreProfile",
         )
-    project_ds_name_private = ds.generate_secret_key(info.name, project_name)
+    project_ds_name_private = DSProfile.generate_secret_key(info.name, project_name)
 
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.secret,
@@ -201,7 +201,7 @@ async def delete_datastore_profile(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    project_ds_name_private = ds.generate_secret_key(profile, project_name)
+    project_ds_name_private = DSProfile.generate_secret_key(profile, project_name)
 
     await run_in_threadpool(
         server.api.crud.Secrets().delete_project_secret,

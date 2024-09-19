@@ -15,11 +15,12 @@
 import time
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, get_range, make_datastore_schema_sanitizer
 
 
 class S3Store(DataStore):
@@ -39,6 +40,12 @@ class S3Store(DataStore):
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
+
+        self.config = TransferConfig(
+            multipart_threshold=1024 * 1024 * 25,
+            max_concurrency=10,
+            multipart_chunksize=1024 * 1024 * 25,
+        )
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
@@ -119,7 +126,7 @@ class S3Store(DataStore):
         except ImportError as exc:
             raise ImportError("AWS s3fs not installed") from exc
         filesystem_class = get_filesystem_class(protocol=self.kind)
-        self._filesystem = makeDatastoreSchemaSanitizer(
+        self._filesystem = make_datastore_schema_sanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
@@ -166,7 +173,7 @@ class S3Store(DataStore):
 
     def upload(self, key, src_path):
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Object(bucket, key).put(Body=open(src_path, "rb"))
+        self.s3.Bucket(bucket).upload_file(src_path, key, Config=self.config)
 
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)
@@ -176,6 +183,7 @@ class S3Store(DataStore):
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
+        data, _ = self._prepare_put_data(data, append)
         bucket, key = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=data)
 
@@ -201,6 +209,8 @@ class S3Store(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         bucket, key = self.get_bucket_and_key(path)
         path = f"{bucket}/{key}"
+        #  In order to raise an error if there is connection error, ML-7056.
+        self.filesystem.exists(path=path)
         self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 

@@ -21,6 +21,7 @@ import tempfile
 import time
 import typing
 import uuid
+import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -64,6 +65,7 @@ from .runtimes.nuclio.application import ApplicationRuntime
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
     RunKeys,
+    create_ipython_display,
     extend_hub_uri_if_needed,
     get_in,
     logger,
@@ -196,18 +198,19 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
 def get_or_create_ctx(
     name: str,
     event=None,
-    spec=None,
+    spec: Optional[dict] = None,
     with_env: bool = True,
     rundb: str = "",
     project: str = "",
-    upload_artifacts=False,
-    labels: dict = None,
-):
-    """called from within the user program to obtain a run context
+    upload_artifacts: bool = False,
+    labels: Optional[dict] = None,
+) -> MLClientCtx:
+    """
+    Called from within the user program to obtain a run context.
 
-    the run context is an interface for receiving parameters, data and logging
+    The run context is an interface for receiving parameters, data and logging
     run results, the run context is read from the event, spec, or environment
-    (in that order), user can also work without a context (local defaults mode)
+    (in that order), user can also work without a context (local defaults mode).
 
     all results are automatically stored in the "rundb" or artifact store,
     the path to the rundb can be specified in the call or obtained from env.
@@ -217,10 +220,10 @@ def get_or_create_ctx(
     :param spec:     dictionary holding run spec
     :param with_env: look for context in environment vars, default True
     :param rundb:    path/url to the metadata and artifact database
-    :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
+    :param project:  project to initiate the context in (by default `mlrun.mlconf.default_project`)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-    :param labels:      dict of the context labels
+    :param labels: (deprecated - use spec instead) dict of the context labels.
     :return: execution context
 
     Examples::
@@ -253,6 +256,20 @@ def get_or_create_ctx(
         context.log_artifact("results.html", body=b"<b> Some HTML <b>", viewer="web-app")
 
     """
+    if labels:
+        warnings.warn(
+            "The `labels` argument is deprecated and will be removed in 1.9.0. "
+            "Please use `spec` instead, e.g.:\n"
+            "spec={'metadata': {'labels': {'key': 'value'}}}",
+            FutureWarning,
+        )
+        if spec is None:
+            spec = {}
+        if "metadata" not in spec:
+            spec["metadata"] = {}
+        if "labels" not in spec["metadata"]:
+            spec["metadata"]["labels"] = {}
+        spec["metadata"]["labels"].update(labels)
 
     if global_context.get() and not spec and not event:
         return global_context.get()
@@ -306,9 +323,6 @@ def get_or_create_ctx(
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
-    labels = labels or {}
-    for key, val in labels.items():
-        ctx.set_label(key=key, value=val)
     global_context.set(ctx)
     return ctx
 
@@ -731,11 +745,10 @@ def code_to_function(
         raise ValueError("Databricks tasks only support embed_code=True")
 
     if kind == RuntimeKinds.application:
-        if handler:
-            raise MLRunInvalidArgumentError(
-                "Handler is not supported for application runtime"
-            )
-        filename, handler = ApplicationRuntime.get_filename_and_handler()
+        raise MLRunInvalidArgumentError(
+            "Embedding a code file is not supported for application runtime. "
+            "Code files should be specified via project/function source."
+        )
 
     is_nuclio, sub_kind = RuntimeKinds.resolve_nuclio_sub_kind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
@@ -778,6 +791,10 @@ def code_to_function(
             raise ValueError("code_output option is only used with notebooks")
 
     if is_nuclio:
+        mlrun.utils.helpers.validate_single_def_handler(
+            function_kind=sub_kind, code=code
+        )
+
         runtime = RuntimeKinds.resolve_nuclio_runtime(kind, sub_kind)
         # default_handler is only used in :mlrun sub kind, determine the handler to invoke in function.run()
         runtime.spec.default_handler = handler if sub_kind == "mlrun" else ""
@@ -925,10 +942,12 @@ def wait_for_pipeline_completion(
     if remote:
         mldb = mlrun.db.get_run_db()
 
+        dag_display_id = create_ipython_display()
+
         def _wait_for_pipeline_completion():
             pipeline = mldb.get_pipeline(run_id, namespace=namespace, project=project)
             pipeline_status = pipeline["run"]["status"]
-            show_kfp_run(pipeline, clear_output=True)
+            show_kfp_run(pipeline, dag_display_id=dag_display_id, with_html=False)
             if pipeline_status not in RunStatuses.stable_statuses():
                 logger.debug(
                     "Waiting for pipeline completion",

@@ -130,7 +130,6 @@ class ModelMonitoringWriter(StepToDict):
         project_name: str,
         result_kind: int,
     ) -> None:
-        logger.info("Sending an event")
         entity = mlrun.common.schemas.alert.EventEntities(
             kind=alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT,
             project=project_name,
@@ -146,7 +145,9 @@ class ModelMonitoringWriter(StepToDict):
             entity=entity,
             value_dict=event_value,
         )
+        logger.info("Sending a drift event")
         mlrun.get_run_db().generate_event(event_kind, event_data)
+        logger.info("Drift event sent successfully")
 
     @staticmethod
     def _generate_alert_event_kind(
@@ -159,7 +160,9 @@ class ModelMonitoringWriter(StepToDict):
             event_kind = f"{event_kind}_detected"
         else:
             event_kind = f"{event_kind}_suspected"
-        return alert_objects.EventKind(value=event_kind)
+        return alert_objects.EventKind(
+            value=mlrun.utils.helpers.normalize_name(event_kind)
+        )
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
@@ -257,8 +260,13 @@ class ModelMonitoringWriter(StepToDict):
                 "data drift app",
                 endpoint_id=endpoint_id,
             )
-            store = mlrun.model_monitoring.get_store_object(project=self.project)
-            store.update_model_endpoint(
-                endpoint_id=endpoint_id,
-                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
+            attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
+            attributes[EventFieldType.DRIFT_STATUS] = str(
+                attributes[EventFieldType.DRIFT_STATUS]
             )
+            self._app_result_store.update_model_endpoint(
+                endpoint_id=endpoint_id,
+                attributes=attributes,
+            )
+
+        logger.info("Model monitoring writer finished handling event")

@@ -206,8 +206,8 @@ class DBInterface(ABC):
         project="",
         tag="",
         labels=None,
-        since=None,
-        until=None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -339,6 +339,8 @@ class DBInterface(ABC):
         format_: str = None,
         page: int = None,
         page_size: int = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ):
         pass
 
@@ -418,7 +420,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass
@@ -520,7 +522,9 @@ class DBInterface(ABC):
         pass
 
     def get_project_summary(
-        self, session, project: str
+        self,
+        session,
+        project: str,
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 
@@ -831,11 +835,56 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def store_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
     def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def list_alerts(
+        self, session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_alert(
+        self, session, project: str, name: str
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def get_alert_by_id(
+        self, session, alert_id: int
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def delete_alert(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def store_alert_state(
+        self,
+        session,
+        project: str,
+        name: str,
+        last_updated: datetime,
+        count: typing.Optional[int] = None,
+        active: bool = False,
+        obj: typing.Optional[dict] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
         pass
 
     @abstractmethod
@@ -985,4 +1034,18 @@ class DBInterface(ABC):
         pass
 
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    def store_time_window_tracker_record(
+        self,
+        session,
+        key: str,
+        timestamp: typing.Optional[datetime.datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ):
+        pass
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ):
         pass

@@ -17,6 +17,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import kafka.errors
 import pytest
 import taosws
 
@@ -85,62 +86,116 @@ class TestAppDeployment:
     def store_connection(tmp_path: Path) -> str:
         return f"sqlite:///{tmp_path / 'test.db'}"
 
+    @pytest.mark.skipif(
+        os.getenv("V3IO_FRAMESD") is None
+        or os.getenv("V3IO_ACCESS_KEY") is None
+        or os.getenv("V3IO_API") is None,
+        reason="Configure Framsed to access V3IO store targets",
+    )
     def test_credentials(
         self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str
     ) -> None:
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            monitoring_deployment.check_if_credentials_are_set(
-                only_project_secrets=True
+        # new project case
+        with patch(
+            "server.api.crud.Functions.get_function",
+            side_effect=mlrun.errors.MLRunNotFoundError,
+        ):
+            mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
+            with pytest.raises(mlrun.errors.MLRunBadRequestError):
+                monitoring_deployment.check_if_credentials_are_set()
+
+            with pytest.raises(mlrun.errors.MLRunInvalidMMStoreTypeError):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection="v3io",
+                    stream_path="kafka://stream",
+                    tsdb_connection="wrong",
+                )
+
+            with pytest.raises(taosws.QueryError):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection="v3io",
+                    stream_path="v3io",
+                    tsdb_connection="taosws://",
+                )
+
+            with pytest.raises(kafka.errors.NoBrokersAvailable):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection="v3io",
+                    stream_path="kafka://stream",
+                    tsdb_connection="v3io",
+                )
+
+            monitoring_deployment.set_credentials(
+                endpoint_store_connection=store_connection,
+                stream_path="v3io",
             )
 
-        with pytest.raises(mlrun.errors.MLRunInvalidMMStoreType):
+            secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
+                == store_connection
+            )
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.TSDB_CONNECTION
+                ]
+                == "v3io"
+            )
+
+            monitoring_deployment.set_credentials(
+                endpoint_store_connection=store_connection,
+                tsdb_connection="v3io",
+            )
+
+            with pytest.raises(mlrun.errors.MLRunConflictError):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection="v3io",
+                    stream_path="v3io",
+                    tsdb_connection="v3io",
+                )
             monitoring_deployment.set_credentials(
                 endpoint_store_connection="v3io",
-                stream_path="kafka://stream",
-                tsdb_connection="wrong",
+                replace_creds=True,
             )
 
-        with pytest.raises(taosws.QueryError):
+            secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
+                == "v3io"
+            )
+        # existing project - upgrade from 1.6.0 case
+        monitoring_deployment.project = "1.6.0_project"
+        with patch(
+            "server.api.crud.Functions.get_function", return_value=Mock(spec={})
+        ):
+            with pytest.raises(mlrun.errors.MLRunConflictError):
+                monitoring_deployment.set_credentials(
+                    endpoint_store_connection=store_connection,
+                    stream_path="v3io",
+                    tsdb_connection="v3io",
+                )
+            secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
+            for key, value in secrets.items():
+                if (
+                    key
+                    != mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+                ):
+                    assert value == "v3io"
             monitoring_deployment.set_credentials(
-                endpoint_store_connection="v3io",
-                stream_path="kafka://stream",
-                tsdb_connection="taosws://",
-            )
-
-    @pytest.mark.skipif(
-        os.getenv("V3IO_FRAMESD") is None or os.getenv("V3IO_ACCESS_KEY") is None,
-        reason="Configure Framsed to access V3IO store targets",
-    )
-    def test_cred_v3io(
-        self, monitoring_deployment: mm_dep.MonitoringDeployment, store_connection: str
-    ) -> None:
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            monitoring_deployment.check_if_credentials_are_set(
-                only_project_secrets=True
-            )
-
-        with pytest.raises(mlrun.errors.MLRunInvalidMMStoreType):
-            monitoring_deployment.set_credentials(
-                endpoint_store_connection="v3io",
-                stream_path="kafka://stream",
-                tsdb_connection="wrong",
-            )
-
-        monitoring_deployment.set_credentials(
-            endpoint_store_connection=store_connection,
-            stream_path="v3io",
-            tsdb_connection="v3io",
-        )
-
-        monitoring_deployment.set_credentials(
-            endpoint_store_connection=store_connection,
-            stream_path="v3io",
-            tsdb_connection="v3io",
-        )
-
-        with pytest.raises(mlrun.errors.MLRunConflictError):
-            monitoring_deployment.set_credentials(
-                endpoint_store_connection="v3io",
+                endpoint_store_connection=store_connection,
                 stream_path="v3io",
                 tsdb_connection="v3io",
+                replace_creds=True,
+            )
+
+            secrets = monitoring_deployment._get_monitoring_mandatory_project_secrets()
+            assert (
+                secrets[
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                ]
+                == store_connection
             )

@@ -12,7 +12,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
-* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
+* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://<data-container>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
@@ -157,7 +157,7 @@ here:
 |-----------------------|------------|
 | [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
 | [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
 
 ```{note}
@@ -383,7 +383,7 @@ profile = DatastoreProfileV3io(
 register_temporary_client_datastore_profile(
     profile
 ) or project.register_datastore_profile(profile)
-ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
+ParquetTarget(path="ds://test_profile/container/path/to/parquet.pq")
 ```
 
 `DatastoreProfileV3io` init parameters:

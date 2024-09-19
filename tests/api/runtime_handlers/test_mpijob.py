@@ -165,12 +165,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.succeeded_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            len(list_namespaced_crds_calls),
+            self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler,
-            len(list_namespaced_pods_calls),
+            self.runtime_handler, len(list_namespaced_pods_calls), paginated=False
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -190,8 +188,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            len(list_namespaced_crds_calls),
+            self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
@@ -213,8 +210,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            len(list_namespaced_crds_calls),
+            self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
 
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
@@ -237,12 +233,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.active_crd_dict["metadata"]["namespace"],
         )
         self._assert_list_namespaced_crds_calls(
-            self.runtime_handler,
-            len(list_namespaced_crds_calls),
+            self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler,
-            len(list_namespaced_pods_calls),
+            self.runtime_handler, len(list_namespaced_pods_calls), paginated=False
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
@@ -274,6 +268,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             # 1 call per threshold state verification
             1,
             self.run_uid_label_selector,
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -304,8 +299,18 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             self.run_uid_label_selector,
+            paginated=False,
         )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.error,
+            expected_status_attrs={
+                "reason": "Some reason",
+                "status_text": "Some message",
+            },
+        )
 
     def test_state_thresholds(self, db: Session, client: TestClient):
         """
@@ -470,6 +475,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
             self._generate_run_pod_label_selector(image_pull_backoff_job_uid),
+            paginated=False,
         )
         assert len(stale_runs) == 2
 
@@ -589,6 +595,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             # 1 call per threshold state verification
             len(list_namespaced_pods_calls),
             f"{mlrun_constants.MLRunInternalLabels.uid}={pending_scheduled_stale_uid}",
+            paginated=False,
         )
         assert len(stale_runs) == 1
 
@@ -655,4 +662,5 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         return {
             "completionTime": "2020-10-06T00:36:41Z",
             "replicaStatuses": {"Launcher": {"failed": 1}, "Worker": {}},
+            "conditions": [{"reason": "Some reason", "message": "Some message"}],
         }

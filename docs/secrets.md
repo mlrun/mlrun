@@ -182,10 +182,10 @@ To maintain the confidentiality of secret values, these operations must be stric
 k8s RBAC and ensuring that elevated permissions are granted to a very limited number of users (very few users have and 
 use elevated permissions).
 
-##### Accessing secrets in nuclio functions
+##### Accessing secrets in Nuclio functions
 
 Nuclio functions do not have the MLRun context available to retrieve secret values. Secret values need to be retrieved 
-from the environment variable of the same name. For example, to access the `AWS_KEY` secret in a nuclio function use:
+from the environment variable of the same name. For example, to access the `AWS_KEY` secret in a Nuclio function use:
 ```python
 aws_key = os.environ.get("AWS_KEY")
 ```

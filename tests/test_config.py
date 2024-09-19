@@ -12,24 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import pathlib
+import subprocess
+import sys
 import unittest.mock
 from contextlib import contextmanager
 from os import environ
 from tempfile import NamedTemporaryFile
 
 import deepdiff
+import dotenv
 import pytest
 import requests_mock as requests_mock_package
 import yaml
 
+import mlrun
 import mlrun.errors
-from mlrun import config as mlconf
+import mlrun.projects.project
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.db.httpdb import HTTPRunDB
+from tests.conftest import out_path
 
-namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"
+assets_path = pathlib.Path(__file__).parent / "assets"
+
+namespace_env_key = f"{mlrun.config.env_prefix}NAMESPACE"
 default_function_pod_resources_env_key = (
-    f"{mlconf.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
+    f"{mlrun.config.env_prefix}DEFAULT_FUNCTION_POD_RESOURCES__"
 )
 default_function_pod_resources_request_gpu_env_key = (
     f"{default_function_pod_resources_env_key}REQUESTS__GPU"
@@ -50,14 +59,14 @@ default_function_pod_resources_limits_cpu_env_key = (
 
 @pytest.fixture
 def config():
-    old = mlconf.config
-    mlconf.config = mlconf.Config.from_dict(mlconf.default_config)
-    mlconf._loaded = False
+    old = mlrun.config.config
+    mlrun.config.config = mlrun.config.Config.from_dict(mlrun.config.default_config)
+    mlrun.config._loaded = False
 
-    yield mlconf.config
+    yield mlrun.config.config
 
-    mlconf.config = old
-    mlconf._loaded = False
+    mlrun.config.config = old
+    mlrun.config._loaded = False
 
 
 @contextmanager
@@ -80,7 +89,7 @@ def patch_env(kw):
 
 
 def test_nothing(config):
-    expected = mlconf.default_config["namespace"]
+    expected = mlrun.config.default_config["namespace"]
     assert config.namespace == expected, "namespace changed"
 
 
@@ -95,8 +104,8 @@ def test_file(config):
     ns = "banana"
     config_path = create_yaml_config(namespace=ns)
 
-    with patch_env({mlconf.env_file_key: config_path}):
-        mlconf.config.reload()
+    with patch_env({mlrun.config.env_file_key: config_path}):
+        mlrun.mlconf.reload()
 
     assert config.namespace == ns, "not populated from file"
 
@@ -157,7 +166,7 @@ def test_v3io_api_and_framesd_enrichment_from_dbpath(
             "V3IO_FRAMESD": v3io_framesd,
         }
         with patch_env(env):
-            mlconf.config.reload()
+            mlrun.mlconf.reload()
 
             assert config.v3io_api == expected_v3io_api
             assert config.v3io_framesd == expected_v3io_framesd
@@ -166,7 +175,7 @@ def test_v3io_api_and_framesd_enrichment_from_dbpath(
 def test_env(config):
     ns = "orange"
     with patch_env({namespace_env_key: ns}):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
 
     assert config.namespace == ns, "not populated from env"
 
@@ -177,12 +186,12 @@ def test_env_override(config):
 
     config_path = create_yaml_config(namespace=config_ns)
     env = {
-        mlconf.env_file_key: config_path,
+        mlrun.config.env_file_key: config_path,
         namespace_env_key: env_ns,
     }
 
     with patch_env(env):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
 
     assert config.namespace == env_ns, "env did not override"
 
@@ -195,32 +204,32 @@ def test_decode_base64_config_and_load_to_object():
     expected_decoded_list_output = [{"test": {"test_dict": 1}}, 1, 2]
 
     # Non-hierarchical attribute loading with passing of expected type
-    mlconf.config.encoded_attribute = encoded_dict_attribute
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+    mlrun.mlconf.encoded_attribute = encoded_dict_attribute
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
         "encoded_attribute", dict
     )
     assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Hierarchical attribute loading without passing of expected type
-    mlconf.config.for_test = {"encoded_attribute": encoded_dict_attribute}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+    mlrun.mlconf.for_test = {"encoded_attribute": encoded_dict_attribute}
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
     assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Not defined attribute without passing of expected type
-    mlconf.config.for_test = {"encoded_attribute": None}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+    mlrun.mlconf.for_test = {"encoded_attribute": None}
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
     assert isinstance(decoded_output, dict)
     assert decoded_output == {}
 
     # Not defined attribute with passing of expected type
-    mlconf.config.for_test = {"encoded_attribute": None}
-    decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
+    mlrun.mlconf.for_test = {"encoded_attribute": None}
+    decoded_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute", list
     )
     assert isinstance(decoded_output, list)
@@ -228,18 +237,18 @@ def test_decode_base64_config_and_load_to_object():
 
     # Non existing attribute loading
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        mlconf.config.decode_base64_config_and_load_to_object("non_existing_attribute")
+        mlrun.mlconf.decode_base64_config_and_load_to_object("non_existing_attribute")
 
     # Attribute defined but not encoded
-    mlconf.config.for_test = {"encoded_attribute": "notencoded"}
+    mlrun.mlconf.for_test = {"encoded_attribute": "notencoded"}
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
-        mlconf.config.decode_base64_config_and_load_to_object(
+        mlrun.mlconf.decode_base64_config_and_load_to_object(
             "for_test.encoded_attribute"
         )
 
     # list attribute loading
-    mlconf.config.for_test = {"encoded_attribute": encoded_list}
-    decoded_list_output = mlconf.config.decode_base64_config_and_load_to_object(
+    mlrun.mlconf.for_test = {"encoded_attribute": encoded_list}
+    decoded_list_output = mlrun.mlconf.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute", list
     )
     assert isinstance(decoded_list_output, list)
@@ -260,7 +269,7 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
         default_function_pod_resources_limits_gpu_env_key: limits_gpu,
     }
     with patch_env(env):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
 
         for test_case in [
             {
@@ -346,7 +355,7 @@ def test_get_default_function_pod_requirement_resources(config):
         "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
     }
     with patch_env(env):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
         requests = config.get_default_function_pod_requirement_resources(
             "requests", with_gpu=True
         )
@@ -403,14 +412,14 @@ def test_gpu_validation(config):
     }
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
-            mlconf.config.reload()
+            mlrun.mlconf.reload()
 
     # when only gpu request is set
     requests_gpu = "3"
     env = {default_function_pod_resources_request_gpu_env_key: requests_gpu}
     with patch_env(env):
         with pytest.raises(mlrun.errors.MLRunConflictError):
-            mlconf.config.reload()
+            mlrun.mlconf.reload()
 
     # when gpu requests and gpu limits are equal
     requests_gpu = "2"
@@ -420,14 +429,14 @@ def test_gpu_validation(config):
         default_function_pod_resources_limits_gpu_env_key: limits_gpu,
     }
     with patch_env(env):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
     assert config.default_function_pod_resources.requests.gpu == requests_gpu
     assert config.default_function_pod_resources.limits.gpu == limits_gpu
 
     # None of the requests and limits gpu are set
     env = {}
     with patch_env(env):
-        mlconf.config.reload()
+        mlrun.mlconf.reload()
     assert config.default_function_pod_resources.requests.gpu is None
     assert config.default_function_pod_resources.limits.gpu is None
 
@@ -446,15 +455,15 @@ def test_gpu_validation(config):
 #
 # def test_overriding_config_not_remain_for_next_tests_setter():
 #     global old_config_value, new_config_value
-#     old_config_value = mlconf.config.igz_version
-#     mlconf.config.igz_version = new_config_value
-#     mlconf.config.httpdb.data_volume = new_config_value
+#     old_config_value = mlrun.mlconf.igz_version
+#     mlrun.mlconf.igz_version = new_config_value
+#     mlrun.mlconf.httpdb.data_volume = new_config_value
 #
 #
 # def test_overriding_config_not_remain_for_next_tests_tester():
 #     global old_config_value
-#     assert old_config_value == mlconf.config.igz_version
-#     assert old_config_value == mlconf.config.httpdb.data_volume
+#     assert old_config_value == mlrun.mlconf.igz_version
+#     assert old_config_value == mlrun.mlconf.httpdb.data_volume
 #####################################
 # EO Unit Test Memory Sharing Tests #
 #####################################
@@ -462,36 +471,36 @@ def test_gpu_validation(config):
 
 def test_get_parsed_igz_version():
     # open source - version not set
-    mlconf.config.igz_version = None
-    assert mlconf.config.get_parsed_igz_version() is None
+    mlrun.mlconf.igz_version = None
+    assert mlrun.mlconf.get_parsed_igz_version() is None
 
     # 3.2 (or after) - semver compatible
-    mlconf.config.igz_version = "3.2.0-b26.20210904121245"
-    igz_version = mlconf.config.get_parsed_igz_version()
+    mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
     assert igz_version.major == 3
     assert igz_version.minor == 2
     assert igz_version.patch == 0
 
     # 3.0 (or before) - non semver compatible
-    mlconf.config.igz_version = "3.0_b154_20210326104738"
-    igz_version = mlconf.config.get_parsed_igz_version()
+    mlrun.mlconf.igz_version = "3.0_b154_20210326104738"
+    igz_version = mlrun.mlconf.get_parsed_igz_version()
     assert igz_version.major == 3
     assert igz_version.minor == 0
     assert igz_version.patch == 0
 
 
 def test_get_default_function_node_selector():
-    mlconf.config.default_function_node_selector = None
-    assert mlconf.config.get_default_function_node_selector() == {}
+    mlrun.mlconf.default_function_node_selector = None
+    assert mlrun.mlconf.get_default_function_node_selector() == {}
 
-    mlconf.config.default_function_node_selector = ""
-    assert mlconf.config.get_default_function_node_selector() == {}
+    mlrun.mlconf.default_function_node_selector = ""
+    assert mlrun.mlconf.get_default_function_node_selector() == {}
 
-    mlconf.config.default_function_node_selector = "e30="
-    assert mlconf.config.get_default_function_node_selector() == {}
+    mlrun.mlconf.default_function_node_selector = "e30="
+    assert mlrun.mlconf.get_default_function_node_selector() == {}
 
-    mlconf.config.default_function_node_selector = "bnVsbA=="
-    assert mlconf.config.get_default_function_node_selector() == {}
+    mlrun.mlconf.default_function_node_selector = "bnVsbA=="
+    assert mlrun.mlconf.get_default_function_node_selector() == {}
 
 
 def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Mocker):
@@ -505,53 +514,205 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
         f"{api_url}/{HTTPRunDB.get_api_path_prefix()}/client-spec",
         json=response_body,
     )
-    assert "" == mlconf.config.remote_host
-    mlconf.config.dbpath = api_url
-    assert remote_host == mlconf.config.remote_host
+    assert "" == mlrun.mlconf.remote_host
+    mlrun.mlconf.dbpath = api_url
+    assert remote_host == mlrun.mlconf.remote_host
 
 
 def test_verify_security_context_enrichment_mode_is_allowed_success():
-    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
-    mlconf.config.function.spec.security_context.enrichment_mode = (
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         SecurityContextEnrichmentModes.override.value
     )
-    mlconf.config.igz_version = "3.5.1-b1"
-    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    mlrun.mlconf.igz_version = "3.5.1-b1"
+    mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
-    mlconf.config.function.spec.security_context.enrichment_mode = (
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         SecurityContextEnrichmentModes.override.value
     )
-    mlconf.config.igz_version = "3.6.0-b1"
-    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    mlrun.mlconf.igz_version = "3.6.0-b1"
+    mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
 
 
 def test_verify_security_context_enrichment_mode_is_allowed_failure():
     igz_version = "3.5.0-b1"
-    mlconf.config.igz_version = igz_version
-    mlconf.config.function.spec.security_context.enrichment_mode = (
+    mlrun.mlconf.igz_version = igz_version
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
         SecurityContextEnrichmentModes.override.value
     )
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+        mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
     assert (
         f"Security context enrichment mode enabled (override/retain) "
         f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
     )
 
     igz_version = "3.4.2-b1"
-    mlconf.config.igz_version = igz_version
+    mlrun.mlconf.igz_version = igz_version
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+        mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
     assert (
         f"Security context enrichment mode enabled (override/retain) "
         f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
     )
 
-    mlconf.config.igz_version = ""
+    mlrun.mlconf.igz_version = ""
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+        mlrun.mlconf.verify_security_context_enrichment_mode_is_allowed()
     assert (
         "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
         in str(exc.value)
     )
+
+
+def test_set_environment_cred():
+    old_key = os.environ.get("V3IO_ACCESS_KEY")
+    old_user = os.environ.get("V3IO_USERNAME")
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(access_key="xyz", username="joe", artifact_path=artifact_path)
+    assert os.environ["V3IO_ACCESS_KEY"] == "xyz"
+    assert os.environ["V3IO_USERNAME"] == "joe"
+
+    if old_key:
+        os.environ["V3IO_ACCESS_KEY"] = old_key
+    else:
+        del os.environ["V3IO_ACCESS_KEY"]
+    if old_user:
+        os.environ["V3IO_USERNAME"] = old_user
+    else:
+        del os.environ["V3IO_USERNAME"]
+
+
+def test_env_from_file():
+    env_path = str(assets_path / "envfile")
+    env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
+    assert env_dict == {"ENV_ARG1": "123", "ENV_ARG2": "abc", "MLRUN_KFP_TTL": "12345"}
+    assert mlrun.mlconf.kfp_ttl == 12345
+    for key, value in env_dict.items():
+        assert os.environ[key] == value
+    for key in env_dict.keys():
+        del os.environ[key]
+
+    # test setting env_file using set_environment()
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(env_file=env_path, artifact_path=artifact_path)
+    for key, value in env_dict.items():
+        assert os.environ[key] == value
+    for key in env_dict.keys():
+        del os.environ[key]
+
+
+def test_mock_functions():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    local_config = mlrun.mlconf.force_run_local
+
+    # test setting env_file using set_environment()
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(mock_functions=True, artifact_path=artifact_path)
+    assert mlrun.mlconf.mock_nuclio_deployment == "1"
+    assert mlrun.mlconf.force_run_local == "1"
+
+    mlrun.set_environment(mock_functions="auto", artifact_path=artifact_path)
+    assert mlrun.mlconf.mock_nuclio_deployment == "auto"
+    assert mlrun.mlconf.force_run_local == "auto"
+
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+    mlrun.mlconf.force_run_local = local_config
+
+
+def test_bad_env_files():
+    bad_envs = ["badenv1"]
+
+    for env in bad_envs:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.set_env_from_file(str(assets_path / env))
+
+
+def test_env_file_does_not_exist():
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlrun.set_env_from_file("some-nonexistent-path")
+
+
+def test_auto_load_env_file():
+    os.environ["MLRUN_ENV_FILE"] = str(assets_path / "envfile")
+    mlrun.mlconf.reload()
+    assert mlrun.mlconf.kfp_ttl == 12345
+    expected = {"ENV_ARG1": "123", "ENV_ARG2": "abc", "MLRUN_KFP_TTL": "12345"}
+    count = 0
+    for key in os.environ.keys():
+        if key in expected:
+            assert os.environ[key] == expected[key]
+            count += 1
+    assert count == 3
+    for key in expected.keys():
+        del os.environ[key]
+
+
+def test_deduct_v3io_paths():
+    cluster = ".default-tenant.app.xxx.iguazio-cd1.com"
+    conf = mlrun.config.read_env({"MLRUN_DBPATH": "https://mlrun-api" + cluster})
+    assert conf["v3io_api"] == "https://webapi" + cluster
+    assert conf["v3io_framesd"] == "https://framesd" + cluster
+
+
+def test_set_config():
+    env_path = f"{out_path}/env/myenv.env"
+    api = "http://localhost:8080"
+    pathlib.Path(env_path).parent.mkdir(parents=True, exist_ok=True)
+    _exec_mlrun(
+        f"config set -f {env_path} -a {api} -u joe -k mykey -p /c/y -e XXX=myvar"
+    )
+
+    expected = {
+        "MLRUN_DBPATH": api,
+        "MLRUN_ARTIFACT_PATH": "/c/y",
+        "V3IO_USERNAME": "joe",
+        "V3IO_ACCESS_KEY": "mykey",
+        "XXX": "myvar",
+    }
+    env_vars = dotenv.dotenv_values(env_path)
+    assert len(env_vars) == 5
+    for key, val in expected.items():
+        assert env_vars[key] == val
+
+
+def test_set_and_load_default_config():
+    env_path = os.path.expanduser(mlrun.config.default_env_file)
+    env_body = None
+    if os.path.isfile(env_path):
+        with open(env_path) as fp:
+            env_body = fp.read()
+
+    # set two config (mlrun and custom vars) and read/verify the default .env file
+    _exec_mlrun("config set -e YYYY=myvar -e MLRUN_KFP_TTL=12345")
+    env_vars = dotenv.dotenv_values(env_path)
+    assert env_vars["YYYY"] == "myvar"
+    assert env_vars["MLRUN_KFP_TTL"] == "12345"
+
+    # verify the new env impact mlrun config
+    mlrun.mlconf.reload()
+    assert mlrun.mlconf.kfp_ttl == 12345
+
+    _exec_mlrun("config clear")
+    assert not os.path.isfile(env_path), "config file was not deleted"
+
+    # write back old content and del env vars
+    if env_body:
+        with open(env_path, "w") as fp:
+            fp.write(env_body)
+    print(os.environ)
+    if "YYYY" in os.environ:
+        del os.environ["YYYY"]
+    if "MLRUN_KFP_TTL" in os.environ:
+        del os.environ["MLRUN_KFP_TTL"]
+
+
+def _exec_mlrun(cmd, cwd=None):
+    cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
+    out = subprocess.run(cmd, capture_output=True, cwd=cwd)
+    if out.returncode != 0:
+        print(out.stderr.decode("utf-8"), file=sys.stderr)
+        print(out.stdout.decode("utf-8"), file=sys.stderr)
+        raise Exception(out.stderr.decode("utf-8"))
+    return out.stdout.decode("utf-8")

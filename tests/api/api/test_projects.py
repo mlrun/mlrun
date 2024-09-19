@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections.abc
 import copy
 import datetime
 import http
@@ -89,11 +90,7 @@ def test_redirection_from_worker_to_chief_delete_project(
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     project_name = "test-project"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-    )
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
+    _create_project(client, project_name)
 
     endpoint = f"projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
@@ -143,18 +140,11 @@ def test_redirection_from_worker_to_chief_delete_project(
 def test_create_project_failure_already_exists(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
-    name1 = f"prj-{uuid4().hex}"
-    project_1 = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=name1),
-    )
-
-    # create
-    response = client.post("projects", json=project_1.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project_1, response)
+    name = f"prj-{uuid4().hex}"
+    project = _create_project(client, name)
 
     # create again
-    response = client.post("projects", json=project_1.dict())
+    response = client.post("projects", json=project.dict())
     assert response.status_code == HTTPStatus.CONFLICT.value
 
 
@@ -173,6 +163,16 @@ def test_get_non_existing_project(
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
+@pytest.fixture()
+def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
+    with unittest.mock.patch(
+        "server.api.api.endpoints.nuclio.process_model_monitoring_secret",
+        return_value="some_access_key",
+    ):
+        yield
+
+
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.parametrize(
     "api_version,successful_delete_response_code",
     [("v1", HTTPStatus.NO_CONTENT.value), ("v2", HTTPStatus.ACCEPTED.value)],
@@ -303,21 +303,13 @@ def test_delete_project_with_resources(
 async def test_list_and_get_project_summaries(
     db: Session, client: TestClient, project_member_mode: str
 ) -> None:
-    # create empty project
+    # Create projects
     empty_project_name = "empty-project"
-    empty_project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=empty_project_name),
-    )
-    response = client.post("projects", json=empty_project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
+    _create_project(client, empty_project_name)
+    _create_project(client, "project-with-resources")
 
-    # create project with resources
+    # Create resources for the second project
     project_name = "project-with-resources"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-    )
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
 
     # create files for the project
     files_count = 5
@@ -472,11 +464,7 @@ async def test_list_project_summaries_different_installation_modes(
     """
     # create empty project
     empty_project_name = "empty-project"
-    empty_project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=empty_project_name),
-    )
-    response = client.post("projects", json=empty_project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
+    _create_project(client, empty_project_name)
 
     server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(0, None, [])
@@ -590,15 +578,7 @@ def test_delete_project_deletion_strategy_check(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    # create
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    project = _create_project(client, "project-name")
 
     # deletion strategy - check - should succeed because there are no resources
     response = client.delete(
@@ -712,18 +692,11 @@ def test_delete_project_deletion_strategy_check_external_resource(
     db: Session,
     client: TestClient,
     project_member_mode: str,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     mlrun.mlconf.namespace = "test-namespace"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    # create
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    project = _create_project(client, "project-name")
 
     # Set a project secret
     k8s_secrets_mock.store_project_secrets("project-name", {"secret": "value"})
@@ -752,6 +725,7 @@ def test_delete_project_with_stop_logs(
     db: Session,
     client: TestClient,
     project_member_mode: str,
+    mocked_k8s_helper,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
@@ -759,15 +733,7 @@ def test_delete_project_with_stop_logs(
     project_name = "project-name"
 
     mlrun.mlconf.namespace = "test-namespace"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    # create
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
-    _assert_project_response(project, response)
+    _create_project(client, project_name)
 
     log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
     with unittest.mock.patch.object(
@@ -786,6 +752,25 @@ def test_delete_project_with_stop_logs(
         # 2 calls - stop logs and delete logs
         assert log_collector._call.call_count == 2
         assert log_collector._call.call_args[0][0] == "DeleteLogs"
+
+
+def test_project_with_invalid_node_selector(
+    db: Session,
+    client: TestClient,
+):
+    project_name = "project-name"
+    project = _create_project(client, project_name)
+    invalid_node_selector = {"invalid": "node=selector"}
+
+    project.spec.default_function_node_selector = invalid_node_selector
+    response = client.put(f"projects/{project_name}", json=project.dict())
+    assert response.status_code == HTTPStatus.BAD_REQUEST.value
+
+    valid_node_selector = {"label": "val"}
+    project.spec.default_function_node_selector = valid_node_selector
+    response = client.put(f"projects/{project_name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+    _assert_project_response(project, response)
 
 
 # leader format is only relevant to follower mode
@@ -1005,14 +990,7 @@ def test_project_with_parameters(
 ) -> None:
     # validate that leading/trailing whitespaces in the keys and values are removed
 
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    # create project
-    response = client.post("projects", json=project.dict())
-    assert response.status_code == HTTPStatus.CREATED.value
+    project = _create_project(client, "project-name")
 
     project.spec.params = {"aa": "1", "aa ": "1", "aa   ": "1", " bb ": "   2"}
     expected_params = {"aa": "1", "bb": "2"}
@@ -1040,6 +1018,7 @@ def test_project_with_parameters(
 def test_delete_project_not_found_in_leader(
     unversioned_client: TestClient,
     mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
     delete_api_version: str,
 ) -> None:
     archived_project = mlrun.common.schemas.Project(
@@ -1107,6 +1086,7 @@ def test_delete_project_not_found_in_leader(
 
 # Test should not run more than a few seconds because we test that if the background task fails,
 # the wrapper task fails fast
+@pytest.mark.usefixtures("mock_process_model_monitoring_secret")
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize(
     "delete_api_version",
@@ -1163,6 +1143,90 @@ def test_delete_project_fail_fast(
                 "Failed to delete project project-name: some error"
                 in background_task.status.error
             )
+
+
+def test_project_image_builder_validation(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # test image builder input is validated though output is not
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            build=mlrun.common.schemas.ImageBuilder()
+        ),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.build.requirements = ["pandas", "numpy"]
+    expected_requirements = ["pandas", "numpy"]
+
+    # store project request to save the requirements
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project and validate the project
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    assert response_body["spec"]["build"]["requirements"] == expected_requirements
+
+    project.spec.build.requirements = {"corrupted": "value"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+    assert (
+        '{"detail":[{"loc":["body","spec","build","requirements"],'
+        '"msg":"value is not a valid list","type":"type_error.list"}]}'
+        in str(response.content.decode())
+    )
+
+    # bypass the validation
+    corrupted_project_name = "corrupted_project"
+    full_object = {
+        "metadata": {"name": corrupted_project_name},
+        "spec": {"build": {"requirements": {"corrupted": "value"}}},
+    }
+
+    project_record = Project(name=corrupted_project_name, full_object=full_object)
+    db.add(project_record)
+    db.commit()
+
+    # get the corrupted project
+    response = client.get(f"projects/{corrupted_project_name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # ensure corrupted requirements passed validation
+    assert (
+        response_body["spec"]["build"]["requirements"]
+        == full_object["spec"]["build"]["requirements"]
+    )
+
+    # ensures list projects
+    response = client.get("projects")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+    projects = response_body["projects"]
+
+    # ensure corrupted requirements passed validation
+    assert len(projects) == 2
+    for project in projects:
+        if project["metadata"]["name"] == corrupted_project_name:
+            assert (
+                project["spec"]["build"]["requirements"]
+                == full_object["spec"]["build"]["requirements"]
+            )
+            break
+    else:
+        pytest.fail(f"Project {corrupted_project_name} not found")
 
 
 def _create_resources_of_all_kinds(
@@ -1504,6 +1568,10 @@ def _assert_db_resources_in_project(
                     # (In each cycle the table is wiped clean and re-populated with only the existing projects)
                     cls.__name__ == "ProjectSummary"
                 )
+                or (
+                    # TimeWindowTracker is not a project-level table
+                    cls.__name__ == "TimeWindowTracker"
+                )
             ):
                 continue
 
@@ -1832,3 +1900,15 @@ def _mock_pipelines(project_name):
         side_effect=list_pipelines_return_value
     )
     return status_count_map[mlrun_pipelines.common.models.RunStatuses.running]
+
+
+def _create_project(client: TestClient, name: str):
+    """Helper to create a project."""
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+    _assert_project_response(project, response)
+    return project

@@ -47,7 +47,7 @@ jobs:
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=23.2.1
+        python -m pip install --upgrade pip~=24.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -96,25 +96,8 @@ jobs:
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-    - name: Generate UUID for test report
-      id: generate-uuid
-      run: |
-        UUID=$(uuidgen)
-        echo "UUID=$UUID" >> $GITHUB_ENV
-        echo "Generated UUID: $UUID"
     - name: Run Dockerized tests
-      run: |
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
-        make test-dockerized
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.UUID }}-tests-report
-        path:
-          /tmp/${{ env.UUID }}_test_report.html
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
 
   integration-tests:
     name: Run Dockerized Integration Tests
@@ -132,26 +115,9 @@ jobs:
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-    - name: Generate UUID for test report
-      id: generate-uuid
-      run: |
-        UUID=$(uuidgen)
-        echo "UUID=$UUID" >> $GITHUB_ENV
-        echo "Generated UUID: $UUID"
     - name: Run Dockerized tests
-      run: |
-        MLRUN_DOCKER_REGISTRY=ghcr.io/
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
-        make test-integration-dockerized
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
       timeout-minutes: 90
-    - name: Upload test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.UUID }}-tests-report
-        path:
-          /tmp/${{ env.UUID }}_test_report.html
 
   migrations-tests:
     name: Run Dockerized Migrations Tests
@@ -169,25 +135,8 @@ jobs:
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-      - name: Generate UUID for test report
-        id: generate-uuid
-        run: |
-          UUID=$(uuidgen)
-          echo "UUID=$UUID" >> $GITHUB_ENV
-          echo "Generated UUID: $UUID"
       - name: Run Dockerized DB Migration tests
-        run: |
-          MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-          MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
-          make test-migrations-dockerized
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.UUID }}-tests-report
-          path:
-            /tmp/${{ env.UUID }}_test_report.html
+        run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
   package-tests:
     name: Run package tests (Python ${{ matrix.python-version }}; Pipeline ${{ matrix.pipeline-adapter }})
@@ -266,26 +215,10 @@ jobs:
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
           echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-      - name: Generate UUID for test report
-        id: generate-uuid
-        run: |
-          UUID=$(uuidgen)
-          echo "UUID=$UUID" >> $GITHUB_ENV
-          echo "Generated UUID: $UUID"
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun
-          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-          MLRUN_TESTS_REPORT_UUID=${{ env.UUID }} \
-          make test-backward-compatibility-dockerized
-
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.UUID }}-tests-report
-          path:
-            /tmp/BC*${{ env.UUID }}_test_report.html
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
 
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)

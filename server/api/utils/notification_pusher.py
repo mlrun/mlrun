@@ -103,8 +103,6 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         error=mlrun.errors.err_to_str(result),
                     )
 
-        logger.debug("Pushing notification")
-
         self._push(sync_push, async_push)
 
     async def _push_notification_async(
@@ -159,13 +157,12 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification_object: mlrun.common.schemas.Notification,
     ):
         message = (
-            f": {notification_object.message}" if notification_object.message else ""
+            f": {notification_object.message}"
+            if notification_object.message
+            else alert.summary
         )
 
-        severity = (
-            notification_object.severity
-            or mlrun.common.schemas.NotificationSeverity.INFO
-        )
+        severity = alert.severity
         return message, severity
 
     @staticmethod
@@ -182,6 +179,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(
+            None,
             [notification],
             alert_id,
             project,

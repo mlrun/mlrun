@@ -24,13 +24,12 @@ import pandas as pd
 import pyarrow
 import pytz
 import requests
-import urllib3
 from deprecated import deprecated
 
 import mlrun.config
 import mlrun.errors
 from mlrun.errors import err_to_str
-from mlrun.utils import StorePrefix, is_ipython, logger
+from mlrun.utils import StorePrefix, is_jupyter, logger
 
 from .store_resources import is_store_uri, parse_store_uri
 from .utils import filter_df_start_end_time, select_columns_from_df
@@ -157,6 +156,18 @@ class DataStore:
     def put(self, key, data, append=False):
         pass
 
+    def _prepare_put_data(self, data, append=False):
+        mode = "a" if append else "w"
+        if isinstance(data, bytearray):
+            data = bytes(data)
+
+        if isinstance(data, bytes):
+            return data, f"{mode}b"
+        elif isinstance(data, str):
+            return data, mode
+        else:
+            raise TypeError(f"Unable to put a value of type {type(self).__name__}")
+
     def stat(self, key):
         pass
 
@@ -215,7 +226,11 @@ class DataStore:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "When providing start_time or end_time, must provide time_column"
                 )
-            if start_time and end_time and start_time.tzinfo != end_time.tzinfo:
+            if (
+                start_time
+                and end_time
+                and start_time.utcoffset() != end_time.utcoffset()
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "start_time and end_time must have the same time zone"
                 )
@@ -391,7 +406,10 @@ class DataStore:
         }
 
     def rm(self, path, recursive=False, maxdepth=None):
-        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        try:
+            self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def _is_dd(df_module):
@@ -601,14 +619,14 @@ class DataItem:
         )
         return df
 
-    def show(self, format=None):
+    def show(self, format: Optional[str] = None) -> None:
         """show the data object content in Jupyter
 
         :param format: format to use (when there is no/wrong suffix), e.g. 'png'
         """
-        if not is_ipython:
+        if not is_jupyter:
             logger.warning(
-                "Jupyter/IPython was not detected, .show() will only display inside Jupyter"
+                "Jupyter was not detected. `.show()` displays only inside Jupyter."
             )
             return
 
@@ -726,8 +744,6 @@ class HttpStore(DataStore):
 
         verify_ssl = mlconf.httpdb.http.verify
         try:
-            if not verify_ssl:
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
         except OSError as exc:
             raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
@@ -741,7 +757,7 @@ class HttpStore(DataStore):
 # As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
 # Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
 # method specifically to strip away the 'ds' schema as required.
-def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
+def make_datastore_schema_sanitizer(cls, using_bucket=False, *args, **kwargs):
     if not issubclass(cls, fsspec.AbstractFileSystem):
         raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 

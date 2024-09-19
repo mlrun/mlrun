@@ -223,8 +223,9 @@ def test_list_pipelines_name_contains(
     run_name_filter: str,
     expected_runs_ids: list,
 ) -> None:
+    project_name = "test-project"
     server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value="test-project"
+        return_value=project_name
     )
     runs = _generate_list_runs_project_name_mocks()
     expected_page_size = (
@@ -236,6 +237,7 @@ def test_list_pipelines_name_contains(
         kfp_client_mock,
         runs,
         expected_page_size=expected_page_size,
+        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name),
     )
     response = client.get(
         f"projects/{project_name}/pipelines",
@@ -377,6 +379,16 @@ def _generate_list_runs_mocks():
                 pipeline_id="pipe_id4",
                 workflow_manifest=workflow_manifest,
             ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id5",
+            name="run5",
+            description="desc5",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id5",
+                workflow_manifest=workflow_manifest,
+            ),
+            error="error",
         ),
     ]
 
@@ -577,7 +589,7 @@ def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):
             [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_list_runs(
@@ -599,7 +611,7 @@ def _mock_list_runs(
             runs, len(runs)
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_get_run(

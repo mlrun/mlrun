@@ -16,8 +16,9 @@
 - [Multi-stage workflows (batch pipelines)](#multi-stage-workflows-batch-pipelines)
 - [Logging](#logging)
 - [Experiment tracking](#experiment-tracking)
-- [Model Inferencing and serving](#model-inferencing-and-serving)
+- [Model inferencing and serving](#model-inferencing-and-serving)
 - [Model monitoring and drift detection](#model-monitoring-and-drift-detection)
+- [Alerts and notifications](#alerts-and-notifications)
 - [Sources and targets](#sources-and-targets)
 - [Feature store](#feature-store)
 - [Real-time pipelines](#real-time-pipelines)
@@ -76,7 +77,7 @@ project.set_function(
     name="train_model", func="train_model.py", kind="job", image="mlrun/mlrun"
 )
 
-# Add aworkflow (pipeline) to the project
+# Add a workflow (pipeline) to the project
 project.set_workflow(name="training_pipeline", workflow_path="straining_pipeline.py")
 
 # Save the project and generate the project.yaml file
@@ -127,7 +128,7 @@ fn = project.set_function(
 
 #### Overview
 
-Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with Github Actions, GitLab](./projects/ci-integration.html)
+Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with GitHub Actions, GitLab](./projects/ci-integration.html)
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
 - **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.
@@ -240,7 +241,8 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 #### MPIJob (Horovod)
 
 ```python
-mpijob = mlrun.code_to_function(
+project = mlrun.get_or_create_project("mpijob")
+mpijob = project.set_function(
     name="my-mpijob",
     filename="my_mpijob.py",
     kind="mpijob",
@@ -254,7 +256,8 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project("dask")
+dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = "NodePort"
@@ -271,8 +274,10 @@ dask.client
 import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
-
-spark = mlrun.new_function(kind="spark", command=read_csv_filepath, name="sparkreadcsv")
+project = mlrun.get_or_create_project("spark")
+spark = project.set_function(
+    kind="spark", command=read_csv_filepath, name="sparkreadcsv"
+)
 spark.with_driver_limits(cpu="1300m")
 spark.with_driver_requests(cpu=1, mem="512m")
 spark.with_executor_limits(cpu="1400m")
@@ -650,7 +655,7 @@ batch_run = project.run_function(
 ```
 
 ## Model monitoring and drift detection
-Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html), [Batch inference](./deployment/batch_inference.html) 
+Docs: {ref}`model-monitoring-overview`, [Batch inference](./deployment/batch_inference.html) 
 
 ### Real-time drift detection
 
@@ -685,6 +690,42 @@ batch_run = project.run_function(
     },
 )
 ```
+
+## Alerts and notifications
+
+Docs: {ref}`alerts`, {ref}`notifications`
+
+### Alerts
+```python
+alert_data = mlrun.alerts.alert.AlertConfig(
+    project=project_name,
+    name=alert_name,
+    summary=alert_summary,
+    severity=alert_objects.AlertSeverity.LOW,
+    entities=alert_objects.EventEntities(
+        kind=entity_kind, project=project_name, ids=[result_endpoint]
+    ),
+    trigger=alert_objects.AlertTrigger(events=[event_name]),
+    criteria=None,
+    notifications=notifications,
+)
+```
+
+### Notifications
+```python
+notification = mlrun.model.Notification(
+    kind="slack",
+    name="slack_notification",
+    message="A drift was detected",
+    severity="warning",
+    when=["now"],
+    condition="failed",
+    secret_params={
+        "webhook": "https://hooks.slack.com/",
+    },
+).to_dict()
+```
+
 
 ## Sources and targets
 
@@ -1201,7 +1242,10 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project(dask - cluster)
+dask_cluster = project.set_function(
+    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+)
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

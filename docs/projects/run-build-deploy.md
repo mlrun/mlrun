@@ -18,7 +18,7 @@ When used inside a pipeline, each method is automatically mapped to the relevant
 
 * {py:meth}`~mlrun.projects.run_function` &mdash; Run a local or remote task as part of local or remote batch/scheduled task
 * {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs
-* {py:meth}`~mlrun.projects.deploy_function` &mdash; deploy real-time/online (nuclio or serving based) functions
+* {py:meth}`~mlrun.projects.deploy_function` &mdash; deploy real-time/online (`nuclio` or `serving` based) functions
 
 Use these methods as `project` methods. For example:
 
@@ -28,7 +28,7 @@ run = myproject.run_function("train", inputs={"data": data_url})
 ```
     
 The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 
-specify functions that you imported/created ad hoc, or to modify a function spec. For example:
+specify functions that you imported/created or to modify a function spec. For example:
 
 ```python
 # import a serving function from the Function Hub and deploy a trained model over it
@@ -138,7 +138,7 @@ See further details and examples in [**Build function image**](../runtimes/image
 <a id="deploy"></a>
 ## deploy_function
 
-The {py:meth}`~mlrun.projects.deploy_function` method is used to deploy real-time/online (nuclio or serving) functions and pipelines.
+The {py:meth}`~mlrun.projects.deploy_function` method is used to deploy real-time/online (`nuclio` or `serving`) functions and pipelines.
 Read more about [**Real-time serving pipelines**](../serving/serving-graph.html).
 
 Basic example:

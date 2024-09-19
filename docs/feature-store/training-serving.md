@@ -7,7 +7,7 @@
 
 ## Get online features
 
-The online features are created ad-hoc using MLRun's feature store online feature service and are served from the **nosql** target for real-time performance needs.
+The online features are created using MLRun's feature store online feature service and are served from the **NoSQL** target for real-time performance needs.
 
 To use it, first create an online feature service with the feature vector.
 
@@ -30,7 +30,7 @@ fv = svc.get([{"<key name>": "<key value>"}])
 ## Incorporating to the serving model
 
 You can serve your models using the {ref}`serving-graph`. (See a [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/v2_model_server/v2_model_server.ipynb).)
-You define a serving model class and the computational graph required to run your entire prediction pipeline, and deploy it as a serverless function using [nuclio](https://github.com/nuclio/nuclio).
+You define a serving model class and the computational graph required to run your entire prediction pipeline, and deploy it as a serverless function using [Nuclio](https://github.com/nuclio/nuclio).
 
 To embed the online feature service in your model server, just create the feature vector service once when the model initializes, and then use it to retrieve the feature vectors of incoming keys.
 
@@ -93,8 +93,9 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 Which you can deploy with:
 
 ```python
+project = mlrun.get_or_create_project("prediction")
 # Create the serving function from the code above
-fn = mlrun.code_to_function("<function_name>", kind="serving")
+fn = project.set_function(name="<function_name>", kind="serving")
 
 # Add a specific model to the serving function
 fn.add_model(
@@ -102,9 +103,6 @@ fn.add_model(
     class_name="ClassifierModel",
     model_path="<store_model_file_reference>",
 )
-
-# Enable MLRun's model monitoring
-fn.set_tracking()
 
 # Add the system mount to the function so
 # it will have access to the model files

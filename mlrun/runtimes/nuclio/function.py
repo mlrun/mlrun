@@ -418,14 +418,8 @@ class RemoteRuntime(KubeResource):
                 raise ValueError(
                     "gateway timeout must be greater than the worker timeout"
                 )
-            annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
-                f"{gateway_timeout}"
-            )
-            annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = (
-                f"{gateway_timeout}"
-            )
-            annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = (
-                f"{gateway_timeout}"
+            mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+                annotations, gateway_timeout
             )
 
         trigger = nuclio.HttpTrigger(
@@ -446,6 +440,11 @@ class RemoteRuntime(KubeResource):
         return self
 
     def from_image(self, image):
+        """
+        Deploy the function with an existing nuclio processor image.
+
+        :param image: image name
+        """
         config = nuclio.config.new_config()
         update_in(
             config,
@@ -510,8 +509,10 @@ class RemoteRuntime(KubeResource):
                 **kwargs,
             ),
         )
-        self.spec.min_replicas = shards
-        self.spec.max_replicas = shards
+        if self.spec.min_replicas != shards or self.spec.max_replicas != shards:
+            logger.warning(f"Setting function replicas to {shards}")
+            self.spec.min_replicas = shards
+            self.spec.max_replicas = shards
 
     def deploy(
         self,
@@ -566,6 +567,9 @@ class RemoteRuntime(KubeResource):
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
 
+        return self._enrich_command_from_status()
+
+    def _enrich_command_from_status(self):
         # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
         #       now, functions can be not exposed (using service type ClusterIP) and hence
         #       for BC we first try to populate the external invocation url, and then
@@ -679,7 +683,7 @@ class RemoteRuntime(KubeResource):
             "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
         )
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def disable_default_http_trigger(
         self,
     ):
@@ -688,7 +692,7 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.disable_default_http_trigger = True
 
-    @min_nuclio_versions("1.12.8")
+    @min_nuclio_versions("1.13.1")
     def enable_default_http_trigger(
         self,
     ):
@@ -696,6 +700,10 @@ class RemoteRuntime(KubeResource):
         Enables nuclio's default http trigger creation
         """
         self.spec.disable_default_http_trigger = False
+
+    def skip_image_enrichment(self):
+        # make sure the API does not enrich the base image if the function is not a python function
+        return self.spec.nuclio_runtime and "python" not in self.spec.nuclio_runtime
 
     def _get_state(
         self,
@@ -739,7 +747,7 @@ class RemoteRuntime(KubeResource):
             return state, text, last_log_timestamp
 
         try:
-            text, last_log_timestamp = self._get_db().get_builder_status(
+            text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except mlrun.db.RunDBError:
@@ -990,7 +998,7 @@ class RemoteRuntime(KubeResource):
         if command and not command.startswith("http"):
             sidecar["command"] = mlrun.utils.helpers.as_list(command)
 
-        if args and sidecar["command"]:
+        if args and sidecar.get("command"):
             sidecar["args"] = mlrun.utils.helpers.as_list(args)
 
         # populate the sidecar resources from the function spec

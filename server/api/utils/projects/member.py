@@ -19,6 +19,7 @@ import sqlalchemy.orm
 
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.k8s_utils
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.utils.clients.log_collector
@@ -27,6 +28,10 @@ import server.api.utils.clients.log_collector
 class Member(abc.ABC):
     @abc.abstractmethod
     def initialize(self):
+        pass
+
+    @abc.abstractmethod
+    def start(self):
         pass
 
     @abc.abstractmethod
@@ -102,6 +107,7 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         background_task_name: str = None,
+        model_monitoring_access_key: str = None,
     ) -> bool:
         pass
 
@@ -174,3 +180,6 @@ class Member(abc.ABC):
     def _validate_project(self, project: mlrun.common.schemas.Project):
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
         mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
+        mlrun.k8s_utils.validate_node_selectors(
+            project.spec.default_function_node_selector
+        )

@@ -39,6 +39,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.common.types
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
@@ -95,6 +96,7 @@ from server.api.db.sqldb.models import (
     ProjectSummary,
     Run,
     Schedule,
+    TimeWindowTracker,
     User,
     _labeled,
     _tagged,
@@ -211,7 +213,8 @@ class SQLDB(DBInterface):
             iter=iter,
             run_name=run_data["metadata"]["name"],
         )
-        run = self._get_run(session, uid, project, iter, with_for_update=True)
+        # Do not lock run as it may cause deadlocks
+        run = self._get_run(session, uid, project, iter)
         now = datetime.now(timezone.utc)
         if not run:
             run = Run(
@@ -662,8 +665,8 @@ class SQLDB(DBInterface):
         project=None,
         tag=None,
         labels=None,
-        since=None,
-        until=None,
+        since: datetime = None,
+        until: datetime = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
         iter: int = None,
@@ -916,7 +919,9 @@ class SQLDB(DBInterface):
             .group_by(ArtifactV2.Tag.name)
         )
         if category:
-            query = self._add_artifact_category_query(category, query)
+            query = self._add_artifact_category_query(category, query).with_hint(
+                ArtifactV2, "USE INDEX (idx_project_kind)"
+            )
 
         # the query returns a list of tuples, we need to extract the tag from each tuple
         return [tag for (tag,) in query]
@@ -990,6 +995,15 @@ class SQLDB(DBInterface):
         project: str,
     ):
         artifacts_keys = [artifact.key for artifact in artifacts]
+        if not artifacts_keys:
+            logger.debug(
+                "No artifacts to tag",
+                project=project,
+                tag=tag_name,
+                artifacts=artifacts,
+            )
+            return
+
         logger.debug(
             "Locking artifacts in db before tagging artifacts",
             project=project,
@@ -1108,47 +1122,57 @@ class SQLDB(DBInterface):
         if link_key:
             key = link_key
 
-        # We perform two consecutive SELECT queries and modify the two artifact records that are returned.
-        # Without no_autoflush, SQLAlchemy offloads the transaction data to the DB during the second SELECT query,
-        # which can result in a deadlock due to assumed conflicts between the transactions.
-        # Using no_autoflush ensures that all modifications don't arrive to the DB until the transaction is committed.
-        with session.no_autoflush:
-            # get the best iteration artifact record
-            query = self._query(session, ArtifactV2).filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key == key,
-                ArtifactV2.iteration == link_iteration,
+        # Lock the artifacts with the same project and key (and producer_id when available) to avoid unexpected
+        # deadlocks and conform to our lock-once-when-starting logic - ML-6869
+        lock_query = self._query(
+            session,
+            ArtifactV2,
+            project=project,
+            key=key,
+        ).with_entities(ArtifactV2.id)
+        if link_tree:
+            lock_query = lock_query.filter(ArtifactV2.producer_id == link_tree)
+
+        lock_query.order_by(
+            ArtifactV2.id.asc()
+        ).populate_existing().with_for_update().all()
+
+        # get the best iteration artifact record
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.iteration == link_iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
+        if uid:
+            query = query.filter(ArtifactV2.uid == uid)
+
+        best_iteration_artifact_record = query.one_or_none()
+        if not best_iteration_artifact_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
             )
-            if link_tree:
-                query = query.filter(ArtifactV2.producer_id == link_tree)
-            if uid:
-                query = query.filter(ArtifactV2.uid == uid)
 
-            best_iteration_artifact_record = query.one_or_none()
-            if not best_iteration_artifact_record:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
-                )
+        # get the previous best iteration artifact
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.best_iteration,
+            ArtifactV2.iteration != link_iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
 
-            # get the previous best iteration artifact
-            query = self._query(session, ArtifactV2).filter(
-                ArtifactV2.project == project,
-                ArtifactV2.key == key,
-                ArtifactV2.best_iteration,
-                ArtifactV2.iteration != link_iteration,
-            )
-            if link_tree:
-                query = query.filter(ArtifactV2.producer_id == link_tree)
+        previous_best_iteration_artifacts = query.one_or_none()
+        if previous_best_iteration_artifacts:
+            # remove the previous best iteration flag
+            previous_best_iteration_artifacts.best_iteration = False
+            artifacts_to_commit.append(previous_best_iteration_artifacts)
 
-            previous_best_iteration_artifacts = query.one_or_none()
-            if previous_best_iteration_artifacts:
-                # remove the previous best iteration flag
-                previous_best_iteration_artifacts.best_iteration = False
-                artifacts_to_commit.append(previous_best_iteration_artifacts)
-
-            # update the artifact record with best iteration
-            best_iteration_artifact_record.best_iteration = True
-            artifacts_to_commit.append(best_iteration_artifact_record)
+        # update the artifact record with best iteration
+        best_iteration_artifact_record.best_iteration = True
+        artifacts_to_commit.append(best_iteration_artifact_record)
 
         self._upsert(session, artifacts_to_commit)
 
@@ -1697,7 +1721,7 @@ class SQLDB(DBInterface):
             project=project,
             tag=tag,
             versioned=versioned,
-            function=function,
+            metadata=function.get("metadata"),
         )
         function = deepcopy(function)
         project = project or config.default_project
@@ -1728,6 +1752,8 @@ class SQLDB(DBInterface):
             )
         if not body_name:
             function.setdefault("metadata", {})["name"] = name
+        if function_node_selector := get_in(function, "spec.node_selector"):
+            mlrun.k8s_utils.validate_node_selectors(function_node_selector)
         fn = self._get_class_instance_by_uid(session, Function, name, project, uid)
         if not fn:
             fn = Function(
@@ -1754,16 +1780,20 @@ class SQLDB(DBInterface):
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
+        since: datetime = None,
+        until: datetime = None,
     ) -> list[dict]:
         project = project or mlrun.mlconf.default_project
         functions = []
         for function, function_tag in self._find_functions(
-            session,
-            name,
-            project,
-            labels,
-            tag,
-            hash_key,
+            session=session,
+            name=name,
+            project=project,
+            labels=labels,
+            tag=tag,
+            hash_key=hash_key,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         ):
@@ -1906,29 +1936,42 @@ class SQLDB(DBInterface):
             )
             return
 
+        # remove trailing slashes from the URL
+        url = url.rstrip("/")
+
         struct = function.struct
         existing_invocation_urls = struct["status"].get("external_invocation_urls", [])
-        if operation == mlrun.common.types.Operation.ADD:
+        updated = False
+        if (
+            operation == mlrun.common.types.Operation.ADD
+            and url not in existing_invocation_urls
+        ):
             logger.debug(
                 "Adding new external invocation url to function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url not in existing_invocation_urls:
-                existing_invocation_urls.append(url)
+            updated = True
+            existing_invocation_urls.append(url)
             struct["status"]["external_invocation_urls"] = existing_invocation_urls
-        elif operation == mlrun.common.types.Operation.REMOVE:
+        elif (
+            operation == mlrun.common.types.Operation.REMOVE
+            and url in existing_invocation_urls
+        ):
             logger.debug(
                 "Removing an external invocation url from function",
                 project=project,
                 name=name,
                 url=url,
             )
-            if url in existing_invocation_urls:
-                struct["status"]["external_invocation_urls"].remove(url)
-        function.struct = struct
-        self._upsert(session, [function])
+            updated = True
+            struct["status"]["external_invocation_urls"].remove(url)
+
+        # update the function record only if the external invocation URLs were updated
+        if updated:
+            function.struct = struct
+            self._upsert(session, [function])
 
     def _get_function(
         self,
@@ -2233,7 +2276,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
@@ -2328,7 +2371,7 @@ class SQLDB(DBInterface):
                 cls=cls,
                 project=project,
                 main_table_identifier=main_table_identifier,
-                main_table_identifier_values=main_table_identifier_values,
+                main_table_identifier_values_count=len(main_table_identifier_values),
             )
 
             # The select is mandatory for sqlalchemy 1.4 because
@@ -2399,12 +2442,8 @@ class SQLDB(DBInterface):
             "main_table": main_table,
             "project": project,
             "main_table_identifier": main_table_identifier,
-            "main_table_identifier_values_count": len(main_table_identifier_values),
         }
-        if deletions_count != len(main_table_identifier_values):
-            logger.warning("Removed less rows than expected from table", **log_kwargs)
-        else:
-            logger.debug("Removed rows from table", **log_kwargs)
+        logger.debug("Removed rows from table", **log_kwargs)
         session.commit()
         return deletions_count
 
@@ -2483,7 +2522,22 @@ class SQLDB(DBInterface):
         )
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
-        self._upsert(session, [project_record])
+
+        objects_to_store = [project_record]
+        self._append_project_summary(project, objects_to_store)
+        self._upsert(session, objects_to_store)
+
+    @staticmethod
+    def _append_project_summary(project, objects_to_store):
+        summary = mlrun.common.schemas.ProjectSummary(
+            name=project.metadata.name,
+        )
+        project_summary = ProjectSummary(
+            project=project.metadata.name,
+            summary=summary.dict(),
+            updated=datetime.now(timezone.utc),
+        )
+        objects_to_store.append(project_summary)
 
     @retry_on_conflict
     def store_project(
@@ -2535,7 +2589,7 @@ class SQLDB(DBInterface):
         session: Session,
         name: str = None,
         project_id: int = None,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
         return self._transform_project_record_to_schema(session, project_record)
@@ -2549,6 +2603,7 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
+        self._delete_project_summary(session, name)
         self._delete(session, Project, name=name)
 
     def list_projects(
@@ -2593,8 +2648,10 @@ class SQLDB(DBInterface):
         return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
     def get_project_summary(
-        self, session, project: str
-    ) -> mlrun.common.schemas.ProjectSummary:
+        self,
+        session,
+        project: str,
+    ) -> typing.Optional[mlrun.common.schemas.ProjectSummary]:
         project_summary_record = self._query(
             session,
             ProjectSummary,
@@ -2602,9 +2659,10 @@ class SQLDB(DBInterface):
         ).one_or_none()
         if not project_summary_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Project summary not found: project={project}"
+                f"Project summary not found: {project=}"
             )
 
+        project_summary_record.summary["name"] = project_summary_record.project
         project_summary_record.summary["updated"] = project_summary_record.updated
         return mlrun.common.schemas.ProjectSummary(**project_summary_record.summary)
 
@@ -2649,17 +2707,54 @@ class SQLDB(DBInterface):
         session: Session,
         project_summaries: list[mlrun.common.schemas.ProjectSummary],
     ):
-        # Do the whole operation in a single transaction
-        with session.no_autoflush:
-            self._query(session, ProjectSummary).delete()
-            for project_summary_schema in project_summaries:
-                project_summary = ProjectSummary(
-                    project=project_summary_schema.name,
-                    summary=project_summary_schema.dict(),
-                    updated=datetime.now(timezone.utc),
-                )
-                session.add(project_summary)
-            session.commit()
+        """
+        This method updates the summaries of projects that have associated projects in the database
+        and removes project summaries that no longer have associated projects.
+        """
+
+        summary_dicts = {summary.name: summary.dict() for summary in project_summaries}
+
+        # Create a query for project summaries with associated projects
+        existing_summaries_query = (
+            session.query(ProjectSummary)
+            .outerjoin(Project, Project.name == ProjectSummary.project)
+            .filter(ProjectSummary.project.in_(summary_dicts.keys()))
+        )
+
+        associated_summaries = existing_summaries_query.filter(
+            Project.id.is_not(None)
+        ).all()
+
+        orphaned_summaries = existing_summaries_query.filter(Project.id.is_(None)).all()
+
+        # Update the summaries of projects that have associated projects
+        for project_summary in associated_summaries:
+            project_summary.summary = summary_dicts.get(project_summary.project)
+            project_summary.updated = datetime.now(timezone.utc)
+            session.add(project_summary)
+
+        # To avoid race conditions where a project might be deleted after its summary is queried
+        # but before the transaction completes, we delete project summaries that do not have
+        # any associated projects.
+        if orphaned_summaries:
+            projects_names = [summary.project for summary in orphaned_summaries]
+            logger.debug(
+                "Deleting project summaries that do not have associated projects",
+                projects=projects_names,
+            )
+
+            for summary in orphaned_summaries:
+                session.delete(summary)
+
+        self._commit(session, associated_summaries + orphaned_summaries)
+
+    def _delete_project_summary(
+        self,
+        session: Session,
+        name: str,
+    ):
+        logger.debug("Deleting project summary from DB", name=name)
+        self._delete(session, ProjectSummary, project=name)
 
     async def get_project_resources_counters(
         self,
@@ -2723,7 +2818,8 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
         )
 
-    def _calculate_functions_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_functions_counters(session) -> dict[str, int]:
         functions_count_per_project = (
             session.query(Function.project, func.count(distinct(Function.name)))
             .group_by(Function.project)
@@ -2734,8 +2830,9 @@ class SQLDB(DBInterface):
         }
         return project_to_function_count
 
+    @staticmethod
     def _calculate_schedules_counters(
-        self, session
+        session,
     ) -> [dict[str, int], dict[str, int], dict[str, int]]:
         schedules_count_per_project = (
             session.query(Schedule.project, func.count(distinct(Schedule.name)))
@@ -2782,7 +2879,8 @@ class SQLDB(DBInterface):
             project_to_schedule_pending_workflows_count,
         )
 
-    def _calculate_feature_sets_counters(self, session) -> dict[str, int]:
+    @staticmethod
+    def _calculate_feature_sets_counters(session) -> dict[str, int]:
         feature_sets_count_per_project = (
             session.query(FeatureSet.project, func.count(distinct(FeatureSet.name)))
             .group_by(FeatureSet.project)
@@ -2821,8 +2919,9 @@ class SQLDB(DBInterface):
             project_to_files_count[file_artifact.project] += 1
         return project_to_files_count
 
+    @staticmethod
     def _calculate_runs_counters(
-        self, session
+        session,
     ) -> tuple[
         dict[str, int],
         dict[str, int],
@@ -4384,7 +4483,8 @@ class SQLDB(DBInterface):
             session.add(object_)
         self._commit(session, objects, ignore)
 
-    def _commit(self, session, objects, ignore=False):
+    @staticmethod
+    def _commit(session, objects, ignore=False):
         def _try_commit_obj():
             try:
                 session.commit()
@@ -4481,9 +4581,25 @@ class SQLDB(DBInterface):
         labels: typing.Union[str, list[str], None] = None,
         tag: typing.Optional[str] = None,
         hash_key: typing.Optional[str] = None,
+        since: datetime = None,
+        until: datetime = None,
         page: typing.Optional[int] = None,
         page_size: typing.Optional[int] = None,
     ) -> list[tuple[Function, str]]:
+        """
+        Query functions from the DB by the given filters.
+
+        :param session: The DB session.
+        :param name: The name of the function to query.
+        :param project: The project of the function to query.
+        :param labels: The labels of the function to query.
+        :param tag: The tag of the function to query.
+        :param hash_key: The hash key of the function to query.
+        :param since: Filter functions that were updated after this time
+        :param until: Filter functions that were updated before this time
+        :param page: The page number to query.
+        :param page_size: The page size to query.
+        """
         query = session.query(Function, Function.Tag.name)
         query = query.filter(Function.project == project)
 
@@ -4493,13 +4609,22 @@ class SQLDB(DBInterface):
         if hash_key is not None:
             query = query.filter(Function.uid == hash_key)
 
+        if since or until:
+            since = since or datetime.min
+            until = until or datetime.max
+            query = query.filter(
+                and_(Function.updated >= since, Function.updated <= until)
+            )
+
         if not tag:
             # If no tag is given, we need to outer join to get all functions, even if they don't have tags.
             query = query.outerjoin(Function.Tag, Function.id == Function.Tag.obj_id)
         else:
-            # If a tag is given, we can just join (faster than outer join) and filter on the tag.
+            # Only get functions that have tags with join (faster than outer join)
             query = query.join(Function.Tag, Function.id == Function.Tag.obj_id)
-            query = query.filter(Function.Tag.name == tag)
+            if tag != "*":
+                # Filter on the specific tag
+                query = query.filter(Function.Tag.name == tag)
 
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Function, labels)
@@ -4512,7 +4637,7 @@ class SQLDB(DBInterface):
             session.delete(obj)
         session.commit()
 
-    def _find_lables(self, session, cls, label_cls, labels):
+    def _find_labels(self, session, cls, label_cls, labels):
         return session.query(cls).join(label_cls).filter(label_cls.name.in_(labels))
 
     def _add_labels_filter(self, session, query, cls, labels):
@@ -4628,7 +4753,7 @@ class SQLDB(DBInterface):
 
     def _transform_project_record_to_schema(
         self, session: Session, project_record: Project
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOut:
         # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
         if not project_record.full_object:
             project = mlrun.common.schemas.Project(
@@ -4646,9 +4771,9 @@ class SQLDB(DBInterface):
                 ),
             )
             self.store_project(session, project_record.name, project)
-            return project
+            return mlrun.common.schemas.ProjectOut(**project.dict())
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
-        return mlrun.common.schemas.Project(**project_record.full_object)
+        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(
         self,
@@ -4999,9 +5124,8 @@ class SQLDB(DBInterface):
             alert_record.id,
             alert.project,
         )
+        self.create_alert_state(session, alert_record)
 
-        state = AlertState(count=0, parent_id=alert_record.id)
-        self._upsert(session, [state])
         return self._transform_alert_config_record_to_schema(alert_record)
 
     def delete_alert(self, session, project: str, name: str):
@@ -5034,7 +5158,7 @@ class SQLDB(DBInterface):
             self._get_alert_record_by_id(session, alert_id)
         )
 
-    def enrich_alert(self, session, alert: AlertConfig):
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
         state = self.get_alert_state(session, alert.id)
         alert.state = (
             mlrun.common.schemas.AlertActiveState.ACTIVE
@@ -5042,6 +5166,7 @@ class SQLDB(DBInterface):
             else mlrun.common.schemas.AlertActiveState.INACTIVE
         )
         alert.count = state.count
+        alert.created = state.created
 
         def _enrich_notification(_notification):
             _notification = _notification.to_dict()
@@ -5134,9 +5259,9 @@ class SQLDB(DBInterface):
         project: str,
         name: str,
         last_updated: datetime,
-        count: typing.Union[int, None] = None,
+        count: typing.Optional[int] = None,
         active: bool = False,
-        obj: dict = None,
+        obj: typing.Optional[dict] = None,
     ):
         alert = self.get_alert(session, project, name)
         state = self.get_alert_state(session, alert.id)
@@ -5150,6 +5275,15 @@ class SQLDB(DBInterface):
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:
         return self._query(session, AlertState, parent_id=alert_id).one()
+
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
+        state = self.get_alert_state(session, alert_id)
+        if state is not None:
+            return state.to_dict()
+
+    def create_alert_state(self, session, alert_record):
+        state = AlertState(count=0, parent_id=alert_record.id)
+        self._upsert(session, [state])
 
     def delete_alert_notifications(
         self,
@@ -5351,7 +5485,7 @@ class SQLDB(DBInterface):
         return self._query(session, BackgroundTask, project=project)
 
     def _delete_background_tasks(self, session: Session, project: str):
-        logger.debug("Removing background tasks from db", project=project)
+        logger.debug("Removing project background tasks from db", project=project)
         for background_task_name in self._list_project_background_task_names(
             session, project
         ):
@@ -5439,10 +5573,13 @@ class SQLDB(DBInterface):
                 )
 
             notification.kind = notification_model.kind
-            notification.message = notification_model.message
-            notification.severity = notification_model.severity
-            notification.when = ",".join(notification_model.when)
-            notification.condition = notification_model.condition
+            notification.message = notification_model.message or ""
+            notification.severity = (
+                notification_model.severity
+                or mlrun.common.schemas.NotificationSeverity.INFO
+            )
+            notification.when = ",".join(notification_model.when or [])
+            notification.condition = notification_model.condition or ""
             notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (
@@ -5739,6 +5876,39 @@ class SQLDB(DBInterface):
         key: str,
     ):
         self._delete(session, PaginationCache, key=key)
+
+    def store_time_window_tracker_record(
+        self,
+        session: Session,
+        key: str,
+        timestamp: typing.Optional[datetime] = None,
+        max_window_size_seconds: typing.Optional[int] = None,
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self.get_time_window_tracker_record(
+            session, key=key, raise_on_not_found=False
+        )
+        if not time_window_tracker_record:
+            time_window_tracker_record = TimeWindowTracker(key=key)
+
+        if timestamp:
+            time_window_tracker_record.timestamp = timestamp
+        if max_window_size_seconds:
+            time_window_tracker_record.max_window_size_seconds = max_window_size_seconds
+
+        self._upsert(session, [time_window_tracker_record])
+        return time_window_tracker_record
+
+    def get_time_window_tracker_record(
+        self, session, key: str, raise_on_not_found: bool = True
+    ) -> TimeWindowTracker:
+        time_window_tracker_record = self._query(
+            session, TimeWindowTracker, key=key
+        ).one_or_none()
+        if not time_window_tracker_record and raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Time window tracker record not found: key={key}"
+            )
+        return time_window_tracker_record
 
     # ---- Utils ----
     def delete_table_records(

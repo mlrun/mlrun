@@ -70,7 +70,7 @@ You can also view some metadata about the feature vector, including all the feat
 ### Feature vectors with different entities and complex joins
 
 ```{admonition} Note
-Tech Preview
+This feature is currently in Tech Preview status.
 ```
 
 You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 
@@ -285,7 +285,7 @@ If you want to return an ordered list of values, set the `as_list` parameter to 
 frameworks and this eliminates additional glue logic. 
    
 When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
-the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
+the `get_online_feature_service` uses QueryByKey on the key-value store: all join types in the graph turn 
 into left joins. Consequently, the function performs joins using the latest events for each required 
 entity within each feature set.
 

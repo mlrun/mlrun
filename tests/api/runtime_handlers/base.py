@@ -129,7 +129,10 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _generate_pod(name, labels, phase=PodPhases.succeeded):
         terminated_container_state = client.V1ContainerStateTerminated(
-            finished_at=datetime.now(timezone.utc), exit_code=0
+            finished_at=datetime.now(timezone.utc),
+            exit_code=0,
+            reason="Some reason",
+            message="Failed message",
         )
         container_state = client.V1ContainerState(terminated=terminated_container_state)
         container_status = client.V1ContainerStatus(
@@ -387,7 +390,9 @@ class TestRuntimeHandlerBase:
     def _mock_list_namespaced_pods(list_pods_call_responses: list[list[client.V1Pod]]):
         calls = []
         for list_pods_call_response in list_pods_call_responses:
-            pods = client.V1PodList(items=list_pods_call_response)
+            pods = client.V1PodList(
+                items=list_pods_call_response, metadata=client.V1ListMeta()
+            )
             calls.append(pods)
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
             side_effect=calls
@@ -417,7 +422,11 @@ class TestRuntimeHandlerBase:
         expected_service_names: list[str], expected_service_namespace: str = None
     ):
         calls = [
-            unittest.mock.call(expected_service_name, expected_service_namespace)
+            unittest.mock.call(
+                expected_service_name,
+                expected_service_namespace,
+                grace_period_seconds=None,
+            )
             for expected_service_name in expected_service_names
         ]
         if not expected_service_names:
@@ -476,7 +485,9 @@ class TestRuntimeHandlerBase:
     def _mock_list_namespaced_crds(crd_dicts_call_responses: list[list[dict]]):
         calls = []
         for crd_dicts_call_response in crd_dicts_call_responses:
-            calls.append({"items": crd_dicts_call_response})
+            calls.append(
+                {"items": crd_dicts_call_response, "metadata": {"continue": None}}
+            )
         get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
             side_effect=calls
         )
@@ -503,6 +514,7 @@ class TestRuntimeHandlerBase:
         runtime_handler,
         expected_number_of_calls: int,
         expected_label_selector: str = None,
+        paginated: bool = True,
     ):
         assert (
             get_k8s_helper().v1api.list_namespaced_pod.call_count
@@ -515,31 +527,55 @@ class TestRuntimeHandlerBase:
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()
         )
+        kwargs = {}
+        if paginated:
+            kwargs = {
+                "watch": False,
+                "limit": int(mlrun.mlconf.kubernetes.pagination.list_pods_limit),
+                "_continue": None,
+            }
         get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
             get_k8s_helper().resolve_namespace(),
             label_selector=expected_label_selector,
+            **kwargs,
         )
 
     @staticmethod
     def _assert_list_namespaced_crds_calls(
-        runtime_handler, expected_number_of_calls: int
+        runtime_handler, expected_number_of_calls: int, paginated: bool = True
     ):
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         assert (
             get_k8s_helper().crdapi.list_namespaced_custom_object.call_count
             == expected_number_of_calls
         )
+        kwargs = {}
+        if paginated:
+            kwargs = {
+                "watch": False,
+                "limit": int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit),
+                "_continue": None,
+            }
         get_k8s_helper().crdapi.list_namespaced_custom_object.assert_any_call(
             crd_group,
             crd_version,
             get_k8s_helper().resolve_namespace(),
             crd_plural,
             label_selector=runtime_handler._get_default_label_selector(),
+            **kwargs,
         )
 
     @staticmethod
     def _assert_run_reached_state(
-        db: Session, project: str, uid: str, expected_state: str
+        db: Session,
+        project: str,
+        uid: str,
+        expected_state: str,
+        expected_status_attrs: dict = None,
     ):
+        expected_status_attrs = expected_status_attrs or {}
         run = get_db().read_run(db, uid, project)
         assert run["status"]["state"] == expected_state
+
+        for key, val in expected_status_attrs.items():
+            assert run["status"][key] == val

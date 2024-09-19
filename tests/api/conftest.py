@@ -60,7 +60,7 @@ def api_config_test():
     server.api.utils.singletons.k8s._k8s = None
     server.api.utils.singletons.logs_dir.logs_dir = None
 
-    server.api.utils.runtimes.nuclio.cached_nuclio_version = None
+    mlconf.nuclio_version = ""
     server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
@@ -130,7 +130,7 @@ def client(db) -> Generator:
         mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
-
+        mlconf.httpdb.clusterization.chief.feature_gates.project_summaries = "false"
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client
@@ -238,6 +238,26 @@ def _mocked_k8s_helper():
     config_map.items = []
     server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map = unittest.mock.Mock(
         return_value=config_map
+    )
+    pods_list = unittest.mock.Mock()
+    pods_list.items = []
+    pods_list.metadata._continue = None
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod = (
+        unittest.mock.Mock(return_value=pods_list)
+    )
+    service_list = unittest.mock.Mock()
+    service_list.items = []
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service = (
+        unittest.mock.Mock(return_value=service_list)
+    )
+    custom_object_list = {"items": []}
+    server.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object = unittest.mock.Mock(
+        return_value=custom_object_list
+    )
+    secret_data = unittest.mock.Mock()
+    secret_data.data = {}
+    server.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_secret = (
+        unittest.mock.Mock(return_value=secret_data)
     )
 
 

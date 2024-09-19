@@ -28,6 +28,8 @@ class AlertConfig(ModelObj):
         "severity",
         "reset_policy",
         "state",
+        "count",
+        "created",
     ]
     _fields_to_serialize = ModelObj._fields_to_serialize + [
         "entities",
@@ -54,6 +56,69 @@ class AlertConfig(ModelObj):
         created: str = None,
         count: int = None,
     ):
+        """Alert config object
+
+        Example::
+
+            # create an alert on endpoint_id, which will be triggered to slack if there is a "data_drift_detected" event
+            # 3 times in the next hour.
+
+            from mlrun.alerts import AlertConfig
+            import mlrun.common.schemas.alert as alert_objects
+
+            entity_kind = alert_objects.EventEntityKind.MODEL_ENDPOINT_RESULT
+            entity_id = get_default_result_instance_fqn(endpoint_id)
+            event_name = alert_objects.EventKind.DATA_DRIFT_DETECTED
+            notification = mlrun.model.Notification(
+                kind="slack",
+                name="slack_notification",
+                message="drift was detected",
+                severity="warning",
+                when=["now"],
+                condition="failed",
+                secret_params={
+                    "webhook": "https://hooks.slack.com/",
+                },
+            ).to_dict()
+
+            alert_data = AlertConfig(
+                project="my-project",
+                name="drift-alert",
+                summary="a drift was detected",
+                severity=alert_objects.AlertSeverity.LOW,
+                entities=alert_objects.EventEntities(
+                    kind=entity_kind, project="my-project", ids=[entity_id]
+                ),
+                trigger=alert_objects.AlertTrigger(events=[event_name]),
+                criteria=alert_objects.AlertCriteria(count=3, period="1h"),
+                notifications=[alert_objects.AlertNotification(notification=notification)],
+            )
+            project.store_alert_config(alert_data)
+
+        :param project:        Name of the project to associate the alert with
+        :param name:           Name of the alert
+        :param template:       Optional parameter that allows creating an alert based on a predefined template.
+                               You can pass either an AlertTemplate object or a string (the template name).
+                               If a template is used, many fields of the alert will be auto-generated based on the
+                               template.However, you still need to provide the following fields:
+                               `name`, `project`, `entity`, `notifications`
+        :param description:    Description of the alert
+        :param summary:        Summary of the alert, will be sent in the generated notifications
+        :param severity:       Severity of the alert
+        :param trigger:        The events that will trigger this alert, may be a simple trigger based on events or
+                               complex trigger which is based on a prometheus alert
+        :param criteria:       When the alert will be triggered based on the specified number of events within the
+                               defined time period.
+        :param reset_policy:   When to clear the alert. May be "manual" for manual reset of the alert, or
+                               "auto" if the criteria contains a time period
+        :param notifications:  List of notifications to invoke once the alert is triggered
+        :param entities:       Entities that the event relates to. The entity object will contain fields that
+                               uniquely identify a given entity in the system
+        :param id:             Internal id of the alert (user should not supply it)
+        :param state:          State of the alert, may be active/inactive (user should not supply it)
+        :param created:        When the alert is created (user should not supply it)
+        :param count:          Internal counter of the alert (user should not supply it)
+        """
         self.project = project
         self.name = name
         self.description = description
@@ -73,8 +138,8 @@ class AlertConfig(ModelObj):
             self._apply_template(template)
 
     def validate_required_fields(self):
-        if not self.project or not self.name:
-            raise mlrun.errors.MLRunBadRequestError("Project and name must be provided")
+        if not self.name:
+            raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
@@ -173,9 +238,11 @@ class AlertConfig(ModelObj):
             db = mlrun.get_run_db()
             template = db.get_alert_template(template)
 
-        # Extract parameters from the template and apply them to the AlertConfig object
-        self.summary = template.summary
-        self.severity = template.severity
-        self.criteria = template.criteria
-        self.trigger = template.trigger
-        self.reset_policy = template.reset_policy
+        # Apply parameters from the template to the AlertConfig object only if they are not already specified by the
+        # user in the current configuration.
+        # User-provided parameters will take precedence over corresponding template values
+        self.summary = self.summary or template.summary
+        self.severity = self.severity or template.severity
+        self.criteria = self.criteria or template.criteria
+        self.trigger = self.trigger or template.trigger
+        self.reset_policy = self.reset_policy or template.reset_policy

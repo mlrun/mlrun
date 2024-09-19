@@ -159,11 +159,13 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             len(list_namespaced_crds_calls),
+            paginated=False,
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             f"{mlrun_constants.MLRunInternalLabels.mlrun_class}=spark",
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -186,6 +188,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             len(list_namespaced_crds_calls),
+            paginated=False,
         )
 
     def test_delete_resources_with_grace_period(self, db: Session, client: TestClient):
@@ -210,6 +213,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             len(list_namespaced_crds_calls),
+            paginated=False,
         )
 
     def test_delete_resources_with_force(self, db: Session, client: TestClient):
@@ -235,6 +239,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             len(list_namespaced_crds_calls),
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
@@ -265,6 +270,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={self.run_uid}",
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
@@ -295,8 +301,15 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={self.run_uid}",
+            paginated=False,
         )
-        self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
+        self._assert_run_reached_state(
+            db,
+            self.project,
+            self.run_uid,
+            RunStates.error,
+            expected_status_attrs={"status_text": "Some message"},
+        )
 
     def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
         db_instance = get_db()
@@ -426,6 +439,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             expected_label_selector=f"{mlrun_constants.MLRunInternalLabels.uid}={stale_job_uid}",
+            paginated=False,
         )
 
         assert len(stale_runs) == 1
@@ -474,12 +488,14 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_crds_calls(
             self.runtime_handler,
             len(list_namespaced_crds_calls),
+            paginated=False,
         )
 
         if force:
             self._assert_list_namespaced_pods_calls(
                 self.runtime_handler,
                 len(list_namespaced_pods_calls),
+                paginated=False,
             )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.created
@@ -536,7 +552,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
     def _get_failed_crd_status(driver_ui_url=None):
         return {
             "terminationTime": "2020-10-05T21:17:11Z",
-            "applicationState": {"state": "FAILED"},
+            "applicationState": {"state": "FAILED", "errorMessage": "Some message"},
             "driverInfo": {
                 "webUIIngressAddress": driver_ui_url,
             },

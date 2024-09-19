@@ -1,7 +1,7 @@
 (serving-function)=
 # Function of type `serving`
 
-Deploying models in MLRun uses the function type `serving`. You can create a serving function using the `set_function()` call from a notebook. 
+Deploying models in MLRun uses the function type {py:meth}`~mlrun.runtimes.ServingRuntime <serving>`. You can create a serving function using the `set_function()` call from a notebook. 
 You can also import an existing serving function/template from the {ref}`load-from-hub`.
 
 ## Creating a basic serving model using Scikit-learn
@@ -31,9 +31,9 @@ project = mlrun.get_or_create_project(
 serving_function_image = "mlrun/mlrun"
 serving_model_class_name = "mlrun.frameworks.sklearn.SklearnModelServer"
 
-# Create a serving function
-serving_fn = mlrun.new_function(
-    "serving", project=project.name, kind="serving", image=serving_function_image
+# Create a serving function within a project
+serving_fn = project.set_function(
+    name="serving", kind="serving", image=serving_function_image
 )
 
 # Add a model, the model key can be anything we choose. The class will be the built-in scikit-learn model server class

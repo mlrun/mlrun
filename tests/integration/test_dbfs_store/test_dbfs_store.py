@@ -22,7 +22,9 @@ import pandas as pd
 import pytest
 import yaml
 from databricks.sdk import WorkspaceClient
+from fsspec.implementations.dbfs import DatabricksException
 
+# from databricks.sdk.errors.mapping import PermissionDenied, Unauthenticated
 import mlrun
 import mlrun.errors
 from mlrun.datastore import store_manager
@@ -94,6 +96,8 @@ class TestDBFSStore:
         self.run_dir_url = f"{self.prefix_url}{self.run_dir}"
         self.object_url = f"{self.run_dir_url}{self.object_file}"
         register_temporary_client_datastore_profile(self.profile)
+        os.environ["DATABRICKS_TOKEN"] = self.token
+        os.environ["DATABRICKS_HOST"] = self.host
         store_manager.reset_secrets()
 
     @classmethod
@@ -162,7 +166,21 @@ class TestDBFSStore:
         response = data_item.get()
         assert response.decode() == self.test_string
 
-    #
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(
+        self,
+        data,
+    ):
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type DBFSStore",
+        ):
+            data_item.put(123)
+
     def test_rm(self):
         data_item = mlrun.run.get_dataitem(self.object_url)
         data_item.upload(self.test_file)
@@ -253,3 +271,33 @@ class TestDBFSStore:
             "ds://test_profile/test_directory/test_file.txt", secrets={}
         )
         assert data_item.store.to_dict() != test_data_item._store.to_dict()
+
+    @pytest.mark.parametrize("fake_token", [None, "fake_token"])
+    def test_wrong_credential_rm(self, use_datastore_profile, fake_token):
+        credentials_dict = (
+            {"token": fake_token, "endpoint_url": self.host} if fake_token else {}
+        )
+        os.environ.pop("DATABRICKS_TOKEN")
+        os.environ.pop("DATABRICKS_HOST")
+        if use_datastore_profile:
+            self.profile = DatastoreProfileDBFS(
+                name=self.profile_name, **credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        else:
+            if fake_token:
+                os.environ["DATABRICKS_TOKEN"] = fake_token
+                os.environ["DATABRICKS_HOST"] = self.host
+
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        if fake_token:
+            with pytest.raises(DatabricksException):
+                data_item.delete()
+        else:
+            with pytest.raises(TypeError):
+                data_item.delete()
+
+    def test_rm_file_not_found(self):
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

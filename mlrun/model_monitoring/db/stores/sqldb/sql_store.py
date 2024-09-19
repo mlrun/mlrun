@@ -20,7 +20,7 @@ import pandas as pd
 import sqlalchemy
 import sqlalchemy.exc
 import sqlalchemy.orm
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.sql.elements import BinaryExpression
 
 import mlrun.common.model_monitoring.helpers
@@ -61,8 +61,14 @@ class SQLStoreBase(StoreBase):
             )
 
         self._sql_connection_string = kwargs.get("store_connection_string")
-        self._engine = get_engine(dsn=self._sql_connection_string)
+        self._engine = None
         self._init_tables()
+
+    @property
+    def engine(self) -> Engine:
+        if not self._engine:
+            self._engine = get_engine(dsn=self._sql_connection_string)
+        return self._engine
 
     def create_tables(self):
         self._create_tables_if_not_exist()
@@ -116,7 +122,7 @@ class SQLStoreBase(StoreBase):
         :param table_name: Target table name.
         :param event:      Event dictionary that will be written into the DB.
         """
-        with self._engine.connect() as connection:
+        with self.engine.connect() as connection:
             # Convert the result into a pandas Dataframe and write it into the database
             event_df = pd.DataFrame([event])
             event_df.to_sql(table_name, con=connection, index=False, if_exists="append")
@@ -177,6 +183,11 @@ class SQLStoreBase(StoreBase):
         param table:     SQLAlchemy declarative table.
         :param criteria: A list of binary expressions that filter the query.
         """
+        if not self.engine.has_table(table.__tablename__):
+            logger.debug(
+                f"Table {table.__tablename__} does not exist in the database. Skipping deletion."
+            )
+            return
         with create_session(dsn=self._sql_connection_string) as session:
             # Generate and commit the delete query
             session.query(
@@ -266,22 +277,8 @@ class SQLStoreBase(StoreBase):
         labels: list[str] = None,
         top_level: bool = None,
         uids: list = None,
+        include_stats: bool = None,
     ) -> list[dict[str, typing.Any]]:
-        """
-        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available model endpoints for the given project will
-        be listed.
-
-        :param model:           The name of the model to filter by.
-        :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                                key (i.e. "key").
-        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param uids:             List of model endpoint unique ids to include in the result.
-
-        :return: A list of model endpoint dictionaries.
-        """
         # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
         endpoint_list = []
 
@@ -340,6 +337,12 @@ class SQLStoreBase(StoreBase):
                     endpoint_dict=endpoint_dict, labels=labels
                 ):
                     continue
+
+                if not include_stats:
+                    # Exclude these fields when listing model endpoints to avoid returning too much data (ML-6594)
+                    # TODO: Remove stats from table schema (ML-7196)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.FEATURE_STATS)
+                    endpoint_dict.pop(mm_schemas.EventFieldType.CURRENT_STATS)
 
                 endpoint_list.append(endpoint_dict)
 
@@ -527,9 +530,9 @@ class SQLStoreBase(StoreBase):
         for table in self._tables:
             # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
             db_name = make_url(self._sql_connection_string).database
-            if not self._engine.has_table(table):
+            if not self.engine.has_table(table):
                 logger.info(f"Creating table {table} on {db_name} db.")
-                self._tables[table].metadata.create_all(bind=self._engine)
+                self._tables[table].metadata.create_all(bind=self.engine)
             else:
                 logger.info(f"Table {table} already exists on {db_name} db.")
 
@@ -577,12 +580,19 @@ class SQLStoreBase(StoreBase):
         """
         Delete all the model monitoring resources of the project in the SQL tables.
         """
+        logger.debug(
+            "Deleting model monitoring endpoints resources from the SQL tables",
+            project=self.project,
+        )
         endpoints = self.list_model_endpoints()
-        logger.debug("Deleting model monitoring resources", project=self.project)
 
         for endpoint_dict in endpoints:
             endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
-
+            logger.debug(
+                "Deleting model endpoint resources from the SQL tables",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
             # Delete last analyzed records
             self._delete_last_analyzed(endpoint_id=endpoint_id)
 
@@ -592,6 +602,16 @@ class SQLStoreBase(StoreBase):
 
             # Delete model endpoint record
             self.delete_model_endpoint(endpoint_id=endpoint_id)
+            logger.debug(
+                "Successfully deleted model endpoint resources",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
+
+        logger.debug(
+            "Successfully deleted model monitoring endpoints resources from the SQL tables",
+            project=self.project,
+        )
 
     def get_model_endpoint_metrics(
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
@@ -615,7 +635,7 @@ class SQLStoreBase(StoreBase):
 
         # Note: the block below does not use self._get, as we need here all the
         # results, not only `one_or_none`.
-        with sqlalchemy.orm.Session(self._engine) as session:
+        with sqlalchemy.orm.Session(self.engine) as session:
             metric_rows = (
                 session.query(table)  # pyright: ignore[reportOptionalCall]
                 .filter(table.endpoint_id == endpoint_id)

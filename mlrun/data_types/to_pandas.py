@@ -15,23 +15,13 @@
 import warnings
 from collections import Counter
 
-from pyspark.sql.types import (
-    BooleanType,
-    ByteType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    IntegralType,
-    LongType,
-    MapType,
-    ShortType,
-    TimestampType,
-)
+import pandas as pd
+import semver
 
 
-def toPandas(spark_df):
+def _to_pandas(spark_df):
     """
-    Modified version of spark DataFrame.toPandas() –
+    Modified version of spark DataFrame.toPandas() -
     https://github.com/apache/spark/blob/v3.2.3/python/pyspark/sql/pandas/conversion.py#L35
 
     The original code (which is only replaced in pyspark 3.5.0) fails with Pandas 2 installed, with the following error:
@@ -40,6 +30,12 @@ def toPandas(spark_df):
     This modification adds the missing unit to the dtype.
     """
     from pyspark.sql.dataframe import DataFrame
+    from pyspark.sql.types import (
+        BooleanType,
+        IntegralType,
+        MapType,
+        TimestampType,
+    )
 
     assert isinstance(spark_df, DataFrame)
 
@@ -48,7 +44,6 @@ def toPandas(spark_df):
     require_minimum_pandas_version()
 
     import numpy as np
-    import pandas as pd
 
     timezone = spark_df.sql_ctx._conf.sessionLocalTimeZone()
 
@@ -217,22 +212,59 @@ def toPandas(spark_df):
 
 def _to_corrected_pandas_type(dt):
     import numpy as np
+    from pyspark.sql.types import (
+        BooleanType,
+        ByteType,
+        DoubleType,
+        FloatType,
+        IntegerType,
+        LongType,
+        ShortType,
+        TimestampType,
+    )
 
-    if type(dt) == ByteType:
+    if isinstance(dt, ByteType):
         return np.int8
-    elif type(dt) == ShortType:
+    elif isinstance(dt, ShortType):
         return np.int16
-    elif type(dt) == IntegerType:
+    elif isinstance(dt, IntegerType):
         return np.int32
-    elif type(dt) == LongType:
+    elif isinstance(dt, LongType):
         return np.int64
-    elif type(dt) == FloatType:
+    elif isinstance(dt, FloatType):
         return np.float32
-    elif type(dt) == DoubleType:
+    elif isinstance(dt, DoubleType):
         return np.float64
-    elif type(dt) == BooleanType:
+    elif isinstance(dt, BooleanType):
         return bool
-    elif type(dt) == TimestampType:
+    elif isinstance(dt, TimestampType):
         return "datetime64[ns]"
     else:
         return None
+
+
+def spark_df_to_pandas(spark_df):
+    # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
+    # when we upgrade pyspark, we should check whether this workaround is still necessary
+    # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
+    if semver.parse(pd.__version__)["major"] >= 2:
+        import pyspark.sql.functions as pyspark_functions
+
+        type_conversion_dict = {}
+        for field in spark_df.schema.fields:
+            if str(field.dataType) == "TimestampType":
+                spark_df = spark_df.withColumn(
+                    field.name,
+                    pyspark_functions.date_format(
+                        pyspark_functions.to_timestamp(field.name),
+                        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
+                    ),
+                )
+                type_conversion_dict[field.name] = "datetime64[ns]"
+
+        df = _to_pandas(spark_df)
+        if type_conversion_dict:
+            df = df.astype(type_conversion_dict)
+        return df
+    else:
+        return _to_pandas(spark_df)

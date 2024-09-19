@@ -23,6 +23,7 @@ import inflection
 import nuclio
 import nuclio.utils
 import requests
+import semver
 from aiohttp.client import ClientSession
 from kubernetes import client
 from mlrun_pipelines.common.mounts import VolumeMount
@@ -296,9 +297,36 @@ class RemoteRuntime(KubeResource):
         """
         if hasattr(spec, "to_dict"):
             spec = spec.to_dict()
+
+        self._validate_triggers(spec)
+
         spec["name"] = name
         self.spec.config[f"spec.triggers.{name}"] = spec
         return self
+
+    def _validate_triggers(self, spec):
+        # ML-7763 / NUC-233
+        min_nuclio_version = "1.13.12"
+        if mlconf.nuclio_version and semver.VersionInfo.parse(
+            mlconf.nuclio_version
+        ) < semver.VersionInfo.parse(min_nuclio_version):
+            explicit_ack_enabled = False
+            num_triggers = 0
+            trigger_name = spec.get("name", "UNKNOWN")
+            for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(
+                self.spec.config.items()
+            ):
+                if key.startswith("spec.triggers."):
+                    num_triggers += 1
+                    explicit_ack_enabled = (
+                        config.get("explicitAckMode", "disable") != "disable"
+                    )
+
+            if num_triggers > 1 and explicit_ack_enabled:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Multiple triggers cannot be used in conjunction with explicit ack. "
+                    f"Please upgrade to nuclio {min_nuclio_version} or newer."
+                )
 
     def with_source_archive(
         self,

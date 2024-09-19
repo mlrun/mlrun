@@ -1768,6 +1768,35 @@ class TestNuclioRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
             function.invoke("/")
 
+    def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.11"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Multiple triggers cannot be used in conjunction with explicit ack. "
+            "Please upgrade to nuclio 1.13.12 or newer.",
+        ):
+            function.add_trigger(
+                "stream2",
+                nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+            )
+
+    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.12"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        function.add_trigger(
+            "stream2",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

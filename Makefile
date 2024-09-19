@@ -321,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file
@@ -575,6 +575,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_LOG_FORMATTER=$(MLRUN_LOG_FORMATTER) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
+		--env MLRUN_ALERTS__MODE=$(MLRUN_ALERTS__MODE) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db

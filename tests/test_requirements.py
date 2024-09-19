@@ -109,7 +109,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "aiobotocore": {">=2.5.0,<2.8"},
+        "aiobotocore": {">=2.5.0,<2.16"},
         "storey": {"~=1.7.24"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
@@ -124,8 +124,8 @@ def test_requirement_specifiers_convention():
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
         "databricks-sdk": {"~=0.13.0"},
-        "distributed": {"~=2023.9.0"},
-        "dask": {"~=2023.9.0"},
+        "distributed": {"~=2023.12.1"},
+        "dask": {"~=2023.12.1"},
         "nbclassic": {">=0.2.8"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "pydantic": {"~=1.10, >=1.10.8"},

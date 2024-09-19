@@ -59,7 +59,7 @@ async def _verify_authorization(
     if (
         semver.Version.parse(client_version)
         < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
-        or "unstable" in client_version
+        and "unstable" not in client_version
     ):
         server.api.api.utils.log_and_raise(
             http.HTTPStatus.BAD_REQUEST.value,

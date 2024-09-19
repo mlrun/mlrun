@@ -175,7 +175,7 @@ def _get_monitoring_time_window_from_controller_run(
 def update_model_endpoint_last_request(
     project: str,
     model_endpoint: ModelEndpoint,
-    current_request: datetime,
+    current_request: datetime.datetime,
     db: "RunDBInterface",
 ) -> None:
     """
@@ -186,7 +186,8 @@ def update_model_endpoint_last_request(
     :param current_request: current request time
     :param db:              DB interface.
     """
-    if model_endpoint.spec.stream_path != "":
+    is_model_server_endpoint = model_endpoint.spec.stream_path != ""
+    if is_model_server_endpoint:
         current_request = current_request.isoformat()
         logger.info(
             "Update model endpoint last request time (EP with serving)",
@@ -200,12 +201,13 @@ def update_model_endpoint_last_request(
             endpoint_id=model_endpoint.metadata.uid,
             attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
-    else:
+    else:  # model endpoint without any serving function - close the window "manually"
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
         except mlrun.errors.MLRunNotFoundError:
-            logger.debug(
-                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
+            logger.warn(
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet.\n"
+                "Call `project.enable_model_monitoring()` first."
             )
             return
 

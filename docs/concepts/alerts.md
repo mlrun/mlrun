@@ -3,6 +3,10 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
+```{admonition} Note
+Tech Preview
+```
+
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)

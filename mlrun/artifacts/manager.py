@@ -23,7 +23,7 @@ import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
-    validate_artifact_body_size,
+    validate_inline_artifact_body_size,
 )
 
 from ..utils import (
@@ -223,11 +223,7 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         validate_artifact_key_name(key, "artifact.key")
-
-        # TODO: Create a tmp file, write the body to it, and use it as `local_path` instead of validating the body size.
-        validate_artifact_body_size(
-            body=item.spec.get_body(), is_inline=item.is_inline()
-        )
+        validate_inline_artifact_body_size(item.spec.inline)
         src_path = local_path or item.src_path  # TODO: remove src_path
         self.ensure_artifact_source_file_exists(item=item, path=src_path, body=body)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):

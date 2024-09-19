@@ -188,9 +188,13 @@ class SparkFeatureMerger(BaseMerger):
 
         if self.spark is None:
             # create spark context
-            self.spark = SparkSession.builder.appName(
-                f"vector-merger-{self.vector.metadata.name}"
-            ).getOrCreate()
+            self.spark = (
+                SparkSession.builder.appName(
+                    f"vector-merger-{self.vector.metadata.name}"
+                )
+                .config("spark.driver.memory", "2g")
+                .getOrCreate()
+            )
 
     def _get_engine_df(
         self,

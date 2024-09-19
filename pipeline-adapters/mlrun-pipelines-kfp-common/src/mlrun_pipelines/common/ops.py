@@ -15,11 +15,12 @@
 
 import io
 import json
+import multiprocessing
 import os
 import warnings
 import zipfile
 from copy import deepcopy
-from typing import Union
+from typing import Any, Union
 
 import mlrun_pipelines.common.models
 import yaml
@@ -686,25 +687,49 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
+def _enrich_kfp_workflow_zip_credentials_wrapper(
+    queue: multiprocessing.Queue,
+    byte_buffer: bytes,
+    env_vars: list[V1EnvVar],
+):
+    result = _enrich_kfp_workflow_zip_credentials(byte_buffer, env_vars)
+    queue.put(result)
+
+
 def enrich_kfp_workflow_credentials(
     byte_buffer: bytes,
     content_type: str,
     env_vars: list[V1EnvVar],
 ) -> bytes:
+    """
+    Enriches KFP workflow credentials by adding environment variables.
+
+    Args:
+        byte_buffer (bytes): The input workflow data as bytes.
+        content_type (str): The content type of the workflow (e.g., 'application/zip' or 'text/yaml').
+        env_vars (list[V1EnvVar]): A list of environment variables to add.
+
+    Returns:
+        bytes: The enriched workflow data as bytes.
+
+    Raises:
+        TimeoutError: If processing the ZIP credentials times out.
+        RuntimeError: If an error occurs in the child process.
+        ValueError: If the KFP version is unknown or unsupported.
+    """
     if content_type.endswith("zip"):
-        modified_zip_bytes = _enrich_kfp_workflow_zip_credentials(
-            yaml_bytes=byte_buffer,
-            env_vars=env_vars,
+        queue = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target=_enrich_kfp_workflow_zip_credentials_wrapper,
+            args=(queue, byte_buffer, env_vars),
         )
-        return modified_zip_bytes
-    elif content_type.endswith("yaml") or content_type.endswith("plain"):
-        modified_yaml_bytes = _enrich_kfp_workflow_yaml_credentials(
-            yaml_bytes=byte_buffer,
-            env_vars=env_vars,
-        )
-        return modified_yaml_bytes
+        process.start()
+        result = queue.get()
+        process.join()
+        return result
     else:
-        raise ValueError(f"Unsupported content type {content_type}")
+        # For non-zip content types, process normally in the main process
+        return _enrich_kfp_workflow_yaml_credentials(byte_buffer, env_vars)
 
 
 def _enrich_kfp_workflow_zip_credentials(
@@ -720,7 +745,7 @@ def _enrich_kfp_workflow_zip_credentials(
                 files_data[file_name] = f.read()
 
     for file_name, file_data in files_data.items():
-        if file_name.endswith(".yaml") or file_name.endswith(".yml"):
+        if file_name.endswith(("yaml", "plain")):
             modified_yaml = _enrich_kfp_workflow_yaml_credentials(
                 yaml_bytes=file_data,
                 env_vars=env_vars,
@@ -735,24 +760,25 @@ def _enrich_kfp_workflow_zip_credentials(
     return out_memory_zip.getvalue()
 
 
+def _add_env_vars(container_or_step: dict[str, Any], env_vars: list[V1EnvVar]) -> None:
+    for env_var in env_vars:
+        env_var_dict = _create_env_for_container(env_var)
+        if "env" in container_or_step and container_or_step["env"] is not None:
+            # Prevent duplicates
+            existing_env_names: set[str] = {
+                env["name"] for env in container_or_step["env"] if "name" in env
+            }
+            if env_var_dict["name"] not in existing_env_names:
+                container_or_step["env"].append(env_var_dict)
+        else:
+            container_or_step["env"] = [env_var_dict]
+
+
 def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
     env_vars: list[V1EnvVar],
 ) -> bytes:
-    """
-    Modifies the given workflow dictionary to add environment variables from a Kubernetes secret
-    to the container specifications.
-    The function checks if the workflow is compatible with KFP v1 or KFP v2 and adds the
-    environment variables accordingly.
-
-    Parameters:
-    - workflow_dict: dict representing the workflow
-
-    Returns:
-    - None (the dict is modified in place)
-    """
     workflow_dict = yaml.safe_load(yaml_bytes)
-    # Determine the KFP version by checking the 'apiVersion' field
     api_version = (
         workflow_dict.get("api_version") or workflow_dict.get("apiVersion", "").lower()
     )
@@ -760,54 +786,32 @@ def _enrich_kfp_workflow_yaml_credentials(
     if "argoproj.io" in api_version:  # KFP Argo Workflow
         for template in workflow_dict["spec"]["templates"]:
             if "container" in template:
-                container = template["container"]
-                for env_var in env_vars:
-                    if env_var.value_from is not None:
-                        env_var = {
-                            "name": env_var.name,
-                            "valueFrom": {
-                                "secretKeyRef": {
-                                    "name": env_var.value_from.secret_key_ref.name,
-                                    "key": env_var.value_from.secret_key_ref.key,
-                                }
-                            },
-                        }
-                    else:
-                        env_var = {
-                            "name": env_var.name,
-                            "value": env_var.value,
-                        }
-                    if "env" in container and container["env"] is not None:
-                        container["env"].append(env_var)
-                    else:
-                        container["env"] = [env_var]
+                _add_env_vars(template["container"], env_vars)
         return yaml.safe_dump(workflow_dict).encode()
 
     elif "tekton.dev" in api_version:  # KFP Tekton Pipeline
         for task in workflow_dict["spec"].get("tasks", []):
             if "name" in task:
-                step = task.get("stepTemplate", {})
-                for env_var in env_vars:
-                    if env_var.value_from is not None:
-                        env_var = {
-                            "name": env_var.name,
-                            "valueFrom": {
-                                "secretKeyRef": {
-                                    "name": env_var.value_from.secret_key_ref.name,
-                                    "key": env_var.value_from.secret_key_ref.key,
-                                }
-                            },
-                        }
-                    else:
-                        env_var = {
-                            "name": env_var.name,
-                            "value": env_var.value,
-                        }
-                    if "env" in step and step["env"] is not None:
-                        step["env"].append(env_var)
-                    else:
-                        step["env"] = [env_var]
-                task["stepTemplate"] = step
+                _add_env_vars(task["stepTemplate"], env_vars)
         return yaml.safe_dump(workflow_dict).encode()
     else:
         raise ValueError("Unknown or unsupported KFP version. No changes made.")
+
+
+def _create_env_for_container(env_var: V1EnvVar) -> dict:
+    if env_var.value_from is not None and env_var.value_from.secret_key_ref is not None:
+        env_var = {
+            "name": env_var.name,
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": env_var.value_from.secret_key_ref.name,
+                    "key": env_var.value_from.secret_key_ref.key,
+                }
+            },
+        }
+    else:
+        env_var = {
+            "name": env_var.name,
+            "value": env_var.value,
+        }
+    return env_var

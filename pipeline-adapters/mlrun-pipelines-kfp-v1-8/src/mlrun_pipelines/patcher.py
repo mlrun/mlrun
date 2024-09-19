@@ -69,9 +69,12 @@ def _create_enriched_mlrun_workflow(
                 return workflow
 
         for kfp_step_template in workflow["spec"]["templates"]:
-            if "dag" in kfp_step_template:
+            if not kfp_step_template.get("container"):
+                # The DAG node has no container settings.
                 continue
             env_vars = kfp_step_template["container"].get("env", [])
+            # Here we are filtering these secret vars that get set on the client side to prevent them from
+            # being visible in the workflow pod yaml.
             kfp_step_template["container"]["env"] = [
                 env_var
                 for env_var in env_vars

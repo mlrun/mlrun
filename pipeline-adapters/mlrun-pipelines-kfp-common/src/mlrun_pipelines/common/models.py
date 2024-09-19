@@ -12,16 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-from enum import Enum
-
-
-class StrEnum(str, Enum):
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
+from mlrun.common.types import StrEnum
 
 
 class RunStatuses(StrEnum):
@@ -110,9 +101,3 @@ class RunStatuses(StrEnum):
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
         ]
-
-
-class EngineType(StrEnum):
-    LOCAL = "local"
-    REMOTE = "remote"
-    KFP = "kfp"

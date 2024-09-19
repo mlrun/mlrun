@@ -15,6 +15,7 @@
 
 import io
 import json
+import multiprocessing
 import os
 import warnings
 import zipfile
@@ -686,6 +687,26 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
+def enrich_wrapper(queue, byte_buffer, content_type, env_vars):
+    result = enrich_kfp_workflow_credentials(byte_buffer, content_type, env_vars)
+    queue.put(result)
+
+
+def enrich_kfp_workflow_credentials_in_subprocess(
+    byte_buffer: bytes,
+    content_type: str,
+    env_vars: list[V1EnvVar],
+) -> bytes:
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(
+        target=enrich_wrapper, args=(queue, byte_buffer, content_type, env_vars)
+    )
+    process.start()
+    result = queue.get()
+    process.join()
+    return result
+
+
 def enrich_kfp_workflow_credentials(
     byte_buffer: bytes,
     content_type: str,
@@ -697,7 +718,7 @@ def enrich_kfp_workflow_credentials(
             env_vars=env_vars,
         )
         return modified_zip_bytes
-    elif content_type.endswith("yaml") or content_type.endswith("plain"):
+    elif content_type.endswith(("yaml", "plain")):
         modified_yaml_bytes = _enrich_kfp_workflow_yaml_credentials(
             yaml_bytes=byte_buffer,
             env_vars=env_vars,
@@ -720,7 +741,7 @@ def _enrich_kfp_workflow_zip_credentials(
                 files_data[file_name] = f.read()
 
     for file_name, file_data in files_data.items():
-        if file_name.endswith(".yaml") or file_name.endswith(".yml"):
+        if file_name.endswith(("yaml", "plain")):
             modified_yaml = _enrich_kfp_workflow_yaml_credentials(
                 yaml_bytes=file_data,
                 env_vars=env_vars,
@@ -762,21 +783,7 @@ def _enrich_kfp_workflow_yaml_credentials(
             if "container" in template:
                 container = template["container"]
                 for env_var in env_vars:
-                    if env_var.value_from is not None:
-                        env_var = {
-                            "name": env_var.name,
-                            "valueFrom": {
-                                "secretKeyRef": {
-                                    "name": env_var.value_from.secret_key_ref.name,
-                                    "key": env_var.value_from.secret_key_ref.key,
-                                }
-                            },
-                        }
-                    else:
-                        env_var = {
-                            "name": env_var.name,
-                            "value": env_var.value,
-                        }
+                    env_var = create_env_for_container(env_var)
                     if "env" in container and container["env"] is not None:
                         container["env"].append(env_var)
                     else:
@@ -788,21 +795,7 @@ def _enrich_kfp_workflow_yaml_credentials(
             if "name" in task:
                 step = task.get("stepTemplate", {})
                 for env_var in env_vars:
-                    if env_var.value_from is not None:
-                        env_var = {
-                            "name": env_var.name,
-                            "valueFrom": {
-                                "secretKeyRef": {
-                                    "name": env_var.value_from.secret_key_ref.name,
-                                    "key": env_var.value_from.secret_key_ref.key,
-                                }
-                            },
-                        }
-                    else:
-                        env_var = {
-                            "name": env_var.name,
-                            "value": env_var.value,
-                        }
+                    env_var = create_env_for_container(env_var)
                     if "env" in step and step["env"] is not None:
                         step["env"].append(env_var)
                     else:
@@ -811,3 +804,22 @@ def _enrich_kfp_workflow_yaml_credentials(
         return yaml.safe_dump(workflow_dict).encode()
     else:
         raise ValueError("Unknown or unsupported KFP version. No changes made.")
+
+
+def create_env_for_container(env_var):
+    if env_var.value_from is not None and env_var.value_from.secret_key_ref is not None:
+        env_var = {
+            "name": env_var.name,
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": env_var.value_from.secret_key_ref.name,
+                    "key": env_var.value_from.secret_key_ref.key,
+                }
+            },
+        }
+    else:
+        env_var = {
+            "name": env_var.name,
+            "value": env_var.value,
+        }
+    return env_var

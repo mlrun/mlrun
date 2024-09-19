@@ -780,13 +780,14 @@ def create_secret_env_vars_for_pipeline(
     """
     :param auth_info:   The auth info of the request.
     """
-
-    if not auth_info.access_key:
-        auth_info.access_key = (
+    access_key = auth_info.access_key
+    if not access_key:
+        access_key = (
             server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
-                session=auth_info.get_key(),
+                session=auth_info.get_session(),
                 planes=[
                     server.api.utils.clients.iguazio.SessionPlanes.data,
+                    server.api.utils.clients.iguazio.SessionPlanes.control,
                 ],
             )
         )
@@ -795,7 +796,7 @@ def create_secret_env_vars_for_pipeline(
         secret=mlrun.common.schemas.AuthSecretData(
             provider=mlrun.common.schemas.SecretProviderName.kubernetes,
             username=auth_info.username,
-            access_key=auth_info.get_key(),
+            access_key=access_key,
         )
     )
     env_vars = [

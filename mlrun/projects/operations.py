@@ -20,6 +20,8 @@ import mlrun_pipelines.models
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas.function
+import mlrun.common.schemas.workflow
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context
@@ -50,7 +52,7 @@ def _get_engine_and_function(function, project=None):
         function = enrich_function_object(project, function, copy_function=False)
 
     if not pipeline_context.workflow:
-        return mlrun_pipelines.common.EngineType.LOCAL, function
+        return mlrun.common.schemas.workflow.EngineType.LOCAL, function
 
     return pipeline_context.workflow.engine, function
 
@@ -187,7 +189,7 @@ def run_function(
     )
     task.spec.verbose = task.spec.verbose or verbose
 
-    if engine == mlrun_pipelines.common.models.EngineType.KFP:
+    if engine == mlrun.common.schemas.workflow.EngineType.KFP:
         if schedule:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Scheduling jobs is not supported when running a workflow with the kfp engine."
@@ -303,7 +305,7 @@ def build_function(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Cannot build use deploy_function()"
         )
-    if engine == mlrun_pipelines.common.models.EngineType.KFP:
+    if engine == mlrun.common.schemas.workflow.EngineType.KFP:
         if overwrite_build_params:
             function.spec.build.commands = None
         if requirements or requirements_file:
@@ -393,7 +395,7 @@ def deploy_function(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"
         )
-    if engine == mlrun_pipelines.common.models.EngineType.KFP:
+    if engine == mlrun.common.schemas.workflow.EngineType.KFP:
         return function.deploy_step(models=models, env=env, tag=tag, verbose=verbose)
     else:
         if env:

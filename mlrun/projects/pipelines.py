@@ -27,6 +27,8 @@ import mlrun_pipelines.utils
 import mlrun
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.schemas.function
+import mlrun.common.schemas.workflow
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -44,21 +46,21 @@ from ..runtimes.pod import AutoMountType
 
 def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
-        if engine_kind == mlrun_pipelines.common.models.EngineType.KFP:
+        if engine_kind == mlrun.common.schemas.workflow.EngineType.KFP:
             logger.warning(
                 "Running kubeflow pipeline locally, note some ops may not run locally!"
             )
-        elif engine_kind == mlrun_pipelines.common.models.EngineType.REMOTE:
+        elif engine_kind == mlrun.common.schemas.workflow.EngineType.REMOTE:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
                 "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
-    if not engine_kind or engine_kind == mlrun_pipelines.common.models.EngineType.KFP:
+    if not engine_kind or engine_kind == mlrun.common.schemas.workflow.EngineType.KFP:
         return _KFPRunner
-    if engine_kind == mlrun_pipelines.common.models.EngineType.LOCAL:
+    if engine_kind == mlrun.common.schemas.workflow.EngineType.LOCAL:
         return _LocalRunner
-    if engine_kind == mlrun_pipelines.common.models.EngineType.REMOTE:
+    if engine_kind == mlrun.common.schemas.workflow.EngineType.REMOTE:
         return _RemoteRunner
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Provided workflow engine is not supported. engine_kind={engine_kind}"
@@ -313,8 +315,8 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project: "Project",
-    function: "BaseRuntime",
+    project: mlrun.common.schemas.Project,
+    function: mlrun.runtimes.BaseRuntime,
     decorator: typing.Callable = None,
     copy_function: bool = True,
     try_auto_mount: bool = True,
@@ -358,13 +360,17 @@ def enrich_function_object(
         f.enrich_runtime_spec(
             project.spec.default_function_node_selector,
         )
-
+    skip_automount_for_kfp = False
+    if project.spec.workflows:
+        skip_automount_for_kfp = (
+            pipeline_context.workflow.engine
+            == mlrun.common.schemas.workflow.EngineType.KFP
+        )
     if try_auto_mount:
         if (
             (decorator and AutoMountType.is_auto_modifier(decorator))
             or project.spec.disable_auto_mount
-            or project.spec.workflows[0]["engine"]
-            == mlrun_pipelines.common.models.EngineType.KFP
+            or skip_automount_for_kfp
         ):
             f.spec.disable_auto_mount = True
         f.try_auto_mount_based_on_config()

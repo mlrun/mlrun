@@ -55,6 +55,7 @@ Table of Contents
    api/index
    cli
    glossary
+   resources
    
 .. toctree::
    :maxdepth: 1

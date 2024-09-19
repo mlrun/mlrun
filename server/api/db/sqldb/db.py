@@ -2861,22 +2861,39 @@ class SQLDB(DBInterface):
             .all()
         )
 
-        project_to_schedule_pending_jobs_count = collections.defaultdict(int)
-        project_to_schedule_pending_workflows_count = collections.defaultdict(int)
+        project_to_schedule_pending_jobs_count = collections.defaultdict(list)
+        project_to_schedule_pending_workflows_count = collections.defaultdict(list)
 
+        # First Iterating over schedules for counting the workflows
         for result in schedules_pending_count_per_project:
+            project_name, schedule_name, labels = result
+            if labels.to_dict()["name"] == mlrun_constants.MLRunInternalLabels.workflow:
+                project_to_schedule_pending_workflows_count[project_name].append(
+                    schedule_name
+                )
+
+        # Then, iterating over schedules for counting the jobs and filtering out the workflows
+        for result in schedules_pending_count_per_project:
+            project_name, schedule_name, labels = result
             if (
-                result[2].to_dict()["name"]
-                == mlrun_constants.MLRunInternalLabels.workflow
+                labels.to_dict()["value"] == "job"
+                and schedule_name
+                not in project_to_schedule_pending_workflows_count[project_name]
             ):
-                project_to_schedule_pending_workflows_count[result[0]] += 1
-            elif result[2].to_dict()["value"] == "job":
-                project_to_schedule_pending_jobs_count[result[0]] += 1
+                project_to_schedule_pending_jobs_count[project_name].append(
+                    schedule_name
+                )
 
         return (
             project_to_schedule_count,
-            project_to_schedule_pending_jobs_count,
-            project_to_schedule_pending_workflows_count,
+            {
+                key: len(value)
+                for key, value in project_to_schedule_pending_jobs_count.items()
+            },
+            {
+                key: len(value)
+                for key, value in project_to_schedule_pending_workflows_count.items()
+            },
         )
 
     @staticmethod

@@ -34,6 +34,7 @@ from .constants import (
     ProjectSecretKeys,
     ResultData,
     ResultKindApp,
+    ResultStatusApp,
     SchedulingKeys,
     SpecialApps,
     TDEngineSuperTables,

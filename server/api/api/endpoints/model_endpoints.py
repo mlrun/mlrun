@@ -37,9 +37,9 @@ from mlrun.utils import logger
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
-ProjectAnnotation = Annotated[str, Path(regex=mm_constants.PROJECT_PATTERN)]
+ProjectAnnotation = Annotated[str, Path(pattern=mm_constants.PROJECT_PATTERN)]
 EndpointIDAnnotation = Annotated[
-    str, Path(regex=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
+    str, Path(pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN)
 ]
 
 

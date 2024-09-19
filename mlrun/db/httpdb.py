@@ -338,6 +338,9 @@ class HTTPRunDB(RunDBInterface):
 
         while page_token:
             try:
+                # Use the page token to get the next page.
+                # No need to supply any other parameters as the token informs the pagination cache
+                # which parameters to use.
                 response = _api_call({"page-token": page_token})
             except mlrun.errors.MLRunNotFoundError:
                 # pagination token expired

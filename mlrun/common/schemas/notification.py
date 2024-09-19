@@ -51,7 +51,7 @@ class NotificationKind(mlrun.common.types.StrEnum):
     **method** - The http method to use when sending the notification (GET, POST, PUT, etc…).\n
     **headers** - (dict) The http headers to send with the notification.\n
     **override_body** - (dict) The body to send with the notification. If not specified, the
-    body is a dict with the `name`, `message`, `severity`, and the `runs` list of the
+    default body will be a dictionary containing `name`, `message`, `severity`, and a `runs` list of the
     completed runs. You can also add the run's details.
             Example::
 

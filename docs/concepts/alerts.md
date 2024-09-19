@@ -4,7 +4,8 @@
 Alerts are a mechanism for informing you about possible problem situations. 
 
 ```{admonition} Note
-Tech Preview
+Alets are in Tech Preview state and disabled by default.
+To enable, add an environment variable to the override-env configmap: `MLRUN_ALERTS__MODE: "enabled"`.
 ```
 
 **In this section**

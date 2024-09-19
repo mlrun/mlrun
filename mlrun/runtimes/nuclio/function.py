@@ -312,14 +312,16 @@ class RemoteRuntime(KubeResource):
         ) < semver.VersionInfo.parse(min_nuclio_version):
             explicit_ack_enabled = False
             num_triggers = 0
-            for key, config in [(f"spec.triggers.{name}", spec)] + list(
+            if hasattr(spec, "to_dict"):
+                spec = spec.to_dict()
+            trigger_name = spec.get("name", "UNKNOWN")
+            for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(
                 self.spec.config.items()
             ):
                 if key.startswith("spec.triggers."):
                     num_triggers += 1
                     explicit_ack_enabled = (
-                        config["attributes"].get("explicitAckMode", "disable")
-                        != "disable"
+                        config.get("explicitAckMode", "disable") != "disable"
                     )
 
             if num_triggers > 1 and explicit_ack_enabled:

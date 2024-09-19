@@ -235,11 +235,12 @@ class WorkflowRunners(
         )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
-        workflow_spec_node_selector = (
-            workflow_request.spec.workflow_runner_node_selector
-        )
-        if workflow_spec_node_selector:
-            runner.spec.node_selector.update(workflow_spec_node_selector)
+        if workflow_request:
+            workflow_spec_node_selector = (
+                workflow_request.spec.workflow_runner_node_selector
+            )
+            if workflow_spec_node_selector:
+                runner.spec.node_selector.update(workflow_spec_node_selector)
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
         #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to

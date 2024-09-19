@@ -14,7 +14,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.0 (          August 2024)
+## v1.7.0 (          September 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -56,7 +56,7 @@
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules. <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
+|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours. <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
@@ -91,7 +91,7 @@
 |ML-6052|New page: {ref}`log-artifacts`.|
 |NA     |New tutorial: {ref}`genai-02-mm-llm`.|
 |NA     |Enhanced {ref}`model-monitoring-des`.|
-|NA     |[Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
+|NA     |New: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 
 
 

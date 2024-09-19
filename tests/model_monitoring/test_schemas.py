@@ -20,7 +20,9 @@ from typing import Any, Optional
 import pydantic
 import pytest
 
+import mlrun.utils.regex
 from mlrun.common.schemas.model_monitoring.constants import (
+    PROJECT_PATTERN,
     ModelEndpointMonitoringMetricType,
 )
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -112,3 +114,10 @@ def test_model_endpoint_from_flat_dict(
 ) -> None:
     with expectation:
         ModelEndpoint.from_flat_dict(flat_mep)
+
+
+def test_project_pattern() -> None:
+    assert mlrun.utils.regex.project_name == [
+        r"^.{0,63}$",
+        r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+    ], f"The `project_name` regex changed, please update {PROJECT_PATTERN=} accordingly"

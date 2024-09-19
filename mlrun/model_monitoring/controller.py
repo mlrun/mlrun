@@ -438,7 +438,6 @@ class MonitoringApplicationController:
                             start=start_infer_time,
                             end=end_infer_time,
                             endpoint_id=endpoint_id,
-                            count=len(prediction_metric.values),
                         )
                     cls._push_to_applications(
                         start_infer_time=start_infer_time,

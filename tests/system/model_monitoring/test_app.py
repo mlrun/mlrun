@@ -53,7 +53,6 @@ from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
     ErrApp,
-    NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import (
     CustomEvidentlyMonitoringApp,
@@ -805,7 +804,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         # model monitoring app
         cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp, rel_path="assets/application.py"
+            class_=DemoMonitoringApp, rel_path="assets/application.py"
         )
 
         # model monitoring infra

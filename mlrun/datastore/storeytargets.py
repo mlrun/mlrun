@@ -83,13 +83,13 @@ class StreamStoreyTarget(storey.StreamTarget):
     def __init__(self, *args, **kwargs):
         args = list(args)
 
-        path = args[0] if args else kwargs.get("stream_path")
+        uri = args[0] if args else kwargs.get("stream_path")
 
-        if not path:
+        if not uri:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
-        _, storage_options = get_url_and_storage_options(path)
-        endpoint, uri = parse_path(path)
+        _, storage_options = get_url_and_storage_options(uri)
+        endpoint, path = parse_path(uri)
 
         access_key = storage_options.get("v3io_access_key")
         storage = V3ioDriver(
@@ -101,7 +101,7 @@ class StreamStoreyTarget(storey.StreamTarget):
         if args:
             args[0] = endpoint
         if "stream_path" in kwargs:
-            kwargs["stream_path"] = uri
+            kwargs["stream_path"] = path
 
         super().__init__(*args, **kwargs)
 

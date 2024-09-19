@@ -777,7 +777,7 @@ class SQLDB(DBInterface):
         computed_tag = tag or "latest"
         enrich_tag = False
 
-        if tag and not uid:
+        if tag and (not uid or (uid and tag != "latest")):
             enrich_tag = True
             # If a tag is given, we can join and filter on the tag
             query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)

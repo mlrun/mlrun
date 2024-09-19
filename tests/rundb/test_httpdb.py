@@ -645,6 +645,7 @@ def test_feature_sets(create_server):
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.spec.features) == 4
+
     # test minimal feature set format
     feature_sets = db.list_feature_sets(
         project=project,

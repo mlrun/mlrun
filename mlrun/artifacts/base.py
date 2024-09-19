@@ -159,7 +159,7 @@ class ArtifactSpec(ModelObj):
             self._is_inline = True
 
     def get_body(self):
-        """Get the artifact body"""
+        """get the artifact body when inline"""
         return self._body
 
 

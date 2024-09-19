@@ -2,7 +2,7 @@
 # changing anything here, will require changing kubejob_function_custom_requirements.py file as well
 # and the system tests that uses kubejob_function_custom_requirements.py.
 # this file is not named requirements.txt so that test_requirement_specifiers_convention will not check it.
-requests~=2.31
+requests~=2.32
 chardet>=3.0.2, <4.0
 pyhive @ git+https://github.com/v3io/PyHive.git@v0.6.999
 

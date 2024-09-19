@@ -3058,6 +3058,7 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: list[mlrun.model.Notification] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3095,7 +3096,11 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :param notifications:
                           List of notifications to send for workflow completion
-
+        :param workflow_runner_node_selector:
+                          Defines the node selector for the workflow runner pod when using a remote engine.
+                          This allows you to control and specify where the workflow runner pod will be scheduled.
+                          This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
+                          and it will be ignored if the workflow is not run on a remote engine.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
 
@@ -3161,6 +3166,16 @@ class MlrunProject(ModelObj):
             )
             inner_engine = get_workflow_engine(engine_kind, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+        if workflow_runner_node_selector:
+            if workflow_engine.engine == "remote":
+                workflow_spec.workflow_runner_node_selector = (
+                    workflow_runner_node_selector
+                )
+            else:
+                logger.warn(
+                    "'workflow_runner_node_selector' applies only to remote engines"
+                    " and is ignored for non-remote runs."
+                )
 
         run = workflow_engine.run(
             self,

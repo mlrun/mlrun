@@ -32,6 +32,7 @@ class WorkflowSpec(pydantic.BaseModel):
     schedule: typing.Union[str, ScheduleCronTrigger] = None
     run_local: typing.Optional[bool] = None
     image: typing.Optional[str] = None
+    workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
 
 
 class WorkflowRequest(pydantic.BaseModel):

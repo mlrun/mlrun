@@ -15,7 +15,8 @@
 import warnings
 from typing import Optional, Union
 
-from mlrun_pipelines.models import PipelineNodeWrapper
+import mlrun_pipelines.common.models
+import mlrun_pipelines.models
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -49,7 +50,7 @@ def _get_engine_and_function(function, project=None):
         function = enrich_function_object(project, function, copy_function=False)
 
     if not pipeline_context.workflow:
-        return "local", function
+        return mlrun_pipelines.common.EngineType.LOCAL, function
 
     return pipeline_context.workflow.engine, function
 
@@ -78,7 +79,7 @@ def run_function(
     returns: Optional[list[Union[str, dict[str, str]]]] = None,
     builder_env: Optional[list] = None,
     reset_on_run: Optional[bool] = None,
-) -> Union[mlrun.model.RunObject, PipelineNodeWrapper]:
+) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
     run_function() allow you to execute a function locally, on a remote cluster, or as part of an automated workflow
@@ -186,7 +187,7 @@ def run_function(
     )
     task.spec.verbose = task.spec.verbose or verbose
 
-    if engine == "kfp":
+    if engine == mlrun_pipelines.common.models.EngineType.KFP:
         if schedule:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Scheduling jobs is not supported when running a workflow with the kfp engine."
@@ -266,7 +267,7 @@ def build_function(
     overwrite_build_params: bool = False,
     extra_args: str = None,
     force_build: bool = False,
-) -> Union[BuildStatus, PipelineNodeWrapper]:
+) -> Union[BuildStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy ML function, build container with its dependencies
 
     :param function:        Name of the function (in the project) or function object
@@ -302,7 +303,7 @@ def build_function(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Cannot build use deploy_function()"
         )
-    if engine == "kfp":
+    if engine == mlrun_pipelines.common.models.EngineType.KFP:
         if overwrite_build_params:
             function.spec.build.commands = None
         if requirements or requirements_file:
@@ -375,7 +376,7 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-) -> Union[DeployStatus, PipelineNodeWrapper]:
+) -> Union[DeployStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object
@@ -392,7 +393,7 @@ def deploy_function(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "deploy is used with real-time functions, for other kinds use build_function()"
         )
-    if engine == "kfp":
+    if engine == mlrun_pipelines.common.models.EngineType.KFP:
         return function.deploy_step(models=models, env=env, tag=tag, verbose=verbose)
     else:
         if env:

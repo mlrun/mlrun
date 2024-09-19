@@ -312,8 +312,6 @@ class RemoteRuntime(KubeResource):
         ) < semver.VersionInfo.parse(min_nuclio_version):
             explicit_ack_enabled = False
             num_triggers = 0
-            if hasattr(spec, "to_dict"):
-                spec = spec.to_dict()
             trigger_name = spec.get("name", "UNKNOWN")
             for key, config in [(f"spec.triggers.{trigger_name}", spec)] + list(
                 self.spec.config.items()

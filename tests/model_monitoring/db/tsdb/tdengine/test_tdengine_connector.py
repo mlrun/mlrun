@@ -96,9 +96,9 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
     assert read_back_result.full_name == f"{project}.{app_name}.result.{result_name}"
+    assert read_back_result.data
     assert read_back_result.result_kind.value == result_kind
     assert read_back_result.type == "result"
-    assert read_back_result.data
     assert len(read_back_result.values) == 1
     read_back_values = read_back_result.values[0]
     assert read_back_values.timestamp == end_infer_time

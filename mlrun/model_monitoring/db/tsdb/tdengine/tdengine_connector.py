@@ -132,15 +132,11 @@ class TDEngineConnector(TSDBConnector):
             val=event[mm_schemas.WriterEvent.START_INFER_TIME]
         )
 
-        create_table_query = table._create_subtable_query(
-            subtable=table_name, values=event
-        )
-        self.connection.execute(create_table_query)
+        create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
+        self.connection.execute(create_table_sql)
 
-        insert_statement = table._insert_subtable_query(
-            self.connection,
-            subtable=table_name,
-            values=event,
+        insert_statement = table._insert_subtable_stmt(
+            self.connection, subtable=table_name, values=event
         )
         insert_statement.add_batch()
         insert_statement.execute()

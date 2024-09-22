@@ -523,6 +523,15 @@ class RemoteRuntime(KubeResource):
         extra_attributes = extra_attributes or {}
         if ack_window_size:
             extra_attributes["ackWindowSize"] = ack_window_size
+
+        access_key = kwargs.pop("access_key", None)
+        if access_key:
+            logger.warning(
+                "The access_key parameter is deprecated and will be ignored, "
+                "use the V3IO_ACCESS_KEY environment variable instead"
+            )
+        access_key = self._resolve_v3io_access_key()
+
         self.add_trigger(
             name,
             V3IOStreamTrigger(
@@ -534,6 +543,7 @@ class RemoteRuntime(KubeResource):
                 webapi=endpoint or "http://v3io-webapi:8081",
                 extra_attributes=extra_attributes,
                 read_batch_size=256,
+                access_key=access_key,
                 **kwargs,
             ),
         )
@@ -1268,6 +1278,13 @@ class RemoteRuntime(KubeResource):
                 )
 
         return self._resolve_invocation_url("", force_external_address)
+
+    @staticmethod
+    def _resolve_v3io_access_key():
+        # Nuclio supports generating access key for v3io stream trigger only from version 1.13.11
+        if validate_nuclio_version_compatibility("1.13.11"):
+            return mlrun.model.Credentials.generate_access_key
+        return None
 
 
 def parse_logs(logs):

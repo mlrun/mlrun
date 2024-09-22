@@ -777,28 +777,27 @@ class SQLDB(DBInterface):
         computed_tag = tag or "latest"
         enrich_tag = False
 
-        if tag and (not uid or (uid and tag != "latest")):
-            enrich_tag = True
-            # If a tag is given, we can join and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
+        if tag == "latest" and uid:
+            latest_query = query.outerjoin(ArtifactV2.Tag).filter(
+                ArtifactV2.Tag.name == "latest"
+            )
+            if latest_query.one_or_none():
+                enrich_tag = True
+        elif tag and (not uid or tag != "latest"):
+            enrich_tag = True
+            query = query.join(ArtifactV2.Tag).filter(
+                ArtifactV2.Tag.name == computed_tag
+            )
+
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
         if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
-
-        if tag and tag == "latest" and uid:
-            latest_query = query.outerjoin(
-                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
-            ).filter(ArtifactV2.Tag.name == "latest")
-            result = latest_query.one_or_none()
-            if result:
-                enrich_tag = True
 
         db_artifact = query.one_or_none()
 

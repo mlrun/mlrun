@@ -28,6 +28,7 @@ class ClientSpec(
         mpijob_crd_version = (
             server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
         )
+
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,

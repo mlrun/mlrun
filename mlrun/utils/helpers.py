@@ -111,9 +111,12 @@ def get_artifact_target(item: dict, project=None):
     project_str = project or item["metadata"].get("project")
     tree = item["metadata"].get("tree")
     tag = item["metadata"].get("tag")
+    kind = item.get("kind")
 
-    if item.get("kind") in {"dataset", "model", "artifact"} and db_key:
-        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+    if kind in {"dataset", "model", "artifact"} and db_key:
+        target = (
+            f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        )
         target += f":{tag}" if tag else ":latest"
         if tree:
             target += f"@{tree}"

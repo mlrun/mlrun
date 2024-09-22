@@ -86,7 +86,7 @@ def test_write_application_event(connector: TDEngineConnector) -> None:
             ModelEndpointMonitoringMetric(
                 project=project,
                 app=app_name,
-                name="my_result",
+                name=result_name,
                 full_name=f"{project}.{app_name}.result.{result_name}",
                 type=ModelEndpointMonitoringMetricType.RESULT,
             ),

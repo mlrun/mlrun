@@ -399,6 +399,7 @@ in the labels, both are reflected in the final output.
 - Spark: Spark has three separate node selector settings: `application_node_selector`, `driver_node_selector`, and `executor_node_selector`. 
 When setting a node selector for the application, it only applies to the driver and executor, as there is no real 
 significance to setting it for the application itself (since the only pods created are for the driver and executor). 
+This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 
 The logic is:
    - Application Node Selector: Always remains empty.
    - Driver Node Selector: If no specific `driver_node_selector` is defined, the runtime node selector is used. 
@@ -408,15 +409,16 @@ a merge with precedence is performed with the project and MLRun config levels.
 the runtime node selector is used. If a specific `executor_node_selector` is defined, it takes precedence. 
 A merge with precedence is then performed with the project and MLRun config levels.
 
-This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 
+
 
 ### Best Practice
 
 Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
 For example:
-- A Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
-(and doesn't benefit from being assigned to a GPU node). 
-- A Spark Function includes an executor and a driver; the driver does not benefit from a GPU node.
+- With Databricks, the node selector is only relevant for the "helper" pod running in the MLRun Kubernetes cluster,  
+and it behaves similarly to how node selectors are applied in Kubejob. It does not affect the actual Databricks cluster, 
+which is not based on Kubernetes and does not run in our cluster: node selectors have no significance in that context.
+- A Spark function includes an executor and a driver; the driver does not benefit from a GPU node.
 
 ### SDK configuration
 

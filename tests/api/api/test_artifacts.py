@@ -1065,7 +1065,7 @@ def _get_artifact_url(uid: str = None, tag: str = None) -> str:
     params = []
 
     if uid:
-        params.append(f"uid={uid}")
+        params.append(f"object-uid={uid}")
     if tag:
         params.append(f"tag={tag}")
 

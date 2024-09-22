@@ -773,8 +773,6 @@ class SQLDB(DBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
-
-        computed_tag = tag or "latest"
         enrich_tag = False
 
         if uid:
@@ -791,10 +789,11 @@ class SQLDB(DBInterface):
             if latest_query.one_or_none():
                 enrich_tag = True
         elif tag and (not uid or tag != "latest"):
+            # If a specific tag is provided, handle all cases where UID may or may not be included.
+            # The case for UID with the "latest" tag is already covered above.
+            # Here, we join with the tags table to check for a match with the specified tag.
             enrich_tag = True
-            query = query.join(ArtifactV2.Tag).filter(
-                ArtifactV2.Tag.name == computed_tag
-            )
+            query = query.join(ArtifactV2.Tag).filter(ArtifactV2.Tag.name == tag)
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
@@ -828,7 +827,7 @@ class SQLDB(DBInterface):
 
         # If connected to a tag add it to metadata
         if enrich_tag:
-            self._set_tag_in_artifact_struct(artifact, computed_tag)
+            self._set_tag_in_artifact_struct(artifact, tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 

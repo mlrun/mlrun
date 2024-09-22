@@ -2044,6 +2044,8 @@ class DataSource(ModelObj):
     ]
     kind = None
 
+    _fields_to_serialize = ["start_time", "end_time"]
+
     def __init__(
         self,
         name: str = None,
@@ -2071,6 +2073,17 @@ class DataSource(ModelObj):
 
     def set_secrets(self, secrets):
         self._secrets = secrets
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # We pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        if field_name in ["start_time", "end_time"]:
+            value = getattr(self, field_name, None)
+            if value and isinstance(value, datetime):
+                return value.isoformat()
+        return super()._serialize_field(struct, field_name, strip)
 
 
 class DataTargetBase(ModelObj):

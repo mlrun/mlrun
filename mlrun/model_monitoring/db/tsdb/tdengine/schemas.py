@@ -116,7 +116,7 @@ class TDEngineSchema:
         stmt = connection.statement()
         question_marks = ", ".join("?" * len(self.columns))
         stmt.prepare(f"INSERT INTO ? VALUES ({question_marks});")
-        stmt.set_tbname_tags(subtable, [])
+        stmt.set_tbname(subtable)
 
         bind_params = []
 

@@ -1,7 +1,7 @@
 (using-mlrun)=
 # Using MLRun
 
-MLRun is an open AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
 Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, 
@@ -324,7 +324,7 @@ MLRun includes the following major components:
 
 **{ref}`Real-time serving pipeline <serving-graph>`:** Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 
-**{ref}`Real-time monitoring <monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
+**{ref}`Real-time monitoring <model-monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
 **{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on runs and pipelines.
 

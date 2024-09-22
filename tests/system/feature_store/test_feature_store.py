@@ -64,6 +64,7 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     RedisNoSqlTarget,
     SnowflakeTarget,
+    StreamTarget,
     TargetTypes,
     get_offline_target,
     get_online_target,
@@ -5047,6 +5048,25 @@ class TestFeatureStore(TestMLRunSystem):
             match=".*SnowflakeTarget does not support storey engine.*",
         ):
             feature_set.ingest(source, targets=[target], run_config=run_config)
+
+    def test_stream_target(self):
+        source = pd.DataFrame(
+            {
+                "time_stamp": [
+                    datetime(2024, 9, 19, 16, 22, 7, 51001),
+                    datetime(2024, 9, 19, 16, 22, 8, 52002),
+                    datetime(2024, 9, 19, 16, 22, 9, 53003),
+                ],
+                "clunfoyd": [0.339612325, 0.3446700093, 0.9394242442],
+            }
+        )
+
+        target = StreamTarget(
+            path=f"v3io:///projects/{self.project_name}/test_stream_target",
+            name="lctcnnzgrg",
+            attributes={"shards": 1},
+        )
+        verify_ingest(source, "clunfoyd", infer=False, targets=[target])
 
 
 def verify_purge(fset, targets):

@@ -13,8 +13,11 @@
 # limitations under the License.
 
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import pytest
+from kubernetes import client as k8s_client
+from kubernetes.client.rest import ApiException
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
@@ -30,6 +33,7 @@ def k8s_helper():
         "test-namespace", silent=True
     )
     k8s_helper.v1api = unittest.mock.MagicMock()
+    k8s_helper.crdapi = unittest.mock.MagicMock()
     return k8s_helper
 
 
@@ -162,3 +166,101 @@ def test_delete_secrets(
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
         data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
         assert data == expected_secret_data
+
+
+@pytest.mark.parametrize(
+    "side_effect, expectation, expected_result",
+    [
+        (
+            [
+                ApiException(status=410),
+                ApiException(status=410),
+                k8s_client.V1PodList(
+                    items=[],
+                    metadata=k8s_client.V1ListMeta(),
+                ),
+            ],
+            does_not_raise(),
+            [],
+        ),
+        (
+            [
+                ApiException(status=410),
+                ApiException(status=410),
+                ApiException(status=410),
+                ApiException(status=410),
+            ],
+            pytest.raises(mlrun.errors.MLRunHTTPError),
+            None,
+        ),
+        (
+            [
+                ApiException(status=400),
+                k8s_client.V1PodList(
+                    items=[],
+                    metadata=k8s_client.V1ListMeta(),
+                ),
+            ],
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+            None,
+        ),
+    ],
+)
+def test_list_paginated_pods_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
+    k8s_helper.v1api.list_namespaced_pod.side_effect = side_effect
+    with expectation:
+        result = list(k8s_helper.list_pods_paginated("my-ns"))
+        if expected_result is not None:
+            assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "side_effect, expectation, expected_result",
+    [
+        (
+            [
+                ApiException(status=410),
+                ApiException(status=410),
+                {"items": [], "metadata": {"continue": None}},
+            ],
+            does_not_raise(),
+            [],
+        ),
+        (
+            [
+                ApiException(status=410),
+                ApiException(status=410),
+                ApiException(status=410),
+                ApiException(status=410),
+            ],
+            pytest.raises(mlrun.errors.MLRunHTTPError),
+            None,
+        ),
+        (
+            [
+                ApiException(status=400),
+                {},
+            ],
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+            None,
+        ),
+        # Ignoring not found - should not raise
+        (
+            [
+                ApiException(status=404),
+            ],
+            does_not_raise(),
+            [],
+        ),
+    ],
+)
+def test_list_paginated_crds_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
+    k8s_helper.crdapi.list_namespaced_custom_object.side_effect = side_effect
+    with expectation:
+        result = list(k8s_helper.list_crds_paginated("group", "v1", "objects", "my-ns"))
+        if expected_result is not None:
+            assert result == expected_result

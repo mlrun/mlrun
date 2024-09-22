@@ -792,6 +792,14 @@ class SQLDB(DBInterface):
         if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
 
+        if tag and tag == "latest" and uid:
+            latest_query = query.outerjoin(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == "latest")
+            result = latest_query.one_or_none()
+            if result:
+                enrich_tag = True
+
         db_artifact = query.one_or_none()
 
         if not db_artifact:

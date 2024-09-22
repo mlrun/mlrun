@@ -2886,14 +2886,20 @@ class SQLDB(DBInterface):
 
         return (
             project_to_schedule_count,
-            {
-                key: len(value)
-                for key, value in project_to_schedule_pending_jobs_count.items()
-            },
-            {
-                key: len(value)
-                for key, value in project_to_schedule_pending_workflows_count.items()
-            },
+            collections.defaultdict(
+                int,
+                {
+                    key: len(value)
+                    for key, value in project_to_schedule_pending_jobs_count.items()
+                },
+            ),
+            collections.defaultdict(
+                int,
+                {
+                    key: len(value)
+                    for key, value in project_to_schedule_pending_workflows_count.items()
+                },
+            ),
         )
 
     @staticmethod

@@ -97,7 +97,7 @@ class TDEngineConnector(TSDBConnector):
         self,
         event: dict,
         kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a single result or metric to TSDB.
         """
@@ -113,7 +113,7 @@ class TDEngineConnector(TSDBConnector):
             # Write a new result
             table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
+                f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
             event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
@@ -121,7 +121,7 @@ class TDEngineConnector(TSDBConnector):
             # Write a new metric
             table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
+                f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
         # Convert the datetime strings to datetime objects
@@ -332,7 +332,7 @@ class TDEngineConnector(TSDBConnector):
 
         metrics_condition = " OR ".join(
             [
-                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{metric.app}' AND {name}='{metric.name}')"
                 for metric in metrics
             ]
         )

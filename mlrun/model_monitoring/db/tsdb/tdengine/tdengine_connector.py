@@ -276,6 +276,7 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=timestamp_column,
             database=self.database,
         )
+        logger.debug("Querying TDEngine", query=full_query)
         try:
             query_result = self.connection.query(full_query)
         except taosws.QueryError as e:

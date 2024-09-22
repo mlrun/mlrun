@@ -783,17 +783,20 @@ class SQLDB(DBInterface):
         if tag == "latest" and uid:
             # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
             # latest tag exists, otherwise, it will not be included.
-            latest_query = query.outerjoin(ArtifactV2.Tag).filter(
-                ArtifactV2.Tag.name == "latest"
-            )
+            # This is due to 'latest' being a special case and is enriched in the client side
+            latest_query = query.outerjoin(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == "latest")
             if latest_query.one_or_none():
                 enrich_tag = True
-        elif tag and (not uid or tag != "latest"):
+        elif tag:
             # If a specific tag is provided, handle all cases where UID may or may not be included.
             # The case for UID with the "latest" tag is already covered above.
             # Here, we join with the tags table to check for a match with the specified tag.
             enrich_tag = True
-            query = query.join(ArtifactV2.Tag).filter(ArtifactV2.Tag.name == tag)
+            query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == tag)
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query

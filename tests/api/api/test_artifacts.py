@@ -45,7 +45,7 @@ V2_PREFIX = "v2/"
 DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
 STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
-GET_API_ARTIFACT_v2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
+GET_API_ARTIFACT_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -1061,7 +1061,7 @@ def _generate_artifact_body(
 
 
 def _get_artifact_url(uid: str = None, tag: str = None) -> str:
-    url = GET_API_ARTIFACT_v2_PATH.format(project=PROJECT, key=KEY)
+    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
     params = []
 
     if uid:

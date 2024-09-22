@@ -56,7 +56,7 @@ def connector() -> Iterator[TDEngineConnector]:
 def test_write_application_event(connector: TDEngineConnector) -> None:
     endpoint_id = "1"
     app_name = "my_app"
-    result_name = "my_result"
+    result_name = "my_Result"
     result_kind = 0
     start_infer_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
     end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)

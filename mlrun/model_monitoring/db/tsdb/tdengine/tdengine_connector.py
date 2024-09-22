@@ -124,6 +124,10 @@ class TDEngineConnector(TSDBConnector):
                 f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
+        # Escape the table name for case-sensitivity (ML-7908)
+        # https://github.com/taosdata/taos-connector-python/issues/260
+        table_name = f"`{table_name}`"
+
         # Convert the datetime strings to datetime objects
         event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
             val=event[mm_schemas.WriterEvent.END_INFER_TIME]

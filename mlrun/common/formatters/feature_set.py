@@ -13,9 +13,21 @@
 # limitations under the License.
 #
 
-from .artifact import ArtifactFormat  # noqa
-from .function import FunctionFormat  # noqa
-from .pipeline import PipelineFormat  # noqa
-from .project import ProjectFormat  # noqa
-from .run import RunFormat  # noqa
-from .feature_set import FeatureSetFormat  # noqa
+import typing
+
+import mlrun.common.types
+
+from .base import ObjectFormat
+
+
+class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
+    minimal = "minimal"
+
+    @staticmethod
+    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+        return {
+            FeatureSetFormat.full: None,
+            FeatureSetFormat.minimal: FeatureSetFormat.filter_obj_method(
+                ["kind", "metadata", "spec", "status.state"]
+            ),
+        }[_format]

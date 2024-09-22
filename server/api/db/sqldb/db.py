@@ -783,6 +783,8 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
         if tag == "latest" and uid:
+            # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
+            # latest tag exists, otherwise, it will not be included.
             latest_query = query.outerjoin(ArtifactV2.Tag).filter(
                 ArtifactV2.Tag.name == "latest"
             )

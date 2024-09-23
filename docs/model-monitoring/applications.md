@@ -38,6 +38,8 @@ The result may be just one result, as in the example above, or a list of results
 
 The application class may implement a custom `__init__` constructor with arguments.
 
+To register and deploy the application see {ref}`register-model-monitoring-app`.
+
 ## Using the Application Context
 
 The `context` argument is a `MonitoringApplicationContext` object.

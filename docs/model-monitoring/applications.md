@@ -21,7 +21,7 @@ Here is a "dummy" app that returns a constant result for each monitoring window:
 ```py
 class ServingMonitoring(ModelMonitoringApplicationBase):
     def do_tracking(
-        self, context: MonitoringApplicationContext
+        self, monitoring_context: MonitoringApplicationContext
     ) -> ModelMonitoringApplicationResult:
         return ModelMonitoringApplicationResult(
             name="dummy-res-just-for-demo",
@@ -31,9 +31,12 @@ class ServingMonitoring(ModelMonitoringApplicationBase):
         )
 ```
 
-The `do_tracking` method of the application is called for each monitoring window, and returns a list
-or results `ModelMonitoringApplicationResult` and metrics `ModelMonitoringApplicationMetric`, or just one
-result, as in the example above.
+The `do_tracking` method of the application object is called for each "closed" monitoring time window
+of each monitored model-endpoint and returns a result.
+The result may be just one result, as in the example above, or a list of results
+`ModelMonitoringApplicationResult` and metrics `ModelMonitoringApplicationMetric`.
+
+The application class may implement a custom `__init__` constructor with arguments.
 
 ## Using the Application Context
 

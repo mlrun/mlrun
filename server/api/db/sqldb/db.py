@@ -784,7 +784,7 @@ class SQLDB(DBInterface):
             # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
             # latest tag exists, otherwise, it will not be included.
             # This is due to 'latest' being a special case and is enriched in the client side
-            latest_query = query.outerjoin(
+            latest_query = query.join(
                 ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
             ).filter(ArtifactV2.Tag.name == "latest")
             if latest_query.one_or_none():

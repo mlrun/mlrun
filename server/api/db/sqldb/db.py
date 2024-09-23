@@ -773,19 +773,30 @@ class SQLDB(DBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
-
-        computed_tag = tag or "latest"
         enrich_tag = False
 
-        if tag and not uid:
-            enrich_tag = True
-            # If a tag is given, we can join and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        if tag == "latest" and uid:
+            # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
+            # latest tag exists, otherwise, it will not be included.
+            # This is due to 'latest' being a special case and is enriched in the client side
+            latest_query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == "latest")
+            if latest_query.one_or_none():
+                enrich_tag = True
+        elif tag:
+            # If a specific tag is provided, handle all cases where UID may or may not be included.
+            # The case for UID with the "latest" tag is already covered above.
+            # Here, we join with the tags table to check for a match with the specified tag.
+            enrich_tag = True
+            query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == tag)
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
@@ -819,7 +830,7 @@ class SQLDB(DBInterface):
 
         # If connected to a tag add it to metadata
         if enrich_tag:
-            self._set_tag_in_artifact_struct(artifact, computed_tag)
+            self._set_tag_in_artifact_struct(artifact, tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 

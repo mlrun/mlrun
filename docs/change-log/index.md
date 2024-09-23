@@ -171,7 +171,7 @@
 ### Documentation
 | ID    |Description                                                               |
 |-------|---------------------------------------------------------------------------|
-|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
+|ML-4620| Updated [Realtime monitoring and drift detection tutorial](../tutorials/05-model-monitoring.html) and {ref}`model-monitoring-overview` for the [model monitoring](#model-monitoring) feature introduced in v1.6.0.|
 |NA     | New {ref}`genai_01_basic_tutorial` tutorial.|
 |NA     | New sections describing gen AI tasks: {ref}`genai-flow`, {ref}`genai-data-mgmt`, {ref}`genai-development`, {ref}`genai-deployment`.
 |NA     | New page describing {ref}`log-artifacts`.                                 |
@@ -239,7 +239,7 @@
 ### Model monitoring 
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+|ML-4620|Model monitoring is now based on monitoring apps that are run on a set of model end-points, see {ref}`model-monitoring-overview`. The Grafana Model Monitoring Applications dashboard now includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). The graphs are: Draft status by category, Average drift value result, Latest result, Application summary, Result value by time, Drift detection history. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
 
 ### Runtimes
 
@@ -1122,12 +1122,24 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.RunsFormat`                                       |`mlrun.common.formatters.RunFormat`                |
+| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ArtifactsFormat`                                  |`mlrun.common.formatters.ArtifactFormat`                |
+| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.ProjectsFormat`                                  |`mlrun.common.formatters.ProjectFormat`                |
+| v1.9.0       | v1.7.0 |Class: `mlrunn.common.schemas.PipelinesFormat`                                  |`mlrun.common.formatters.PipelineFormat`                |
+| v1.9.0       |v1.7.0    |Datastore redis:`credentials_prefix`                                                 |Datastore profiles|																																	
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.nuclio.function.RemoteRuntime.deploy` `auth_info`            | NA. Was not used.|
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.projects.MlrunProject.list_runs` `state`                             |`states`            |
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.db.httpdb.HTTPRunDB.list_runs` `state`                                |`states`            |
+| v1.9.0       |v1.7.0    |Class: `mlrun.common.runtimes.constants.RunLabels`                                    |`RunLabels.owner` => `MlrunInternalLabels.owner` <br><br> `RunLabels.v3io_user` => `MlrunInternalLabels.v3io_user`   |
+| v1.9.0       |v1.7.0    |Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                                       |MLRUN_DBPATH environment variable |
+| v1.9.0       |v1.7.0    |Query parameter: GET /projects/{project}/schedules?labels="label1=val1"               |`label`, which is an array of strings       |
+| v1.9.0       |v1.7.0    |Query parameter: DELETE /projects/{project}/artifacts/{key:path}?uid="some-uid"       |`object-uid`                                    |
+| v1.9.0       |v1.7.0    |Query parameter: GET /projects/{project}/artifacts/{key:path}?uid="some-uid"       |`object-uid`                                    |
 | v1.9.0       |v1.6.3    |`FunctionSpec.clone_target_dir`                                                      |`ImageBuilder.source_code_target_dir`
 | v1.8.0       |v1.6.0    |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
 | v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
-| v1.8.0       |v1.6.0    |Feature store: `deploy_ingestion_service_v2`                                         |`FeatureSet.deploy_ingestion_service()`|
 | v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Artifacts: `uid` parameter of `store_artifact`                                       | `tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
@@ -1136,9 +1148,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                                                                                                                                                                                                                                                                 |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| v1.7.0 |`skip_deployed` parameter of `MLrunProject.build_image`                            |NA. The parameter was ignored.                                                                                                                               |
-| v1.7.0 |`/files` and `/filestat`                                                           |`/projects/{project}/filestat`                                                                                                                              |
-| v1.7.0 |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
+| v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`                                  |`mlrun.common.helpers.parse_versioned_object_uri`         |
+| v1.7.0 |`func_info`                                                                       |`ast_func_info`                                                |
+| v1.7.0 |Class: `MpiRuntimeV1Alpha1`                                                         |`MpiRuntimeV1`          |
+| v1.7.0 |Feature store: `deploy_ingestion_service`                                         |`deploy_ingestion_service_v2`|
+| v1.7.0 |`skip_deployed` parameter of `mlrun.projects.project.MlrunProject.build_image`    |NA. The parameter was ignored.                                                                                                                               |
+| v1.7.0 |API endpoint GET: `/files` and `/filestat`                                        |`/projects/{project}/filestat`                                                                                                                              |
+| v1.7.0 |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`, `BokehArtifact`, `LegacyArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
+| v1.7.0 |Parameter of mlrun.feature_store.feature_set.FeatureSet.set_targets `default_final_state`   |`default_final_step`                                                                                                                                          |
 | v1.6.2  |`dashboard` parameter of the RemoteRuntime `invoke`                             |NA. The parameter was ignored. |
 | v1.6.0 |`dashboard` parameter of `project.deploy_function`, `RemoteRuntime.deploy`, `RemoteRuntime.get_nuclio_deploy_status`, `ServingRuntime.with_secrets`| NA. The parameter was ignored.         |
 | v1.6.0 |`MLRunProject.clear_context()`                                                      |NA |
@@ -1146,7 +1163,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                 |
 | v1.6.0 |`run_local`                                                                          |`function.run(local=True)`                                                                                                                                   |
 | v1.6.0 |CSVSource's `time_fields` parameter                                                   |Use `parse_dates` to parse timestamps                                                                                                                         |
-| v1.6.0 |Feature-set `set_targets()`, `default_final_state `                                     |`default_final_step`                                                                                                                                          |
 | v1.6.0 |`new_pipe_meta`                                                                      |`new_pipe_metadata`                                                                                                                                      |
 | v1.6.0 |ttl param from pipeline                                                            |`cleanup_ttl`                                                                                                                                              |
 | v1.6.0 |objects methods from artifacts list                                                |`to_objects`                
@@ -1174,8 +1190,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Removed CLIs 
 
-| Version | CLI                                                        |
-|---------|------------------------------------------------------------|
-| v1.6.0  | deploy `--dashboard (nuclio/deploy)`                       |No longer supported on client side. Configure using the MLRun API.                    |
+| Version | CLI                                                        |Use instead                                                 |  
+|---------|------------------------------------------------------------|------------------------------------------------------------|
+| v1.7.0  | `mlrun db`                                                 |NA                                                          |
+| v1.6.0  | deploy `--dashboard (nuclio/deploy)`                       |No longer supported on client side. Configure using the MLRun API.|
 | v1.6.0  | project `--overwrite-schedule`                             |Not relevant. Running a schedule is now an operation. |
 | v1.5.0  | `--ensure-project` flag of the `mlrun project` CLI command |  |

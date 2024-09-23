@@ -67,10 +67,8 @@ context.log_artifact(
 ```
 
 ```{caution}
-Do not log new artifacts in every standard run of your application, as the artifact's content is
-currently saved in memory and will aggregate with the number of calls to the application.
-
-You may:
+Since each new artifact is saved in the artifact-manager store (in memory), it is not recommended
+to store a new artifact on each application run. Instead you may:
 
 1. Override artifacts by using the same key.
 2. Save artifacts with a unique key in special occasions, e.g., when a drift is detected.

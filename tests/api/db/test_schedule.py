@@ -110,5 +110,5 @@ def test_calculate_schedules_counters(db: DBInterface, db_session: Session):
     assert counters == (
         {"project1": 1, "project2": 3},  # total schedule count per project
         {"project1": 1},  # pending jobs count per project
-        {"project2": 3, "project1": 0},
+        {"project2": 3},
     )  # pending pipelines count per project

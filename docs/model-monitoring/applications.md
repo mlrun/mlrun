@@ -35,9 +35,6 @@ The `do_tracking` method of the application is called for each monitoring window
 or results `ModelMonitoringApplicationResult` and metrics `ModelMonitoringApplicationMetric`, or just one
 result, as in the example above.
 
-```{versionchanged} 1.7.0 ModelMonitoringApplicationBase. Please update your application accordingly.
-```
-
 ## Using the Application Context
 
 The `context` argument is a `MonitoringApplicationContext` object.

@@ -15,7 +15,6 @@
 import concurrent.futures
 import datetime
 import json
-import multiprocessing
 import os
 import re
 from collections.abc import Iterator
@@ -350,11 +349,8 @@ class MonitoringApplicationController:
             )
             return
         # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
-        with concurrent.futures.ProcessPoolExecutor(
+        with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(endpoints), 10),
-            # On Linux, the default is "fork" (this is set to change in Python 3.14), which inherits the current heap
-            # and resources (such as sockets), which is not what we want (ML-7160)
-            mp_context=multiprocessing.get_context("spawn"),
         ) as pool:
             for endpoint in endpoints:
                 if (
@@ -431,7 +427,6 @@ class MonitoringApplicationController:
                             end=end_infer_time,
                             endpoint_id=endpoint_id,
                         )
-                        return
                     else:
                         logger.info(
                             "Data found for the given interval",
@@ -439,14 +434,14 @@ class MonitoringApplicationController:
                             end=end_infer_time,
                             endpoint_id=endpoint_id,
                         )
-                    cls._push_to_applications(
-                        start_infer_time=start_infer_time,
-                        end_infer_time=end_infer_time,
-                        endpoint_id=endpoint_id,
-                        project=project,
-                        applications_names=[application],
-                        model_monitoring_access_key=model_monitoring_access_key,
-                    )
+                        cls._push_to_applications(
+                            start_infer_time=start_infer_time,
+                            end_infer_time=end_infer_time,
+                            endpoint_id=endpoint_id,
+                            project=project,
+                            applications_names=[application],
+                            model_monitoring_access_key=model_monitoring_access_key,
+                        )
         except Exception:
             logger.exception(
                 "Encountered an exception",

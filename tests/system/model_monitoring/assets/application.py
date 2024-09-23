@@ -69,6 +69,8 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
 
 
 class NoCheckDemoMonitoringApp(DemoMonitoringApp, check_num_events=False):
+    """Run DemoMonitoringApp without checking the number of events in the sample_df"""
+
     pass
 
 

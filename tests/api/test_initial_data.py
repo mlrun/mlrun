@@ -240,11 +240,6 @@ def test_create_project_summaries():
 def test_align_schedule_labels():
     db, db_session = _initialize_db_without_migrations()
 
-    # Create a project
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-    )
-
     # Create a schedule
     db.create_schedule(
         session=db_session,
@@ -257,13 +252,13 @@ def test_align_schedule_labels():
         labels={"label2": "value2"},
     )
 
-    with unittest.mock.patch.object(db, "_append_project_summary"):
-        db.create_project(db_session, project)
-
+    # Align schedule.labels and schedule.scheduled_object.task.metadata.labels
     server.api.initial_data._align_schedule_labels(db, db_session)
 
+    # Get updated schedules
     migrated_schedules = db.list_schedules(db_session)
 
+    # Convert list[LabelRecord] to dict
     migrated_schedules_dict = {
         label.name: label.value for label in migrated_schedules[0].labels
     }

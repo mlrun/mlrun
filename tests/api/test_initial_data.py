@@ -95,6 +95,11 @@ def test_perform_data_migrations_from_first_version():
     )
     server.api.initial_data._perform_version_7_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_8_data_migrations = (
+        server.api.initial_data._perform_version_8_data_migrations
+    )
+    server.api.initial_data._perform_version_8_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     server.api.initial_data._perform_data_migrations(db_session)
 
@@ -107,6 +112,7 @@ def test_perform_data_migrations_from_first_version():
     server.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_7_data_migrations.assert_called_once()
+    server.api.initial_data._perform_version_8_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         server.api.initial_data.latest_data_version
@@ -130,6 +136,9 @@ def test_perform_data_migrations_from_first_version():
     )
     server.api.initial_data._perform_version_7_data_migrations = (
         original_perform_version_7_data_migrations
+    )
+    server.api.initial_data._perform_version_8_data_migrations = (
+        original_perform_version_8_data_migrations
     )
 
 
@@ -226,6 +235,44 @@ def test_create_project_summaries():
     migrated_project_summary = db.get_project_summary(db_session, project.metadata.name)
 
     assert migrated_project_summary.name == project.metadata.name
+
+
+def test_align_schedule_labels():
+    db, db_session = _initialize_db_without_migrations()
+
+    # Create a project
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+    )
+
+    # Create a schedule
+    db.create_schedule(
+        session=db_session,
+        project="project-name",
+        name="schedule-name",
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger.from_crontab("* * * * 1"),
+        concurrency_limit=1,
+        scheduled_object={"task": {"metadata": {"labels": {"label1": "value1"}}}},
+        labels={"label2": "value2"},
+    )
+
+    with unittest.mock.patch.object(db, "_append_project_summary"):
+        db.create_project(db_session, project)
+
+    server.api.initial_data._align_schedule_labels(db, db_session)
+
+    migrated_schedules = db.list_schedules(db_session)
+
+    migrated_schedules_dict = {
+        label.name: label.value for label in migrated_schedules[0].labels
+    }
+
+    assert (
+        migrated_schedules[0].scheduled_object["task"]["metadata"]["labels"]
+        == migrated_schedules_dict
+    )
+    assert migrated_schedules_dict == {"label1": "value1", "label2": "value2"}
 
 
 def _initialize_db_without_migrations() -> (

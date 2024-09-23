@@ -35,6 +35,7 @@ import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
+import server.api.utils.scheduler
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -245,6 +246,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_6_data_migrations(db, db_session)
             if current_data_version < 7:
                 _perform_version_7_data_migrations(db, db_session)
+            if current_data_version < 8:
+                _perform_version_8_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -877,6 +880,12 @@ def _perform_version_7_data_migrations(
     _create_project_summaries(db, db_session)
 
 
+def _perform_version_8_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _align_schedule_labels(db, db_session)
+
+
 def _create_project_summaries(db, db_session):
     # Create a project summary record for all projects.
     # We need to create them manually because a summary record is created only when a new
@@ -892,6 +901,34 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
+
+
+def _align_schedule_labels(db, db_session):
+    db_schedules: list[mlrun.common.schemas.ScheduleRecord] = db.list_schedules(
+        session=db_session
+    )
+    schedules_update = []
+    for db_schedule in db_schedules:
+        # convert list[LabelRecord] to dict
+        db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
+        # merging labels
+        merged_labels = server.api.utils.scheduler.Scheduler()._merge_schedule_and_schedule_object_labels(
+            labels=db_schedule_labels,
+            scheduled_object=db_schedule.scheduled_object,
+        )
+
+        # get a Schedule object (not a ScheduleRecord) and update it
+        schedule = db._get_schedule_record(
+            db_session, db_schedule.project, db_schedule.name
+        )
+        db._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=db_schedule.scheduled_object,
+            labels=merged_labels,
+        )
+        schedules_update.append(schedule)
+
+    db._upsert(db_session, schedules_update)
 
 
 def main() -> None:

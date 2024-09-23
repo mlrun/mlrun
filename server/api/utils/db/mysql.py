@@ -25,7 +25,7 @@ from mlrun.config import config as mlconf
 class MySQLUtil:
     dsn_env_var = "MLRUN_HTTPDB__DSN"
     dsn_regex = (
-        r"mysql\+pymysql://(?P<username>.+)@(?P<host>.+):(?P<port>\d+)/(?P<database>.+)"
+        r"mysql\+pymysql://(?P<username>[^:]+)(?::(?P<password>[^@]*))?@(?P<host>[^:]+)(?::(?P<port>\d+))?/(?P<database>.+)"
     )
     check_tables = [
         "projects",
@@ -47,6 +47,7 @@ class MySQLUtil:
             pymysql.connect,
             host=mysql_dsn_data["host"],
             user=mysql_dsn_data["username"],
+            password=mysql_dsn_data["password"],
             port=int(mysql_dsn_data["port"]),
             database=mysql_dsn_data["database"],
         )
@@ -97,6 +98,7 @@ class MySQLUtil:
         return pymysql.connect(
             host=mysql_dsn_data["host"],
             user=mysql_dsn_data["username"],
+            password=mysql_dsn_data["password"],
             port=int(mysql_dsn_data["port"]),
             database=mysql_dsn_data["database"],
         )

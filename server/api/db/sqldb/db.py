@@ -2904,7 +2904,7 @@ class SQLDB(DBInterface):
             project_name, schedule_name, kind = result
             if kind == mlrun_constants.MLRunInternalLabels.workflow:
                 project_to_schedule_pending_workflows_count[project_name] += 1
-            elif kind == mlrun.common.schemas.ScheduleKinds.job.value:
+            elif kind == mlrun.common.schemas.ScheduleKinds.job:
                 project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (

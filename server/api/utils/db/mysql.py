@@ -24,9 +24,7 @@ from mlrun.config import config as mlconf
 
 class MySQLUtil:
     dsn_env_var = "MLRUN_HTTPDB__DSN"
-    dsn_regex = (
-        r"mysql\+pymysql://(?P<username>[^:]+)(?::(?P<password>[^@]*))?@(?P<host>[^:]+)(?::(?P<port>\d+))?/(?P<database>.+)"
-    )
+    dsn_regex = r"mysql\+pymysql://(?P<username>[^:]+)(?::(?P<password>[^@]*))?@(?P<host>[^:]+)(?::(?P<port>\d+))?/(?P<database>.+)"
     check_tables = [
         "projects",
         # check functions as well just in case the previous version used a projects leader

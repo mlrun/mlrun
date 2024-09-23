@@ -883,7 +883,7 @@ def _perform_version_7_data_migrations(
 def _perform_version_8_data_migrations(
     db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _align_schedule_labels(db, db_session)
+    db.align_schedule_labels(session=db_session)
 
 
 def _create_project_summaries(db, db_session):
@@ -901,34 +901,6 @@ def _create_project_summaries(db, db_session):
         for project_name in projects.projects
     ]
     db._upsert(db_session, project_summaries, ignore=True)
-
-
-def _align_schedule_labels(db, db_session):
-    db_schedules: list[mlrun.common.schemas.ScheduleRecord] = db.list_schedules(
-        session=db_session
-    )
-    schedules_update = []
-    for db_schedule in db_schedules:
-        # convert list[LabelRecord] to dict
-        db_schedule_labels = {label.name: label.value for label in db_schedule.labels}
-        # merging labels
-        merged_labels = server.api.utils.scheduler.Scheduler()._merge_schedule_and_schedule_object_labels(
-            labels=db_schedule_labels,
-            scheduled_object=db_schedule.scheduled_object,
-        )
-
-        # get a Schedule object (not a ScheduleRecord) and update it
-        schedule = db._get_schedule_record(
-            db_session, db_schedule.project, db_schedule.name
-        )
-        db._update_schedule_body(
-            schedule=schedule,
-            scheduled_object=db_schedule.scheduled_object,
-            labels=merged_labels,
-        )
-        schedules_update.append(schedule)
-
-    db._upsert(db_session, schedules_update)
 
 
 def main() -> None:

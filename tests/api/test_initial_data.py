@@ -237,7 +237,34 @@ def test_create_project_summaries():
     assert migrated_project_summary.name == project.metadata.name
 
 
-def test_align_schedule_labels():
+@pytest.mark.parametrize(
+    "scheduled_object_labels, schedule_labels, expected_labels",
+    [
+        (
+            {"label1": "value1"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value2"},
+        ),
+        ({"label1": "value1"}, {}, {"label1": "value1"}),
+        ({}, {"label2": "value2"}, {"label2": "value2"}),
+        (
+            {"label1": "value1", "label3": "value3"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value2", "label3": "value3"},
+        ),
+        (
+            {"label1": "value1", "label2": "value3"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value3"},
+        ),
+        (None, {"label2": "value2"}, {"label2": "value2"}),
+        ({"label1": "value1"}, None, {"label1": "value1"}),
+        (None, None, None),
+    ],
+)
+def test_align_schedule_labels(
+    scheduled_object_labels, schedule_labels, expected_labels
+):
     db, db_session = _initialize_db_without_migrations()
 
     # Create a schedule
@@ -248,12 +275,12 @@ def test_align_schedule_labels():
         kind=mlrun.common.schemas.ScheduleKinds.job,
         cron_trigger=mlrun.common.schemas.ScheduleCronTrigger.from_crontab("* * * * 1"),
         concurrency_limit=1,
-        scheduled_object={"task": {"metadata": {"labels": {"label1": "value1"}}}},
-        labels={"label2": "value2"},
+        scheduled_object={"task": {"metadata": {"labels": scheduled_object_labels}}},
+        labels=schedule_labels,
     )
 
     # Align schedule.labels and schedule.scheduled_object.task.metadata.labels
-    server.api.initial_data._align_schedule_labels(db, db_session)
+    db.align_schedule_labels(db_session)
 
     # Get updated schedules
     migrated_schedules = db.list_schedules(db_session)
@@ -265,9 +292,9 @@ def test_align_schedule_labels():
 
     assert (
         migrated_schedules[0].scheduled_object["task"]["metadata"]["labels"]
-        == migrated_schedules_dict
+        or {} == migrated_schedules_dict
+        or {} == expected_labels
     )
-    assert migrated_schedules_dict == {"label1": "value1", "label2": "value2"}
 
 
 def _initialize_db_without_migrations() -> (

@@ -14,10 +14,10 @@
 
 import os
 import uuid
-from datetime import datetime
+from collections.abc import Iterator
+from datetime import datetime, timezone
 
 import pytest
-import pytz
 import taosws
 
 from mlrun.common.schemas.model_monitoring import (
@@ -31,16 +31,16 @@ connection_string = os.getenv("MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"
 database = "test_tdengine_connector_" + uuid.uuid4().hex
 
 
-def drop_database(connection):
+def drop_database(connection: taosws.Connection) -> None:
     connection.execute(f"DROP DATABASE IF EXISTS {database}")
 
 
-def is_tdengine_defined():
-    return connection_string and connection_string.startswith("taosws://")
+def is_tdengine_defined() -> bool:
+    return connection_string is not None and connection_string.startswith("taosws://")
 
 
 @pytest.fixture
-def connector() -> TDEngineConnector:
+def connector() -> Iterator[TDEngineConnector]:
     connection = taosws.connect()
     drop_database(connection)
     conn = TDEngineConnector(
@@ -53,13 +53,13 @@ def connector() -> TDEngineConnector:
 
 
 @pytest.mark.skipif(not is_tdengine_defined(), reason="TDEngine is not defined")
-def test_write_application_event(connector):
+def test_write_application_event(connector: TDEngineConnector) -> None:
     endpoint_id = "1"
     app_name = "my_app"
-    result_name = "my_result"
+    result_name = "my_Result"
     result_kind = 0
-    start_infer_time = datetime(2024, 1, 1, tzinfo=pytz.UTC)
-    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=pytz.UTC)
+    start_infer_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    end_infer_time = datetime(2024, 1, 1, second=1, tzinfo=timezone.utc)
     result_status = 0
     result_value = 123
     data = {
@@ -86,7 +86,7 @@ def test_write_application_event(connector):
             ModelEndpointMonitoringMetric(
                 project=project,
                 app=app_name,
-                name="my_result",
+                name=result_name,
                 full_name=f"{project}.{app_name}.result.{result_name}",
                 type=ModelEndpointMonitoringMetricType.RESULT,
             ),
@@ -96,9 +96,9 @@ def test_write_application_event(connector):
     assert len(read_back_results) == 1
     read_back_result = read_back_results[0]
     assert read_back_result.full_name == f"{project}.{app_name}.result.{result_name}"
+    assert read_back_result.data
     assert read_back_result.result_kind.value == result_kind
     assert read_back_result.type == "result"
-    assert read_back_result.data
     assert len(read_back_result.values) == 1
     read_back_values = read_back_result.values[0]
     assert read_back_values.timestamp == end_infer_time

@@ -27,7 +27,7 @@ def handler(
 
     # Scrape article content
     urls = merged_df["link"].tolist()
-    loader = WebBaseLoader(web_paths=urls)
+    loader = WebBaseLoader(web_paths=urls, continue_on_failure=True)
     loader.requests_per_second = 2
     docs = loader.aload()
 

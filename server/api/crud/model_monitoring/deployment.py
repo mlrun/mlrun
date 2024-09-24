@@ -268,7 +268,7 @@ class MonitoringDeployment:
         self,
         function: mlrun.runtimes.ServingRuntime,
         function_name: str,
-        stream_args: config.Config,
+        stream_args,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be

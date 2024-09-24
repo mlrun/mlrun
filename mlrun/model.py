@@ -2077,13 +2077,12 @@ class DataSource(ModelObj):
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:
+        value = super()._serialize_field(struct, field_name, strip)
         # We pull the field from self and not from struct because it was excluded from the struct when looping over
         # the fields to save.
-        if field_name in ["start_time", "end_time"]:
-            value = getattr(self, field_name, None)
-            if value and isinstance(value, datetime):
-                return value.isoformat()
-        return super()._serialize_field(struct, field_name, strip)
+        if field_name in ("start_time", "end_time") and isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
 
 class DataTargetBase(ModelObj):

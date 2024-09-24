@@ -1552,7 +1552,7 @@ class MlrunProject(ModelObj):
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
-            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+            raise FileNotFoundError(f"{url} not found")
 
         return url, in_context
 
@@ -2900,6 +2900,16 @@ class MlrunProject(ModelObj):
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+
+                except Exception as exc:
+                    if silent:
+                        logger.warn(
+                            "Failed to instantiate function",
+                            name=name,
+                            error=mlrun.utils.err_to_str(exc),
+                        )
+                        continue
+                    raise exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:

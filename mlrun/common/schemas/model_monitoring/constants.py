@@ -104,15 +104,8 @@ class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
-    LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
-    MLRUN_CONTEXT = "mlrun_context"
-
-    # Deprecated fields - TODO : delete in 1.9.0  (V1 app deprecation)
-    SAMPLE_PARQUET_PATH = "sample_parquet_path"
-    CURRENT_STATS = "current_stats"
-    FEATURE_STATS = "feature_stats"
 
 
 class WriterEvent(MonitoringStrEnum):

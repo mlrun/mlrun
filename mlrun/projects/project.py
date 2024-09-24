@@ -2904,7 +2904,7 @@ class MlrunProject(ModelObj):
                 except Exception as exc:
                     if silent:
                         logger.warn(
-                            "Failed to load function",
+                            "Failed to instantiate function",
                             name=name,
                             error=mlrun.utils.err_to_str(exc),
                         )

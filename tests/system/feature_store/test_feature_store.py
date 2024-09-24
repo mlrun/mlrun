@@ -919,8 +919,10 @@ class TestFeatureStore(TestMLRunSystem):
             2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
         )
         end_time_query = "2020-12-01 17:33:16"
-        start_time_query = start_time.replace(tzinfo=None)
-        expected_result = df.query("timestamp > @start_time_query and timestamp < @end_time_query")
+        start_time_query = start_time.replace(tzinfo=None)  # noqa
+        expected_result = df.query(
+            "timestamp > @start_time_query and timestamp < @end_time_query"
+        )
         end_time = end_time_query + ("+00:00" if with_tz else "")
 
         source = ParquetSource(

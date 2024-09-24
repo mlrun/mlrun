@@ -1,7 +1,7 @@
 # Documenting mlrun
 
 This document describes how to write the external documentation for `mlrun`, the
-one you can view at https://mlrun.readthedocs.io
+one you can view at https://docs.mlrun.org/en/latest/.
 
 ## Technology
 
@@ -13,7 +13,7 @@ section publishes as a separate HTML page.
 
 The configuration is at: `docs/conf.py`.
 
-To build the doc, run `make html-docs`, then open `docs/_build/html/index.html`
+To build the doc, run `make html` from the `docs` folder, then open `docs/_build/html/index.html`
 
 ### Documentation linter
 

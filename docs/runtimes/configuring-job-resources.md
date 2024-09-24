@@ -417,7 +417,7 @@ Node selection is often used for assigning jobs/pods to GPU nodes. But not all j
 For example:
 - With Databricks, the node selector is only relevant for the "helper" pod running in the MLRun Kubernetes cluster,  
 and it behaves similarly to how node selectors are applied in Kubejob. It does not affect the actual Databricks cluster, 
-which is not based on Kubernetes and does not run in our cluster: node selectors have no significance in that context.
+which does not run in the MLRun cluster: node selectors have no significance in that context.
 - A Spark function includes an executor and a driver; the driver does not benefit from a GPU node.
 
 ### SDK configuration

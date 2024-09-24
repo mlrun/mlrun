@@ -44,6 +44,7 @@ import server.api.utils.db.mysql
             },
         ),
         ("mysql+pymysql://@localhost:3307/mlrun", None),
+        ("mysql+pymysql://root:pass@localhost:3307", None),
         ("sqlite:///db/mlrun.db?check_same_thread=false", None),
     ],
 )

@@ -915,14 +915,19 @@ class TestFeatureStore(TestMLRunSystem):
         v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time_{run_uuid}.parquet"
         v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time{run_uuid}"
         df.to_parquet(v3io_parquet_source_path)
+        start_time = datetime(
+            2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+        )
+        end_time_query = "2020-12-01 17:33:16"
+        start_time_query = start_time.replace(tzinfo=None)
+        expected_result = df.query("timestamp > @start_time_query and timestamp < @end_time_query")
+        end_time = end_time_query + ("+00:00" if with_tz else "")
 
         source = ParquetSource(
             "myparquet",
             path=v3io_parquet_source_path,
-            start_time=datetime(
-                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
-            ),
-            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
+            start_time=start_time,
+            end_time=end_time,
         )
 
         measurements.ingest(
@@ -932,7 +937,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         result_offline_target = get_offline_target(measurements, name="parquet_target")
         result_df = result_offline_target.as_df()
-        assert len(result_df) == 10
+        assert_frame_equal(
+            sort_df(expected_result, ["patient_id"]),
+            sort_df(result_df.reset_index(drop=False), ["patient_id"]),
+        )
         # start time > timestamp in source
         source = ParquetSource(
             "myparquet",
@@ -951,7 +959,6 @@ class TestFeatureStore(TestMLRunSystem):
             targets=[
                 ParquetTarget("second_parquet_target", path=v3io_parquet_target_path)
             ],
-            return_df=True,
             run_config=run_config,
         )
         result_offline_target = get_offline_target(

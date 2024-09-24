@@ -620,6 +620,12 @@ class TestProject(TestMLRunSystem):
             **project_default_function_node_selector,
             **runner_node_selector,
         }
+        # The workflow execution includes a load_project, which clears the node_selector from the project.
+        # As a result, we need to reapply the node_selector
+        project.spec.default_function_node_selector = (
+            project_default_function_node_selector
+        )
+        project.save()
 
         # Test scheduled workflow
         schedule = "0 0 30 2 *"
@@ -1603,7 +1609,7 @@ class TestProject(TestMLRunSystem):
             db.get_project(name)
 
     def test_remote_workflow_source_on_image(self):
-        name = "source-project"
+        name = "pipe"
         self.custom_project_names_to_delete.append(name)
 
         project_dir = f"{projects_dir}/{name}"

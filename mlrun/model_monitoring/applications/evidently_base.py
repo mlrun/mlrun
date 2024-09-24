@@ -18,7 +18,6 @@ from abc import ABC
 
 import pandas as pd
 import semver
-from deprecated import deprecated
 
 import mlrun.model_monitoring.applications.base as mm_base
 import mlrun.model_monitoring.applications.context as mm_context
@@ -64,81 +63,8 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams, file_html_template
 
 
-# TODO: Remove in 1.9.0
-@deprecated(
-    version="1.7.0",
-    reason="The `EvidentlyModelMonitoringApplicationBase` class is deprecated from "
-    "version 1.7.0 and will be removed in version 1.9.0. "
-    "Use `EvidentlyModelMonitoringApplicationBaseV2` as your application's base class.",
-)
 class EvidentlyModelMonitoringApplicationBase(
     mm_base.ModelMonitoringApplicationBase, ABC
-):
-    def __init__(
-        self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
-    ) -> None:
-        """
-        A class for integrating Evidently for mlrun model monitoring within a monitoring application.
-        Note: evidently is not installed by default in the mlrun/mlrun image.
-        It must be installed separately to use this class.
-
-        :param evidently_workspace_path:    (str) The path to the Evidently workspace.
-        :param evidently_project_id:        (str) The ID of the Evidently project.
-
-        """
-        if not _HAS_EVIDENTLY:
-            raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
-        self.evidently_workspace = Workspace.create(evidently_workspace_path)
-        self.evidently_project_id = evidently_project_id
-        self.evidently_project = self.evidently_workspace.get_project(
-            evidently_project_id
-        )
-
-    def log_evidently_object(
-        self, evidently_object: "Display", artifact_name: str
-    ) -> None:
-        """
-         Logs an Evidently report or suite as an artifact.
-
-        :param evidently_object:    (Display) The Evidently display to log, e.g. a report or a test suite object.
-        :param artifact_name:       (str) The name for the logged artifact.
-        """
-        evidently_object_html = evidently_object.get_html()
-        self.context.log_artifact(
-            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
-        )
-
-    def log_project_dashboard(
-        self,
-        timestamp_start: pd.Timestamp,
-        timestamp_end: pd.Timestamp,
-        artifact_name: str = "dashboard",
-    ):
-        """
-        Logs an Evidently project dashboard.
-
-        :param timestamp_start: (pd.Timestamp) The start timestamp for the dashboard data.
-        :param timestamp_end:   (pd.Timestamp) The end timestamp for the dashboard data.
-        :param artifact_name:   (str) The name for the logged artifact.
-        """
-
-        dashboard_info = self.evidently_project.build_dashboard_info(
-            timestamp_start, timestamp_end
-        )
-        template_params = TemplateParams(
-            dashboard_id="pd_" + str(uuid.uuid4()).replace("-", ""),
-            dashboard_info=dashboard_info,
-            additional_graphs={},
-        )
-
-        dashboard_html = file_html_template(params=template_params)
-        self.context.log_artifact(
-            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
-        )
-
-
-class EvidentlyModelMonitoringApplicationBaseV2(
-    mm_base.ModelMonitoringApplicationBaseV2, ABC
 ):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"

@@ -1950,7 +1950,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2018,7 +2017,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2076,7 +2074,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
             None,
         ] = None,
         name: typing.Optional[str] = None,
@@ -2838,11 +2835,13 @@ class MlrunProject(ModelObj):
         The function objects are synced against the definitions spec in `self.spec._function_definitions`.
         Referenced files/URLs in the function spec will be reloaded.
         Function definitions are parsed by the following precedence:
-            1. Contains runtime spec.
-            2. Contains module in the project's context.
-            3. Contains path to function definition (yaml, DB, Hub).
-            4. Contains path to .ipynb or .py files.
-            5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
+        1. Contains runtime spec.
+        2. Contains module in the project's context.
+        3. Contains path to function definition (yaml, DB, Hub).
+        4. Contains path to .ipynb or .py files.
+        5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
         If function definition is already an object, some project metadata updates will apply however,
         it will not be reloaded.
 
@@ -3085,9 +3084,10 @@ class MlrunProject(ModelObj):
 
                           * Remote URL which is loaded dynamically to the workflow runner.
                           * A path to the project's context on the workflow runner's image.
-                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
-                          (enriched when building a project image with source, see `MlrunProject.build_image`).
-                          For other engines the source is used to validate that the code is up-to-date.
+                            Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                            (enriched when building a project image with source, see `MlrunProject.build_image`).
+                            For other engines the source is used to validate that the code is up-to-date.
+
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)

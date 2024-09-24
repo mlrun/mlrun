@@ -16,23 +16,13 @@ import pytest
 
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationBaseV2,
 )
 
 
-def test_deprecation_v1_instantiation() -> None:
-    class DeprecatedApp(ModelMonitoringApplicationBase):
-        def do_tracking(self, **kwargs):
-            pass
-
-    with pytest.warns(DeprecationWarning):
-        DeprecatedApp()
-
-
 @pytest.mark.filterwarnings("error")
-def test_no_deprecation_v2_instantiation() -> None:
-    class AppV2(ModelMonitoringApplicationBaseV2):
+def test_no_deprecation_instantiation() -> None:
+    class App(ModelMonitoringApplicationBase):
         def do_tracking(self, **kwargs):
             pass
 
-    AppV2()
+    App()

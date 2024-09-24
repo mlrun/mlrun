@@ -97,7 +97,7 @@ class TDEngineConnector(TSDBConnector):
         self,
         event: dict,
         kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a single result or metric to TSDB.
         """
@@ -113,7 +113,7 @@ class TDEngineConnector(TSDBConnector):
             # Write a new result
             table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
+                f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
             event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
@@ -121,8 +121,12 @@ class TDEngineConnector(TSDBConnector):
             # Write a new metric
             table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
+                f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
+
+        # Escape the table name for case-sensitivity (ML-7908)
+        # https://github.com/taosdata/taos-connector-python/issues/260
+        table_name = f"`{table_name}`"
 
         # Convert the datetime strings to datetime objects
         event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
@@ -132,15 +136,11 @@ class TDEngineConnector(TSDBConnector):
             val=event[mm_schemas.WriterEvent.START_INFER_TIME]
         )
 
-        create_table_query = table._create_subtable_query(
-            subtable=table_name, values=event
-        )
-        self.connection.execute(create_table_query)
+        create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
+        self.connection.execute(create_table_sql)
 
-        insert_statement = table._insert_subtable_query(
-            self.connection,
-            subtable=table_name,
-            values=event,
+        insert_statement = table._insert_subtable_stmt(
+            self.connection, subtable=table_name, values=event
         )
         insert_statement.add_batch()
         insert_statement.execute()
@@ -280,6 +280,7 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=timestamp_column,
             database=self.database,
         )
+        logger.debug("Querying TDEngine", query=full_query)
         try:
             query_result = self.connection.query(full_query)
         except taosws.QueryError as e:
@@ -336,7 +337,7 @@ class TDEngineConnector(TSDBConnector):
 
         metrics_condition = " OR ".join(
             [
-                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{metric.app}' AND {name}='{metric.name}')"
                 for metric in metrics
             ]
         )

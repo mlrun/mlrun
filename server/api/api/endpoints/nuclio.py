@@ -416,11 +416,11 @@ def create_model_monitoring_stream(
 
         _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
-        # TODO: How should we configure sharding here?
         logger.info(
             "Creating stream",
             project=project,
             stream_path=stream_path,
+            shard_count=shard_count,
             container=container,
             endpoint=mlrun.mlconf.v3io_api,
         )

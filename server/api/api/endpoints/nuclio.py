@@ -34,6 +34,7 @@ import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
 from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
@@ -543,7 +544,9 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn, function_name=fn.metadata.name
+                function=fn,
+                function_name=fn.metadata.name,
+                stream_args=config.model_endpoint_monitoring.application_stream_args,
             )
 
         if serving_to_monitor:

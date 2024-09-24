@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import time
 import typing
 import uuid
@@ -266,7 +265,10 @@ class MonitoringDeployment:
             )
 
     def apply_and_create_stream_trigger(
-        self, function: mlrun.runtimes.ServingRuntime, function_name: str
+        self,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args: config.Config,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
@@ -279,6 +281,7 @@ class MonitoringDeployment:
 
         :param function:      The serving function object that will be applied with the stream trigger.
         :param function_name: The name of the function that be applied with the stream trigger.
+        :param stream_args:   Stream args from the config.
 
         :return: `ServingRuntime` object with stream trigger.
         """
@@ -293,41 +296,27 @@ class MonitoringDeployment:
             stream_source = mlrun.datastore.sources.KafkaSource(
                 brokers=brokers,
                 topics=[topic],
-                attributes={
-                    "max_workers": config.model_endpoint_monitoring.serving_stream.kafka.num_workers
-                },
+                attributes={"max_workers": stream_args.kafka.num_workers},
             )
             stream_source.create_topics(
-                num_partitions=config.model_endpoint_monitoring.serving_stream.kafka.partition_count,
-                replication_factor=config.model_endpoint_monitoring.serving_stream.kafka.replication_factor,
+                num_partitions=stream_args.kafka.partition_count,
+                replication_factor=stream_args.kafka.replication_factor,
             )
             function = stream_source.add_nuclio_trigger(function)
-            function.spec.min_replicas = (
-                config.model_endpoint_monitoring.serving_stream.kafka.min_replicas
-            )
-            function.spec.max_replicas = (
-                config.model_endpoint_monitoring.serving_stream.kafka.max_replicas
-            )
+            function.spec.min_replicas = stream_args.kafka.min_replicas
+            function.spec.max_replicas = stream_args.kafka.max_replicas
         elif stream_path.startswith("v3io://"):
-            if "projects" in stream_path:
-                stream_args = config.model_endpoint_monitoring.application_stream_args
-                access_key = self.model_monitoring_access_key
-                kwargs = {"access_key": self.model_monitoring_access_key}
-            else:
-                stream_args = config.model_endpoint_monitoring.serving_stream.v3io
-                access_key = os.getenv("V3IO_ACCESS_KEY")
-                kwargs = {}
+            access_key = self.model_monitoring_access_key
+            kwargs = {"access_key": self.model_monitoring_access_key}
             if mlrun.mlconf.is_explicit_ack_enabled():
                 kwargs["explicit_ack_mode"] = "explicitOnly"
                 kwargs["worker_allocation_mode"] = "static"
-            kwargs["max_workers"] = (
-                config.model_endpoint_monitoring.serving_stream.v3io.num_workers
-            )
+            kwargs["max_workers"] = stream_args.v3io.num_workers
             server.api.api.endpoints.nuclio.create_model_monitoring_stream(
                 project=self.project,
                 stream_path=stream_path,
-                shard_count=stream_args.shard_count,
-                retention_period_hours=stream_args.retention_period_hours,
+                shard_count=stream_args.v3io.shard_count,
+                retention_period_hours=stream_args.v3io.retention_period_hours,
                 access_key=access_key,
             )
             # Generate V3IO stream trigger
@@ -336,12 +325,8 @@ class MonitoringDeployment:
                 name=f"monitoring_{function_name}_trigger",
                 **kwargs,
             )
-            function.spec.min_replicas = (
-                config.model_endpoint_monitoring.serving_stream.v3io.min_replicas
-            )
-            function.spec.max_replicas = (
-                config.model_endpoint_monitoring.serving_stream.v3io.max_replicas
-            )
+            function.spec.min_replicas = stream_args.v3io.min_replicas
+            function.spec.max_replicas = stream_args.v3io.max_replicas
         else:
             server.api.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
@@ -423,7 +408,9 @@ class MonitoringDeployment:
 
         # Add stream triggers
         function = self.apply_and_create_stream_trigger(
-            function=function, function_name=mm_constants.MonitoringFunctionNames.STREAM
+            function=function,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            stream_args=config.model_endpoint_monitoring.serving_stream,
         )
 
         # Apply feature store run configurations on the serving function
@@ -546,7 +533,9 @@ class MonitoringDeployment:
 
         # Add stream triggers
         function = self.apply_and_create_stream_trigger(
-            function=function, function_name=mm_constants.MonitoringFunctionNames.WRITER
+            function=function,
+            function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            stream_args=config.model_endpoint_monitoring.writer_stream_args,
         )
 
         # Apply feature store run configurations on the serving function

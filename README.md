@@ -24,9 +24,9 @@ See the supported data stores, development tools, services, platforms, etc., sup
 
 ## Gen AI tasks
 
-<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/ai-task.png" alt="ai-tasks" width="800"/></p><br>
+<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/ai-tasks.png" alt="ai-tasks" width="800"/></p><br>
 
-Use MLRun to develop, scale, deploy, and monitor your AI model scross your enterprise. The [**gen AI development workflow**](https://docs.mlrun.org/en/stable/genai/genai-flow.html) 
+Use MLRun to develop, scale, deploy, and monitor your AI model across your enterprise. The [**gen AI development workflow**](https://docs.mlrun.org/en/stable/genai/genai-flow.html) 
 section describes the different tasks and stages in detail.
 
 ### Data management
@@ -139,7 +139,8 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 <a id="core-components"></a>
 ## MLRun core components
 
-<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/.png" alt="mlrun-core" width="800"/></p><br>
+<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
+
 
 MLRun includes the following major components:
 

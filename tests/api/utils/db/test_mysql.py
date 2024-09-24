@@ -21,13 +21,33 @@ import server.api.utils.db.mysql
 
 
 @pytest.mark.parametrize(
-    "http_dns",
+    "http_dsn, expected_output",
     [
-        "mysql+pymysql://root:pass@localhost:3307/mlrun",
-        "mysql+pymysql://root@localhost:3307/mlrun",
+        (
+            "mysql+pymysql://root:pass@localhost:3307/mlrun",
+            {
+                "username": "root",
+                "password": "pass",
+                "host": "localhost",
+                "port": "3307",
+                "database": "mlrun",
+            },
+        ),
+        (
+            "mysql+pymysql://root@192.168.228.104:3306/mlrun",
+            {
+                "username": "root",
+                "password": None,
+                "host": "192.168.228.104",
+                "port": "3306",
+                "database": "mlrun",
+            },
+        ),
+        ("mysql+pymysql://@localhost:3307/mlrun", None),
+        ("sqlite:///db/mlrun.db?check_same_thread=false", None),
     ],
 )
-def test_get_mysql_dsn_data(http_dns):
-    os.environ["MLRUN_HTTPDB__DSN"] = http_dns
+def test_get_mysql_dsn_data(http_dsn: str, expected_output: dict):
+    os.environ["MLRUN_HTTPDB__DSN"] = http_dsn
     dns_data = server.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
-    assert dns_data is not None
+    assert dns_data == expected_output

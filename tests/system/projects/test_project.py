@@ -595,51 +595,54 @@ class TestProject(TestMLRunSystem):
         function = project.get_function("func-1", ignore_cache=True)
         assert function.spec.resources["requests"]["memory"] == arguments["memory"]
 
-    def _test_remote_pipeline_from_github(
-        self,
-        name,
-        workflow_name,
-        engine=None,
-        local=None,
-        watch=False,
-        notification_steps=None,
-    ):
-        project_dir = f"{projects_dir}/{name}"
-        shutil.rmtree(project_dir, ignore_errors=True)
-        project = mlrun.load_project(
-            project_dir,
-            "git://github.com/mlrun/project-demo.git",
-            name=name,
-            allow_cross_project=True,
+    def test_remote_pipeline_with_workflow_runner_node_selector(self):
+        project_name = "rmtpipe-kfp-github"
+        self.custom_project_names_to_delete.append(project_name)
+
+        workflow_name = "newflow"
+        workflow_runner_name = f"workflow-runner-{workflow_name}"
+        runner_node_selector = {"kubernetes.io/arch": "amd64"}
+        project_default_function_node_selector = {"kubernetes.io/os": "linux"}
+
+        project = self._load_remote_pipeline_project(name=project_name)
+        project.spec.default_function_node_selector = (
+            project_default_function_node_selector
         )
+        project.save()
 
-        nuclio_function_url = None
-        notifications = []
-        if notification_steps:
-            # nuclio function for storing notifications, to validate the notifications from the pipeline
-            nuclio_function_url = notification_helpers.deploy_notification_nuclio(
-                project
-            )
-            notifications = self._generate_pipeline_notifications(nuclio_function_url)
-
-        run = project.run(
+        project.run(
             workflow_name,
-            watch=watch,
-            local=local,
-            engine=engine,
-            notifications=notifications,
+            engine="remote",
+            workflow_runner_node_selector=runner_node_selector,
+        )
+        runner_run_result = project.list_runs(name=workflow_runner_name)[0]
+        assert runner_run_result["spec"]["node_selector"] == {
+            **project_default_function_node_selector,
+            **runner_node_selector,
+        }
+        # The workflow execution includes a load_project, which clears the node_selector from the project.
+        # As a result, we need to reapply the node_selector
+        project.spec.default_function_node_selector = (
+            project_default_function_node_selector
+        )
+        project.save()
+
+        # Test scheduled workflow
+        schedule = "0 0 30 2 *"
+        project.run(
+            workflow_name,
+            engine="remote",
+            workflow_runner_node_selector=runner_node_selector,
+            schedule=schedule,
         )
 
-        assert (
-            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
-        ), "pipeline failed"
-        # run.run_id can be empty in case of a local engine:
-        assert run.run_id is not None, "workflow's run id failed to fetch"
-
-        if notification_steps:
-            self._assert_pipeline_notification_steps(
-                nuclio_function_url, notification_steps
-            )
+        # Invoke the workflow manually
+        mlrun.get_run_db().invoke_schedule(project=project_name, name=workflow_name)
+        runner_run_result = project.list_runs(labels="job-type=workflow-runner")[0]
+        assert runner_run_result["spec"]["node_selector"] == {
+            **project_default_function_node_selector,
+            **runner_node_selector,
+        }
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"
@@ -1606,7 +1609,7 @@ class TestProject(TestMLRunSystem):
             db.get_project(name)
 
     def test_remote_workflow_source_on_image(self):
-        name = "source-project"
+        name = "pipe"
         self.custom_project_names_to_delete.append(name)
 
         project_dir = f"{projects_dir}/{name}"
@@ -1686,3 +1689,53 @@ class TestProject(TestMLRunSystem):
             notification_data_steps[step.get("step_kind")] += 1
 
         assert notification_data_steps == notification_steps
+
+    def _load_remote_pipeline_project(self, name):
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+            allow_cross_project=True,
+        )
+        return project
+
+    def _test_remote_pipeline_from_github(
+        self,
+        name,
+        workflow_name,
+        engine=None,
+        local=None,
+        watch=False,
+        notification_steps=None,
+    ):
+        project = self._load_remote_pipeline_project(name=name)
+
+        nuclio_function_url = None
+        notifications = []
+        if notification_steps:
+            # nuclio function for storing notifications, to validate the notifications from the pipeline
+            nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+                project
+            )
+            notifications = self._generate_pipeline_notifications(nuclio_function_url)
+
+        run = project.run(
+            workflow_name,
+            watch=watch,
+            local=local,
+            engine=engine,
+            notifications=notifications,
+        )
+
+        assert (
+            run.state == mlrun_pipelines.common.models.RunStatuses.succeeded
+        ), "pipeline failed"
+        # run.run_id can be empty in case of a local engine:
+        assert run.run_id is not None, "workflow's run id failed to fetch"
+
+        if notification_steps:
+            self._assert_pipeline_notification_steps(
+                nuclio_function_url, notification_steps
+            )

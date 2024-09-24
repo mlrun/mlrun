@@ -72,11 +72,11 @@ def extra_requirements() -> dict[str, list[str]]:
         "databricks-sdk": ["databricks-sdk~=0.13.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
-            "dask~=2023.9.0",
-            "distributed~=2023.9.0",
+            "dask~=2023.12.1",
+            "distributed~=2023.12.1",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py~=0.3.2"],
+        "tdengine": ["taos-ws-py~=0.3.3"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 

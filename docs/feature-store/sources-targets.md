@@ -116,11 +116,13 @@ stocks_set_endpoint = stocks_set.deploy_ingestion_service(
 
 ## Parquet source
 In ParquetSource, while reading a source, besides start_time and end_time,
-you can also use an additional_filter attribute on other columns in your source,
+you can also use an additional_filters attribute on other columns in your source,
 which works similarly to the filtering functionality in pandas (based on pyarrow library).
 This can increase performance when reading large Parquet files.
 
-Pay attention! None/NaN/NaT values may be filtered out using this functionality on their columns.
+Pay attention!
+1)  None/NaN/NaT values may be filtered out using this functionality on their columns.
+2)  Datetime or timestamp filter is not supported yet.
 
 
 

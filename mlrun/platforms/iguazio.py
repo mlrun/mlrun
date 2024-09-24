@@ -97,26 +97,33 @@ class OutputStream:
 
         self._v3io_client = v3io.dataplane.Client(**v3io_client_kwargs)
         self._container, self._stream_path = split_path(stream_path)
+        self._shards = shards
+        self._retention_in_hours = retention_in_hours
+        self._create = create
+        self._endpoint = endpoint
         self._mock = mock
         self._mock_queue = []
 
-        if create and not mock:
+    def _lazy_init(self):
+        if self._create and not self._mock:
             # this import creates an import loop via the utils module, so putting it in execution path
             from mlrun.utils.helpers import logger
 
+            self._create = False
+
             logger.debug(
                 "Creating output stream",
-                endpoint=endpoint,
+                endpoint=self._endpoint,
                 container=self._container,
                 stream_path=self._stream_path,
-                shards=shards,
-                retention_in_hours=retention_in_hours,
+                shards=self._shards,
+                retention_in_hours=self._retention_in_hours,
             )
             response = self._v3io_client.stream.create(
                 container=self._container,
                 stream_path=self._stream_path,
-                shard_count=shards or 1,
-                retention_period_hours=retention_in_hours or 24,
+                shard_count=self._shards or 1,
+                retention_period_hours=self._retention_in_hours or 24,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
             if not (
@@ -125,6 +132,8 @@ class OutputStream:
                 response.raise_for_status([409, 204])
 
     def push(self, data, partition_key=None):
+        self._lazy_init()
+
         def dump_record(rec):
             if not isinstance(rec, (str, bytes)):
                 return dict_to_json(rec)

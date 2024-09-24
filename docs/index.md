@@ -51,7 +51,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 :link: ./genai/live-ops/index.html
 ```
 
-```{grid-item-card} Model monitoring
+```{grid-item-card} Monitoring
 :columns: 1 1 2 3
 :text-align: center
 :link: ./concepts/model-monitoring.html
@@ -170,7 +170,7 @@ Collect production data, metadata, and metrics to tune the model and application
 :link: ./deployment/index.html
 ```
 
-```{grid-item-card} Model Monitoring
+```{grid-item-card} Monitoring
 :columns: 3
 :text-align: center
 :link: ./concepts/model-monitoring.html
@@ -311,7 +311,7 @@ MLRun includes the following major components:
 :link: ./serving/serving-graph.html
 ```
 
-```{grid-item-card} Model monitoring
+```{grid-item-card} Monitoring
 :columns: 1 1 2 4
 :text-align: center
 :link: ./concepts/model-monitoring.html

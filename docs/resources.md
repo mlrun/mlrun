@@ -9,11 +9,7 @@ Familiarize yourself with the resources that can help you in your MLRun journey.
 
 ## Slack
 
-The [MLOps Live Slack](https://mlopslive.slack.com) has numerous channels for discussion and announcements.
-
-## Support
-
-The [support team](mailto:support@iguazio.com) is just an email away.
+The [MLOps Live Slack](https://mlopslive.slack.com) has numerous channels for discussion, announcements, and community support.
 
 ## Release states
 

@@ -98,9 +98,6 @@ class MonitoringApplicationContext:
         self.end_infer_time = pd.Timestamp(
             cast(str, event.get(mm_constants.ApplicationEvent.END_INFER_TIME))
         )
-        self.latest_request = pd.Timestamp(
-            cast(str, event.get(mm_constants.ApplicationEvent.LAST_REQUEST))
-        )
         self.endpoint_id = cast(
             str, event.get(mm_constants.ApplicationEvent.ENDPOINT_ID)
         )
@@ -108,12 +105,8 @@ class MonitoringApplicationContext:
             str, event.get(mm_constants.ApplicationEvent.OUTPUT_STREAM_URI)
         )
 
-        self._feature_stats: Optional[FeatureStats] = json.loads(
-            event.get(mm_constants.ApplicationEvent.FEATURE_STATS, "{}")
-        )
-        self._sample_df_stats: Optional[FeatureStats] = json.loads(
-            event.get(mm_constants.ApplicationEvent.CURRENT_STATS, "{}")
-        )
+        self._feature_stats: Optional[FeatureStats] = None
+        self._sample_df_stats: Optional[FeatureStats] = None
 
         # Default labels for the artifacts
         self._default_labels = self._get_default_labels()

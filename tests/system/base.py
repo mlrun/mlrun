@@ -340,7 +340,7 @@ class TestMLRunSystem:
         assert run_outputs["plotly"].startswith(str(output_path))
         assert (
             run_outputs["mydf"]
-            == f"store://artifacts/{project}/{name}_mydf:latest@{uid}"
+            == f"store://datasets/{project}/{name}_mydf:latest@{uid}"
         )
         assert (
             run_outputs["model"]

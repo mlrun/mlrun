@@ -58,7 +58,7 @@ class TestAlerts(TestMLRunSystem):
         )
 
         # create an alert with webhook notification
-        alert_name = "failure_webhook"
+        alert_name = "failure-webhook"
         alert_summary = "Job failed"
         run_id = "test-func-handler"
         notifications = self._generate_failure_notifications(nuclio_function_url)
@@ -188,7 +188,9 @@ class TestAlerts(TestMLRunSystem):
         ]
 
         for alert_kind in alerts_kind_to_test:
-            alert_name = f"drift_webhook_{alert_kind.value}"
+            alert_name = mlrun.utils.helpers.normalize_name(
+                f"drift-webhook-{alert_kind}"
+            )
             alert_summary = "Model is drifting"
             self._create_alert_config(
                 self.project_name,
@@ -265,15 +267,83 @@ class TestAlerts(TestMLRunSystem):
             nuclio_function_url, expected_notifications
         )
 
+    def test_job_failure_alert_sliding_window(self):
+        """
+
+        This test simulates a scenario where a job is expected to fail twice within a two-minute window,
+        which should trigger an alert. The monitoring interval is taken into account to ensure the sliding
+        window of events includes all relevant job failures, preventing the alert system from missing
+        events that occur just before the monitoring run.
+
+        The test first triggers a job failure, waits for slightly more than two minutes, and then triggers
+        another job failure to confirm that the alert does not trigger prematurely. Finally, a third failure
+        within the adjusted window is used to confirm that the alert triggers as expected.
+        """
+
+        self.project.set_function(
+            name="test-func",
+            func="assets/function.py",
+            handler="handler",
+            image="mlrun/mlrun" if self.image is None else self.image,
+            kind="job",
+        )
+
+        # nuclio function for storing notifications, to validate that alert notifications were sent on the failed job
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
+
+        # create an alert with webhook notification that should trigger when the job fails twice in two minutes
+        alert_name = "failure-webhook"
+        alert_summary = "Job failed"
+        alert_criteria = alert_objects.AlertCriteria(period="2m", count=2)
+        run_id = "test-func-handler"
+        notifications = self._generate_failure_notifications(nuclio_function_url)
+
+        self._create_alert_config(
+            self.project_name,
+            alert_name,
+            alert_objects.EventEntityKind.JOB,
+            run_id,
+            alert_summary,
+            alert_objects.EventKind.FAILED,
+            notifications,
+            criteria=alert_criteria,
+        )
+
+        # this is the first failure
+        with pytest.raises(Exception):
+            self.project.run_function("test-func")
+
+        # Wait for more than two minutes to simulate a delay that is slightly longer than the alert period
+        time.sleep(125)
+
+        # this is the second failure
+        with pytest.raises(Exception):
+            self.project.run_function("test-func")
+
+        # validate that no notifications were sent yet, as the two failures did not occur within the same period
+        expected_notifications = []
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
+
+        # this failure should fall within the adjusted sliding window when combined with the second failure
+        # should trigger the alert
+        with pytest.raises(Exception):
+            self.project.run_function("test-func")
+
+        # validate that the alert was triggered and the notification was sent
+        expected_notifications = ["notification failure"]
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, expected_notifications
+        )
+
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
         notification = mlrun.common.schemas.Notification(
             kind="webhook",
             name="failure",
-            message="job failed !",
-            severity="warning",
-            when=["now"],
-            condition="failed",
             params={
                 "url": nuclio_function_url,
                 "override_body": {
@@ -289,10 +359,6 @@ class TestAlerts(TestMLRunSystem):
         first_notification = mlrun.common.schemas.Notification(
             kind="webhook",
             name="drift",
-            message="A drift was detected",
-            severity="warning",
-            when=["now"],
-            condition="failed",
             params={
                 "url": nuclio_function_url,
                 "override_body": {
@@ -304,10 +370,6 @@ class TestAlerts(TestMLRunSystem):
         second_notification = mlrun.common.schemas.Notification(
             kind="webhook",
             name="drift2",
-            message="A drift was detected",
-            severity="warning",
-            when=["now"],
-            condition="failed",
             params={
                 "url": nuclio_function_url,
                 "override_body": {

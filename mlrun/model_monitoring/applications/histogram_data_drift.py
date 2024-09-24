@@ -31,7 +31,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.model_monitoring.applications import (
-    ModelMonitoringApplicationBaseV2,
+    ModelMonitoringApplicationBase,
 )
 from mlrun.model_monitoring.metrics.histogram_distance import (
     HellingerDistance,
@@ -87,11 +87,13 @@ class DataDriftClassifier:
         return ResultStatusApp.no_detection
 
 
-class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
+class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     """
     MLRun's default data drift application for model monitoring.
 
-    The application expects tabular numerical data, and calculates three metrics over the features' histograms.
+    The application expects tabular numerical data, and calculates three metrics over the shared features' histograms.
+    The metrics are calculated on features that have reference data from the training dataset. When there is no
+    reference data (`feature_stats`), this application send a warning log and does nothing.
     The three metrics are:
 
     * Hellinger distance.
@@ -112,6 +114,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
 
         project.enable_model_monitoring()
 
+    To avoid it, pass `deploy_histogram_data_drift_app=False`.
     """
 
     NAME: Final[str] = HistogramDataDriftApplicationConstants.NAME
@@ -223,19 +226,18 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         return metrics
 
     @staticmethod
-    def _remove_timestamp_feature(
-        sample_set_statistics: mlrun.common.model_monitoring.helpers.FeatureStats,
+    def _get_shared_features_sample_stats(
+        monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         """
-        Drop the 'timestamp' feature if it exists, as it is irrelevant
-        in the plotly artifact
+        Filter out features without reference data in `feature_stats`, e.g. `timestamp`.
         """
-        sample_set_statistics = mlrun.common.model_monitoring.helpers.FeatureStats(
-            sample_set_statistics.copy()
+        return mlrun.common.model_monitoring.helpers.FeatureStats(
+            {
+                key: monitoring_context.sample_df_stats[key]
+                for key in monitoring_context.feature_stats
+            }
         )
-        if EventFieldType.TIMESTAMP in sample_set_statistics:
-            del sample_set_statistics[EventFieldType.TIMESTAMP]
-        return sample_set_statistics
 
     @staticmethod
     def _log_json_artifact(
@@ -299,8 +301,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
             self._log_json_artifact(drift_per_feature_values, monitoring_context)
 
         self._log_plotly_table_artifact(
-            sample_set_statistics=self._remove_timestamp_feature(
-                monitoring_context.sample_df_stats
+            sample_set_statistics=self._get_shared_features_sample_stats(
+                monitoring_context
             ),
             inputs_statistics=monitoring_context.feature_stats,
             metrics_per_feature=metrics_per_feature,
@@ -325,7 +327,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBaseV2):
         """
         monitoring_context.logger.debug("Starting to run the application")
         if not monitoring_context.feature_stats:
-            monitoring_context.logger.info(
+            monitoring_context.logger.warning(
                 "No feature statistics found, skipping the application. \n"
                 "In order to run the application, training set must be provided when logging the model."
             )

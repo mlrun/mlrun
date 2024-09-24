@@ -66,12 +66,23 @@ class Pipelines(
 
         kfp_client = self.initialize_kfp_client(namespace)
         if project != "*":
+            # If no filter is provided and the project is not "*",
+            # automatically apply a filter to match runs where the project name
+            # is a substring of the pipeline's name. This ensures that only pipelines
+            # with the project name in their name are returned, helping narrow down the results.
+            if not filter_:
+                logger.debug(
+                    "No filter provided. "
+                    "Applying project-based filter for project to match pipelines with project name as a substring",
+                    project=project,
+                )
+                filter_ = mlrun.utils.get_kfp_project_filter(project_name=project)
             runs = []
             while page_token is not None:
                 # kfp doesn't allow us to pass both a page_token and the `filter` and `sort_by` params.
                 # When we have a token from previous call, we will strip out the filter and use the token to continue
                 # (the token contains the details of the filter that was used to create it)
-                response = kfp_client._run_api.list_runs(
+                response = kfp_client.list_runs(
                     page_token=page_token,
                     page_size=mlrun.common.schemas.PipelinesPagination.max_page_size,
                     sort_by=sort_by if page_token == "" else "",
@@ -85,11 +96,12 @@ class Pipelines(
                 if run_project == project:
                     project_runs.append(run)
             runs = self._filter_runs_by_name(project_runs, name_contains)
+
             total_size = len(runs)
             next_page_token = None
         else:
             try:
-                response = kfp_client._run_api.list_runs(
+                response = kfp_client.list_runs(
                     page_token=page_token,
                     page_size=page_size
                     or mlrun.common.schemas.PipelinesPagination.default_page_size,
@@ -113,7 +125,7 @@ class Pipelines(
                 total_size = -1
             else:
                 total_size = len(runs)
-        runs = self._format_runs(runs, format_)
+        runs = self._format_runs(runs, format_, kfp_client)
 
         return total_size, next_page_token, runs
 
@@ -216,7 +228,7 @@ class Pipelines(
                     project=project,
                     format_=format_,
                 )
-                run = self._format_run(run, format_)
+                run = self._format_run(run, format_, kfp_client)
         except kfp_server_api.ApiException as exc:
             raise mlrun.errors.err_for_status_code(exc.status, err_to_str(exc)) from exc
         except mlrun.errors.MLRunHTTPStatusError:
@@ -293,18 +305,24 @@ class Pipelines(
         self,
         runs: list[dict],
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
     ) -> list[dict]:
         formatted_runs = []
         for run in runs:
-            formatted_runs.append(self._format_run(run, format_))
+            formatted_runs.append(self._format_run(run, format_, kfp_client))
         return formatted_runs
 
     def _format_run(
         self,
         run: PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        kfp_client: mlrun_pipelines.utils.kfp.Client = None,
     ) -> dict:
         run.project = self.resolve_project_from_pipeline(run)
+        if kfp_client:
+            error = self.get_error_from_pipeline(kfp_client, run)
+            if error:
+                run.error = error
         return mlrun.common.formatters.PipelineFormat.format_obj(run, format_)
 
     def _resolve_project_from_command(
@@ -362,6 +380,10 @@ class Pipelines(
 
     def resolve_project_from_pipeline(self, pipeline: PipelineRun):
         return self.resolve_project_from_workflow_manifest(pipeline.workflow_manifest())
+
+    def get_error_from_pipeline(self, kfp_client, run: PipelineRun):
+        pipeline = kfp_client.get_run(run.id)
+        return self.resolve_error_from_pipeline(pipeline)
 
     def _filter_runs_by_name(self, runs: list, target_name: str) -> list:
         """Filter runs by their name while ignoring the project string on them

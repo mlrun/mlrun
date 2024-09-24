@@ -104,7 +104,7 @@ class TestAppDeployment:
             with pytest.raises(mlrun.errors.MLRunBadRequestError):
                 monitoring_deployment.check_if_credentials_are_set()
 
-            with pytest.raises(mlrun.errors.MLRunInvalidMMStoreType):
+            with pytest.raises(mlrun.errors.MLRunInvalidMMStoreTypeError):
                 monitoring_deployment.set_credentials(
                     endpoint_store_connection="v3io",
                     stream_path="kafka://stream",

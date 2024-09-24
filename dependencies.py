@@ -30,9 +30,9 @@ def extra_requirements() -> dict[str, list[str]]:
     #       there as well
     extras_require = {
         "s3": [
-            "boto3>=1.28.0,<1.29.0",
-            "aiobotocore>=2.5.0,<2.8",
-            "s3fs>=2023.9.2, <2024.4",
+            "boto3>=1.28.0,<1.36",
+            "aiobotocore>=2.5.0,<2.16",
+            "s3fs>=2023.9.2, <2024.7",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
@@ -49,19 +49,19 @@ def extra_requirements() -> dict[str, list[str]]:
             # >=2.4.2 to force having a security fix done in 2.4.2
             "bokeh~=2.4, >=2.4.2",
         ],
-        # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
-        # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
-        "plotly": ["plotly~=5.4, <5.12.0"],
+        "plotly": ["plotly~=5.23"],
         # used to generate visualization nuclio/serving graph steps
         "graphviz": ["graphviz~=0.20.0"],
-        # google-cloud is mainly used for QA, that is why we are not including it in complete
         "google-cloud": [
             "google-cloud-storage==2.14.0",
             "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
+            # google-cloud-bigquery[bqstorage] requires google-cloud-bigquery-storage >= 2.6.0, but older (<2.17)
+            # versions of google-cloud-bigquery-storage runs into an issue
+            # (https://github.com/pypa/setuptools/issues/4476) with setuptools (ML-7273)
+            "google-cloud-bigquery-storage~=2.17",
             "google-cloud==0.34",
+            "gcsfs>=2023.9.2, <2024.7",
         ],
-        "google-cloud-storage": ["gcsfs>=2023.9.2, <2024.4"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
             # because confluent kafka supports avro format by default
@@ -72,16 +72,15 @@ def extra_requirements() -> dict[str, list[str]]:
         "databricks-sdk": ["databricks-sdk~=0.13.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
-            "dask~=2023.9.0",
-            "distributed~=2023.9.0",
+            "dask~=2023.12.1",
+            "distributed~=2023.12.1",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py~=0.3.2"],
+        "tdengine": ["taos-ws-py~=0.3.3"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 
-    # see above why we are excluding google-cloud
-    exclude_from_complete = ["bokeh", "google-cloud"]
+    exclude_from_complete = ["bokeh"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )

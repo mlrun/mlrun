@@ -140,6 +140,7 @@ class V3ioStore(DataStore):
         max_chunk_size: int = V3IO_DEFAULT_UPLOAD_CHUNK_SIZE,
     ):
         """helper function for put method, allows for controlling max_chunk_size in testing"""
+        data, _ = self._prepare_put_data(data, append)
         container, path = split_path(self._join(key))
         buffer_size = len(data)  # in bytes
         buffer_offset = 0

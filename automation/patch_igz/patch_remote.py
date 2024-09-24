@@ -49,12 +49,14 @@ class MLRunPatcher:
         self._patch_log_collector = bool(log_collector)
         self._validate_config()
 
-    def patch_mlrun_api(self):
-        vers = self._get_current_version()
-
         nodes = self._config["DATA_NODES"]
         if not isinstance(nodes, list):
             nodes = [nodes]
+        self._nodes = nodes
+
+    def patch_mlrun_api(self):
+        self._docker_login_if_configured()
+        vers = self._get_current_version()
 
         image_tag = self._get_image_tag(vers)
         built_api_image = self._make_mlrun("api", image_tag, "mlrun-api")
@@ -67,11 +69,10 @@ class MLRunPatcher:
             )
             built_images.append(built_log_collector_image)
 
-        self._docker_login_if_configured()
-
+        built_images = self._tag_images_for_multi_node_registries(built_images)
         self._push_docker_images(built_images)
 
-        node = nodes[0]
+        node = self._nodes[0]
         self._connect_to_node(node)
         try:
             self._replace_deploy_policy()
@@ -117,17 +118,23 @@ class MLRunPatcher:
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")
         registry_password = self._config.get("REGISTRY_PASSWORD")
-        if registry_username is not None:
-            self._exec_local(
-                [
-                    "docker",
-                    "login",
-                    "--username",
-                    registry_username,
-                    "--password",
-                    registry_password,
-                ],
-                live=True,
+        registry_url = self._config.get("REGISTRY_URL")
+        if not registry_username:
+            return
+        command = [
+            "docker",
+            "login",
+            registry_url or "",
+            "--username",
+            registry_username,
+            "--password-stdin",
+        ]
+        completed_process = subprocess.run(
+            command, input=registry_password.encode() + b"\n", capture_output=True
+        )
+        if completed_process.returncode != 0:
+            raise RuntimeError(
+                f"Failed to login to docker registry. Error: {completed_process.stderr}"
             )
 
     def _validate_config(self):
@@ -181,6 +188,37 @@ class MLRunPatcher:
 
     def _disconnect_from_node(self):
         self._ssh_client.close()
+
+    def _tag_images_for_multi_node_registries(self, built_images):
+        if self._config.get("SKIP_MULTI_NODE_PUSH") == "true":
+            return
+
+        resolve_built_images = []
+        for built_image in built_images:
+            for node in self._nodes:
+                if node in built_image:
+                    resolve_built_images.append(built_image)
+                    for replacement_node in self._nodes:
+                        if replacement_node != node:
+                            replaced_built_image = built_image.replace(
+                                node, replacement_node
+                            )
+                            self._exec_local(
+                                [
+                                    "docker",
+                                    "tag",
+                                    built_image,
+                                    replaced_built_image,
+                                ],
+                                live=True,
+                            )
+                            resolve_built_images.append(replaced_built_image)
+
+                    # Once we found the node configured in the built_image we can stop because it is only possible
+                    # to specify one node when building the image
+                    break
+
+        return resolve_built_images or built_images
 
     def _push_docker_images(self, built_images):
         logger.info(f"Pushing mlrun docker images: {built_images}")

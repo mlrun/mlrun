@@ -13,6 +13,7 @@
 # limitations under the License.
 import abc
 import os
+import typing
 from copy import deepcopy
 from datetime import datetime
 from typing import Optional
@@ -157,7 +158,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             update_in(
                 job,
                 "spec.nodeSelector",
-                mlrun.utils.helpers.to_non_empty_values_dict(run.spec.node_selector),
+                None,
             )
 
         if not runtime.spec.image:
@@ -327,7 +328,7 @@ with ctx:
 
         self._enrich_job(runtime, job)
 
-        self._enrich_node_selectors_from_project(runtime, job, run.metadata.project)
+        self._enrich_node_selectors(run, runtime, job, run.metadata.project)
 
         if runtime.spec.command:
             if "://" not in runtime.spec.command:
@@ -477,6 +478,20 @@ with ctx:
                     )
         return in_terminal_state, completion_time, desired_run_state
 
+    def _resolve_container_error_status(self, crd_object: dict) -> tuple[str, str]:
+        error_message = (
+            crd_object.get("status", {})
+            .get("applicationState", {})
+            .get("errorMessage", "")
+        )
+        return "", error_message
+
+    def _is_terminal_state(self, runtime_resource: dict) -> bool:
+        state = (
+            runtime_resource.get("status", {}).get("applicationState", {}).get("state")
+        )
+        return state in SparkApplicationStates.terminal_states()
+
     def _update_ui_url(
         self,
         db: DBInterface,
@@ -548,6 +563,7 @@ with ctx:
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Handling config maps deletion
@@ -571,7 +587,9 @@ with ctx:
                 )
                 if force or uid in uids:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
-                        config_map.metadata.name, namespace
+                        config_map.metadata.name,
+                        namespace,
+                        grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")
             except ApiException as exc:
@@ -638,14 +656,7 @@ with ctx:
             "spec.executor.serviceAccount",
             runtime.spec.service_account or "sparkapp",
         )
-        if runtime.spec.driver_node_selector:
-            update_in(
-                job, "spec.driver.nodeSelector", runtime.spec.driver_node_selector
-            )
-        if runtime.spec.executor_node_selector:
-            update_in(
-                job, "spec.executor.nodeSelector", runtime.spec.executor_node_selector
-            )
+
         if runtime.spec.driver_tolerations:
             update_in(job, "spec.driver.tolerations", runtime.spec.driver_tolerations)
         if runtime.spec.executor_tolerations:
@@ -700,33 +711,66 @@ with ctx:
             )
         return
 
-    def _enrich_node_selectors_from_project(self, runtime, job, project_name):
-        # After adding the runtime executor and driver node selectors to the job object,
-        # we enrich the node selectors with any additional selectors from the project-level configuration, if exists.
+    def _enrich_node_selectors(
+        self,
+        run: mlrun.run.RunObject,
+        runtime: mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+        job: dict,
+        project_name: str,
+    ):
+        # If `driver_node_selector` is defined, it takes precedence and will be used as the driver node selector.
+        # If not provided or empty, the `node_selector` from the run object, which is enriched from the runtime object
+        # when the run is launched, will be used instead.
+        # The same logic applies to `executor_node_selector`.
+        driver_node_selector = (
+            runtime.spec.driver_node_selector or run.spec.node_selector
+        )
+
+        executor_node_selector = (
+            runtime.spec.executor_node_selector or run.spec.node_selector
+        )
+
+        if driver_node_selector:
+            update_in(job, "spec.driver.nodeSelector", driver_node_selector)
+        if executor_node_selector:
+            update_in(job, "spec.executor.nodeSelector", executor_node_selector)
+
+        # we enrich the node selectors with any additional selectors,
+        # from the project-level configuration and global config, if exists.
+        project_node_selector = {}
+        config_node_selector = mlrun.mlconf.get_default_function_node_selector()
         if project_name:
-            project = runtime._get_db().get_project(project_name)
-            if project.spec.default_function_node_selector:
-                update_in(
-                    job,
-                    "spec.driver.nodeSelector",
-                    mlrun.utils.helpers.to_non_empty_values_dict(
-                        mlrun.utils.helpers.merge_with_precedence(
-                            project.spec.default_function_node_selector,
-                            runtime.spec.driver_node_selector,
-                        )
-                    ),
-                )
-                update_in(
-                    job,
-                    "spec.executor.nodeSelector",
-                    mlrun.utils.helpers.to_non_empty_values_dict(
-                        mlrun.utils.helpers.merge_with_precedence(
-                            project.spec.default_function_node_selector,
-                            runtime.spec.executor_node_selector,
-                        )
-                    ),
-                )
-            return job
+            if project := runtime._get_db().get_project(project_name):
+                project_node_selector = project.spec.default_function_node_selector
+
+        if project_node_selector or config_node_selector:
+            logger.info(
+                "Enriching driver and executor node selector from mlrun project and config",
+                config_node_selector=config_node_selector,
+                project_node_selector=project_node_selector,
+            )
+            update_in(
+                job,
+                "spec.driver.nodeSelector",
+                mlrun.utils.helpers.to_non_empty_values_dict(
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
+                        config_node_selector,
+                        project_node_selector,
+                        driver_node_selector,
+                    )
+                ),
+            )
+            update_in(
+                job,
+                "spec.executor.nodeSelector",
+                mlrun.utils.helpers.to_non_empty_values_dict(
+                    mlrun.utils.helpers.merge_dicts_with_precedence(
+                        config_node_selector,
+                        project_node_selector,
+                        executor_node_selector,
+                    )
+                ),
+            )
 
     def _get_spark_version(self):
         return "3.2.3"

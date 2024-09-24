@@ -43,6 +43,14 @@ Run ```pip install mlrun```
 To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number.
 ```
 
+## Note for ARM64 (Apple Silicon) Users
+
+When using ARM64 (Apple Silicon), you need to use **conda** and install protobuf by running the following command:
+
+```bash
+conda install "protobuf>=3.20.3, <4" -y
+````
+
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 
    part of the regular requirements since not all users work with those platforms. Using this option reduces the dependencies and the size 
@@ -52,7 +60,7 @@ To install a specific version, use the command: `pip install mlrun==<version>`. 
      - ```pip install mlrun[google-cloud-storage]``` Install requirements for Google cloud storage
    
       
-   - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
+   - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/dependencies.py#L25).<br>
      
 3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
@@ -202,7 +210,7 @@ edit box and expand it to edit the environment variables.
 
    > If the remote service is on an instance of the Iguazio AI Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
-#### Remote environment from VScode
+#### Remote environment from VSCode
 
 Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` 
 file that's stored in a `.vscode` folder in your workspace.

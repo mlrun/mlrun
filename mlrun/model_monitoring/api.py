@@ -24,7 +24,6 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
 from mlrun.data_types.infer import InferOptions, get_df_stats
@@ -147,8 +146,7 @@ def record_results(
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
-    :param context:                  MLRun context. Note that the context is required for logging the artifacts
-                                     following the batch drift job.
+    :param context:                  MLRun context. Note that the context is required generating the model endpoint.
     :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
                                      used for doing the drift analysis. Please make sure that the dataframe includes
                                      both feature names and label columns.
@@ -252,13 +250,30 @@ def _model_endpoint_validations(
                                      In case of discrepancy between the provided `sample_set_statistics` and the
                                      `model_endpoints.spec.feature_stats`, a warning will be presented to the user.
     """
-    # Model path
-    if model_path and model_endpoint.spec.model_uri != model_path:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"provided model store path {model_path} does not match "
-            f"the path that is stored under the existing model "
-            f"endpoint record: {model_endpoint.spec.model_uri}"
+
+    # Model Path
+    if model_path:
+        # Generate the parsed model uri that is based on hash, key, iter, and tree
+        model_obj = mlrun.datastore.get_store_resource(model_path)
+
+        model_artifact_uri = mlrun.utils.helpers.generate_artifact_uri(
+            project=model_endpoint.metadata.project,
+            key=model_obj.key,
+            iter=model_obj.iter,
+            tree=model_obj.tree,
         )
+
+        # Enrich the uri schema with the store prefix
+        model_artifact_uri = mlrun.datastore.get_store_uri(
+            kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+        )
+
+        if model_endpoint.spec.model_uri != model_artifact_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"provided model store path {model_path} does not match "
+                f"the path that is stored under the existing model "
+                f"endpoint record: {model_endpoint.spec.model_uri}"
+            )
 
     # Feature stats
     if (
@@ -545,8 +560,7 @@ def _create_model_monitoring_function_base(
     func: typing.Union[str, None] = None,
     application_class: typing.Union[
         str,
-        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
-        mm_app.ModelMonitoringApplicationBaseV2,
+        mm_app.ModelMonitoringApplicationBase,
         None,
     ] = None,
     name: typing.Optional[str] = None,
@@ -560,15 +574,6 @@ def _create_model_monitoring_function_base(
     Note: this is an internal API only.
     This function does not set the labels or mounts v3io.
     """
-    if isinstance(
-        application_class,
-        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
-    ):
-        warnings.warn(
-            "The `ModelMonitoringApplicationBase` class is deprecated from version 1.7.0, "
-            "please use `ModelMonitoringApplicationBaseV2`. It will be removed in 1.9.0.",
-            FutureWarning,
-        )
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "An application cannot have the following names: "
@@ -599,11 +604,20 @@ def _create_model_monitoring_function_base(
         app_step = prepare_step.to(class_name=application_class, **application_kwargs)
     else:
         app_step = prepare_step.to(class_name=application_class)
+
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
+
+    app_step.error_handler(
+        name="ApplicationErrorHandler",
+        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        full_event=True,
+        project=project,
+    )
+
     app_step.to(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
         project=project,
         writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
-    ).respond()
+    )
     return func_obj

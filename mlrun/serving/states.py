@@ -84,6 +84,9 @@ _task_step_fields = [
 ]
 
 
+MAX_ALLOWED_STEPS = 4500
+
+
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
     class_args = deepcopy(class_args)
     class_args["model_path"] = model_path
@@ -733,6 +736,11 @@ class RouterStep(TaskStep):
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
         route.function = function or route.function
+
+        if len(self._routes) >= MAX_ALLOWED_STEPS:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot create the serving graph: the maximum number of steps is {MAX_ALLOWED_STEPS}"
+            )
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -872,7 +880,8 @@ class QueueStep(BaseStep):
             return event
 
         if self._stream:
-            if self.options.get("full_event", True):
+            full_event = self.options.get("full_event")
+            if full_event or full_event is None and self.next:
                 data = storey.utils.wrap_event_for_serialization(event, data)
             self._stream.push(data)
             event.terminated = True
@@ -1390,7 +1399,7 @@ class FlowStep(BaseStep):
         return step
 
     def supports_termination(self):
-        return self.engine == "async"
+        return self.engine != "sync"
 
 
 class RootFlowStep(FlowStep):
@@ -1630,7 +1639,11 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
@@ -1684,7 +1697,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+    explicit_ack = (
+        is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    )
 
     # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(

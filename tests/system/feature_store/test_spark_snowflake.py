@@ -14,6 +14,8 @@
 #
 import os
 import random
+import tempfile
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -22,8 +24,9 @@ import snowflake.connector
 
 import mlrun.errors
 import mlrun.feature_store as fstore
-from mlrun.datastore.sources import SnowflakeSource
+from mlrun.datastore.sources import ParquetSource, SnowflakeSource
 from mlrun.datastore.targets import ParquetTarget, SnowflakeTarget
+from mlrun.feature_store import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.spark_hadoop_test_base import (
     Deployment,
@@ -32,6 +35,7 @@ from tests.system.feature_store.spark_hadoop_test_base import (
 from tests.system.feature_store.utils import (
     get_missing_snowflake_spark_parameters,
     get_snowflake_spark_parameters,
+    sort_df,
 )
 
 
@@ -208,3 +212,127 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             match=".*some attributes are missing.*",
         ):
             fake_target.purge()
+
+    def test_parquet_source_ingest(self):
+        result_table = f"result_{self.current_time}"
+        self.tables_to_drop.append(result_table)
+        data = {
+            "id": [1, 2, 3],
+            "time_stamp": [
+                datetime.now(),
+                datetime.now() - timedelta(minutes=10),
+                datetime.now() - timedelta(minutes=20),
+            ],
+            "name": ["Alice", "Bob", "Charlie"],
+        }
+        df = pd.DataFrame(data)
+        #  spark has problem to read datetime64[ns] type
+        df["time_stamp"] = df["time_stamp"].astype("datetime64[us]")
+        temp_file = tempfile.NamedTemporaryFile(suffix=".parquet", delete=False)
+        if self.run_local:
+            df.to_parquet(temp_file.name)
+            path = temp_file.name
+            source = ParquetSource("parquet_source", path=path)
+        else:
+            v3io_parquet_source_path = (
+                f"v3io:///projects/{self.project_name}/"
+                f"df_parquet_filtered_source_{uuid.uuid4()}.parquet"
+            )
+            df.to_parquet(v3io_parquet_source_path)
+            source = ParquetSource("parquet_source", path=v3io_parquet_source_path)
+
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=result_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        fset_obj = fstore.FeatureSet(
+            "feature_set",
+            timestamp_key="time_stamp",
+            entities=[Entity("id")],
+            engine="spark",
+            passthrough=False,
+            relations=None,
+        )
+        run_config = fstore.RunConfig(local=self.run_local)
+        fset_obj.ingest(
+            source, [target], run_config=run_config, spark_context=self.spark_service
+        )
+
+        features = ["feature_set.*"]
+        vector = fstore.FeatureVector("feature_vector", features)
+        run_config = fstore.RunConfig(
+            local=self.run_local, kind=None if self.run_local else "remote-spark"
+        )
+        target = ParquetTarget()
+        result = vector.get_offline_features(
+            engine="spark",
+            with_indexes=True,
+            spark_service=self.spark_service,
+            run_config=run_config,
+            target=None if self.run_local else target,
+        )
+        result_df = result.to_dataframe()
+        result_df = result_df.reset_index(drop=False)
+        pd.testing.assert_frame_equal(
+            sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
+        )
+
+    def test_snowflake_target_to_dataframe(self):
+        if self.run_local:
+            pytest.skip("local run is not supported")
+
+        number_of_rows = 10
+        result_table = f"result_{self.current_time}"
+        feature_set = fstore.FeatureSet(
+            name="snowflake_feature_set",
+            entities=[fstore.Entity("ID")],
+            engine="spark",
+        )
+        source = SnowflakeSource(
+            "snowflake_source_for_ingest",
+            query=f"select * from {self.source_table} order by ID limit {number_of_rows}",
+            schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        target = SnowflakeTarget(
+            "snowflake_target_for_ingest",
+            table_name=result_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        self.generate_snowflake_source_table()
+        self.tables_to_drop.append(result_table)
+        feature_set.ingest(
+            source,
+            targets=[target],
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(
+                local=False,
+            ),
+        )
+        vector = fstore.FeatureVector(
+            "feature_vector_snowflake", ["snowflake_feature_set.*"]
+        )
+        run_config = fstore.RunConfig(local=False, kind="remote-spark")
+
+        get_offline_table = f"get_offline_table_{self.current_time}"
+        target = SnowflakeTarget(
+            "snowflake_target_for_get_offline_features",
+            table_name=get_offline_table,
+            db_schema=self.schema,
+            **self.snowflake_spark_parameters,
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="get_offline_features does not support targets that do not "
+            "support pandas engine. Target kind: snowflake",
+        ):
+            vector.get_offline_features(
+                engine="spark",
+                with_indexes=True,
+                spark_service=self.spark_service,
+                run_config=run_config,
+                target=target,
+            )

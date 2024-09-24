@@ -35,6 +35,7 @@ import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
+import server.api.utils.scheduler
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -45,6 +46,7 @@ from mlrun.utils import (
 )
 from server.api.db.init_db import init_db
 from server.api.db.session import close_session, create_session
+from server.api.db.sqldb.models import ProjectSummary
 
 
 def init_data(
@@ -138,7 +140,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 6
+latest_data_version = 7
 
 
 def update_default_configuration_data():
@@ -242,6 +244,11 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_5_data_migrations(db, db_session)
             if current_data_version < 6:
                 _perform_version_6_data_migrations(db, db_session)
+            if current_data_version < 7:
+                _perform_version_7_data_migrations(db, db_session)
+            if current_data_version < 8:
+                _perform_version_8_data_migrations(db, db_session)
+
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -865,6 +872,35 @@ def _migrate_model_monitoring_jobs(db, db_session):
         project="*",
         names=["model-monitoring-controller", "model-monitoring-batch"],
     )
+
+
+def _perform_version_7_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _create_project_summaries(db, db_session)
+
+
+def _perform_version_8_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    db.align_schedule_labels(session=db_session)
+
+
+def _create_project_summaries(db, db_session):
+    # Create a project summary record for all projects.
+    # We need to create them manually because a summary record is created only when a new
+    # project is created, so project that existing prior to the upgrade don't have summaries.
+    projects = db.list_projects(
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
+    )
+    project_summaries = [
+        ProjectSummary(
+            project=project_name,
+            summary=mlrun.common.schemas.ProjectSummary(name=project_name).dict(),
+        )
+        for project_name in projects.projects
+    ]
+    db._upsert(db_session, project_summaries, ignore=True)
 
 
 def main() -> None:

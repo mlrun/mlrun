@@ -17,12 +17,15 @@ from dataclasses import dataclass
 from typing import Annotated, Optional
 
 import fastapi
-from fastapi import APIRouter, Depends, Query
+import semver
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.api.utils
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import process_model_monitoring_secret
 from server.api.crud.model_monitoring.deployment import MonitoringDeployment
@@ -50,9 +53,19 @@ class _CommonParams:
 
 
 async def _verify_authorization(
-    project: str, auth_info: mlrun.common.schemas.AuthInfo
+    project: str, auth_info: mlrun.common.schemas.AuthInfo, client_version: str
 ) -> None:
     """Verify project authorization"""
+    if (
+        semver.Version.parse(client_version)
+        < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+        and "unstable" not in client_version
+    ):
+        server.api.api.utils.log_and_raise(
+            http.HTTPStatus.BAD_REQUEST.value,
+            reason=f"Model monitoring is supported from client version {MINIMUM_CLIENT_VERSION_FOR_MM}. "
+            f"Please upgrade your client accordingly.",
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,
         project_name=project,
@@ -68,16 +81,22 @@ async def _common_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
 ) -> _CommonParams:
     """
     Verify authorization and return common parameters.
 
-    :param project:    Project name.
-    :param auth_info:  The auth info of the request.
-    :param db_session: A session that manages the current dialog with the database.
+    :param project:         Project name.
+    :param auth_info:       The auth info of the request.
+    :param db_session:      A session that manages the current dialog with the database.
+    :param client_version:  The client version.
     :returns:          A `_CommonParameters` object that contains the input data.
     """
-    await _verify_authorization(project=project, auth_info=auth_info)
+    await _verify_authorization(
+        project=project, auth_info=auth_info, client_version=client_version
+    )
     return _CommonParams(
         project=project,
         auth_info=auth_info,
@@ -128,7 +147,7 @@ async def enable_model_monitoring(
     )
 
 
-@router.post("/model-monitoring-controller")
+@router.patch("/model-monitoring-controller")
 async def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,

@@ -321,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file
@@ -575,6 +575,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_LOG_FORMATTER=$(MLRUN_LOG_FORMATTER) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
+		--env MLRUN_ALERTS__MODE=$(MLRUN_ALERTS__MODE) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
@@ -590,18 +591,18 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		mysql/mysql-server:8.0 \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs
-	cd docs && make clean && cd ..
+	rm -f docs/external/*.md
+	make -C docs clean
 
 .PHONY: html-docs
 html-docs: clean-html-docs ## Build html docs
-	rm -f docs/external/*.md
-	cd docs && make html
+	make -C docs html
 
 .PHONY: html-docs-dockerized
 html-docs-dockerized: build-test ## Build html docs dockerized
@@ -623,6 +624,9 @@ fmt: ## Format the code using Ruff and blacken-docs
 lint-docs: ## Format the code blocks in markdown files
 	@echo "Checking the code blocks with blacken-docs"
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
+	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
+	    make vale-docs; \
+	fi
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -630,7 +634,7 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports lint-docs ## Run lint on the code
+lint: lint-check lint-imports ## Run lint on the code
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)
@@ -648,6 +652,11 @@ lint-go:
 fmt-go:
 	cd server/log-collector && \
 		make fmt
+
+.PHONY: vale-docs
+vale-docs: ## Run vale check for docs and sorts ignore.txt file
+	vale docs
+	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
 
 .PHONY: release
 release: ## Release a version

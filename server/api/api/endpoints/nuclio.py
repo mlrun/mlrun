@@ -17,6 +17,7 @@ import traceback
 import typing
 from http import HTTPStatus
 
+import semver
 import sqlalchemy.orm
 from fastapi import APIRouter, Depends, Header, Request, Response
 from fastapi.concurrency import run_in_threadpool
@@ -35,6 +36,7 @@ import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
+from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
 from server.api.api import deps
 from server.api.crud.secrets import Secrets, SecretsClientType
 
@@ -136,7 +138,16 @@ async def store_api_gateway(
                 for func in existing_api_gateway.get_function_names()
                 if func not in api_gateway.get_function_names()
             ]
-            if unused_functions:
+            # if invocation URL has changed, delete URL from all the functions
+            if existing_api_gateway.get_invoke_url != api_gateway.get_invoke_url:
+                await _delete_functions_external_invocation_url(
+                    project=project,
+                    url=existing_api_gateway.get_invoke_url(),
+                    function_names=existing_api_gateway.get_function_names(),
+                )
+            # if only functions list has changed, then delete URL only from those functions
+            # which are not used in api gateway anymore
+            elif unused_functions:
                 # delete api gateway url from those functions which are not used in api gateway anymore
                 await _delete_functions_external_invocation_url(
                     project=project,
@@ -322,7 +333,9 @@ async def deploy_status(
     )
 
 
-def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(
+    db_session, project_name: str, secret_key: str, store: bool = True
+):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
@@ -353,9 +366,16 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
             allow_internal_secrets=True,
         )
         if not secret_value:
-            project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
+            try:
+                project_owner = server.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                    db_session, project_name
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(
+                    "Failed to retrieve project owner, the project does not exist in Iguazio.",
+                    project_name=project_name,
+                )
+                raise
 
             secret_value = project_owner.access_key
             if not secret_value:
@@ -368,16 +388,18 @@ def process_model_monitoring_secret(db_session, project_name: str, secret_key: s
                 project_name=project_name,
                 project_owner=project_owner.username,
             )
-
-    secrets = mlrun.common.schemas.SecretsData(
-        provider=provider, secrets={internal_key_name: secret_value}
-    )
-    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
-    if user_provided_key:
-        logger.info(
-            "Deleting user-provided access-key - replaced with an internal secret"
+    if store:
+        secrets = mlrun.common.schemas.SecretsData(
+            provider=provider, secrets={internal_key_name: secret_value}
         )
-        Secrets().delete_project_secret(project_name, provider, secret_key)
+        Secrets().store_project_secrets(
+            project_name, secrets, allow_internal_secrets=True
+        )
+        if user_provided_key:
+            logger.info(
+                "Deleting user-provided access-key - replaced with an internal secret"
+            )
+            Secrets().delete_project_secret(project_name, provider, secret_key)
 
     return secret_value
 
@@ -506,9 +528,7 @@ def _deploy_nuclio_runtime(
             )
         )
         try:
-            monitoring_deployment.check_if_credentials_are_set(
-                with_upgrade_case_check=True
-            )
+            monitoring_deployment.check_if_credentials_are_set()
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"
@@ -522,17 +542,27 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn,
-                function_name=fn.metadata.name,
+                function=fn, function_name=fn.metadata.name
             )
 
         if serving_to_monitor:
-            if monitoring_deployment.should_redeploy_monitoring_stream(
-                fn_image=fn.spec.image, client_version=client_version
+            if not client_version:
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be specified and  >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
+                )
+            elif fn.spec.image.startswith("mlrun/") and (
+                semver.Version.parse(client_version)
+                < semver.Version.parse(MINIMUM_CLIENT_VERSION_FOR_MM)
+                and "unstable" not in client_version
             ):
-                # Redeploy the monitoring stream processing function
-                monitoring_deployment.deploy_model_monitoring_stream_processing(
-                    overwrite=True
+                server.api.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=f"On deployment of serving-functions that are based on mlrun image "
+                    f"('mlrun/') and set-tracking is enabled, "
+                    f"client version must be >= {MINIMUM_CLIENT_VERSION_FOR_MM}",
                 )
 
     server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(

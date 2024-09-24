@@ -44,7 +44,10 @@ from mlrun.utils.helpers import (
     verify_list_items_type,
 )
 
-STORE_PREFIX = "store://artifacts/dummy-project/dummy-db-key"
+STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
+ARTIFACT_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Artifact)
+DATASET_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Dataset)
+MODEL_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Model)
 
 
 def test_retry_until_successful_fatal_failure():
@@ -1010,20 +1013,45 @@ def test_is_safe_path(basedir, path, is_symlink, is_valid):
 @pytest.mark.parametrize(
     "kind, tag, target_path, expected",
     [
-        ("artifact", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("artifact", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "artifact",
+            "v1",
+            "/path/to/artifact",
+            f"{ARTIFACT_STORE_PREFIX}:v1@dummy-tree",
+        ),
+        (
+            "artifact",
+            None,
+            "/path/to/artifact",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+        ),
         (
             "artifact",
             "latest",
             "/path/to/artifact",
-            f"{STORE_PREFIX}:latest@dummy-tree",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
         ),
-        ("dataset", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("dataset", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("dataset", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("model", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("model", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("model", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("dataset", "v1", "/path/to/artifact", f"{DATASET_STORE_PREFIX}:v1@dummy-tree"),
+        (
+            "dataset",
+            None,
+            "/path/to/artifact",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        (
+            "dataset",
+            "latest",
+            "/path/to/artifact",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        ("model", "v1", "/path/to/artifact", f"{MODEL_STORE_PREFIX}:v1@dummy-tree"),
+        ("model", None, "/path/to/artifact", f"{MODEL_STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "model",
+            "latest",
+            "/path/to/artifact",
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+        ),
         ("dir", "v1", "/path/to/artifact", "/path/to/artifact"),
         ("table", "v1", "/path/to/artifact", "/path/to/artifact"),
         ("plot", "v1", "/path/to/artifact", "/path/to/artifact"),
@@ -1040,3 +1068,56 @@ def test_get_artifact_target(kind, tag, target_path, expected):
     }
     target = mlrun.utils.get_artifact_target(item, project="dummy-project")
     assert target == expected
+
+
+def test_validate_single_def_handler_invalid_handler():
+    code = """
+def handler():
+    pass
+def handler():
+    pass
+"""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        mlrun.utils.validate_single_def_handler("mlrun", code)
+    assert str(exc.value) == (
+        "The code file contains a function named “handler“, which is reserved. "
+        + "Use a different name for your function."
+    )
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        """
+def dummy_handler():
+    pass
+def handler():
+    pass
+""",
+        """
+def handler():
+    pass
+""",
+        """
+def handler():
+    pass
+def dummy_handler():
+    def handler():
+        pass
+    handler()
+""",
+        """
+# def handler():
+#     pass
+def handler():
+    pass
+""",
+    ],
+)
+def test_validate_single_def_handler_valid_handler(code):
+    try:
+        mlrun.utils.validate_single_def_handler("mlrun", code)
+    except mlrun.errors.MLRunInvalidArgumentError:
+        pytest.fail(
+            "validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly."
+        )

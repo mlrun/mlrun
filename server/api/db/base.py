@@ -420,7 +420,7 @@ class DBInterface(ABC):
         session,
         project: str = None,
         name: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass
@@ -522,7 +522,9 @@ class DBInterface(ABC):
         pass
 
     def get_project_summary(
-        self, session, project: str, raise_on_not_found: bool = True
+        self,
+        session,
+        project: str,
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
 
@@ -644,6 +646,7 @@ class DBInterface(ABC):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         pass
 
@@ -833,11 +836,56 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+    def store_alert(
+        self, session, alert: mlrun.common.schemas.AlertConfig
+    ) -> mlrun.common.schemas.AlertConfig:
         pass
 
     @abstractmethod
     def get_all_alerts(self, session) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def list_alerts(
+        self, session, project: str = None
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
+    def get_alert(
+        self, session, project: str, name: str
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def get_alert_by_id(
+        self, session, alert_id: int
+    ) -> mlrun.common.schemas.AlertConfig:
+        pass
+
+    @abstractmethod
+    def enrich_alert(self, session, alert: mlrun.common.schemas.AlertConfig):
+        pass
+
+    @abstractmethod
+    def delete_alert(self, session, project: str, name: str):
+        pass
+
+    @abstractmethod
+    def store_alert_state(
+        self,
+        session,
+        project: str,
+        name: str,
+        last_updated: datetime,
+        count: typing.Optional[int] = None,
+        active: bool = False,
+        obj: typing.Optional[dict] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def get_alert_state_dict(self, session, alert_id: int) -> dict:
         pass
 
     @abstractmethod

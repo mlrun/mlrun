@@ -134,6 +134,14 @@ class TestKubejobRuntime(TestRuntimeBase):
 
         runtime = self._generate_runtime()
 
+        invalid_node_selector = {"label-1": "val=1"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            runtime.with_node_selection(node_selector=invalid_node_selector)
+        assert runtime.spec.node_selector == {"label-1": "val=1"}
+
         node_selector = {
             "label-1": "val1",
             "label-2": "val2",
@@ -275,7 +283,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "false"},
             ),
             # Common and user node selectors provided
-            ({"zone": "us-east"}, {}, {"test": "user"}, {"test": "user"}),
+            (
+                {"zone": "us-east"},
+                {},
+                {"test": "user"},
+                {"zone": "us-east", "test": "user"},
+            ),
             # Project and user node selectors provided
             ({}, {"gpu": "false"}, {"test": "user"}, {"gpu": "false", "test": "user"}),
             # All node selectors provided

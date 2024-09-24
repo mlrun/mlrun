@@ -198,12 +198,11 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         label_selector: str = None,
         force: bool = False,
         grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
     ):
         """
         Handling services deletion
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
         service_names = []
         for pod_dict in deleted_resources:
             dask_component = (
@@ -226,7 +225,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             try:
                 if force or service.metadata.name in service_names:
                     server.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
-                        service.metadata.name, namespace
+                        service.metadata.name,
+                        namespace,
+                        grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
             except ApiException as exc:
@@ -404,12 +405,15 @@ def enrich_dask_cluster(
     # remotely on k8s. This ensures that the cluster pods follow the project's specified node selection.
     project = function._get_db().get_project(function.metadata.project)
     logger.debug(
-        "Enriching Dask Cluster node selector from project",
+        "Enriching Dask Cluster node selector from project and mlrun config",
         project_name=function.metadata.project,
         project_node_selector=project.spec.default_function_node_selector,
+        mlconf_node_selector=mlrun.mlconf.get_default_function_node_selector(),
     )
-    node_selector = mlrun.utils.helpers.merge_with_precedence(
-        project.spec.default_function_node_selector, function.spec.node_selector
+    node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
+        mlrun.mlconf.get_default_function_node_selector(),
+        project.spec.default_function_node_selector,
+        function.spec.node_selector,
     )
     scheduler_pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, scheduler_container, node_selector=node_selector

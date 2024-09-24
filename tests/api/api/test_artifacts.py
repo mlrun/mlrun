@@ -45,6 +45,7 @@ V2_PREFIX = "v2/"
 DELETE_API_ARTIFACTS_V2_PATH = V2_PREFIX + DELETE_API_ARTIFACTS_PATH
 STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
 LIST_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH
+GET_API_ARTIFACT_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -161,24 +162,40 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.OK.value
 
 
+def test_store_artifact_with_iteration(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client)
+    iteration = 3
+    json = _generate_artifact_body(iteration=iteration)
+    resp = unversioned_client.put(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{KEY}?tag={TAG}",
+        json=json,
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # Change a spec that is not included in UID hash
+    json["metadata"]["labels"]["a"] = "b"
+    resp = unversioned_client.put(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"/{KEY}?tag={TAG}",
+        json=json,
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact_dict = resp.json()
+    assert artifact_dict["metadata"]["labels"]["a"] == json["metadata"]["labels"]["a"]
+    assert artifact_dict["metadata"]["iter"] == iteration
+
+    artifacts_path = (
+        LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT) + f"?iter={iteration}"
+    )
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2  # latest and TAG
+    assert artifacts[0]["metadata"]["iter"] == iteration
+
+
 def test_create_artifact(db: Session, unversioned_client: TestClient):
     _create_project(unversioned_client, prefix="v1")
-    data = {
-        "kind": "artifact",
-        "metadata": {
-            "description": "",
-            "labels": {},
-            "key": "some-key",
-            "project": PROJECT,
-            "tree": "some-tree",
-        },
-        "spec": {
-            "db_key": "some-key",
-            "producer": {"kind": "api", "uri": "my-uri:3000"},
-            "target_path": "memory://aaa/aaa",
-        },
-        "status": {},
-    }
+    data = _generate_artifact_body(tree="some-tree")
     url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT)
     resp = unversioned_client.post(
         url,
@@ -283,6 +300,38 @@ def test_delete_artifact_data_default_deletion_strategy(
         delete_artifact_data.assert_not_called()
         delete_artifact_data.reset_mock()
         assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+
+def test_delete_artifact_with_uid(db: Session, unversioned_client: TestClient):
+    _create_project(unversioned_client)
+
+    # create an artifact
+    data = _generate_artifact_body()
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+
+    # get the artifact to extract the created uid
+    artifacts_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 1
+
+    # delete the artifact by uid
+    artifact_uid = artifacts[0]["metadata"]["uid"]
+    url = DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
+    url_with_uid = url + f"?object-uid={artifact_uid}"
+    resp = unversioned_client.delete(url_with_uid)
+    assert resp.status_code == HTTPStatus.NO_CONTENT.value
+
+    # verify the artifact was deleted
+    resp = unversioned_client.get(artifacts_path)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 0
 
 
 @pytest.mark.parametrize(
@@ -416,22 +465,7 @@ def test_list_artifacts_with_limits(
     _create_project(unversioned_client, prefix="v1")
 
     for i in range(list_limit + 1):
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api"},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body()
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -459,22 +493,7 @@ def test_list_artifacts_with_producer_uri(
     producer_uri_2 = f"{PROJECT}/def"
     producer_uris = [producer_uri_1, producer_uri_1, producer_uri_2, ""]
     for producer_uri in producer_uris:
-        data = {
-            "kind": "artifact",
-            "metadata": {
-                "description": "",
-                "labels": {},
-                "key": KEY,
-                "project": PROJECT,
-                "tree": str(uuid.uuid4()),
-            },
-            "spec": {
-                "db_key": "some-key",
-                "producer": {"kind": "api", "uri": producer_uri},
-                "target_path": "memory://aaa/aaa",
-            },
-            "status": {},
-        }
+        data = _generate_artifact_body(producer={"kind": "api", "uri": producer_uri})
         resp = unversioned_client.post(
             STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
             json=data,
@@ -588,6 +607,80 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
     )
     resp = client.get(artifact_path)
     assert resp.status_code == HTTPStatus.OK.value
+
+
+def test_get_artifact_validate_tag_exists_in_the_response(
+    db: Session, unversioned_client: TestClient
+) -> None:
+    _create_project(unversioned_client)
+
+    # Create artifact with tag "v1"
+    artifact_data = _generate_artifact_body(tag="v1")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_v1 = resp.json()
+
+    # Get artifact using UID and tag "v1"
+    url_with_uid_and_tag_v1 = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="v1"
+    )
+    resp = unversioned_client.get(url_with_uid_and_tag_v1)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "v1"
+
+    # Get the same artifact using UID without specifying a tag
+    url_with_uid = _get_artifact_url(artifact_v1["metadata"]["uid"])
+    resp = unversioned_client.get(url_with_uid)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"].get("tag") is None
+
+    # Get the same artifact using UID and tag "latest"
+    url_with_uid_and_latest = _get_artifact_url(
+        artifact_v1["metadata"]["uid"], tag="latest"
+    )
+    resp = unversioned_client.get(url_with_uid_and_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+
+    # Get the same artifact using tag "latest" without UID
+    url_tag_latest = _get_artifact_url(tag="latest")
+    resp = unversioned_client.get(url_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+    assert artifact["metadata"]["uid"] == artifact_v1["metadata"]["uid"]
+
+    # Create another artifact with tag "v2" -> now this artifact is the latest
+    artifact_data = _generate_artifact_body(tag="v2")
+    resp = unversioned_client.post(
+        STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT),
+        json=artifact_data,
+    )
+    assert resp.status_code == HTTPStatus.CREATED.value
+    artifact_v2 = resp.json()
+
+    # Get the second artifact using tag "latest" without UID
+    url_tag_latest = _get_artifact_url(tag="latest")
+    resp = unversioned_client.get(url_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"]["tag"] == "latest"
+    assert artifact["metadata"]["uid"] == artifact_v2["metadata"]["uid"]
+
+    # Get the first artifact (v1) using UID and tag "latest"
+    url_with_uid_tag_latest = _get_artifact_url(
+        uid=artifact_v1["metadata"]["uid"], tag="latest"
+    )
+    resp = unversioned_client.get(url_with_uid_tag_latest)
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+    assert artifact["metadata"].get("tag") is None
 
 
 def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
@@ -928,3 +1021,52 @@ def _create_project(
     resp = client.post(url, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
+
+
+def _generate_artifact_body(
+    key=KEY,
+    project=PROJECT,
+    tree=None,
+    tag=None,
+    body=None,
+    producer=None,
+    iteration=None,
+):
+    tree = tree or str(uuid.uuid4())
+    producer = producer or {"kind": "api", "uri": "my-uri:3000"}
+    data = {
+        "kind": "artifact",
+        "metadata": {
+            "description": "",
+            "labels": {},
+            "key": key,
+            "project": project,
+            "tree": tree,
+        },
+        "spec": {
+            "db_key": key,
+            "producer": producer,
+            "target_path": "memory://aaa/aaa",
+        },
+        "status": {},
+    }
+    if tag:
+        data["metadata"]["tag"] = tag
+    if iteration is not None:
+        data["metadata"]["iter"] = iteration
+    if body:
+        data["spec"] = {"body": body}
+
+    return data
+
+
+def _get_artifact_url(uid: str = None, tag: str = None) -> str:
+    url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=KEY)
+    params = []
+
+    if uid:
+        params.append(f"object-uid={uid}")
+    if tag:
+        params.append(f"tag={tag}")
+
+    return f"{url}?{'&'.join(params)}" if params else url

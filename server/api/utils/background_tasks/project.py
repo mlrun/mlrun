@@ -126,6 +126,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 function_name=function.__name__,
                 exc=err_str,
                 tb=traceback.format_exc(),
+                name=name,
             )
             state = mlrun.common.schemas.BackgroundTaskState.failed
             error = err_str

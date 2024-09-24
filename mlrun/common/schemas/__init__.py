@@ -108,6 +108,7 @@ from .feature_store import (
     FeatureVectorsTagsOutput,
 )
 from .frontend_spec import (
+    ArtifactLimits,
     AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
@@ -151,7 +152,6 @@ from .model_monitoring import (
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     MonitoringFunctionNames,
-    PrometheusEndpoints,
     TSDBTarget,
     V3IOTSDBTables,
 )
@@ -170,10 +170,12 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectOut,
     ProjectOutput,
     ProjectOwner,
     ProjectsOutput,
     ProjectSpec,
+    ProjectSpecOut,
     ProjectState,
     ProjectStatus,
     ProjectSummariesOutput,

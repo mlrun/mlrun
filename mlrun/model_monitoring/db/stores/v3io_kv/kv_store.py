@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import http
 import json
 import typing
 from dataclasses import dataclass
@@ -20,6 +20,7 @@ from http import HTTPStatus
 import v3io.dataplane
 import v3io.dataplane.output
 import v3io.dataplane.response
+from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring as mm_schemas
@@ -34,11 +35,11 @@ fields_to_encode_decode = [
 ]
 
 _METRIC_FIELDS: list[str] = [
-    mm_schemas.WriterEvent.APPLICATION_NAME,
-    mm_schemas.MetricData.METRIC_NAME,
-    mm_schemas.MetricData.METRIC_VALUE,
-    mm_schemas.WriterEvent.START_INFER_TIME,
-    mm_schemas.WriterEvent.END_INFER_TIME,
+    mm_schemas.WriterEvent.APPLICATION_NAME.value,
+    mm_schemas.MetricData.METRIC_NAME.value,
+    mm_schemas.MetricData.METRIC_VALUE.value,
+    mm_schemas.WriterEvent.START_INFER_TIME.value,
+    mm_schemas.WriterEvent.END_INFER_TIME.value,
 ]
 
 
@@ -100,12 +101,17 @@ class KVStoreBase(StoreBase):
         project: str,
     ) -> None:
         super().__init__(project=project)
-        # Initialize a V3IO client instance
-        self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api,
-        )
+        self._client = None
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
+
+    @property
+    def client(self) -> V3IOClient:
+        if not self._client:
+            self._client = mlrun.utils.v3io_clients.get_v3io_client(
+                endpoint=mlrun.mlconf.v3io_api,
+            )
+        return self._client
 
     def write_model_endpoint(self, endpoint: dict[str, typing.Any]):
         """
@@ -285,6 +291,10 @@ class KVStoreBase(StoreBase):
         """
         Delete all model endpoints resources in V3IO KV.
         """
+        logger.debug(
+            "Deleting model monitoring endpoints resources in V3IO KV",
+            project=self.project,
+        )
 
         endpoints = self.list_model_endpoints()
 
@@ -295,9 +305,21 @@ class KVStoreBase(StoreBase):
                 endpoint_id = endpoint_dict[mm_schemas.EventFieldType.ENDPOINT_ID]
             else:
                 endpoint_id = endpoint_dict[mm_schemas.EventFieldType.UID]
+
+            logger.debug(
+                "Deleting model endpoint resources from the V3IO KV table",
+                endpoint_id=endpoint_id,
+                project=self.project,
+            )
+
             self.delete_model_endpoint(
                 endpoint_id,
             )
+
+        logger.debug(
+            "Successfully deleted model monitoring endpoints from the V3IO KV table",
+            project=self.project,
+        )
 
         # Delete remain records in the KV
         all_records = self.client.kv.new_cursor(
@@ -350,7 +372,7 @@ class KVStoreBase(StoreBase):
             table_path = self._get_results_table_path(endpoint_id)
             key = event.pop(mm_schemas.WriterEvent.APPLICATION_NAME)
             metric_name = event.pop(mm_schemas.ResultData.RESULT_NAME)
-            attributes = {metric_name: json.dumps(event)}
+            attributes = {metric_name: self._encode_field(json.dumps(event))}
         else:
             raise ValueError(f"Invalid {kind = }")
 
@@ -408,20 +430,23 @@ class KVStoreBase(StoreBase):
 
         """
         try:
-            data = self.client.kv.get(
+            response = self.client.kv.get(
                 container=self._get_monitoring_schedules_container(
                     project_name=self.project
                 ),
                 table_path=endpoint_id,
                 key=application_name,
             )
-            return data.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
+            return response.output.item[mm_schemas.SchedulingKeys.LAST_ANALYZED]
         except v3io.dataplane.response.HttpResponseError as err:
-            logger.debug("Error while getting last analyzed time", err=err)
-            raise mlrun.errors.MLRunNotFoundError(
-                f"No last analyzed value has been found for {application_name} "
-                f"that processes model endpoint {endpoint_id}",
-            )
+            if err.status_code == http.HTTPStatus.NOT_FOUND:
+                logger.debug("Last analyzed time not found", err=err)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"No last analyzed value has been found for {application_name} "
+                    f"that processes model endpoint {endpoint_id}",
+                )
+            logger.error("Error while getting last analyzed time", err=err)
+            raise err
 
     def update_last_analyzed(
         self, endpoint_id: str, application_name: str, last_analyzed: int

@@ -487,7 +487,7 @@ class ImageBuilder(ModelObj):
 
     def __init__(
         self,
-        functionSourceCode=None,
+        functionSourceCode=None,  # noqa: N803 - should be "snake_case", kept for BC
         source=None,
         image=None,
         base_image=None,
@@ -679,7 +679,25 @@ class ImageBuilder(ModelObj):
 
 
 class Notification(ModelObj):
-    """Notification specification"""
+    """Notification object
+
+    :param kind: notification implementation kind - slack, webhook, etc. See
+        :py:class:`mlrun.common.schemas.notification.NotificationKind`
+    :param name: for logging and identification
+    :param message: message content in the notification
+    :param severity: severity to display in the notification
+    :param when: list of statuses to trigger the notification: 'running', 'completed', 'error'
+    :param condition: optional condition to trigger the notification, a jinja2 expression that can use run data
+                      to evaluate if the notification should be sent in addition to the 'when' statuses.
+                      e.g.: '{{ run["status"]["results"]["accuracy"] < 0.9}}'
+    :param params: Implementation specific parameters for the notification implementation (e.g. slack webhook url,
+                   git repository details, etc.)
+    :param secret_params: secret parameters for the notification implementation, same as params but will be stored
+                          in a k8s secret and passed as a secret reference to the implementation.
+    :param status: notification status - pending, sent, error
+    :param sent_time: time the notification was sent
+    :param reason: failure reason if the notification failed to send
+    """
 
     def __init__(
         self,
@@ -754,7 +772,7 @@ class Notification(ModelObj):
                 "Both 'secret_params' and 'params' are empty, at least one must be defined."
             )
 
-        notification_class.validate_params(secret_params or params)
+        notification_class.validate_params(secret_params | params)
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
@@ -1468,7 +1486,11 @@ class RunObject(RunTemplate):
     @property
     def error(self) -> str:
         """error string if failed"""
-        if self.status:
+        if (
+            self.status
+            and self.status.state
+            in mlrun.common.runtimes.constants.RunStates.error_and_abortion_states()
+        ):
             unknown_error = ""
             if (
                 self.status.state
@@ -1484,8 +1506,8 @@ class RunObject(RunTemplate):
 
             return (
                 self.status.error
-                or self.status.reason
                 or self.status.status_text
+                or self.status.reason
                 or unknown_error
             )
         return ""
@@ -1789,6 +1811,11 @@ class RunObject(RunTemplate):
 
         return state
 
+    def abort(self):
+        """abort the run"""
+        db = mlrun.get_run_db()
+        db.abort_run(self.metadata.uid, self.metadata.project)
+
     @staticmethod
     def create_uri(project: str, uid: str, iteration: Union[int, str], tag: str = ""):
         if tag:
@@ -2017,6 +2044,8 @@ class DataSource(ModelObj):
     ]
     kind = None
 
+    _fields_to_serialize = ["start_time", "end_time"]
+
     def __init__(
         self,
         name: str = None,
@@ -2044,6 +2073,16 @@ class DataSource(ModelObj):
 
     def set_secrets(self, secrets):
         self._secrets = secrets
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        value = super()._serialize_field(struct, field_name, strip)
+        # We pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        if field_name in ("start_time", "end_time") and isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
 
 class DataTargetBase(ModelObj):

@@ -365,7 +365,23 @@ The zone label from the project level is completely removed, and the resulting c
 ```
 {"gpu": "true", "arch": "amd64"}
 ```
+### Preventing conflicts
 
+If your function run is stuck with the status `pending`, it's possible that the "specified" node selector does not exist. There are three 
+levels of node selectors in MLRun: function, project, and service. At runtime, the system combines these selectors and applies the resolved 
+configuration to the pod.
+
+How to Investigate:
+1. Check the Configuration Files: Look in the `function.yaml` and `project.yaml` files to see if there are any node selector settings.
+2. Review Node Selectors in the UI: Go to **Projects > Jobs and Workflows > Monitor Jobs > Overview > Node Selector**. This shows the node selector 
+that was ultimately defined for the run after combining the function, project, and service settings.
+3. Check Pod Errors in the UI: Go to **Projects > Jobs and Workflows > Monitor Job > Pods**, where you can see the pod details. If no nodes are found 
+that match the specified node selector, the error is displayed here.
+
+Resolving Conflicts:</br>
+If the node selectors from the function, project, or service levels, conflict or result in an impossible combination, you can resolve 
+the issue by specifying the conflicting node selector key with an empty string value on your function. Be cautious with this approach 
+and consult your project admin before making changes to ensure it won’t cause other issues.
 
 
 ### Runtimes
@@ -383,6 +399,7 @@ in the labels, both are reflected in the final output.
 - Spark: Spark has three separate node selector settings: `application_node_selector`, `driver_node_selector`, and `executor_node_selector`. 
 When setting a node selector for the application, it only applies to the driver and executor, as there is no real 
 significance to setting it for the application itself (since the only pods created are for the driver and executor). 
+This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 
 The logic is:
    - Application Node Selector: Always remains empty.
    - Driver Node Selector: If no specific `driver_node_selector` is defined, the runtime node selector is used. 
@@ -392,14 +409,16 @@ a merge with precedence is performed with the project and MLRun config levels.
 the runtime node selector is used. If a specific `executor_node_selector` is defined, it takes precedence. 
 A merge with precedence is then performed with the project and MLRun config levels.
 
-This logic becomes part of the Spark CRD, ensuring that it is consistently applied during the job execution. 
+
 
 ### Best Practice
 
 Node selection is often used for assigning jobs/pods to GPU nodes. But not all jobs/pods benefit from a GPU node.
-For example, a Databricks “helper” pod runs in a Spark service on Databricks and doesn’t follow the node-selector 
-(and doesn't benefit from being assigned to a GPU node). 
-A Spark Function includes an executor and a driver; the driver also does not benefit from a GPU node.
+For example:
+- With Databricks, the node selector is only relevant for the "helper" pod running in the MLRun Kubernetes cluster,  
+and it behaves similarly to how node selectors are applied in Kubejob. It does not affect the actual Databricks cluster, 
+which does not run in the MLRun cluster: node selectors have no significance in that context.
+- A Spark function includes an executor and a driver; the driver does not benefit from a GPU node.
 
 ### SDK configuration
 
@@ -430,8 +449,8 @@ Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.co
 and adding or removing Key:Value pairs. 
 - Configure the node selection for individual Nuclio functions when creating a 
 function in the **Confguration** tab, under **Resources**, by adding **Key:Value** pairs.
-- Configure node selection on the function level in the **Projects | <project> | Settings**, by adding or removing 
-Key:Value pairs.
+- Configure node selection on the function level in the **Projects | Settings**, by adding or removing 
+**Key:Value** pairs.
 
 ## Scaling and auto-scaling
 Scaling behavior can be added to real-time and distributed runtimes including `nuclio`, `serving`, `spark`, `dask`, and `mpijob`. 
@@ -498,10 +517,7 @@ State thresholds are not supported for Nuclio/serving runtimes (since they have 
 ## Setting the log level
 
 You can set the log level for individual functions. 
-
-To set the log level in the function itself: `context.logger.set_logger_level(level="WARN")`
-
-To set the log level outside the function, using an environment variable: `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
-
-To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
+- To set the log level in the function itself: `context.logger.set_logger_level(level="WARN")`
+- To set the log level outside the function, using an environment variable: `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
+- To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
 

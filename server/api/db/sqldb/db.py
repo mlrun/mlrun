@@ -773,19 +773,30 @@ class SQLDB(DBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
-
-        computed_tag = tag or "latest"
         enrich_tag = False
 
-        if tag and not uid:
-            enrich_tag = True
-            # If a tag is given, we can join and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        if tag == "latest" and uid:
+            # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
+            # latest tag exists, otherwise, it will not be included.
+            # This is due to 'latest' being a special case and is enriched in the client side
+            latest_query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == "latest")
+            if latest_query.one_or_none():
+                enrich_tag = True
+        elif tag:
+            # If a specific tag is provided, handle all cases where UID may or may not be included.
+            # The case for UID with the "latest" tag is already covered above.
+            # Here, we join with the tags table to check for a match with the specified tag.
+            enrich_tag = True
+            query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == tag)
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
@@ -819,7 +830,7 @@ class SQLDB(DBInterface):
 
         # If connected to a tag add it to metadata
         if enrich_tag:
-            self._set_tag_in_artifact_struct(artifact, computed_tag)
+            self._set_tag_in_artifact_struct(artifact, tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
@@ -2278,6 +2289,7 @@ class SQLDB(DBInterface):
         name: str = None,
         labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
@@ -2287,6 +2299,9 @@ class SQLDB(DBInterface):
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
+
+        if as_records:
+            return query
 
         schedules = [
             self._transform_schedule_record_to_scheme(db_schedule)
@@ -2336,6 +2351,27 @@ class SQLDB(DBInterface):
             main_table_identifier=Schedule.name,
             main_table_identifier_values=names,
         )
+
+    def align_schedule_labels(self, session: Session):
+        schedules_update = []
+        for db_schedule in self.list_schedules(session=session, as_records=True):
+            schedule_record = self._transform_schedule_record_to_scheme(db_schedule)
+            db_schedule_labels = {
+                label.name: label.value for label in db_schedule.labels
+            }
+            merged_labels = (
+                server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+                    labels=db_schedule_labels,
+                    scheduled_object=schedule_record.scheduled_object,
+                )
+            )
+            self._update_schedule_body(
+                schedule=db_schedule,
+                scheduled_object=schedule_record.scheduled_object,
+                labels=merged_labels,
+            )
+            schedules_update.append(db_schedule)
+        self._upsert(session, schedules_update)
 
     @staticmethod
     def _delete_multi_objects(
@@ -3264,23 +3300,25 @@ class SQLDB(DBInterface):
         return obj_id_tags
 
     def _generate_records_with_tags_assigned(
-        self, object_record, transform_fn, obj_id_tags, default_tag=None
+        self, object_record, transform_fn, obj_id_tags, default_tag=None, format_=None
     ):
         # Using a similar mechanism here to assign tags to feature sets as is used in list_functions. Please refer
         # there for some comments explaining the logic.
         results = []
         if default_tag:
-            results.append(transform_fn(object_record, default_tag))
+            results.append(transform_fn(object_record, default_tag, format_=format_))
         else:
             object_tags = obj_id_tags.get(object_record.id, [])
             if len(object_tags) == 0 and not object_record.uid.startswith(
                 unversioned_tagged_object_uid_prefix
             ):
-                new_object = transform_fn(object_record)
+                new_object = transform_fn(object_record, format_=format_)
                 results.append(new_object)
             else:
                 for object_tag in object_tags:
-                    results.append(transform_fn(object_record, object_tag))
+                    results.append(
+                        transform_fn(object_record, object_tag, format_=format_)
+                    )
         return results
 
     @staticmethod
@@ -3713,6 +3751,7 @@ class SQLDB(DBInterface):
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         obj_id_tags = self._get_records_to_tags_map(
             session, FeatureSet, project, tag, name
@@ -3758,6 +3797,7 @@ class SQLDB(DBInterface):
                     self._transform_feature_set_model_to_schema,
                     obj_id_tags,
                     tag,
+                    format_=format_,
                 )
             )
         return mlrun.common.schemas.FeatureSetsOutput(feature_sets=feature_sets)
@@ -4730,8 +4770,12 @@ class SQLDB(DBInterface):
     def _transform_feature_set_model_to_schema(
         feature_set_record: FeatureSet,
         tag=None,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSet:
         feature_set_full_dict = feature_set_record.full_object
+        feature_set_full_dict = mlrun.common.formatters.FeatureSetFormat.format_obj(
+            feature_set_full_dict, format_
+        )
         feature_set_resp = mlrun.common.schemas.FeatureSet(**feature_set_full_dict)
 
         feature_set_resp.metadata.tag = tag
@@ -4739,8 +4783,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_feature_vector_model_to_schema(
-        feature_vector_record: FeatureVector,
-        tag=None,
+        feature_vector_record: FeatureVector, tag=None, format_=None
     ) -> mlrun.common.schemas.FeatureVector:
         feature_vector_full_dict = feature_vector_record.full_object
         feature_vector_resp = mlrun.common.schemas.FeatureVector(

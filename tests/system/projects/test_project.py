@@ -1609,7 +1609,7 @@ class TestProject(TestMLRunSystem):
             db.get_project(name)
 
     def test_remote_workflow_source_on_image(self):
-        name = "source-project"
+        name = "pipe"
         self.custom_project_names_to_delete.append(name)
 
         project_dir = f"{projects_dir}/{name}"

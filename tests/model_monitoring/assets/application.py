@@ -15,7 +15,7 @@
 import mlrun.model_monitoring.applications as mm_applications
 
 
-class DemoMonitoringAppV2(mm_applications.ModelMonitoringApplicationBaseV2):
+class DemoMonitoringApp(mm_applications.ModelMonitoringApplicationBase):
     _dict_fields = ["param_1", "param_2"]
 
     def __init__(self, param_1, **kwargs) -> None:

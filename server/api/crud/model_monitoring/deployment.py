@@ -1198,12 +1198,6 @@ class MonitoringDeployment:
             )
         )
 
-        self._create_stream_output(
-            stream_path=secrets_dict.get(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-            )
-        )
-
         server.api.crud.Secrets().store_project_secrets(
             project=self.project,
             secrets=mlrun.common.schemas.SecretsData(
@@ -1250,23 +1244,6 @@ class MonitoringDeployment:
             )
             return False
         return True
-
-    def _create_stream_output(self, stream_path: str = None, access_key: str = None):
-        stream_path = server.api.crud.model_monitoring.get_stream_path(
-            project=self.project, stream_uri=stream_path
-        )
-        if not mlrun.mlconf.is_ce_mode():
-            access_key = access_key or self.model_monitoring_access_key
-        else:
-            access_key = None
-
-        output_stream = mlrun.datastore.get_stream_pusher(
-            stream_path=stream_path,
-            endpoint=mlrun.mlconf.v3io_api,
-            access_key=access_key,
-        )
-        if hasattr(output_stream, "_lazy_init"):
-            output_stream._lazy_init()
 
 
 def get_endpoint_features(

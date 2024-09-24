@@ -2900,6 +2900,16 @@ class MlrunProject(ModelObj):
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+
+                except Exception as exc:
+                    if silent:
+                        logger.warn(
+                            "Failed to load function",
+                            name=name,
+                            error=mlrun.utils.err_to_str(exc),
+                        )
+                        continue
+                    raise exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:

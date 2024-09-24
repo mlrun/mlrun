@@ -46,7 +46,7 @@ The predefined event types are:
 - `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
 - `failed` &mdash; The job failed.
 
-See {ref}`monitoring-overview` for more details on drift and performance.
+See {ref}`model-monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.

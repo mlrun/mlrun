@@ -364,6 +364,10 @@ Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/developmen
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:
 `function.disable_default_http_trigger()`
+```{admonition} Note
+
+`disable_default_http_trigger` is supported from Nuclio 1.13.1.
+```
 
 Also, you can explicitly enable the default HTTP trigger creation with:
 `function.enable_default_http_trigger()`

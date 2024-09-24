@@ -59,12 +59,9 @@ df = fs.ingest(
 
 ## Kafka source
 
-
 ```{admonition} Note
-Confluent Kafka source is currently in Tech Preview status.
+Support for Confluent Kafka is currently in Tech Preview status.
 ```
-
-## Kafka source
 
 ```python
 profile = DatastoreProfileKafkaSource(

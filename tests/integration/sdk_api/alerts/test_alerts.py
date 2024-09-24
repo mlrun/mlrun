@@ -26,10 +26,6 @@ from mlrun.utils import logger
 
 
 class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
-    extra_env = {
-        "MLRUN_ALERTS__MODE": mlrun.common.schemas.alert.AlertsModes.enabled,
-    }
-
     def test_alert_operations(self):
         project_name = "my-project"
 

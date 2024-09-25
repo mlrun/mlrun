@@ -452,7 +452,8 @@ async def _get_metrics_values_params(
         metric = mm_endpoints._parse_metric_fqn_to_monitoring_metric(fqn)
         if metric.project != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Metric '{fqn}' does not belong to the project '{project}'."
+                f"Metric '{fqn}' does not belong to the project '{project}' given "
+                f"in the API path, but to the project '{metric.project}'."
             )
         if metric.type == mm_constants.ModelEndpointMonitoringMetricType.METRIC:
             metrics.append(metric)

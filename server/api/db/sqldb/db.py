@@ -27,7 +27,7 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
+from sqlalchemy import MetaData, and_, case, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
@@ -2882,7 +2882,42 @@ class SQLDB(DBInterface):
         next_day = datetime.now(timezone.utc) + timedelta(hours=24)
 
         schedules_pending_count_per_project = (
-            session.query(Schedule.project, Schedule.name, Schedule.Label)
+            session.query(
+                Schedule.project,
+                Schedule.name,
+                # The logic here is the following:
+                # If the schedule has a label with the name "workflow" then we take the value of that label
+                # name. Otherwise, we take the value of the label with the name "kind".
+                # The reason for that is that for schedule workflow we have both workflow label and kind label
+                # with job, and on schedule job we have only kind label with job and because of that we first
+                # want to check for workflow label and if it doesn't exist then we take the kind label.
+                func.coalesce(
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.workflow,
+                                    Schedule.Label.name,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.kind,
+                                    Schedule.Label.value,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                ).label("preferred_label_value"),
+            )
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
@@ -2894,6 +2929,7 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
+            .group_by(Schedule.project, Schedule.name)
             .all()
         )
 
@@ -2901,13 +2937,11 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if (
-                result[2].to_dict()["name"]
-                == mlrun_constants.MLRunInternalLabels.workflow
-            ):
-                project_to_schedule_pending_workflows_count[result[0]] += 1
-            elif result[2].to_dict()["value"] == "job":
-                project_to_schedule_pending_jobs_count[result[0]] += 1
+            project_name, schedule_name, kind = result
+            if kind == mlrun_constants.MLRunInternalLabels.workflow:
+                project_to_schedule_pending_workflows_count[project_name] += 1
+            elif kind == mlrun.common.schemas.ScheduleKinds.job:
+                project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (
             project_to_schedule_count,

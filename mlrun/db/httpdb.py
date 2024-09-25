@@ -2787,7 +2787,7 @@ class HTTPRunDB(RunDBInterface):
                 background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.failed
             ):
-                logger.info(
+                logger.error(
                     "Project deletion failed",
                     project_name=name,
                     error=background_task.status.error,

@@ -121,8 +121,8 @@ which works similarly to the filtering functionality in pandas (based on pyarrow
 This can increase performance when reading large Parquet files.
 
 Pay attention!
-1)  None/NaN/NaT values may be filtered out using this functionality on their columns.
-2)  Datetime or timestamp filter is not supported yet.
+-  When using the additional_filters on a column, values None, NaN, NaT will be filtered out from the filter result.
+-  Specifying additional_filters as Datetime object is not supported.
 
 
 

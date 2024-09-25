@@ -400,7 +400,6 @@ class SystemTestPreparer:
         ] = "v3io"
         self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
         self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
-        self._env_config["MLRUN_ALERTS__MODE"] = "enabled"
 
     def _install_dev_utilities(self):
         list_uninstall = [

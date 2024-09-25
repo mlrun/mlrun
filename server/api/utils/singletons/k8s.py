@@ -784,7 +784,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         if retry_count >= max_retry:
             logger.error(
-                "Failed to list resources paginated, max retries exceeded.",
+                "Failed to list resources paginated, max retries exceeded",
                 retry_count=retry_count,
                 max_retry=max_retry,
                 resource_name=resource_name,
@@ -792,7 +792,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             raise exc
 
         logger.warning(
-            "Failed to list resources due to stale continue token. Retrying from scratch.",
+            "Failed to list resources due to stale continue token. Retrying from scratch",
             retry_count=retry_count,
             resource_name=resource_name,
             exc=mlrun.errors.err_to_str(exc),

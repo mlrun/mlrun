@@ -108,7 +108,7 @@ project.set_model_monitoring_function(
 ```
 
 ```{note}
-It is recommended to specify the exact version of the Evidently application for reproducibility with
+It is recommended to specify the exact version of the `evidently` package for reproducibility with
 `"evidently==<x.y.z>"`. Get the supported version through
 `mlrun.model_monitoring.evidently_application.SUPPORTED_EVIDENTLY_VERSION`.
 ```

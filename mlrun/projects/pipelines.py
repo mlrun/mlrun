@@ -628,11 +628,13 @@ class _KFPRunner(_PipelineRunner):
 
     @staticmethod
     def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+        project_name = project.metadata.name if project else ""
         logger.info(
-            "Waiting for pipeline run completion", run_id=run.run_id, project=project
+            "Waiting for pipeline run completion",
+            run_id=run.run_id,
+            project=project_name,
         )
         timeout = timeout or 60 * 60
-        project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run.run_id,
             timeout=timeout,

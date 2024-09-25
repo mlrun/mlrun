@@ -675,7 +675,7 @@ serving_fn.add_model(
     "model", model_path="store://models/project-name/model:latest"
 )  # Model path comes from experiment tracking DB
 
-# Enable monitoring, including drift detection
+# Enable monitoring
 serving_fn.set_tracking()
 
 # Deploy the model server
@@ -692,6 +692,7 @@ batch_run = project.run_function(
     params={
         "model": model_artifact.uri,
         "label_columns": "label",
+        "perform_drift_analysis": True,
     },
 )
 ```

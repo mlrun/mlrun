@@ -361,6 +361,9 @@ def enrich_function_object(
             project.spec.default_function_node_selector,
         )
     skip_automount_for_kfp = False
+    # When running pipelines with engine="kfp", the workflow YAML is compiled on the client side
+    # and contains plaintext secrets. In this case, we disable the automount and add the secrets as references on the
+    # server side.
     if project.spec.workflows:
         skip_automount_for_kfp = (
             pipeline_context.workflow.engine

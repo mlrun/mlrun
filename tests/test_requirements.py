@@ -21,6 +21,7 @@ import subprocess
 import unittest.mock
 
 import deepdiff
+import pytest
 import setuptools
 
 import tests.conftest
@@ -324,6 +325,13 @@ def _is_ignored_requirement_line(line):
     return (not line) or (line[0] == "#")
 
 
+@pytest.mark.skipif(
+    subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True)
+    .stdout.decode()
+    .strip()
+    != "true",
+    reason="Not inside a Git repository",  # e.g. in a Docker image, as happens in the CI
+)
 def test_scikit_learn_requirements_are_aligned() -> None:
     """
     We mention `pip install scikit-learn~=x.y.z` many times in the tutorials and

@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import builtins
 import collections
 import json
 import pathlib
 import re
+import subprocess
 import unittest.mock
 
 import deepdiff
@@ -321,3 +322,36 @@ def _load_requirements(path):
 def _is_ignored_requirement_line(line):
     line = line.strip()
     return (not line) or (line[0] == "#")
+
+
+def test_scikit_learn_requirements_are_aligned() -> None:
+    """
+    We mention `pip install scikit-learn~=x.y.z` many times in the tutorials and
+    in the Docker `requirements.txt` files, check it by running:
+    git grep -n "scikit-learn.="
+
+    This test makes sure all these versions are aligned by catching deviating version specifications.
+    """
+    scikit_learn_version = "1.5.1"
+
+    escaped_version = re.escape(scikit_learn_version)
+    pattern = (
+        f"scikit-learn.=(?!{escaped_version})[0-9\\.]*"  # match only other versions
+    )
+
+    ignored_files = [
+        "tests/test_requirements.py",  # this test file
+        "docs/change-log/index.md",  # a historic document
+        "docs/genai/development/working-with-rag.ipynb",  # includes a generated requirement
+    ]
+    pathspec = [f":!{file}" for file in ignored_files]
+
+    output = subprocess.run(
+        ["git", "grep", "--line-number", "--perl-regexp", pattern, "--", *pathspec],
+        capture_output=True,
+    )
+    no_matches = output.returncode == 1
+    assert no_matches, (
+        "The following files include a scikit-learn requirement which is not aligned "
+        f"to version {scikit_learn_version}:\n{output.stdout.decode()}"
+    )

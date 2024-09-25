@@ -149,7 +149,7 @@ class TestJobs(TestMLRunSystem):
             outputs=["validation", "run_id"],
             output_path=f"v3io:///users/admin/kfp/{workflow_run_id}/",
             inputs={
-                "model": f"store://artifacts/{self.project_name}/my-trainer-training_mymodel:latest@{workflow_run_id}",
+                "model": f"store://models/{self.project_name}/my-trainer-training_mymodel:latest@{workflow_run_id}",
             },
             data_stores=[],
         )

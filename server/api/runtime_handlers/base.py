@@ -132,14 +132,6 @@ class BaseRuntimeHandler(ABC):
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
-        logger.debug(
-            "Deleting runtime resources",
-            resource_deletion_grace_period=resource_deletion_grace_period,
-            label_selector=label_selector,
-            force=force,
-            grace_period=grace_period,
-            crd_plural=crd_plural,
-        )
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
                 db,

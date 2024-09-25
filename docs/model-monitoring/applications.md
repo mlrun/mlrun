@@ -1,4 +1,4 @@
-# Writing a Model Monitoring Application
+# Writing a model monitoring application
 
 ## Basics
 
@@ -40,7 +40,7 @@ The application class may implement a custom `__init__` constructor with argumen
 
 To register and deploy the application see {ref}`register-model-monitoring-app`.
 
-## Using the Application Context
+## Using the application context
 
 The `context` argument is a `MonitoringApplicationContext` object.
 It includes the current window data as a pandas data-frame: `context.sample_df`.
@@ -70,15 +70,15 @@ context.log_artifact(
 
 ```{caution}
 Since each new artifact is saved in the artifact-manager store (in memory), it is not recommended
-to store a new artifact on each application run. Instead you may:
+to store a new artifact on each application run. Instead you can:
 
-1. Override artifacts by using the same key.
-2. Save artifacts with a unique key in special occasions, e.g., when a drift is detected.
+- Override artifacts by using the same key.
+- Save artifacts with a unique key in special occasions, e.g., when a drift is detected.
 
 <!-- ML-7347 -->
 ```
 
-## Evidently Based Application
+## Evidently-based application
 
 To create an Evidently based model monitoring application, import the following class:
 
@@ -108,7 +108,7 @@ project.set_model_monitoring_function(
 ```
 
 ```{note}
-It is recommended to specify the exact version of evidently application for reproducibility with
+It is recommended to specify the exact version of the Evidently application for reproducibility with
 `"evidently==<x.y.z>"`. Get the supported version through
 `mlrun.model_monitoring.evidently_application.SUPPORTED_EVIDENTLY_VERSION`.
 ```

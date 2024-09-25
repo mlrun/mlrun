@@ -41,7 +41,7 @@ from mlrun.model_monitoring.writer import _AppResultEvent
 
 
 class TestSQLStore:
-    _TEST_PROJECT = "test_model_endpoints"
+    _TEST_PROJECT = "test-model-endpoints"
     _MODEL_ENDPOINT_ID = "some-ep-id"
 
     @staticmethod

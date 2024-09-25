@@ -12,8 +12,8 @@ numpy>=1.16.5, <1.27.0
 pandas>=1.2, <2.2
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
-# <15 to prevent bugs due to major upgrading
-pyarrow>=10.0, <15
+# <18 to prevent bugs due to major upgrading
+pyarrow>=10.0, <18
 pyyaml>=5.4.1, <7
 requests~=2.32
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
@@ -31,7 +31,7 @@ dependency-injector~=4.41
 # should be identical to gcs and s3fs.
 fsspec>=2023.9.2, <2024.7
 v3iofs~=0.1.17
-storey~=1.7.24
+storey~=1.7.27
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above

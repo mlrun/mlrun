@@ -130,6 +130,7 @@ To push resulting images to a different registry, specify the registry URL in th
 the registry requires credentials, create a k8s secret containing these credentials, and pass its name in the 
 `secret_name` parameter.
 
+#### Using ECR as a registry
 When using ECR as registry, MLRun uses Kaniko's ECR credentials helper, in which case the secret provided should contain
 AWS credentials needed to create ECR repositories, as described [here](https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr).
 MLRun detects automatically that the registry is an ECR registry based on its URL and configures Kaniko to
@@ -157,8 +158,10 @@ If you need to build your function and push the resulting container image to an 
 you can use Kaniko with the `--skip-tls-verify` flag.
 When using this flag, Kaniko ignores the SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
 
-Caution: Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
+```{admonition} Caution
+Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
 Only use this flag in trusted environments or with private registries where you are confident in the security of the network connections.
+```
 
 To use this flag, pass it in the extra_args parameter, for example:
 ```python
@@ -167,6 +170,10 @@ project.build_function(
     extra_args="--skip-tls-verify",
 )
 ```
+#### Best practice for self-signed registries
+
+Add the certificate authority to the trusted list. If you use a certificate that is not signed by a trusted CA, you are doing so at your own risk.
+
 
 ### Build environment variables
 It is possible to pass environment variables that will be set in the Kaniko pod that executes the build. This 

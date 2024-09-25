@@ -1022,7 +1022,12 @@ def load_and_run(
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
     """
+    if not load_only:
+        logger.info("Load onlyyyyy!!!", load_only=load_only)
+
+
     try:
+        logger.info("Load onlyyyyy!!!2", load_only=load_only)
         project = mlrun.load_project(
             context=project_context or f"./{project_name}",
             url=url,

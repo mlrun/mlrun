@@ -27,6 +27,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import server.api.api.utils
@@ -53,7 +54,7 @@ class Scheduler:
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"
-    _db_record_auth_label = "mlrun-auth-key"
+    _db_record_auth_label = mlrun_constants.MLRunInternalLabels.mlrun_auth_key
 
     def __init__(self):
         scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)
@@ -74,11 +75,9 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            if (
-                mlrun.mlconf.httpdb.clusterization.role
-                == mlrun.common.schemas.ClusterizationRole.chief
-            ):
-                self._reload_schedules(db_session)
+            await fastapi.concurrency.run_in_threadpool(
+                self._reload_schedules, db_session
+            )
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=err_to_str(exc))
 
@@ -133,13 +132,13 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        self._ensure_auth_info_has_access_key(auth_info, kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
-        # not the secret value itself. Therefore, it can be kept in a non-secure field.
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
-
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        labels = server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+            labels=labels,
+            scheduled_object=scheduled_object,
+        )
+        labels = self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object
+        )
 
         db_schedule = get_db().create_schedule(
             session=db_session,
@@ -210,11 +209,16 @@ class Scheduler:
         )
 
         db_schedule = get_db().get_schedule(db_session, project, name)
-        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
+        )
+
+        labels = self._enrich_schedule(
+            auth_info, db_schedule.kind, labels, name, project, scheduled_object
+        )
 
         get_db().update_schedule(
             session=db_session,
@@ -248,7 +252,7 @@ class Scheduler:
         project: str = None,
         name: str = None,
         kind: str = None,
-        labels: str = None,
+        labels: list[str] = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> mlrun.common.schemas.SchedulesOutput:
@@ -281,9 +285,15 @@ class Scheduler:
         db_session: Session,
         project: str,
         name: str,
+        skip_notification_secrets=False,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_scheduler_resources(db_session, project, name)
+        self._remove_schedule_scheduler_resources(
+            db_session,
+            project,
+            name,
+            skip_notification_secrets=skip_notification_secrets,
+        )
         get_db().delete_schedule(db_session, project, name)
 
     @server.api.utils.helpers.ensure_running_on_chief
@@ -291,6 +301,7 @@ class Scheduler:
         self,
         db_session: Session,
         project: str,
+        skip_notification_secrets=False,
     ):
         schedules = self.list_schedules(
             db_session,
@@ -299,9 +310,12 @@ class Scheduler:
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
             self._remove_schedule_scheduler_resources(
-                db_session, schedule.project, schedule.name
+                db_session,
+                schedule.project,
+                schedule.name,
+                skip_notification_secrets=skip_notification_secrets,
             )
-        get_db().delete_schedules(db_session, project)
+        get_db().delete_project_schedules(db_session, project)
 
     @server.api.utils.helpers.ensure_running_on_chief
     def store_schedule(
@@ -315,6 +329,7 @@ class Scheduler:
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         labels: dict = None,
         concurrency_limit: int = None,
+        fn_kind: str = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -335,19 +350,24 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
+        db_schedule = get_db().get_schedule(
+            db_session, project, name, raise_on_not_found=False
+        )
         if not kind:
             # TODO: Need to think of a way to not use `get_schedule`
             #  in this function or in `get_db().store_function()` in this flow
             #  because we must have kind to ensure that auth info has access key.
-            db_schedule = get_db().get_schedule(
-                db_session, project, name, raise_on_not_found=False
-            )
             kind = db_schedule.kind
 
-        self._ensure_auth_info_has_access_key(auth_info, kind)
-        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
-        labels = self._append_access_key_secret_to_labels(labels, secret_name)
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
+        )
+
+        labels = self._enrich_schedule(
+            auth_info, kind, labels, name, project, scheduled_object, fn_kind
+        )
 
         db_schedule, is_update = get_db().store_schedule(
             session=db_session,
@@ -390,13 +410,12 @@ class Scheduler:
         self.update_schedule_next_run_time(db_session, name, project, job)
         return is_update
 
-    def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
+    def _remove_schedule_scheduler_resources(
+        self, db_session: Session, project, name, skip_notification_secrets=False
+    ):
         self._remove_schedule_from_scheduler(project, name)
-        # This is kept for backwards compatibility - if schedule was using the "old" format of storing secrets, then
-        # this is a good opportunity to remove them. Using the new method we don't remove secrets since they are per
-        # access-key and there may be other entities (runtimes, for example) using the same secret.
-        self._remove_schedule_secrets(project, name)
-        self._remove_schedule_notification_secrets(db_session, project, name)
+        if not skip_notification_secrets:
+            self._remove_schedule_notification_secrets(db_session, project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
@@ -564,50 +583,6 @@ class Scheduler:
                     provider=self._secrets_provider,
                     secrets=secrets,
                 ),
-                allow_internal_secrets=True,
-                key_map_secret_key=secret_key_map,
-            )
-
-    def _remove_schedule_secrets(
-        self,
-        project: str,
-        name: str,
-    ):
-        if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
-            access_key_secret_key = (
-                server.api.crud.Secrets().generate_client_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_access_key_subtype,
-                )
-            )
-
-            username_secret_key = (
-                server.api.crud.Secrets().generate_client_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_username_subtype,
-                )
-            )
-            secret_key_map = (
-                server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                    server.api.crud.SecretsClientType.schedules
-                )
-            )
-            # TODO: support delete secrets (plural and not only singular) using key map
-            server.api.crud.Secrets().delete_project_secret(
-                project,
-                self._secrets_provider,
-                access_key_secret_key,
-                allow_secrets_from_k8s=True,
-                allow_internal_secrets=True,
-                key_map_secret_key=secret_key_map,
-            )
-            server.api.crud.Secrets().delete_project_secret(
-                project,
-                self._secrets_provider,
-                username_secret_key,
-                allow_secrets_from_k8s=True,
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
@@ -797,7 +772,6 @@ class Scheduler:
             try:
                 access_key = None
                 username = None
-                need_to_update_credentials = False
                 if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
                     secret_name = self._get_access_key_secret_name_from_db_record(
                         db_schedule
@@ -808,12 +782,6 @@ class Scheduler:
                         )
                         username = secret.username
                         access_key = secret.access_key
-                    else:
-                        username, access_key = self._get_schedule_secrets(
-                            db_schedule.project, db_schedule.name
-                        )
-                        if access_key:
-                            need_to_update_credentials = True
 
                 auth_info = mlrun.common.schemas.AuthInfo(
                     username=username,
@@ -821,26 +789,6 @@ class Scheduler:
                     # enriching with control plane tag because scheduling a function requires control plane
                     planes=[server.api.utils.clients.iguazio.SessionPlanes.control],
                 )
-
-                # Schedule was created using the old method. Transform schedule secrets to using auth secrets
-                # and remove the old secrets.
-                if need_to_update_credentials:
-                    secret_name = self._store_schedule_secrets_using_auth_secret(
-                        auth_info
-                    )
-
-                    # Append the auth key label to the schedule labels in the DB.
-                    labels = {label.name: label.value for label in db_schedule.labels}
-                    labels = self._append_access_key_secret_to_labels(
-                        labels, secret_name
-                    )
-                    get_db().update_schedule(
-                        db_session,
-                        db_schedule.project,
-                        db_schedule.name,
-                        labels=labels,
-                    )
-                    self._remove_schedule_secrets(db_schedule.project, db_schedule.name)
 
                 self._create_schedule_in_scheduler(
                     db_schedule.project,
@@ -992,6 +940,21 @@ class Scheduler:
                     schedule_notifications, schedule_name, project
                 )
             ]
+
+    def _enrich_schedule(
+        self, auth_info, kind, labels, name, project, scheduled_object, fn_kind=None
+    ):
+        self._ensure_auth_info_has_access_key(auth_info, kind)
+        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
+        # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
+        # not the secret value itself. Therefore, it can be kept in a non-secure field.
+        labels = self._append_access_key_secret_to_labels(labels, secret_name)
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+        if fn_kind:
+            labels = labels or {}
+            labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
+        server.api.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
+        return labels
 
     @staticmethod
     def _remove_schedule_notification_secrets(

@@ -78,11 +78,11 @@ def test_log_arbitrary_structures(make_stream_logger):
 
     # pydantic
     assert now_date_instance.isoformat() in log_line
-    assert '"name":"some-name"' in log_line
+    assert '"name":"some-name"' in log_line or "'name': 'some-name'" in log_line
 
     # dataclass
     assert another_now_date_instance.isoformat() in log_line
-    assert '"name":"another-name"' in log_line
+    assert '"name":"another-name"' in log_line or "'name': 'another-name'" in log_line
 
     # unbound class
     assert "UnboundClass" in log_line

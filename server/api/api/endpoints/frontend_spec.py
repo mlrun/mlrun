@@ -85,6 +85,12 @@ def get_frontend_spec(
         feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
         allowed_artifact_path_prefixes_list=get_allowed_path_prefixes_list(),
         ce=config.ce.to_dict(),
+        internal_labels=config.internal_labels(),
+        artifact_limits=mlrun.common.schemas.ArtifactLimits(
+            max_chunk_size=config.artifacts.limits.max_chunk_size,
+            max_preview_size=config.artifacts.limits.max_preview_size,
+            max_download_size=config.artifacts.limits.max_download_size,
+        ),
     )
 
 

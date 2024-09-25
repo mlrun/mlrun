@@ -30,7 +30,9 @@ import deepdiff
 import pytest
 import requests_mock as requests_mock_package
 
+import mlrun.alerts
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.projects.project
@@ -273,6 +275,10 @@ def test_runs(create_server):
     for i in range(count):
         uid = f"uid_{i}"
         run_as_dict["metadata"]["name"] = "run-name"
+        if i % 2 == 0:
+            run_as_dict["status"]["state"] = "completed"
+        else:
+            run_as_dict["status"]["state"] = "created"
         db.store_run(run_as_dict, uid, prj)
 
     # retrieve only the last run as it is partitioned by name
@@ -287,8 +293,20 @@ def test_runs(create_server):
     )
     assert len(runs) == 7, "bad number of runs"
 
+    # retrieve only created runs
+    runs = db.list_runs(project=prj, states=["created"])
+    assert len(runs) == 3, "bad number of runs"
+
+    # retrieve created and completed runs
+    runs = db.list_runs(project=prj, states=["created", "completed"])
+    assert len(runs) == 7, "bad number of runs"
+
     # delete runs in created state
     db.del_runs(project=prj, state="created")
+
+    # delete runs in completed state
+    db.del_runs(project=prj, state="completed")
+
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"
 
@@ -532,6 +550,53 @@ def _create_feature_set(name):
                     "top": "2016-05-25 13:30:00.222222",
                 }
             },
+            "preview": [
+                [
+                    "time",
+                    "bid",
+                    "ask",
+                ],
+                [
+                    "2016-05-25 13:30:00.222222",
+                    7.3,
+                    "10:30:00.222222",
+                ],
+                [
+                    "2016-05-24 13:30:00.222222",
+                    7.3,
+                    "11:30:00.222222",
+                ],
+                [
+                    "2016-05-23 13:30:00.222222",
+                    4.7,
+                    "13:20:00.222222",
+                ],
+                [
+                    "2016-05-22 13:30:00.222222",
+                    5.2,
+                    "13:15:00.222222",
+                ],
+                [
+                    "2016-05-21 13:30:00.222222",
+                    5,
+                    "18:30:00.222222",
+                ],
+                [
+                    "2016-05-20 13:30:00.222222",
+                    4.6,
+                    "09:30:00.222222",
+                ],
+                [
+                    "2016-05-19 13:30:00.222222",
+                    5.6,
+                    "08:30:00.222222",
+                ],
+                [
+                    "2016-05-24 13:30:00.222222",
+                    5.6,
+                    "13:30:00.222222",
+                ],
+            ],
         },
         "some_other_field": "blabla",
     }
@@ -565,7 +630,7 @@ def test_feature_sets(create_server):
         name, feature_set_update, project, tag="latest", patch_mode="additive"
     )
     feature_sets = db.list_feature_sets(project=project)
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
 
     feature_sets = db.list_feature_sets(
         project=project,
@@ -574,10 +639,26 @@ def test_feature_sets(create_server):
         partition_sort_by="updated",
         partition_order="desc",
     )
-    assert len(feature_sets) == count, "bad list results - wrong number of members"
+    assert len(feature_sets) == count
+    assert all([feature_set.status.stats for feature_set in feature_sets])
+    assert all([feature_set.status.preview for feature_set in feature_sets])
 
     feature_set = db.get_feature_set(name, project)
     assert len(feature_set.spec.features) == 4
+
+    # test minimal feature set format
+    feature_sets = db.list_feature_sets(
+        project=project,
+        partition_by="name",
+        rows_per_partition=1,
+        partition_sort_by="updated",
+        partition_order="desc",
+        format_=mlrun.common.formatters.FeatureSetFormat.minimal,
+    )
+    assert len(feature_sets) == count
+    assert not any([feature_set.status.stats for feature_set in feature_sets])
+    assert not any([feature_set.status.preview for feature_set in feature_sets])
+    assert all([feature_set.status.state for feature_set in feature_sets])
 
     # Create a feature-set that has no labels
     name = "feature_set_no_labels"
@@ -697,6 +778,81 @@ def test_delete_artifact_tags(create_server):
 
     _assert_artifacts(db, proj_obj.name, new_tag, 1)
     _assert_artifacts(db, proj_obj.name, tag, 0)
+
+
+def test_add_tag_and_delete_untagged_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+    project_name = "artifact-project"
+    project = mlrun.new_project(project_name)
+
+    # create 4 artifacts that are basically the same, but with different auto-generated trees to create different uids.
+    # only the last one will get the latest tag
+    artifact_key = "artifact_key"
+    # add a different db_key to simulate artifact created by a run
+    artifact_db_key = f"{project_name}-{artifact_key}"
+    num_artifacts = 4
+    for i in range(num_artifacts):
+        project.log_artifact(
+            artifact_key,
+            body=b"some data",
+            db_key=artifact_db_key,
+        )
+
+    # list all artifacts
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == num_artifacts
+    artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
+    assert artifact_tags.count("latest") == 1
+    assert artifact_tags.count(None) == num_artifacts - 1
+
+    # find untagged artifacts and add a new tag to them
+    untagged_artifacts = [
+        artifact
+        for artifact in artifacts
+        if "tag" not in artifact["metadata"] or artifact["metadata"]["tag"] is None
+    ]
+    new_tags = []
+    for idx, untagged_artifact in enumerate(untagged_artifacts):
+        new_tag = f"new-tag-{idx}"
+        new_tags.append(new_tag)
+        db.tag_artifacts(untagged_artifact, project_name, tag_name=new_tag)
+
+    # verify the artifacts were tagged
+    artifact_tags = db.list_artifact_tags(project=project_name)
+    assert len(artifact_tags) == num_artifacts
+
+    artifacts = db.list_artifacts(project=project_name)
+    artifact_tags = [artifact["metadata"].get("tag") for artifact in artifacts]
+    assert len(artifact_tags) == num_artifacts
+    assert artifact_tags.count("latest") == 1
+    assert artifact_tags.count(None) == 0
+
+    # delete a single artifact with a new tag
+    db.del_artifact(
+        key=artifact_db_key,
+        tag=new_tags[0],
+        project=project_name,
+    )
+
+    # list all artifacts
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == num_artifacts - 1
+
+    # delete the rest of the artifacts with 'delete_artifacts'
+    artifacts_to_delete = [
+        artifact for artifact in artifacts if artifact["metadata"]["tag"] != "latest"
+    ]
+    for artifact_to_delete in artifacts_to_delete:
+        db.del_artifacts(
+            name=artifact_db_key,
+            tag=artifact_to_delete["metadata"]["tag"],
+            project=project_name,
+        )
+
+    # verify only the latest remained
+    artifacts = db.list_artifacts(project=project_name)
+    assert len(artifacts) == 1
+    assert artifacts[0]["metadata"]["tag"] == "latest"
 
 
 def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
@@ -851,7 +1007,7 @@ def test_project_sql_db_roundtrip(create_server):
     _assert_projects(project, patched_project)
     get_project = db.get_project(project_name)
     _assert_projects(project, get_project)
-    list_projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
+    list_projects = db.list_projects(format_=mlrun.common.formatters.ProjectFormat.full)
     _assert_projects(project, list_projects[0])
 
 
@@ -871,3 +1027,27 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+@pytest.mark.parametrize(
+    "alert_name_in_config, alert_name_as_func_param",
+    [
+        (None, None),
+        (None, ""),
+        ("", None),
+        ("", ""),
+    ],
+)
+def test_store_alert_config_missing_alert_name(
+    alert_name_in_config, alert_name_as_func_param, create_server
+):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    alert_data = mlrun.alerts.alert.AlertConfig(name=alert_name_in_config, project=None)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert name must be provided"
+    ):
+        db.store_alert_config(
+            alert_name=alert_name_as_func_param,
+            alert_data=alert_data,
+        )

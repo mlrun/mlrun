@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import base64
+import json
 import os
 import typing
 import unittest
@@ -67,6 +68,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
         else:
             assert "javaOptions" not in body["spec"]["executor"]
+
+    def _assert_merged_node_selectors(
+        self,
+        body: dict,
+        expected_job_node_selector: dict,
+        expected_driver_node_selector: dict,
+        expected_executor_node_selector: dict,
+    ):
+        if expected_job_node_selector:
+            assert body["spec"]["nodeSelector"] == expected_job_node_selector
+        if expected_driver_node_selector:
+            assert (
+                body["spec"]["driver"]["nodeSelector"] == expected_driver_node_selector
+            )
+        if expected_executor_node_selector:
+            assert (
+                body["spec"]["executor"]["nodeSelector"]
+                == expected_executor_node_selector
+            )
 
     @staticmethod
     def _assert_cores(body: dict, expected_cores: dict):
@@ -423,6 +443,177 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
+    @pytest.mark.parametrize(
+        "project_node_selector,config_node_selector,function_node_selector,driver_node_selector,executor_node_selector",
+        [
+            # All parameters are empty
+            ({}, {}, {}, None, None),
+            # Only project node selector is defined
+            ({"project-label": "project-val"}, {}, {}, None, None),
+            # Only config node selector is defined
+            ({}, {"config-label": "config-val"}, {}, None, None),
+            # Only function node selector is defined
+            ({}, {}, {"function-label": "function-val"}, None, None),
+            # Only driver node selector is defined
+            ({}, {}, {}, {"driver-label": "driver-val"}, None),
+            # Only executor node selector is defined
+            ({}, {}, {}, None, {"executor-label": "executor-val"}),
+            # Project and function node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {},
+                {"function-label": "function-val"},
+                None,
+                None,
+            ),
+            # Function selector is defined and overridden in driver
+            (
+                {},
+                {},
+                {"function-label": "function-val"},
+                {},
+                None,
+            ),
+            # Function selector is defined and overridden in executors
+            (
+                {},
+                {},
+                {"function-label": "function-val"},
+                None,
+                {},
+            ),
+            # Driver and executor node selectors are defined
+            (
+                {},
+                {},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Project, config, and function node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {"config-label": "config-val"},
+                {"function-label": "function-val"},
+                None,
+                None,
+            ),
+            # Project, driver, and executor node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Config, driver, and executor node selectors are defined
+            (
+                {},
+                {"config-label": "config-val"},
+                {},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # Function, driver, and executor node selectors are defined
+            (
+                {},
+                {},
+                {"function-label": "function-val"},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+            # All node selectors are defined
+            (
+                {"project-label": "project-val"},
+                {"config-label": "config-val"},
+                {"function-label": "function-val"},
+                {"driver-label": "driver-val"},
+                {"executor-label": "executor-val"},
+            ),
+        ],
+    )
+    def test_with_node_selector(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        project_node_selector,
+        config_node_selector,
+        function_node_selector,
+        driver_node_selector,
+        executor_node_selector,
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        run_db = mlrun.get_run_db()
+        project = run_db.get_project(self.project)
+        project.spec.default_function_node_selector = project_node_selector
+        run_db.store_project(self.project, project)
+
+        mlrun.mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(config_node_selector).encode("utf-8")
+        )
+
+        runtime.with_node_selection(node_selector=function_node_selector)
+        runtime.with_executor_node_selection(node_selector=executor_node_selector)
+        runtime.with_driver_node_selection(node_selector=driver_node_selector)
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+
+        self._assert_merged_node_selectors(
+            body,
+            {},
+            {
+                **config_node_selector,
+                **project_node_selector,
+                **(
+                    function_node_selector
+                    if driver_node_selector is None
+                    else driver_node_selector
+                ),
+            },
+            {
+                **config_node_selector,
+                **project_node_selector,
+                **(
+                    function_node_selector
+                    if executor_node_selector is None
+                    else executor_node_selector
+                ),
+            },
+        )
+
+    def test_explicit_node_selector_for_function_applied_correctly(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        function_node_selector = {"function-label": "function-val"}
+        # This test verifies that directly setting the node selector on the runtime object,
+        # instead of using the `with_node_selection` method, correctly applies the function node selector
+        # to the driver and executor. It also confirms that this direct setting does not affect the application spec.
+        runtime.spec.node_selector = function_node_selector
+
+        self.execute_function(runtime)
+        body = self._get_custom_object_creation_body()
+        self._assert_merged_node_selectors(
+            body, {}, function_node_selector, function_node_selector
+        )
+
+    def test_with_node_selection_invalid_ns(self):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        function_node_selector = {"function-label": "function=val"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            runtime.with_node_selection(node_selector=function_node_selector)
+
     def test_run_with_host_path_volume(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
@@ -675,6 +866,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             )
 
         self.project = "default"
+        self.project_default_function_node_selector = {}
         self._create_project(client)
 
         resp = fstore.get_offline_features(

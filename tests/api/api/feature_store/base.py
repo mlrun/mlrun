@@ -86,9 +86,11 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     expected_object,
     actual_object,
     allowed_metadata_fields,
-    expected_diff={},
-    allowed_spec_fields=[],
+    expected_diff=None,
+    allowed_spec_fields=None,
 ):
+    expected_diff = expected_diff or {}
+    allowed_spec_fields = allowed_spec_fields or []
     exclude_paths = []
     for field in allowed_metadata_fields:
         exclude_paths.append(f"root['metadata']['{field}']")

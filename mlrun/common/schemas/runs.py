@@ -15,9 +15,26 @@
 import typing
 
 import pydantic
+from deprecated import deprecated
+
+import mlrun.common.types
 
 
 class RunIdentifier(pydantic.BaseModel):
     kind: typing.Literal["run"] = "run"
     uid: typing.Optional[str]
     iter: typing.Optional[int]
+
+
+@deprecated(
+    version="1.7.0",
+    reason="mlrun.common.schemas.RunsFormat is deprecated and will be removed in 1.9.0. "
+    "Use mlrun.common.formatters.RunFormat instead.",
+    category=FutureWarning,
+)
+class RunsFormat(mlrun.common.types.StrEnum):
+    # No enrichment, data is pulled as-is from the database.
+    standard = "standard"
+
+    # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.
+    full = "full"

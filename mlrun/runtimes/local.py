@@ -33,6 +33,7 @@ from sys import executable
 from nuclio import Event
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -57,7 +58,9 @@ class ParallelRunner:
 
         return TrackerManager()
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         return handler
 
     def _get_dask_client(self, options):
@@ -85,7 +88,7 @@ class ParallelRunner:
         handler = runobj.spec.handler
         self._force_handler(handler)
         set_paths(self.spec.pythonpath)
-        handler = self._get_handler(handler, execution)
+        handler = self._get_handler(handler, execution, embed_in_sys=False)
 
         client, function_name = self._get_dask_client(generator.options)
         parallel_runs = generator.options.parallel_runs or 4
@@ -142,7 +145,10 @@ class ParallelRunner:
         if function_name and generator.options.teardown_dask:
             logger.info("Tearing down the dask cluster..")
             mlrun.get_run_db().delete_runtime_resources(
-                kind="dask", object_id=function_name, force=True
+                project=self.metadata.project,
+                kind=mlrun.runtimes.RuntimeKinds.dask,
+                object_id=function_name,
+                force=True,
             )
 
         return results
@@ -223,12 +229,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     def is_deployed(self):
         return True
 
-    def _get_handler(self, handler, context):
+    def _get_handler(
+        self, handler: str, context: MLClientCtx, embed_in_sys: bool = True
+    ):
         command = self.spec.command
         if not command and self.spec.build.functionSourceCode:
             # if the code is embedded in the function object extract or find it
             command, _ = mlrun.run.load_func_code(self)
-        return load_module(command, handler, context)
+        return load_module(command, handler, context, embed_in_sys=embed_in_sys)
 
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         workdir = self.spec.workdir
@@ -257,7 +265,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels.get("kind") == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get(mlrun_constants.MLRunInternalLabels.kind)
+            == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
@@ -370,8 +379,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             return run_obj_dict
 
 
-def load_module(file_name, handler, context):
-    """Load module from file name"""
+def load_module(
+    file_name: str,
+    handler: str,
+    context: MLClientCtx,
+    embed_in_sys: bool = True,
+):
+    """
+    Load module from filename
+    :param file_name:       The module path to load
+    :param handler:         The callable to load
+    :param context:         Execution context
+    :param embed_in_sys:    Embed the file-named module in sys.modules. This is not persistent with remote
+                            environments and therefore can effect pickling.
+    """
     module = None
     if file_name:
         path = Path(file_name)
@@ -382,13 +403,21 @@ def load_module(file_name, handler, context):
         if spec is None:
             raise RunError(f"Cannot import from {file_name!r}")
         module = imputil.module_from_spec(spec)
+        if embed_in_sys:
+            sys.modules[mod_name] = module
         spec.loader.exec_module(module)
 
     class_args = {}
     if context:
         class_args = copy(context._parameters.get("_init_args", {}))
 
-    return get_handler_extended(handler, context, class_args, namespaces=module)
+    return get_handler_extended(
+        handler,
+        context,
+        class_args,
+        namespaces=module,
+        reload_modules=context._reset_on_run,
+    )
 
 
 def run_exec(cmd, args, env=None, cwd=None):

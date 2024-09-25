@@ -20,7 +20,9 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.crud
 import server.api.utils.auth.verifier
+import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 from server.api.api import deps
@@ -51,6 +53,14 @@ async def post_event(
         auth_info,
     )
 
+    if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+        logger.debug(
+            "Alerts are disabled, skipping event processing",
+            project=project,
+            event_name=name,
+        )
+        return
+
     if (
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
@@ -61,7 +71,7 @@ async def post_event(
             project=project, name=name, request=request, json=data
         )
 
-    logger.debug("Got event", project=project, name=name)
+    logger.debug("Got event", project=project, name=name, id=event_data.entity.ids[0])
 
     if not server.api.crud.Events().is_valid_event(project, event_data):
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST.value)

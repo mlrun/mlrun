@@ -1,10 +1,10 @@
-(tutorial)=
+(tutorials-all)=
 # Tutorials and Examples
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-- [**Quick-start Tutorial**](./01-mlrun-basics.html) 
-- [**Targeted Tutorials**](#other-tutorial)
+- [**Gen AI tutorials**](#gen-ai-tutorials)
+- [**Machine learning tutorials**](#other-tutorial)
 - [**End to End Demos**](#e2e-demos)
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/xI8KVGLlj7Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><br><br>
@@ -24,23 +24,37 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 ```{toctree}
 :maxdepth: 1
 :hidden:
-01-mlrun-basics
-02-model-training
-03-model-serving
-04-pipeline
-05-model-monitoring
-06-add-mlops-to-code
-07-batch-infer
-../feature-store/basic-demo
-mlflow
+genai_01_basic_tutorial
+genai-02-monitoring-llm
+ml-index
 demos
 /cheat-sheet
 ```
 
-(other-tutorial)=
-## Targeted tutorials
+## Gen AI tutorials
 
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
+
+`````{div}
+
+````{grid} 3
+:gutter: 2
+
+```{grid-item-card} Deploy LLM using MLRun
+:link: ./genai_01_basic_tutorial.html
+How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
+```
+```{grid-item-card} Model monitoring using LLM
+:link: ./genai-02-monitoring-llm.html
+Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
+```
+
+````
+`````
+
+(other-tutorial)=
+## Machine learning tutorials
+
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the download icon <img src="../_static/images/icon-download.png">at the top of each page.
 
 
 `````{div}
@@ -69,7 +83,7 @@ Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift
 ```
 
 ```{grid-item-card} Add MLOps to existing code
-:link: ./06-add-mlops-to-code.html
+:link: ./07-add-mlops-to-code.html
 Turn a Kaggle research notebook to a production ML micro-service with minimal code changes using MLRun.
 ```
 
@@ -79,7 +93,7 @@ Understand MLRun feature store with a simple example: build, transform, and serv
 ```
 
 ```{grid-item-card} Batch inference and drift detection
-:link: ./07-batch-infer.html
+:link: ./06-batch-infer.html
 Use MLRun batch inference function (from MLRun Function Hub), run it as a batch job, and generate drift reports.
 ```
 

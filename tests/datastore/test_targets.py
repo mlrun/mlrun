@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 
 import pandas as pd
@@ -46,7 +47,7 @@ def test_stream_target_path_is_without_run_id():
     stream_target.set_resource(fset)
     stream_target.add_writer_step(mock_graph, None, None, key_columns={})
     # make sure that run ID wasn't added to the path
-    assert mock_graph.kwargs.get("stream_path") == path
+    assert mock_graph.kwargs.get("stream_path") == url
 
     # make sure the path is still right after deserialization (which loses the specific type)
     stream_target = BaseStoreTarget.from_dict(stream_target.to_dict())
@@ -64,8 +65,8 @@ def test_kafka_target_path_is_without_run_id():
     fset = FeatureSet(name="my-featureset")
     kafka_target.set_resource(fset)
     kafka_target.add_writer_step(mock_graph, None, None, key_columns={})
-    # make sure that run ID wasn't added to the topic
-    assert mock_graph.kwargs.get("topic") == topic
+    # make sure that run ID wasn't added to the path
+    assert mock_graph.kwargs.get("path") == url
 
     # make sure the path is still right after deserialization (which loses the specific type)
     kafka_target = BaseStoreTarget.from_dict(kafka_target.to_dict())
@@ -111,3 +112,20 @@ def test_write_with_too_many_partitions():
         match="Maximum number of partitions exceeded. To resolve this.*",
     ):
         parquet_target.write_dataframe(df)
+
+
+def test_transform_list_filters_to_tuple():
+    additional_filters = [[("x", "=", 3), ("x", "=", 4), ("x", "=", 5)]]
+    parquet_target = ParquetTarget("parquet_target", path="path/to/file")
+    back_from_json_serialization = json.loads(json.dumps(additional_filters))
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
+    ):
+        parquet_target.as_df(additional_filters=additional_filters)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="additional_filters does not support nested list inside filter tuples except in -in- logic.",
+    ):
+        parquet_target.as_df(additional_filters=back_from_json_serialization)

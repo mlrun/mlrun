@@ -3,15 +3,16 @@
 
 A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
 
-MLRun supports multiple data stores (additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class).
+MLRun supports multiple data stores. Additional data stores, for example MongoDB, can easily be added by extending the `DataStore` class.
+
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes: Spark and RemoteSpark)
-* **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
-* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
+* **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
+* **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://<data-container>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
    to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
@@ -19,13 +20,13 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
 - [Data store profiles](#data-store-profiles)
+- [Alibaba Cloud Object Storage Service (OSS)](#alibaba-cloud-object-storage-service-oss)
 - [Azure data store](#azure-data-store)
 - [Databricks file system](#databricks-file-system)
 - [Google cloud storage](#google-cloud-storage)
 - [HDFS](#hdfs)
 - [S3](#s3)
 - [V3IO](#v3io)
-- [OSS](#OSS)
 
 
 ## Storage credentials and parameters
@@ -50,7 +51,7 @@ Refer to [Working with secrets](../secrets.html) for details on secret handling 
 For example, running a function locally:
 
 ```python
-# Access object in AWS S3, in the "input-data" bucket 
+# Access object in AWS S3, in the "input-data" bucket
 source_url = "s3://input-data/input_data.csv"
 
 os.environ["AWS_ACCESS_KEY_ID"] = "<access key ID>"
@@ -58,28 +59,33 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = "<access key>"
 
 # Execute a function that reads from the object pointed at by source_url.
 # When running locally, the function can use the local environment variables.
-local_run = func.run(name='aws_func', inputs={'source_url': source_url}, local=True)
+local_run = func.run(name="aws_func", inputs={"source_url": source_url}, local=True)
 ```
 
 Running the same function remotely:
 
 ```python
 # Executing the function remotely using env variables (not recommended!)
-func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env("AWS_SECRET_ACCESS_KEY", "<access key>")
-remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
+func.set_env("AWS_ACCESS_KEY_ID", "<access key ID>").set_env(
+    "AWS_SECRET_ACCESS_KEY", "<access key>"
+)
+remote_run = func.run(name="aws_func", inputs={"source_url": source_url})
 
 # Using project-secrets (recommended) - project secrets are automatically mounted to project functions
-secrets = {"AWS_ACCESS_KEY_ID": "<access key ID>", "AWS_SECRET_ACCESS_KEY": "<access key>"}
+secrets = {
+    "AWS_ACCESS_KEY_ID": "<access key ID>",
+    "AWS_SECRET_ACCESS_KEY": "<access key>",
+}
 db = mlrun.get_run_db()
 db.create_project_secrets(project=project_name, provider="kubernetes", secrets=secrets)
 
-remote_run = func.run(name='aws_func', inputs={'source_url': source_url})
+remote_run = func.run(name="aws_func", inputs={"source_url": source_url})
 ```
   
 ## Data store profiles
 
-```{admonition} Notes
-- Datastore profiles are not part of a project export/import.
+```{admonition} Note
+Datastore profiles are not part of a project export/import.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 
@@ -98,26 +104,47 @@ Create a data store profile in the context of a project. Example of creating a R
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
-   `RedisNoSqlTarget(path="ds://profile-name/a/b")`<br>
-    If you want to use a profile from a different project, you can specify it 
-	explicitly in the URI using the format:<br>
-    `RedisNoSqlTarget(path="ds://another_project@profile-name")`
-
-
-To access a profile from the client/sdk, register the profile locally by calling
+   `RedisNoSqlTarget(path="ds://profile-name/a/b")`
+   
+More options:
+- To access a profile from the client/sdk, register the profile locally by calling
    `register_temporary_client_datastore_profile()` with a profile object.
-You can also choose to retrieve the public information of an already registered profile by calling 
+- You can also choose to retrieve the public information of an already registered profile by calling 
    `project.get_datastore_profile()` and then adding the private credentials before registering it locally.
-For example, using Redis:
-```python
-redis_profile = project.get_datastore_profile("my_profile")
-local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
-register_temporary_client_datastore_profile(local_redis_profile)
+
+    For example, using Redis:
+    ```python
+    redis_profile = project.get_datastore_profile("my_profile")
+    local_redis_profile = DatastoreProfileRedis(
+        redis_profile.name,
+        redis_profile.endpoint_url,
+        username="mylocaluser",
+        password="mylocalpassword",
+    )
+    register_temporary_client_datastore_profile(local_redis_profile)
+    ```
+
+```{admonition} Note
+Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
-```{admonition} Notes
-- Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
-```
+See also:
+- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
+- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
+
+The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
+the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
+
+## Alibaba Cloud Object Storage Service (OSS)
+
+### Alibaba Cloud Object Storage Service credentials and parameters
+
+* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
+  parameters
+* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use, for example: https://oss-cn-hangzhou.aliyuncs.com
+
 
 ## Azure data store
 
@@ -130,7 +157,7 @@ here:
 |-----------------------|------------|
 | [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
 | [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
 
 ```{note}
@@ -141,7 +168,9 @@ authentication methods that use the `fsspec` mechanism.
 
 ### Azure data store profile
 ```python
-profile = DatastoreProfileAzureBlob(name="profile-name",connection_string=connection_string)
+profile = DatastoreProfileAzureBlob(
+    name="profile-name", connection_string=connection_string
+)
 ParquetTarget(path="ds://profile-name/az_blob/path/to/parquet.pq")
 ```
 
@@ -179,7 +208,7 @@ The equivalent to this parameter in environment authentication is "AZURE_STORAGE
 Credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
-- `bucket` &mdash; A string representing the bucket. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
+- `container` &mdash; A string representing the container. When specified, it is automatically prepended to the object path, and thus, it should not be manually included in the target path by the user.
 This parameter will become mandatory starting with version 1.9.
 
 ## Databricks file system 
@@ -195,7 +224,11 @@ Not supported by the spark and remote-spark runtimes.
 ### DBFS data store profile
 
 ```python
-profile = DatastoreProfileDBFS(name="profile-name", endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com", token=token)
+profile = DatastoreProfileDBFS(
+    name="profile-name",
+    endpoint_url="abc-d1e2345f-a6b2.cloud.databricks.com",
+    token=token,
+)
 ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 ```
 
@@ -220,7 +253,9 @@ contents directly to the query engine.
 ### GCS data store profile
 
 ```python
-profile = DatastoreProfileGCS(name="profile-name",credentials_path="/local_path/to/gcs_credentials.json")
+profile = DatastoreProfileGCS(
+    name="profile-name", credentials_path="/local_path/to/gcs_credentials.json"
+)
 ParquetTarget(path="ds://profile-name/gcs_bucket/path/to/parquet.pq")
 ```
 
@@ -260,7 +295,18 @@ ParquetTarget(path="ds://profile-name/path/to/parquet.pq")
 You can set `HADOOP_USER_NAME` locally as follows: 
 ```python
 import os
+
 os.environ["HADOOP_USER_NAME"] = "..."
+```
+
+An example of registering an HDFS data store profile and using it as described in [Data store profiles](#data-store-profiles):
+```python
+DatastoreProfileHdfs(
+    name="my-hdfs",
+    host="localhost",
+    port=9000,
+    http_port=9870,
+)
 ```
 
 To set it on a function, use:
@@ -271,18 +317,17 @@ function.spec.env.append({"name": "HADOOP_USER_NAME", "value": "galt"})
 In feature store, you can set it via `RunConfig`:
 ```python
 from mlrun.feature_store.common import RunConfig
+
 run_config = RunConfig(
     local=False,
     kind="remote-spark",
     extra_spec={"spec": {"env": [{"name": "HADOOP_USER_NAME", "value": "galt"}]}},
 )
-feature_set.ingest(
-    ...,
-    run_config=run_config
-)
+feature_set.ingest(..., run_config=run_config)
 ```
 
 ## S3
+
 ### S3 credentials and parameters
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
@@ -332,21 +377,31 @@ authenticate, it is used in several use-cases, such as resolving paths to the ho
 
 ### V3IO data store profile
 ```python
-profile = DatastoreProfileV3io(name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012")
-register_temporary_client_datastore_profile(profile) or project.register_datastore_profile(profile)
-ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
+profile = DatastoreProfileV3io(
+    name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012"
+)
+register_temporary_client_datastore_profile(
+    profile
+) or project.register_datastore_profile(profile)
+ParquetTarget(path="ds://test_profile/container/path/to/parquet.pq")
 ```
 
 `DatastoreProfileV3io` init parameters:
 - `name` &mdash; Name of the profile
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
-## OSS
-### OSS credentials and parameters
 
-* `ALIBABA_ACCESS_KEY_ID`, `ALIBABA_SECRET_ACCESS_KEY` &mdash; [access key](https://www.alibabacloud.com/help/en/oss/developer-reference/authorize-access-3)
-  parameters
-* `ALIBABA_ENDPOINT_URL` &mdash; The OSS endpoint to use. example: "https://oss-cn-hangzhou.aliyuncs.com"
+% ## Adding a data store profile Return to doc when there are personas
+
+% If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
+% 1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 
+%    This is usually the same as the schema associated with the datastore URL, although this is not strictly necessary.
+% 2. Incorporate all necessary parameters for accessing the datastore, ensuring they are appropriately classified as public or private.
+% 3. Implement two essential methods: `secrets()` and `url()`.
+%    - The `url()` method constructs a URL path to a specific object. It takes a 'subpath' parameter, which is the relative path to the object, 
+%    and returns the fully resolved URL that is used to access the object in the datastore.
+%    - The `secrets()` method returns a dictionary containing environment variables that are used when accessing the datastore.
+% 4. In the `create_from_json()` function, introduce factory settings for the newly created profile. Use the profile type as a key for these settings.
 
 ## See also
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 

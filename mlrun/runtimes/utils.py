@@ -20,10 +20,10 @@ from io import StringIO
 from sys import stderr
 
 import pandas as pd
-from kubernetes import client
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.artifacts import TableArtifact
@@ -37,9 +37,6 @@ from mlrun.utils import get_in, helpers, logger, verify_field_regex
 
 class RunError(Exception):
     pass
-
-
-mlrun_key = "mlrun/"
 
 
 class _ContextStore:
@@ -280,43 +277,6 @@ def get_item_name(item, attr="name"):
         return getattr(item, attr, None)
 
 
-def apply_kfp(modify, cop, runtime):
-    modify(cop)
-
-    # Have to do it here to avoid circular dependencies
-    from .pod import AutoMountType
-
-    if AutoMountType.is_auto_modifier(modify):
-        runtime.spec.disable_auto_mount = True
-
-    api = client.ApiClient()
-    for k, v in cop.pod_labels.items():
-        runtime.metadata.labels[k] = v
-    for k, v in cop.pod_annotations.items():
-        runtime.metadata.annotations[k] = v
-    if cop.container.env:
-        env_names = [
-            e.name if hasattr(e, "name") else e["name"] for e in runtime.spec.env
-        ]
-        for e in api.sanitize_for_serialization(cop.container.env):
-            name = e["name"]
-            if name in env_names:
-                runtime.spec.env[env_names.index(name)] = e
-            else:
-                runtime.spec.env.append(e)
-                env_names.append(name)
-        cop.container.env.clear()
-
-    if cop.volumes and cop.container.volume_mounts:
-        vols = api.sanitize_for_serialization(cop.volumes)
-        mounts = api.sanitize_for_serialization(cop.container.volume_mounts)
-        runtime.spec.update_vols_and_mounts(vols, mounts)
-        cop.volumes.clear()
-        cop.container.volume_mounts.clear()
-
-    return runtime
-
-
 def verify_limits(
     resources_field_name,
     mem=None,
@@ -410,10 +370,10 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
 
 
 def get_func_selector(project, name=None, tag=None):
-    s = [f"{mlrun_key}project={project}"]
+    s = [f"{mlrun_constants.MLRunInternalLabels.project}={project}"]
     if name:
-        s.append(f"{mlrun_key}function={name}")
-        s.append(f"{mlrun_key}tag={tag or 'latest'}")
+        s.append(f"{mlrun_constants.MLRunInternalLabels.function}={name}")
+        s.append(f"{mlrun_constants.MLRunInternalLabels.tag}={tag or 'latest'}")
     return s
 
 
@@ -476,6 +436,7 @@ def enrich_run_labels(
 ):
     labels_enrichment = {
         RunLabels.owner: os.environ.get("V3IO_USERNAME") or getpass.getuser(),
+        # TODO: remove this in 1.9.0
         RunLabels.v3io_user: os.environ.get("V3IO_USERNAME"),
     }
     labels_to_enrich = labels_to_enrich or RunLabels.all()
@@ -484,3 +445,37 @@ def enrich_run_labels(
         if label.value not in labels and enrichment:
             labels[label.value] = enrichment
     return labels
+
+
+def resolve_node_selectors(
+    project_node_selector: dict, instance_node_selector: dict
+) -> dict:
+    config_node_selector = mlrun.mlconf.get_default_function_node_selector()
+    if project_node_selector or config_node_selector:
+        mlrun.utils.logger.debug(
+            "Enriching node selector from project and mlrun config",
+            project_node_selector=project_node_selector,
+            config_node_selector=config_node_selector,
+        )
+        return mlrun.utils.helpers.merge_dicts_with_precedence(
+            config_node_selector,
+            project_node_selector,
+            instance_node_selector,
+        )
+    return instance_node_selector
+
+
+def enrich_gateway_timeout_annotations(annotations: dict, gateway_timeout: int):
+    """
+    Set gateway proxy connect/read/send timeout annotations
+    :param annotations:     The annotations to enrich
+    :param gateway_timeout: The timeout to set
+    """
+    if not gateway_timeout:
+        return
+    gateway_timeout_str = str(gateway_timeout)
+    annotations["nginx.ingress.kubernetes.io/proxy-connect-timeout"] = (
+        gateway_timeout_str
+    )
+    annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"] = gateway_timeout_str
+    annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = gateway_timeout_str

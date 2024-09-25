@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import typing
 
 import pydantic
 
 
 class ImageBuilder(pydantic.BaseModel):
-    functionSourceCode: typing.Optional[str] = None
-    codeEntryType: typing.Optional[str] = None
-    codeEntryAttributes: typing.Optional[str] = None
+    functionSourceCode: typing.Optional[str] = None  # noqa: N815
+    codeEntryType: typing.Optional[str] = None  # noqa: N815
+    codeEntryAttributes: typing.Optional[str] = None  # noqa: N815
     source: typing.Optional[str] = None
     code_origin: typing.Optional[str] = None
     origin_filename: typing.Optional[str] = None
@@ -38,3 +38,6 @@ class ImageBuilder(pydantic.BaseModel):
     build_pod: typing.Optional[str] = None
     requirements: typing.Optional[list] = None
     source_code_target_dir: typing.Optional[str] = None
+
+    class Config:
+        extra = pydantic.Extra.allow

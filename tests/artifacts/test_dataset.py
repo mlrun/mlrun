@@ -270,8 +270,8 @@ def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
     monkeypatch.setattr(mlrun.artifacts.dataset, "max_ddf_size", 0.001)
 
     print("Creating dataframe and setting memory limit")
-    A = numpy.random.random_sample(size=(50000, 6))
-    df = pandas.DataFrame(data=A, columns=list("ABCDEF"))
+    data = numpy.random.random_sample(size=(50000, 6))
+    df = pandas.DataFrame(data=data, columns=list("ABCDEF"))
     print("Verify the memory size of the dataframe is >400MB")
     assert (df.memory_usage().sum() // 1e3) > 200
     ddf = dd.from_pandas(df, npartitions=4)

@@ -16,6 +16,12 @@ import datetime
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
+from deprecated import deprecated
+
+import mlrun.alerts
+import mlrun.common
+import mlrun.common.formatters
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.model_monitoring
 
@@ -52,7 +58,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_run(self, uid, project="", iter=0):
+    def read_run(
+        self,
+        uid: str,
+        project: str = "",
+        iter: int = 0,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
+    ):
         pass
 
     @abstractmethod
@@ -62,7 +74,10 @@ class RunDBInterface(ABC):
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
         labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        state: Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -96,7 +111,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
+    def read_artifact(
+        self,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+    ):
         pass
 
     @abstractmethod
@@ -113,11 +137,25 @@ class RunDBInterface(ABC):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
         tree: str = None,
+        format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
+        limit: int = None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
+    def del_artifact(
+        self,
+        key,
+        tag="",
+        project="",
+        tree=None,
+        uid=None,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+        iter=None,
+    ):
         pass
 
     @abstractmethod
@@ -137,7 +175,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_functions(self, name=None, project="", tag="", labels=None):
+    def list_functions(
+        self, name=None, project="", tag="", labels=None, since=None, until=None
+    ):
         pass
 
     @abstractmethod
@@ -202,9 +242,8 @@ class RunDBInterface(ABC):
             )
             artifact_identifiers.append(
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
-                    # we are passing tree as uid when storing an artifact, so if uid is not defined,
-                    # pass the tree as uid
+                    # we pass the db_key and not the key so the API will be able to find the artifact in the db
+                    key=mlrun.utils.get_in_artifact(artifact_obj, "db_key"),
                     uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
                     producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
@@ -251,7 +290,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -284,6 +323,12 @@ class RunDBInterface(ABC):
     ) -> dict:
         pass
 
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_features' will be removed in 1.9.0, use 'list_features_v2' instead",
+        category=FutureWarning,
+    )
     @abstractmethod
     def list_features(
         self,
@@ -296,6 +341,23 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_features_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        pass
+
+    # TODO: remove in 1.9.0
+    @deprecated(
+        version="1.9.0",
+        reason="'list_entities' will be removed in 1.9.0, use 'list_entities_v2' instead",
+        category=FutureWarning,
+    )
+    @abstractmethod
     def list_entities(
         self,
         project: str,
@@ -303,6 +365,16 @@ class RunDBInterface(ABC):
         tag: str = None,
         labels: list[str] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
+        pass
+
+    @abstractmethod
+    def list_entities_v2(
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
     @abstractmethod
@@ -323,6 +395,9 @@ class RunDBInterface(ABC):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[dict]:
         pass
 
@@ -427,8 +502,8 @@ class RunDBInterface(ABC):
         namespace: str = None,
         timeout: int = 30,
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.summary,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.summary,
         project: str = None,
     ):
         pass
@@ -442,8 +517,8 @@ class RunDBInterface(ABC):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.common.schemas.PipelinesFormat
-        ] = mlrun.common.schemas.PipelinesFormat.metadata_only,
+            str, mlrun.common.formatters.PipelineFormat
+        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         pass
@@ -543,7 +618,7 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[list[str]] = None,
         features: bool = False,
-    ):
+    ) -> mlrun.model_monitoring.ModelEndpoint:
         pass
 
     @abstractmethod
@@ -617,8 +692,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def store_api_gateway(
         self,
-        project: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway,
+            "mlrun.runtimes.nuclio.api_gateway.APIGateway",
+        ],
+        project: Optional[str] = None,
     ):
         pass
 
@@ -664,7 +742,7 @@ class RunDBInterface(ABC):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.common.schemas.AlertConfig],
+        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
         project="",
     ):
         pass
@@ -683,6 +761,14 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def reset_alert_config(self, alert_name: str, project=""):
+        pass
+
+    @abstractmethod
+    def get_alert_template(self, template_name: str):
+        pass
+
+    @abstractmethod
+    def list_alert_templates(self):
         pass
 
     @abstractmethod
@@ -812,11 +898,40 @@ class RunDBInterface(ABC):
         base_period: int = 10,
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
+        rebuild_images: bool = False,
+        fetch_credentials_from_sys_config: bool = False,
     ) -> None:
+        pass
+
+    @abstractmethod
+    def disable_model_monitoring(
+        self,
+        project: str,
+        delete_resources: bool = True,
+        delete_stream_function: bool = False,
+        delete_histogram_data_drift_app: bool = True,
+        delete_user_applications: bool = False,
+        user_application_list: list[str] = None,
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_model_monitoring_function(
+        self, project: str, functions: list[str]
+    ) -> bool:
         pass
 
     @abstractmethod
     def deploy_histogram_data_drift_app(
         self, project: str, image: str = "mlrun/mlrun"
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def set_model_monitoring_credentials(
+        self,
+        project: str,
+        credentials: dict[str, str],
+        replace_creds: bool,
     ) -> None:
         pass

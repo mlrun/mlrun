@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import http.server
 from contextlib import nullcontext as does_not_raise
@@ -19,13 +18,14 @@ from unittest import mock
 
 import aioresponses
 import pytest
+import pytest_asyncio
 from aiohttp import ClientConnectorError, ServerDisconnectedError
 
 from mlrun.utils.async_http import AsyncClientWithRetry
 from tests.common_fixtures import aioresponses_mock
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def async_client():
     async with AsyncClientWithRetry() as client:
         yield client

@@ -168,14 +168,14 @@ class TestServingRuntime(TestNuclioRuntime):
                     {
                         "volume": {
                             "configMap": {
-                                "name": f"model-conf-{self.project}-{self.name}"
+                                "name": f"{self.project}-{self.name}"
                                 + (f"-{func_name}" if func_name else "")
                             },
-                            "name": "model-conf",
+                            "name": "serving-conf",
                         },
                         "volumeMount": {
-                            "mountPath": "/tmp/mlrun/model-conf",
-                            "name": "model-conf",
+                            "mountPath": "/tmp/mlrun/serving-conf",
+                            "name": "serving-conf",
                             "readOnly": True,
                         },
                     }
@@ -248,6 +248,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_remote_deploy_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
 
@@ -325,6 +327,8 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_child_functions_with_secrets(self, use_config_map):
         if use_config_map:
             self._setup_serving_spec_in_config_map()
+        else:
+            mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff = 4096
 
         function = self._create_serving_function()
         graph = function.spec.graph
@@ -374,7 +378,9 @@ class TestServingRuntime(TestNuclioRuntime):
 
     def test_empty_function(self):
         # test simple function (no source)
-        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function = new_function(
+            "serving", kind="serving", project=self.project, image="mlrun/mlrun"
+        )
         function.set_topology("flow")
         (
             _,
@@ -386,7 +392,11 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # test function built from source repo (set the handler)
         function = new_function(
-            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+            "serving",
+            kind="serving",
+            image="mlrun/mlrun",
+            project=self.project,
+            source="git://x/y#z",
         )
         function.set_topology("flow")
 
@@ -406,3 +416,15 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")
+
+    def test_serving_spec_too_large(self):
+        self._setup_serving_spec_in_config_map()
+        function = self._create_serving_function()
+        function._get_serving_spec = unittest.mock.Mock()
+
+        # Mock a serving spec that is too large
+        function._get_serving_spec.return_value = (
+            "x" * server.api.crud.runtimes.nuclio.function.SERVING_SPEC_MAX_LENGTH
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            function.deploy(verbose=True)

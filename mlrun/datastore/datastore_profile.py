@@ -37,6 +37,7 @@ class DatastoreProfile(pydantic.BaseModel):
         extra = pydantic.Extra.forbid
 
     @pydantic.validator("name")
+    @classmethod
     def lower_case(cls, v):
         return v.lower()
 
@@ -188,6 +189,7 @@ class DatastoreProfileS3(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -292,6 +294,7 @@ class DatastoreProfileGCS(DatastoreProfile):
     bucket: typing.Optional[str] = None
 
     @pydantic.validator("bucket")
+    @classmethod
     def check_bucket(cls, v):
         if not v:
             warnings.warn(
@@ -302,6 +305,7 @@ class DatastoreProfileGCS(DatastoreProfile):
         return v
 
     @pydantic.validator("gcp_credentials", pre=True, always=True)
+    @classmethod
     def convert_dict_to_json(cls, v):
         if isinstance(v, dict):
             return json.dumps(v)
@@ -344,13 +348,14 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
     client_secret: typing.Optional[str] = None
     sas_token: typing.Optional[str] = None
     credential: typing.Optional[str] = None
-    bucket: typing.Optional[str] = None
+    container: typing.Optional[str] = None
 
-    @pydantic.validator("bucket")
-    def check_bucket(cls, v):
+    @pydantic.validator("container")
+    @classmethod
+    def check_container(cls, v):
         if not v:
             warnings.warn(
-                "The 'bucket' attribute will be mandatory starting from version 1.9",
+                "The 'container' attribute will be mandatory starting from version 1.9",
                 FutureWarning,
                 stacklevel=2,
             )
@@ -358,10 +363,10 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
 
     def url(self, subpath) -> str:
         if subpath.startswith("/"):
-            #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
+            #  in azure the path after schema is starts with container, wherefore it should not start with "/".
             subpath = subpath[1:]
-        if self.bucket:
-            return f"az://{self.bucket}/{subpath}"
+        if self.container:
+            return f"az://{self.container}/{subpath}"
         else:
             return f"az://{subpath}"
 
@@ -407,7 +412,7 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return res or None
 
     def url(self, subpath):
-        return f"hdfs://{self.host}:{self.http_port}{subpath}"
+        return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):

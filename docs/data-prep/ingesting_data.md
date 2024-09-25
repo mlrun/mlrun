@@ -11,7 +11,7 @@ data-stores framework to connect to various types of data sources and download c
 data which is stored on S3 and load it into a `DataFrame`, use the following code:
 
 ```python
-# Access object in AWS S3, in the "input-data" bucket 
+# Access object in AWS S3, in the "input-data" bucket
 import mlrun
 
 # Access credentials
@@ -39,35 +39,39 @@ data ingestion function:
 def ingest_data(context, source_url: mlrun.DataItem):
     # Load the data from its source, and convert to a DataFrame
     df = source_url.as_df()
-    
+
     # Perform data cleaning and processing
     # ...
-    
+
     # Save the processed data to the artifact store
-    context.log_dataset('cleaned_data', df=df, format='csv')
+    context.log_dataset("cleaned_data", df=df, format="csv")
 ```
 
 This code can be placed in a python file, or as a cell in the Python notebook. For example, if the code above was saved
 to a file, the following code creates an MLRun function from it and executes it remotely in a pod:
 
 ```python
-# create a function from py or notebook (ipynb) file, specify the default function handler
-ingest_func = mlrun.code_to_function(name='ingest_data', filename='./ingest_data.py', 
-                                     kind='job', image='mlrun/mlrun')
+# create a project, then a function from py or notebook (ipynb) file, specify the default function handler
+project = mlrun.get_or_create_project("ingest-data")
+ingest_func = project.set_function(
+    name="ingest_data", filename="./ingest_data.py", kind="job", image="mlrun/mlrun"
+)
 
 source_url = "s3://input-data/input_data.csv"
 
-ingest_data_run = ingest_func.run(name='ingest_data',
-                                  handler=ingest_data,
-                                  inputs={'source_url': source_url},
-                                  local=False)
+ingest_data_run = ingest_func.run(
+    name="ingest_data",
+    handler=ingest_data,
+    inputs={"source_url": source_url},
+    local=False,
+)
 ```
 
 As the `source_url` is part of the function's `inputs`, MLRun automatically wraps it up with a `DataItem`. The output
 is logged to the function's `artifact_path`, and can be obtained from the run result:
 
 ```python
-cleaned_data_frame = ingest_data_run.artifact('cleaned_data').as_df()
+cleaned_data_frame = ingest_data_run.artifact("cleaned_data").as_df()
 ```
 
 Note that running the function remotely may require attaching storage to the function, as well as passing storage

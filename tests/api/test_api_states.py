@@ -24,6 +24,7 @@ import server.api.initial_data
 import server.api.utils.auth.verifier
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
+import server.api.utils.db.mysql
 from mlrun.utils import logger
 
 
@@ -98,6 +99,7 @@ def test_init_data_migration_required_recognition(
         from_scratch=from_scratch,
     )
     alembic_util_mock = unittest.mock.Mock()
+    monkeypatch.setattr(server.api.utils.db.mysql, "MySQLUtil", unittest.mock.Mock())
     monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(

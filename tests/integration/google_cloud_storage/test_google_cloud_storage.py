@@ -16,6 +16,7 @@ import json
 import os
 import os.path
 import tempfile
+import time
 import uuid
 
 import dask.dataframe as dd
@@ -23,6 +24,10 @@ import fsspec
 import pandas as pd
 import pytest
 import yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from gcsfs.retry import HttpError
+from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 import mlrun
 import mlrun.errors
@@ -35,16 +40,18 @@ from mlrun.datastore.datastore_profile import (
 from mlrun.utils import logger
 
 here = os.path.dirname(__file__)
+config = {}
 config_file_path = os.path.join(here, "test-google-cloud-storage.yml")
-with open(config_file_path) as yaml_file:
-    config = yaml.safe_load(yaml_file)
+if os.path.exists(config_file_path):
+    with open(config_file_path) as yaml_file:
+        config = yaml.safe_load(yaml_file)
 
 
 credential_params = ["credentials_json_file"]
 
 
 def google_cloud_storage_configured():
-    env_params = config["env"]
+    env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params]
     for param in needed_params:
         if not env_params.get(param):
@@ -56,14 +63,18 @@ def google_cloud_storage_configured():
     not google_cloud_storage_configured(),
     reason="Google cloud storage parameters not configured",
 )
+@pytest.mark.skipif(
+    not os.path.exists(config_file_path),
+    reason="Google cloud storage credentials file is not exists",
+)
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
     assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
-    bucket_name = config["env"].get("bucket_name")
+    bucket_name = config.get("env", {}).get("bucket_name")
     test_dir = "test_mlrun_gcs_objects"
     run_dir = f"{test_dir}/run_{uuid.uuid4()}"
     profile_name = "gcs_profile"
-    credentials_path = config["env"].get("credentials_json_file")
+    credentials_path = config.get("env", {}).get("credentials_json_file")
     test_file = os.path.join(assets_path, "test.txt")
 
     @classmethod
@@ -115,8 +126,8 @@ class TestGoogleCloudStorage:
             else f"gcs://{self.bucket_name}"
         )
         self.run_dir_url = f"{self._bucket_path}/{self.run_dir}"
-        self._object_url = f"{self.run_dir_url}{object_file}"
-        logger.info(f"Object URL: {self._object_url}")
+        self.object_url = f"{self.run_dir_url}{object_file}"
+        logger.info(f"Object URL: {self.object_url}")
         self.storage_options = {}
 
     @classmethod
@@ -127,7 +138,9 @@ class TestGoogleCloudStorage:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         os.environ.pop("GCP_CREDENTIALS", None)
 
-    def _setup_by_google_credentials_file(self, use_datastore_profile, use_secrets):
+    def _setup_by_google_credentials_file(
+        self, use_datastore_profile, use_secrets=False
+    ):
         # We give priority to profiles, then to secrets, and finally to environment variables.
         self.storage_options = {}
         if use_datastore_profile:
@@ -145,7 +158,9 @@ class TestGoogleCloudStorage:
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
 
-    def _setup_by_serialized_json_content(self, use_datastore_profile, use_secrets):
+    def _setup_by_serialized_json_content(
+        self, use_datastore_profile, use_secrets=False
+    ):
         self.storage_options = {}
         if use_datastore_profile:
             self._setup_profile(profile_auth_by="gcp_credentials")
@@ -161,13 +176,12 @@ class TestGoogleCloudStorage:
                 os.environ["GCP_CREDENTIALS"] = self.credentials
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
-        [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
-        ],
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     def test_perform_google_cloud_storage_tests(
         self, use_datastore_profile, setup_by, use_secrets
@@ -175,7 +189,7 @@ class TestGoogleCloudStorage:
         # TODO: split to smaller tests by datastore conventions
         self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         data_item.put(self.test_string)
 
@@ -198,7 +212,7 @@ class TestGoogleCloudStorage:
         ).listdir()
         assert self._object_path in dir_list
         listdir_dataitem_parent = mlrun.run.get_dataitem(
-            os.path.dirname(self._object_url), secrets=self.storage_options
+            os.path.dirname(self.object_url), secrets=self.storage_options
         )
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) in listdir_parent
@@ -207,21 +221,93 @@ class TestGoogleCloudStorage:
         listdir_parent = listdir_dataitem_parent.listdir()
         assert os.path.basename(self._object_path) not in listdir_parent
 
+    @pytest.mark.parametrize(
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
+    )
+    def test_upload(self, use_datastore_profile, setup_by, use_secrets):
+        self.setup_mapping[setup_by](self, use_datastore_profile, use_secrets)
         upload_data_item = mlrun.run.get_dataitem(
-            self._object_url, secrets=self.storage_options
+            self.object_url, secrets=self.storage_options
         )
         upload_data_item.upload(self.test_file)
         response = upload_data_item.get()
         assert response.decode() == self.test_string
 
     @pytest.mark.parametrize(
-        "setup_by, use_secrets",
+        "setup_by",
         [
-            ("credentials_file", False),
-            ("credentials_file", True),
-            ("serialized_json", False),
-            ("serialized_json", True),
+            "credentials_file",
+            "serialized_json",
         ],
+    )
+    def test_large_upload(self, use_datastore_profile, setup_by):
+        self.setup_mapping[setup_by](self, use_datastore_profile)
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        file_size = 1024 * 1024 * 100
+        chunk_size = 1024 * 1024 * 10
+
+        first_start_time = time.monotonic()
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", delete=True, mode="wb"
+        ) as temp_file:
+            num_chunks = file_size // chunk_size
+            remainder = file_size % chunk_size
+            for _ in range(num_chunks):
+                chunk = os.urandom(chunk_size)
+                temp_file.write(chunk)
+            if remainder:
+                chunk = os.urandom(remainder)
+                temp_file.write(chunk)
+            temp_file.flush()
+            temp_file.seek(0)
+
+            logger.info(
+                f"gcs test_large_upload - finished to write locally in {time.monotonic() - first_start_time} "
+                "seconds"
+            )
+            start_time = time.monotonic()
+            data_item.upload(temp_file.name)
+            logger.info(
+                f"gcs test_large_upload - finished to upload in {time.monotonic() - start_time} seconds"
+            )
+            with tempfile.NamedTemporaryFile(
+                suffix=".txt", delete=True, mode="wb"
+            ) as temp_file_download:
+                start_time = time.monotonic()
+                data_item.download(temp_file_download.name)
+                logger.info(
+                    f"gcs test_large_upload - finished to download in {time.monotonic() - start_time} seconds"
+                )
+                with (
+                    open(temp_file.name, "rb") as file1,
+                    open(temp_file_download.name, "rb") as file2,
+                ):
+                    chunk_number = 1
+                    while True:
+                        chunk1 = file1.read(chunk_size)
+                        chunk2 = file2.read(chunk_size)
+                        if not chunk1 and not chunk2:
+                            break
+                        if chunk1 != chunk2:
+                            raise AssertionError(
+                                f"expected chunk different from the result."
+                                f" Chunk number: {chunk_number}, chunk size: {chunk_size}"
+                            )
+                        chunk_number += 1
+
+    @pytest.mark.parametrize(
+        "setup_by",
+        ["credentials_file", "serialized_json"],
+    )
+    @pytest.mark.parametrize(
+        "use_secrets",
+        [False, True],
     )
     @pytest.mark.parametrize(
         "file_format, pd_reader, dd_reader, reader_args",
@@ -306,3 +392,65 @@ class TestGoogleCloudStorage:
         expected_dd_df = dd.concat([dd_df1, dd_df2], axis=0)
         tested_dd_df = dt_dir.as_df(format=file_format, df_module=dd)
         dd.assert_eq(tested_dd_df, expected_dd_df)
+
+    @pytest.mark.parametrize("data", [b"test", bytearray(b"test")])
+    def test_put_types(
+        self,
+        data,
+        use_datastore_profile,
+    ):
+        self._setup_by_google_credentials_file(
+            use_datastore_profile=use_datastore_profile, use_secrets=True
+        )
+        data_item = mlrun.run.get_dataitem(
+            self.object_url, secrets=self.storage_options
+        )
+        data_item.put(data)
+        result = data_item.get()
+        assert result == b"test"
+        with pytest.raises(
+            TypeError,
+            match="Unable to put a value of type GoogleCloudStorageStore",
+        ):
+            data_item.put(123)
+
+    def _generate_fake_private_key(self):
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        return pem.decode("utf-8")
+
+    @pytest.mark.parametrize("credentials_value", [False, True])
+    def test_wrong_credentials_rm(self, use_datastore_profile, credentials_value):
+        if credentials_value:
+            fake_credentials = json.loads(self.credentials)
+            fake_credentials["private_key"] = self._generate_fake_private_key()
+            fake_credentials = json.dumps(fake_credentials)
+
+        else:
+            fake_credentials = None
+        if use_datastore_profile:
+            gcp_credentials_dict = (
+                {"gcp_credentials": fake_credentials} if credentials_value else {}
+            )
+            self.profile = DatastoreProfileGCS(
+                name=self.profile_name, **gcp_credentials_dict
+            )
+            register_temporary_client_datastore_profile(self.profile)
+        elif fake_credentials:
+            os.environ["GCP_CREDENTIALS"] = fake_credentials
+        data_item = mlrun.run.get_dataitem(self.object_url)
+        with pytest.raises((DefaultCredentialsError, RefreshError, HttpError)):
+            data_item.delete()
+
+    def test_rm_file_not_found(self, use_datastore_profile):
+        self._setup_by_serialized_json_content(use_datastore_profile)
+        not_exist_url = f"{self.run_dir_url}/not_exist_file.txt"
+        data_item = mlrun.run.get_dataitem(not_exist_url)
+        data_item.delete()

@@ -13,9 +13,12 @@
 # limitations under the License.
 #
 
+import datetime
+
 import sqlalchemy.orm
 
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
@@ -32,7 +35,7 @@ class Functions(
         db_session: sqlalchemy.orm.Session,
         function: dict,
         name: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         tag: str = "",
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -64,13 +67,14 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         tag: str = "",
         hash_key: str = "",
+        format_: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().get_function(
-            db_session, name, project, tag, hash_key
+            db_session, name, project, tag, hash_key, format_
         )
 
     def delete_function(
@@ -86,13 +90,16 @@ class Functions(
     def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         name: str = None,
         tag: str = None,
         labels: list[str] = None,
         hash_key: str = None,
         page: int = None,
         page_size: int = None,
+        format_: str = None,
+        since: datetime.datetime = None,
+        until: datetime.datetime = None,
     ) -> list:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -104,6 +111,9 @@ class Functions(
             tag=tag,
             labels=labels,
             hash_key=hash_key,
+            format_=format_,
+            since=since,
+            until=until,
             page=page,
             page_size=page_size,
         )
@@ -134,3 +144,59 @@ class Functions(
             client_python_version=client_python_version,
         )
         function.save(versioned=False)
+
+    def update_function(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function,
+        project,
+        updates: dict,
+    ):
+        return server.api.utils.singletons.db.get_db().update_function(
+            session=db_session,
+            name=function["metadata"]["name"],
+            tag=function["metadata"]["tag"],
+            hash_key=function.get("metadata", {}).get("hash"),
+            project=project,
+            updates=updates,
+        )
+
+    def add_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+            session=db_session,
+            name=function_name,
+            url=invocation_url,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+            operation=mlrun.common.types.Operation.ADD,
+        )
+
+    def delete_function_external_invocation_url(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function_uri: str,
+        project: str,
+        invocation_url: str,
+    ):
+        _, function_name, tag, hash_key = (
+            mlrun.common.helpers.parse_versioned_object_uri(function_uri)
+        )
+        server.api.utils.singletons.db.get_db().update_function_external_invocation_url(
+            session=db_session,
+            name=function_name,
+            url=invocation_url,
+            project=project,
+            tag=tag,
+            hash_key=hash_key,
+            operation=mlrun.common.types.Operation.REMOVE,
+        )

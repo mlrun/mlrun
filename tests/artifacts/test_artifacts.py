@@ -21,6 +21,7 @@ import unittest.mock
 import uuid
 from contextlib import nullcontext as does_not_raise
 
+import deepdiff
 import pandas as pd
 import pytest
 import yaml
@@ -641,3 +642,46 @@ def test_producer_in_exported_artifact():
     with open(artifact_path) as file:
         exported_artifact = yaml.load(file, Loader=yaml.FullLoader)
         assert "producer" not in exported_artifact["spec"]
+
+
+@pytest.mark.parametrize(
+    "uri,expected_parsed_result",
+    [
+        # Full URI
+        (
+            "my-project/1234-1",
+            ("my-project", "1234", "1"),
+        ),
+        # No iteration
+        (
+            "my-project/1234",
+            ("my-project", "1234", ""),
+        ),
+        # No project
+        (
+            "1234-1",
+            ("", "1234", "1"),
+        ),
+        # No UID
+        (
+            "my-project/-1",
+            ("my-project", "", "1"),
+        ),
+        # just iteration
+        (
+            "-1",
+            ("", "", "1"),
+        ),
+        # Nothing
+        (
+            "",
+            ("", "", ""),
+        ),
+    ],
+)
+def test_artifact_producer_parse_uri(uri, expected_parsed_result):
+    parsed_result = mlrun.artifacts.ArtifactProducer.parse_uri(uri)
+    assert (
+        deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True)
+        == {}
+    )

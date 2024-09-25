@@ -18,15 +18,16 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
+from mlrun_pipelines.mounts import v3io_cred
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.feature_store
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun import v3io_cred
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
@@ -239,6 +240,7 @@ async def list_feature_sets(
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
+    format_: str = Query(mlrun.common.formatters.FeatureSetFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -261,6 +263,7 @@ async def list_feature_sets(
         rows_per_partition,
         partition_sort_by,
         partition_order,
+        format_,
     )
     feature_sets = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,
@@ -458,7 +461,13 @@ async def ingest_feature_set(
     )
 
 
-@router.get("/features", response_model=mlrun.common.schemas.FeaturesOutput)
+# TODO: Remove in 1.9.0
+@router.get(
+    "/features",
+    response_model=mlrun.common.schemas.FeaturesOutput,
+    deprecated=True,
+    description="/features v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
+)
 async def list_features(
     project: str,
     name: str = None,
@@ -494,7 +503,13 @@ async def list_features(
     return mlrun.common.schemas.FeaturesOutput(features=features)
 
 
-@router.get("/entities", response_model=mlrun.common.schemas.EntitiesOutput)
+# TODO: Remove in 1.9.0
+@router.get(
+    "/entities",
+    response_model=mlrun.common.schemas.EntitiesOutput,
+    deprecated=True,
+    description="/entities v1 is deprecated in 1.7.0 and will be removed in 1.9.0. Use v2 instead.",
+)
 async def list_entities(
     project: str,
     name: str = None,

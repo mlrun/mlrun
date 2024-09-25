@@ -27,6 +27,8 @@ from .targets import get_online_target
 
 def is_store_uri(url):
     """detect if the uri starts with the store schema prefix"""
+    if not url:
+        return False
     return url.startswith(DB_SCHEMA + "://")
 
 
@@ -146,7 +148,11 @@ def get_store_resource(
 
     db = db or mlrun.get_run_db(secrets=secrets)
     kind, uri = parse_store_uri(uri)
-    if kind == StorePrefix.FeatureSet:
+    if not kind:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Cannot get store resource from invalid URI: {uri}"
+        )
+    elif kind == StorePrefix.FeatureSet:
         project, name, tag, uid = parse_versioned_object_uri(
             uri, project or config.default_project
         )

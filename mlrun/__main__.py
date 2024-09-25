@@ -27,9 +27,11 @@ import click
 import dotenv
 import pandas as pd
 import yaml
+from mlrun_pipelines.mounts import auto_mount as auto_mount_modifier
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 
@@ -37,7 +39,6 @@ from .config import config as mlconf
 from .db import get_run_db
 from .errors import err_to_str
 from .model import RunTemplate
-from .platforms import auto_mount as auto_mount_modifier
 from .projects import load_project
 from .run import (
     get_object,
@@ -49,12 +50,12 @@ from .run import (
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_yaml,
     get_in,
     is_relative_path,
     list2dict,
     logger,
-    run_keys,
     update_in,
 )
 from .utils.version import Version
@@ -101,7 +102,9 @@ def main():
 )
 @click.option("--uid", help="unique run ID")
 @click.option("--name", help="run name")
-@click.option("--workflow", help="workflow name/id")
+@click.option(
+    "--workflow", help="sets the run labels to match the given workflow name/id"
+)
 @click.option("--project", help="project name/id")
 @click.option("--db", default="", help="save run results to path or DB url")
 @click.option(
@@ -256,8 +259,10 @@ def run(
             runobj.metadata.labels[k] = v
 
     if workflow:
-        runobj.metadata.labels["workflow"] = workflow
-        runobj.metadata.labels["mlrun/runner-pod"] = socket.gethostname()
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
+        runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
+            socket.gethostname()
+        )
 
     if db:
         mlconf.dbpath = db
@@ -375,15 +380,15 @@ def run(
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
-    set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
     set_item(
-        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+        runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
     )
-    set_item(runobj.spec, in_path, run_keys.input_path)
-    set_item(runobj.spec, out_path, run_keys.output_path)
-    set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))
+    set_item(runobj.spec, in_path, RunKeys.input_path)
+    set_item(runobj.spec, out_path, RunKeys.output_path)
+    set_item(runobj.spec, outputs, RunKeys.outputs, list(outputs))
     set_item(
-        runobj.spec, secrets, run_keys.secrets, line2keylist(secrets, "kind", "source")
+        runobj.spec, secrets, RunKeys.secrets, line2keylist(secrets, "kind", "source")
     )
     set_item(runobj.spec, verbose, "verbose")
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
@@ -466,6 +471,17 @@ def run(
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--state-file-path", default="/tmp/state", help="path to file with state data"
+)
+@click.option(
+    "--image-file-path", default="/tmp/image", help="path to file with image data"
+)
+@click.option(
+    "--full-image-file-path",
+    default="/tmp/fullimage",
+    help="path to file with full image data",
+)
 def build(
     func_url,
     name,
@@ -485,6 +501,9 @@ def build(
     skip,
     env_file,
     ensure_project,
+    state_file_path,
+    image_file_path,
+    full_image_file_path,
 ):
     """Build a container image from code and requirements."""
 
@@ -574,12 +593,12 @@ def build(
         state = func.status.state
         image = func.spec.image
         if kfp:
-            with open("/tmp/state", "w") as fp:
+            with open(state_file_path, "w") as fp:
                 fp.write(state or "none")
             full_image = func.full_image_path(image) or ""
-            with open("/tmp/image", "w") as fp:
+            with open(image_file_path, "w") as fp:
                 fp.write(image)
-            with open("/tmp/fullimage", "w") as fp:
+            with open(full_image_file_path, "w") as fp:
                 fp.write(full_image)
             print("Full image path = ", full_image)
 
@@ -715,9 +734,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     if db:
         mlconf.dbpath = db
     if not project:
-        print("Warning, project parameter was not specified using default !")
+        logger.warning(
+            "Project parameter was not specified. Defaulting to 'default' project"
+        )
     if kind.startswith("po"):
-        print("Unsupported, use 'get runtimes' instead")
+        logger.warning("Unsupported, use 'get runtimes' instead")
         return
 
     elif kind.startswith("runtime"):

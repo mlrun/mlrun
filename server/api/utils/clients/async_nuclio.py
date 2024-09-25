@@ -18,24 +18,28 @@ from http import HTTPStatus
 
 import aiohttp
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
-from mlrun.common.constants import MLRUN_CREATED_LABEL
+from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
+NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER = (
+    "X-Nuclio-Delete-Function-With-API-Gateways"
+)
 NUCLIO_FUNCTIONS_ENDPOINT_TEMPLATE = "/api/functions/{function}"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
-NUCLIO_PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
 class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._session = None
-        self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
+        login = auth_info.username
+        self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
 
@@ -61,14 +65,22 @@ class Client:
         )
         parsed_api_gateways = {}
         for name, gw in api_gateways.items():
-            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(gw)
+            parsed_api_gateways[name] = mlrun.common.schemas.APIGateway.parse_obj(
+                gw
+            ).replace_nuclio_names_with_mlrun_names()
         return parsed_api_gateways
 
     async def api_gateway_exists(self, name: str, project_name: str = None):
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
+
         return name in await self.list_api_gateways(project_name=project_name)
 
     async def get_api_gateway(self, name: str, project_name: str = None):
         headers = {}
+
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -78,12 +90,13 @@ class Client:
             path=NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=name),
             headers=headers,
         )
-        return mlrun.common.schemas.APIGateway.parse_obj(api_gateway)
+        return mlrun.common.schemas.APIGateway.parse_obj(
+            api_gateway
+        ).replace_nuclio_names_with_mlrun_names()
 
     async def store_api_gateway(
         self,
         project_name: str,
-        api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
         create: bool = False,
     ):
@@ -99,7 +112,9 @@ class Client:
         body = api_gateway.dict(exclude_none=True)
         method = "POST" if create else "PUT"
         path = (
-            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway=api_gateway_name)
+            NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(
+                api_gateway=api_gateway.spec.name
+            )
             if method == "PUT"
             else NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE.format(api_gateway="")
         )
@@ -114,6 +129,9 @@ class Client:
     async def delete_api_gateway(self, name: str, project_name: str = None):
         headers = {}
 
+        # enrich api gateway name with project prefix
+        name = generate_api_gateway_name(project_name, name)
+
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
 
@@ -125,7 +143,8 @@ class Client:
         )
 
     async def delete_function(self, name: str, project_name: str = None):
-        headers = {}
+        # this header allows nuclio to delete function along with its api gateways
+        headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
         if project_name:
             headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
@@ -138,8 +157,12 @@ class Client:
         )
 
     def _set_iguazio_labels(self, nuclio_object, project_name):
-        nuclio_object.metadata.labels[NUCLIO_PROJECT_NAME_LABEL] = project_name
-        nuclio_object.metadata.labels[MLRUN_CREATED_LABEL] = "true"
+        nuclio_object.metadata.labels[
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        ] = project_name
+        nuclio_object.metadata.labels[mlrun_constants.MLRunInternalLabels.created] = (
+            "true"
+        )
 
     async def _ensure_async_session(self):
         if not self._session:
@@ -201,7 +224,9 @@ class Client:
             pass
         else:
             if error:
-                error_message = f"{error_message}: {str(error)}"
+                error_message = (
+                    f"{error_message}: {str(error)}" if error_message else str(error)
+                )
             if error:
                 log_kwargs.update(
                     {"error": error, "errorStackTrace": error_stack_trace}
@@ -217,4 +242,5 @@ class Client:
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> mlrun.common.schemas.APIGateway:
         self._set_iguazio_labels(api_gateway, project_name)
+        api_gateway.enrich_mlrun_names()
         return api_gateway

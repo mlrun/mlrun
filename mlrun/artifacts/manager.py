@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import re
 import typing
 from os.path import exists, isdir
 from urllib.parse import urlparse
 
+import mlrun.common.schemas.artifact
 import mlrun.config
+import mlrun.utils.regex
 from mlrun.utils.helpers import (
     get_local_file_schema,
     template_artifact_path,
@@ -69,11 +72,44 @@ class ArtifactProducer:
         self.inputs = {}
 
     def get_meta(self) -> dict:
-        return {"kind": self.kind, "name": self.name, "tag": self.tag}
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "tag": self.tag,
+            "owner": self.owner,
+        }
+
+    @property
+    def uid(self):
+        return None
+
+    @staticmethod
+    def parse_uri(uri: str) -> tuple[str, str, str]:
+        """Parse artifact producer's uri
+
+        :param uri: artifact producer's uri in the format <project>/<uid>[-<iteration>]
+        :returns: tuple of project, uid, iteration
+        """
+        uri_pattern = mlrun.utils.regex.artifact_producer_uri_pattern
+        match = re.match(uri_pattern, uri)
+        if not match:
+            return "", "", ""
+        group_dict = match.groupdict()
+
+        return (
+            group_dict["project"] or "",
+            group_dict["uid"] or "",
+            group_dict["iteration"] or "",
+        )
 
 
 def dict_to_artifact(struct: dict) -> Artifact:
     kind = struct.get("kind", "")
+
+    # TODO: remove this in 1.8.0
+    if mlrun.utils.is_legacy_artifact(struct):
+        return mlrun.artifacts.base.convert_legacy_artifact_to_new_format(struct)
+
     artifact_class = artifact_types[kind]
     return artifact_class.from_dict(struct)
 
@@ -164,7 +200,9 @@ class ArtifactManager:
         :param artifact_path: The path to store the artifact.
          If not provided, the artifact will be stored in the default artifact path.
         :param format: The format of the artifact. (e.g. csv, json, html, etc.)
-        :param upload: Whether to upload the artifact or not.
+        :param upload: Whether to upload the artifact to the datastore. If not provided, and the
+        `local_path` is not a directory, upload occurs by default. Directories are uploaded only when this
+        flag is explicitly set to `True`.
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
@@ -261,7 +299,7 @@ class ArtifactManager:
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
         target_path = template_artifact_path(
-            artifact_path=target_path, project=producer.project
+            artifact_path=target_path, project=producer.project, run_uid=producer.uid
         )
         item.target_path = target_path
 
@@ -342,6 +380,23 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
+
+    def delete_artifact(
+        self,
+        item: Artifact,
+        deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
+            mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
+        ),
+        secrets: dict = None,
+    ):
+        self.artifact_db.del_artifact(
+            key=item.db_key,
+            project=item.project,
+            tag=item.tag,
+            tree=item.tree,
+            deletion_strategy=deletion_strategy,
+            secrets=secrets,
+        )
 
 
 def extend_artifact_path(artifact_path: str, default_artifact_path: str):

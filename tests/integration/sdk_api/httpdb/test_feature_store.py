@@ -87,7 +87,7 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
             }
         }
         response = await async_client.post(
-            "projects",
+            "v1/projects",
             json=project,
         )
         assert response.status_code == HTTPStatus.CREATED.value
@@ -97,7 +97,7 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         feature_set = self._generate_feature_set(feature_set_name)
         response = await async_client.put(
-            f"projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
+            f"v1/projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
             json=feature_set,
         )
         assert response.status_code == HTTPStatus.OK.value
@@ -106,13 +106,13 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         feature_set["metadata"]["new_metadata"] = True
         request1_task = asyncio.create_task(
             async_client.put(
-                f"projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
+                f"v1/projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
                 json=feature_set,
             )
         )
         request2_task = asyncio.create_task(
             async_client.put(
-                f"projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
+                f"v1/projects/{project_name}/feature-sets/{feature_set_name}/references/{reference}?versioned=false",
                 json=feature_set,
             )
         )
@@ -124,14 +124,40 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert response1.status_code == HTTPStatus.OK.value
         assert response2.status_code == HTTPStatus.OK.value
 
-        response = await async_client.get(f"projects/{project_name}/features?name=bid")
+        response = await async_client.get(
+            f"v1/projects/{project_name}/features?name=bid"
+        )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["features"]) == 1
 
         response = await async_client.get(
-            f"projects/{project_name}/entities?name=ticker"
+            f"v2/projects/{project_name}/features?name=bid"
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        results = response.json()
+        assert len(results["features"]) == 1
+        assert len(results["feature_set_digests"]) == 1
+        assert (
+            results["features"][0]["feature_set_index"]
+            == results["feature_set_digests"][0]["feature_set_index"]
+        )
+
+        response = await async_client.get(
+            f"v1/projects/{project_name}/entities?name=ticker"
         )
         assert response.status_code == HTTPStatus.OK.value
         results = response.json()
         assert len(results["entities"]) == 1
+
+        response = await async_client.get(
+            f"v2/projects/{project_name}/entities?name=ticker"
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        results = response.json()
+        assert len(results["entities"]) == 1
+        assert len(results["feature_set_digests"]) == 1
+        assert (
+            results["entities"][0]["feature_set_index"]
+            == results["feature_set_digests"][0]["feature_set_index"]
+        )

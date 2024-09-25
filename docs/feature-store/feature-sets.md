@@ -46,12 +46,12 @@ Avoid using timestamps or bool as entities.
    - storey &mdash; Default. Stream processing engine that can handle complex workflows and real-time sources. (Some advanced functionalities are in the Beta state.)</br>
    See more about [transformations](./transformations.html#built-in-transformations).
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
-* **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
+* **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other feature sets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
    
 Example:
 ```python
-#Create a basic feature set example
+# Create a basic feature set example
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 ```
 
@@ -68,7 +68,7 @@ You can define and register a feature set (and use it in a feature vector) witho
 The use-case for this is when you have a large amount of data in a remote storage that is ready to be consumed by a model-training pipeline.
 When this feature is enabled on a feature set, data is **not** saved to the offline target during ingestion. Instead, when `get_offline_features` 
 is called on a vector containing that feature set, that data is read directly from the source.
-Online targets are still ingested, and their value represents a timeslice of the offline source.
+Online targets are still ingested, and their value represents a time-slice of the offline source.
 Transformations are not allowed when this feature is enabled: no computation graph, no aggregations, etc.
 Enable this feature by including `passthrough=True` in the feature set definition. All three ingestion engines (Storey, Spark, Pandas) 
 are supported, as well as the retrieval engines "local" and "spark".
@@ -78,7 +78,7 @@ Typical code, from defining the feature set through ingesting its data:
 # Flag the feature set as passthrough
 my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
 csv_source = CSVSource("my_csv", path="data.csv")
-# Ingest the source data, but only to online/nosql target
+# Ingest the source data, but only to online/NoSQL target
 my_fset.ingest(csv_source) 
 vector = fstore.FeatureVector("myvector", features=[f"my_fset"])
 # Read the offline data directly from the csv source
@@ -105,11 +105,15 @@ in the Iguazio NoSQL DB (`NoSqlTarget`). You can use the default targets or add/
 Graph example (storey engine):
 ```python
 import mlrun.feature_store as fstore
-feature_set = fstore.FeatureSet("measurements", entities=[Entity(key)], timestamp_key="timestamp")
+
+feature_set = fstore.FeatureSet(
+    "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+)
 # Define the computational graph including the custom functions
-feature_set.graph.to(DropColumns(drop_columns))\
-                 .to(RenameColumns(mapping={'bad': 'bed'}))
-feature_set.add_aggregation('hr', ['avg'], ["1h"])
+feature_set.graph.to(DropColumns(drop_columns)).to(
+    RenameColumns(mapping={"bad": "bed"})
+)
+feature_set.add_aggregation("hr", ["avg"], ["1h"])
 feature_set.plot()
 feature_set.ingest(data_df)
 ```
@@ -119,6 +123,7 @@ Graph example (pandas engine):
 def myfunc1(df, context=None):
     df = df.drop(columns=["exchange"])
     return df
+
 
 stocks_set = fstore.FeatureSet("stocks", entities=[Entity("ticker")], engine="pandas")
 stocks_set.graph.to(name="s1", handler="myfunc1")

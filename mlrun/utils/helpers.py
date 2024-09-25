@@ -24,9 +24,10 @@ import re
 import string
 import sys
 import typing
+import uuid
 import warnings
 from datetime import datetime, timezone
-from importlib import import_module
+from importlib import import_module, reload
 from os import path
 from types import ModuleType
 from typing import Any, Optional
@@ -39,7 +40,8 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from mlrun_pipelines.models import PipelineRun
+from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -108,12 +110,16 @@ def get_artifact_target(item: dict, project=None):
     db_key = item["spec"].get("db_key")
     project_str = project or item["metadata"].get("project")
     tree = item["metadata"].get("tree")
-
+    tag = item["metadata"].get("tag")
     kind = item.get("kind")
-    if kind in ["dataset", "model", "artifact"] and db_key:
-        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+
+    if kind in {"dataset", "model", "artifact"} and db_key:
+        target = (
+            f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        )
+        target += f":{tag}" if tag else ":latest"
         if tree:
-            target = f"{target}@{tree}"
+            target += f"@{tree}"
         return target
 
     return item["spec"].get("target_path")
@@ -130,25 +136,32 @@ def is_legacy_artifact(artifact):
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
-is_ipython = False
+is_ipython = False  # is IPython terminal, including Jupyter
+is_jupyter = False  # is Jupyter notebook/lab terminal
 try:
-    import IPython
+    import IPython.core.getipython
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (cant show html)
-    if ipy and "Terminal" not in str(type(ipy)):
-        is_ipython = True
-except ImportError:
+    ipy = IPython.core.getipython.get_ipython()
+
+    is_ipython = ipy is not None
+    is_jupyter = (
+        is_ipython
+        # not IPython
+        and "Terminal" not in str(type(ipy))
+    )
+
+    del ipy
+except ModuleNotFoundError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
+if is_jupyter and config.nest_asyncio_enabled in ["1", "True"]:
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
     nest_asyncio.apply()
 
 
-class run_keys:
+class RunKeys:
     input_path = "input_path"
     output_path = "output_path"
     inputs = "inputs"
@@ -157,6 +170,10 @@ class run_keys:
     outputs = "outputs"
     data_stores = "data_stores"
     secrets = "secret_sources"
+
+
+# for Backward compatibility
+run_keys = RunKeys
 
 
 def verify_field_regex(
@@ -180,8 +197,12 @@ def verify_field_regex(
             )
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
+                    if len(field_name) > max_chars:
+                        field_name = field_name[:max_chars] + "...truncated"
+                    if len(field_value) > max_chars:
+                        field_value = field_value[:max_chars] + "...truncated"
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name[:max_chars]}' is malformed. '{field_value[:max_chars]}' "
+                        f"Field '{field_name}' is malformed. '{field_value}' "
                         f"does not match required pattern: {pattern}"
                     )
                 return False
@@ -654,7 +675,7 @@ def parse_artifact_uri(uri, default_project=""):
         [3] = tag
         [4] = tree
     """
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
+    uri_pattern = mlrun.utils.regex.artifact_uri_pattern
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
@@ -669,6 +690,8 @@ def parse_artifact_uri(uri, default_project=""):
             raise ValueError(
                 f"illegal store path '{uri}', iteration must be integer value"
             )
+    else:
+        iteration = 0
     return (
         group_dict["project"] or default_project,
         group_dict["key"],
@@ -786,34 +809,6 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def new_pipe_metadata(
-    artifact_path: str = None,
-    cleanup_ttl: int = None,
-    op_transformers: list[typing.Callable] = None,
-):
-    from kfp.dsl import PipelineConf
-
-    def _set_artifact_path(task):
-        from kubernetes import client as k8s_client
-
-        task.add_env_variable(
-            k8s_client.V1EnvVar(name="MLRUN_ARTIFACT_PATH", value=artifact_path)
-        )
-        return task
-
-    conf = PipelineConf()
-    cleanup_ttl = cleanup_ttl or int(config.kfp_ttl)
-
-    if cleanup_ttl:
-        conf.set_ttl_seconds_after_finished(cleanup_ttl)
-    if artifact_path:
-        conf.add_op_transformer(_set_artifact_path)
-    if op_transformers:
-        for op_transformer in op_transformers:
-            conf.add_op_transformer(op_transformer)
-    return conf
-
-
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
@@ -833,13 +828,16 @@ def enrich_image_url(
     tag += resolve_image_tag_suffix(
         mlrun_version=mlrun_version, python_version=client_python_version
     )
-    registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
     is_mlrun_image = image_url.startswith("mlrun/") or "/mlrun/" in image_url
 
     if is_mlrun_image and tag and ":" not in image_url:
         image_url = f"{image_url}:{tag}"
+
+    registry = (
+        config.images_registry if is_mlrun_image else config.vendor_images_registry
+    )
 
     enrich_registry = False
     # enrich registry only if images_to_enrich_registry provided
@@ -1000,6 +998,15 @@ def get_ui_url(project, uid=None):
     return url
 
 
+def get_model_endpoint_url(project, model_name, model_endpoint_id):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = f"{mlrun.mlconf.resolve_ui_url()}/{mlrun.mlconf.ui.projects_prefix}/{project}/models"
+        if model_name:
+            url += f"/model-endpoints/{model_name}/{model_endpoint_id}/overview"
+    return url
+
+
 def get_workflow_url(project, id=None):
     url = ""
     if mlrun.mlconf.resolve_ui_url():
@@ -1010,8 +1017,25 @@ def get_workflow_url(project, id=None):
     return url
 
 
+def get_kfp_project_filter(project_name: str) -> str:
+    """
+    Generates a filter string for KFP runs, using a substring predicate
+    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
+    with a specific project. The 'op: 9' operator indicates that the filter checks if the
+    project name appears as a substring in the run's name, ensuring that we can identify
+    runs belonging to the desired project.
+    """
+    is_substring_op = 9
+    project_name_filter = {
+        "predicates": [
+            {"key": "name", "op": is_substring_op, "string_value": project_name}
+        ]
+    }
+    return json.dumps(project_name_filter)
+
+
 def are_strings_in_exception_chain_messages(
-    exception: Exception, strings_list=list[str]
+    exception: Exception, strings_list: list[str]
 ) -> bool:
     while exception is not None:
         if any([string in str(exception) for string in strings_list]):
@@ -1033,16 +1057,35 @@ def create_class(pkg_class: str):
     return class_
 
 
-def create_function(pkg_func: str):
+def create_function(pkg_func: str, reload_modules: bool = False):
     """Create a function from a package.module.function string
 
     :param pkg_func:  full function location,
                       e.g. "sklearn.feature_selection.f_classif"
+    :param reload_modules: reload the function again.
     """
     splits = pkg_func.split(".")
     pkg_module = ".".join(splits[:-1])
     cb_fname = splits[-1]
     pkg_module = __import__(pkg_module, fromlist=[cb_fname])
+
+    if reload_modules:
+        # Even though the function appears in the modules list, we need to reload
+        # the code again because it may have changed
+        try:
+            logger.debug("Reloading module", module=pkg_func)
+            _reload(
+                pkg_module,
+                max_recursion_depth=mlrun.mlconf.function.spec.reload_max_recursion_depth,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to reload module. Not all associated modules can be reloaded, import them manually."
+                "Or, with Jupyter, restart the Python kernel.",
+                module=pkg_func,
+                err=mlrun.errors.err_to_str(exc),
+            )
+
     function_ = getattr(pkg_module, cb_fname)
     return function_
 
@@ -1100,8 +1143,14 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def get_function(function, namespace):
-    """return function callable object from function name string"""
+def get_function(function, namespaces, reload_modules: bool = False):
+    """Return function callable object from function name string
+
+    :param function: path to the function ([class_name::]function)
+    :param namespaces: one or list of namespaces/modules to search the function in
+    :param reload_modules: reload the function again
+    :return: function handler (callable)
+    """
     if callable(function):
         return function
 
@@ -1110,12 +1159,12 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    function_object = _search_in_namespaces(function, namespace)
+    function_object = _search_in_namespaces(function, namespaces)
     if function_object is not None:
         return function_object
 
     try:
-        function_object = create_function(function)
+        function_object = create_function(function, reload_modules)
     except (ImportError, ValueError) as exc:
         raise ImportError(
             f"state/function init failed, handler '{function}' not found"
@@ -1124,18 +1173,24 @@ def get_function(function, namespace):
 
 
 def get_handler_extended(
-    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+    handler_path: str,
+    context=None,
+    class_args: dict = None,
+    namespaces=None,
+    reload_modules: bool = False,
 ):
-    """get function handler from [class_name::]handler string
+    """Get function handler from [class_name::]handler string
 
     :param handler_path:  path to the function ([class_name::]handler)
     :param context:       MLRun function/job client context
     :param class_args:    optional dict of class init kwargs
     :param namespaces:    one or list of namespaces/modules to search the handler in
+    :param reload_modules: reload the function again
     :return: function handler (callable)
     """
+    class_args = class_args or {}
     if "::" not in handler_path:
-        return get_function(handler_path, namespaces)
+        return get_function(handler_path, namespaces, reload_modules)
 
     splitted = handler_path.split("::")
     class_path = splitted[0].strip()
@@ -1210,7 +1265,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def template_artifact_path(artifact_path, project, run_uid="project"):
+def template_artifact_path(artifact_path, project, run_uid=None):
     """
     Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
     If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
@@ -1218,9 +1273,9 @@ def template_artifact_path(artifact_path, project, run_uid="project"):
     """
     if not artifact_path:
         return artifact_path
+    run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
-    artifact_path = _fill_environment_variable_templates(artifact_path)
     return artifact_path
 
 
@@ -1256,6 +1311,10 @@ def _fill_environment_variable_templates(artifact_path):
             )
         artifact_path = artifact_path.replace(f"{{{{{env_var}}}}}", env_val)
     return artifact_path
+
+
+def to_non_empty_values_dict(input_dict: dict) -> dict:
+    return {key: value for key, value in input_dict.items() if value}
 
 
 def str_to_timestamp(time_str: str, now_time: Timestamp = None):
@@ -1305,7 +1364,7 @@ def is_link_artifact(artifact):
         return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
-def format_run(run: dict, with_project=False) -> dict:
+def format_run(run: PipelineRun, with_project=False) -> dict:
     fields = [
         "id",
         "name",
@@ -1315,6 +1374,7 @@ def format_run(run: dict, with_project=False) -> dict:
         "scheduled_at",
         "finished_at",
         "description",
+        "experiment_id",
     ]
 
     if with_project:
@@ -1342,7 +1402,7 @@ def format_run(run: dict, with_project=False) -> dict:
     # pipelines are yet to populate the status or workflow has failed
     # as observed https://jira.iguazeng.com/browse/ML-5195
     # set to unknown to ensure a status is returned
-    if run["status"] is None:
+    if run.get("status", None) is None:
         run["status"] = inflection.titleize(
             mlrun.common.runtimes.constants.RunStates.unknown
         )
@@ -1389,11 +1449,27 @@ def is_running_in_jupyter_notebook() -> bool:
     Check if the code is running inside a Jupyter Notebook.
     :return: True if running inside a Jupyter Notebook, False otherwise.
     """
-    import IPython
+    return is_jupyter
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal, it isn't a Jupyter ipython
-    return ipy and "Terminal" not in str(type(ipy))
+
+def create_ipython_display():
+    """
+    Create an IPython display object and fill it with initial content.
+    We can later use the returned display_id with the update_display method to update the content.
+    If IPython is not installed, a warning will be logged and None will be returned.
+    """
+    if is_ipython:
+        import IPython
+
+        display_id = uuid.uuid4().hex
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
+        IPython.display.display(content, display_id=display_id)
+        return display_id
+
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
 
 
 def as_number(field_name, field_value):
@@ -1602,3 +1678,125 @@ def additional_filters_warning(additional_filters, class_name):
             f"additional_filters parameter is not supported in {class_name},"
             f" parameter has been ignored."
         )
+
+
+def merge_dicts_with_precedence(*dicts: dict) -> dict:
+    """
+    Merge multiple dictionaries with precedence given to keys from later dictionaries.
+
+    This function merges an arbitrary number of dictionaries, where keys from dictionaries later
+    in the argument list take precedence over keys from dictionaries earlier in the list. If all
+    dictionaries contain the same key, the value from the last dictionary with that key will
+    overwrite the values from earlier dictionaries.
+
+    Example:
+        >>> first_dict = {"key1": "value1", "key2": "value2"}
+        >>> second_dict = {"key2": "new_value2", "key3": "value3"}
+        >>> third_dict = {"key3": "new_value3", "key4": "value4"}
+        >>> merge_dicts_with_precedence(first_dict, second_dict, third_dict)
+        {'key1': 'value1', 'key2': 'new_value2', 'key3': 'new_value3', 'key4': 'value4'}
+
+    - If no dictionaries are provided, the function returns an empty dictionary.
+    """
+    return {k: v for d in dicts if d for k, v in d.items()}
+
+
+def validate_component_version_compatibility(
+    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+):
+    """
+    :param component_name: Name of the component to validate compatibility for.
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    parsed_min_versions = [
+        semver.VersionInfo.parse(min_version) for min_version in min_versions
+    ]
+    parsed_current_version = None
+    component_current_version = None
+    try:
+        if component_name == "iguazio":
+            component_current_version = mlrun.mlconf.igz_version
+            parsed_current_version = mlrun.mlconf.get_parsed_igz_version()
+
+            if parsed_current_version:
+                # ignore pre-release and build metadata, as iguazio version always has them, and we only care about the
+                # major, minor, and patch versions
+                parsed_current_version = semver.VersionInfo.parse(
+                    f"{parsed_current_version.major}.{parsed_current_version.minor}.{parsed_current_version.patch}"
+                )
+        if component_name == "nuclio":
+            component_current_version = mlrun.mlconf.nuclio_version
+            parsed_current_version = semver.VersionInfo.parse(
+                mlrun.mlconf.nuclio_version
+            )
+        if not parsed_current_version:
+            return True
+    except ValueError:
+        # only log when version is set but invalid
+        if component_current_version:
+            logger.warning(
+                "Unable to parse current version, assuming compatibility",
+                component_name=component_name,
+                current_version=component_current_version,
+                min_versions=min_versions,
+            )
+        return True
+
+    # Feature might have been back-ported e.g. nuclio node selection is supported from
+    # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
+    # then against 1.5.x
+    parsed_min_versions.sort(reverse=True)
+    for parsed_min_version in parsed_min_versions:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
+            return False
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
+
+
+def format_alert_summary(
+    alert: mlrun.common.schemas.AlertConfig, event_data: mlrun.common.schemas.Event
+) -> str:
+    result = alert.summary.replace("{{project}}", alert.project)
+    result = result.replace("{{name}}", alert.name)
+    result = result.replace("{{entity}}", event_data.entity.ids[0])
+    return result
+
+
+def is_parquet_file(file_path, format_=None):
+    return (file_path and file_path.endswith((".parquet", ".pq"))) or (
+        format_ == "parquet"
+    )
+
+
+def validate_single_def_handler(function_kind: str, code: str):
+    # The name of MLRun's wrapper is 'handler', which is why the handler function name cannot be 'handler'
+    # it would override MLRun's wrapper
+    if function_kind == "mlrun":
+        # Find all lines that start with "def handler("
+        pattern = re.compile(r"^def handler\(", re.MULTILINE)
+        matches = pattern.findall(code)
+
+        # Only MLRun's wrapper handler (footer) can be in the code
+        if len(matches) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The code file contains a function named “handler“, which is reserved. "
+                + "Use a different name for your function."
+            )
+
+
+def _reload(module, max_recursion_depth):
+    """Recursively reload modules."""
+    if max_recursion_depth <= 0:
+        return
+
+    reload(module)
+    for attribute_name in dir(module):
+        attribute = getattr(module, attribute_name)
+        if type(attribute) is ModuleType:
+            _reload(attribute, max_recursion_depth - 1)

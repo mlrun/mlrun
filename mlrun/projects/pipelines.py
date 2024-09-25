@@ -20,18 +20,18 @@ import tempfile
 import typing
 import uuid
 
-import kfp.compiler
-from kfp import dsl
-from kfp.compiler import compiler
+import mlrun_pipelines.common.models
+import mlrun_pipelines.patcher
+import mlrun_pipelines.utils
 
 import mlrun
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
     get_ui_url,
     logger,
-    new_pipe_metadata,
     normalize_workflow_name,
     retry_until_successful,
 )
@@ -80,6 +80,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: typing.Optional[int] = None,
         image: typing.Optional[str] = None,
+        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
     ):
         self.engine = engine
         self.code = code
@@ -93,6 +94,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self._tmp_path = None
         self.schedule = schedule
         self.image = image
+        self.workflow_runner_node_selector = workflow_runner_node_selector
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -219,9 +221,10 @@ class _PipelineContext:
         force_run_local = mlrun.mlconf.force_run_local
         if force_run_local is None or force_run_local == "auto":
             force_run_local = not mlrun.mlconf.is_api_running_on_k8s()
-            kfp_url = mlrun.mlconf.resolve_kfp_url()
-            if not kfp_url:
+            if not mlrun.mlconf.kfp_url:
+                logger.debug("Kubeflow pipeline URL is not set, running locally")
                 force_run_local = True
+
         if self.workflow:
             force_run_local = force_run_local or self.workflow.run_local
 
@@ -301,72 +304,6 @@ def _enrich_kfp_pod_security_context(kfp_pod_template, function):
     }
 
 
-# When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
-# converts it to a k8s object. As part of the flow in the Compile.compile() method,
-# we call _create_and_write_workflow, which builds a dictionary from the workflow and then writes it to a file.
-# Unfortunately, the kfp sdk does not provide an API for configuring priority_class_name and other attributes.
-# I ran across the following problem when seeking for a method to set the priority_class_name:
-# https://github.com/kubeflow/pipelines/issues/3594
-# When we patch the _create_and_write_workflow, we can eventually obtain the dictionary right before we write it
-# to a file and enrich it with argo compatible fields, make sure you looking for the same argo version we use
-# https://github.com/argoproj/argo-workflows/blob/release-2.7/pkg/apis/workflow/v1alpha1/workflow_types.go
-def _create_enriched_mlrun_workflow(
-    self,
-    pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[str] = None,
-    pipeline_description: typing.Optional[str] = None,
-    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
-    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
-):
-    """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
-    workflow = self._original_create_workflow(
-        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
-    )
-    # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
-    # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that
-    # we know can be raised.
-    try:
-        functions = []
-        if pipeline_context.functions:
-            try:
-                functions = pipeline_context.functions.values()
-            except Exception as err:
-                logger.debug(
-                    "Unable to retrieve project functions, not enriching workflow with mlrun",
-                    error=err_to_str(err),
-                )
-                return workflow
-
-        # enrich each pipeline step with your desire k8s attribute
-        for kfp_step_template in workflow["spec"]["templates"]:
-            if kfp_step_template.get("container"):
-                for function_obj in functions:
-                    # we condition within each function since the comparison between the function and
-                    # the kfp pod may change depending on the attribute type.
-                    _set_function_attribute_on_kfp_pod(
-                        kfp_step_template,
-                        function_obj,
-                        "PriorityClassName",
-                        "priority_class_name",
-                    )
-                    _enrich_kfp_pod_security_context(
-                        kfp_step_template,
-                        function_obj,
-                    )
-    except mlrun.errors.MLRunInvalidArgumentError:
-        raise
-    except Exception as err:
-        logger.debug(
-            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
-        )
-    return workflow
-
-
-# patching function as class method
-kfp.compiler.Compiler._original_create_workflow = kfp.compiler.Compiler._create_workflow
-kfp.compiler.Compiler._create_workflow = _create_enriched_mlrun_workflow
-
-
 def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     project_instance, name, tag, hash_key = parse_versioned_object_uri(
         key, project.metadata.name
@@ -437,7 +374,7 @@ class _PipelineRunStatus:
         engine: type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
-        state: str = "",
+        state: mlrun_pipelines.common.models.RunStatuses = "",
         exc: Exception = None,
     ):
         """
@@ -457,7 +394,10 @@ class _PipelineRunStatus:
 
     @property
     def state(self):
-        if self._state not in mlrun.run.RunStatuses.stable_statuses():
+        if (
+            self._state
+            not in mlrun_pipelines.common.models.RunStatuses.stable_statuses()
+        ):
             self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
 
@@ -466,12 +406,15 @@ class _PipelineRunStatus:
         return self._exc
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
-        self._state = self._engine.wait_for_completion(
-            self.run_id,
+        returned_state = self._engine.wait_for_completion(
+            self,
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
         )
+        # TODO: returning a state is optional until all runners implement wait_for_completion
+        if returned_state:
+            self._state = returned_state
         return self._state
 
     def __str__(self):
@@ -520,6 +463,48 @@ class _PipelineRunner(abc.ABC):
         pass
 
     @staticmethod
+    def get_run_status(
+        project,
+        run: _PipelineRunStatus,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        **kwargs,
+    ):
+        timeout = timeout or 60 * 60
+        raise_error = None
+        state = ""
+        try:
+            if timeout:
+                state = run.wait_for_completion(
+                    timeout=timeout, expected_statuses=expected_statuses
+                )
+        except RuntimeError as exc:
+            # push runs table also when we have errors
+            raise_error = exc
+
+        mldb = mlrun.db.get_run_db(secrets=project._secrets)
+        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
+
+        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
+        errors_counter = 0
+        for r in runs:
+            if r["status"].get("state", "") == "error":
+                errors_counter += 1
+
+        text = _PipelineRunner._generate_workflow_finished_message(
+            run.run_id, errors_counter, run._state
+        )
+
+        notifiers = notifiers or project.notifiers
+        if notifiers:
+            notifiers.push(text, "info", runs)
+
+        if raise_error:
+            raise raise_error
+        return state or run._state, errors_counter, text
+
+    @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
             workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
@@ -535,15 +520,13 @@ class _PipelineRunner(abc.ABC):
         return workflow_handler
 
     @staticmethod
-    @abc.abstractmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-    ):
-        pass
+    def _generate_workflow_finished_message(run_id, errors_counter, state):
+        text = f"Workflow {run_id} finished"
+        if errors_counter:
+            text += f" with {errors_counter} errors"
+        if state:
+            text += f", state={state}"
+        return text
 
 
 class _KFPRunner(_PipelineRunner):
@@ -562,13 +545,14 @@ class _KFPRunner(_PipelineRunner):
             functions,
             secrets=project._secrets,
         )
-        artifact_path = artifact_path or project.spec.artifact_path
-
-        conf = new_pipe_metadata(
-            artifact_path=artifact_path,
+        mlrun_pipelines.utils.compile_pipeline(
+            artifact_path=artifact_path or project.spec.artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
+            ops=None,
+            pipeline=pipeline,
+            pipe_file=target,
+            type_check=True,
         )
-        compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
         pipeline_context.clear()
 
@@ -601,7 +585,8 @@ class _KFPRunner(_PipelineRunner):
                 "Notifications will only be sent if you wait for pipeline completion. "
                 "To use the new notification behavior, use the remote pipeline runner."
             )
-            for notification in notifications:
+            # for start message, fallback to old notification behavior
+            for notification in notifications or []:
                 project.notifiers.add_notification(
                     notification.kind, notification.params
                 )
@@ -632,7 +617,6 @@ class _KFPRunner(_PipelineRunner):
                     func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
-
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
@@ -643,12 +627,14 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        if timeout is None:
-            timeout = 60 * 60
+    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+        logger.info(
+            "Waiting for pipeline run completion", run_id=run.run_id, project=project
+        )
+        timeout = timeout or 60 * 60
         project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
-            run_id,
+            run.run_id,
             timeout=timeout,
             expected_statuses=expected_statuses,
             project=project_name,
@@ -665,50 +651,6 @@ class _KFPRunner(_PipelineRunner):
         if resp:
             return resp["run"].get("status", "")
         return ""
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-    ):
-        if timeout is None:
-            timeout = 60 * 60
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("Waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=project._secrets)
-        runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
-
-        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
-        had_errors = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                had_errors += 1
-
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, "info", runs)
-
-        if raise_error:
-            raise raise_error
-        return state, had_errors, text
 
 
 class _LocalRunner(_PipelineRunner):
@@ -748,13 +690,14 @@ class _LocalRunner(_PipelineRunner):
             original_source = project.spec.source
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
+
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
         )
         err = None
         try:
             workflow_handler(**workflow_spec.args)
-            state = mlrun.run.RunStatuses.succeeded
+            state = mlrun_pipelines.common.models.RunStatuses.succeeded
         except Exception as exc:
             err = exc
             logger.exception("Workflow run failed")
@@ -762,7 +705,7 @@ class _LocalRunner(_PipelineRunner):
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
         project.notifiers.push_pipeline_run_results(
             pipeline_context.runs_map.values(), state=state
@@ -786,17 +729,10 @@ class _LocalRunner(_PipelineRunner):
         return ""
 
     @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        pass
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-    ):
+    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+        # TODO: local runner blocks for the duration of the pipeline.
+        # Therefore usually there will be nothing to wait for.
+        # However, users may run functions with watch=False and then it can be useful to wait for the runs here.
         pass
 
 
@@ -820,10 +756,6 @@ class _RemoteRunner(_PipelineRunner):
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
-
-        # for start message, fallback to old notification behavior
-        for notification in notifications or []:
-            project.notifiers.add_notification(notification.kind, notification.params)
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
@@ -921,12 +853,9 @@ class _RemoteRunner(_PipelineRunner):
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
             )
-            state = mlrun.run.RunStatuses.failed
+            state = mlrun_pipelines.common.models.RunStatuses.failed
         else:
-            state = mlrun.run.RunStatuses.succeeded
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name,
-            )
+            state = mlrun_pipelines.common.models.RunStatuses.running
             pipeline_context.clear()
         return _PipelineRunStatus(
             run_id=workflow_id,
@@ -940,24 +869,59 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run,
+        run: _PipelineRunStatus,
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        inner_engine: type[_PipelineRunner] = None,
     ):
-        # ignore notifiers, as they are handled by the remote pipeline notifications,
-        # so overriding with CustomNotificationPusher with empty list of notifiers
-        state, had_errors, text = _KFPRunner.get_run_status(
-            project,
-            run,
-            timeout,
-            expected_statuses,
-            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
-        )
+        inner_engine = inner_engine or _KFPRunner
+        if inner_engine.engine == _KFPRunner.engine:
+            # ignore notifiers for remote notifications, as they are handled by the remote pipeline notifications,
+            # so overriding with CustomNotificationPusher with empty list of notifiers or only local notifiers
+            local_project_notifiers = list(
+                set(mlrun.utils.notifications.NotificationTypes.local()).intersection(
+                    set(project.notifiers.notifications.keys())
+                )
+            )
+            notifiers = mlrun.utils.notifications.CustomNotificationPusher(
+                local_project_notifiers
+            )
+            return _KFPRunner.get_run_status(
+                project,
+                run,
+                timeout,
+                expected_statuses,
+                notifiers=notifiers,
+            )
 
-        # indicate the pipeline status since we don't push the notifications in the remote runner
-        logger.info(text)
-        return state, had_errors, text
+        elif inner_engine.engine == _LocalRunner.engine:
+            mldb = mlrun.db.get_run_db(secrets=project._secrets)
+            pipeline_runner_run = mldb.read_run(run.run_id, project=project.name)
+
+            pipeline_runner_run = mlrun.run.RunObject.from_dict(pipeline_runner_run)
+
+            # here we are waiting for the pipeline run to complete and refreshing after that the pipeline run from the
+            # db
+            # TODO: do it with timeout
+            pipeline_runner_run.logs(db=mldb)
+            pipeline_runner_run.refresh()
+            run._state = mlrun.common.runtimes.constants.RunStates.run_state_to_pipeline_run_status(
+                pipeline_runner_run.status.state
+            )
+            run._exc = pipeline_runner_run.status.error
+            return _LocalRunner.get_run_status(
+                project,
+                run,
+                timeout,
+                expected_statuses,
+                notifiers=notifiers,
+            )
+
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported inner runner engine: {inner_engine.engine}"
+            )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -1097,6 +1061,13 @@ def load_and_run(
     if load_only:
         return
 
+    # extract "start" notification if exists
+    start_notifications = [
+        notification
+        for notification in context.get_notifications()
+        if "running" in notification.when
+    ]
+
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(
@@ -1112,11 +1083,12 @@ def load_and_run(
         cleanup_ttl=cleanup_ttl,
         engine=engine,
         local=local,
+        notifications=start_notifications,
     )
     context.log_result(key="workflow_id", value=run.run_id)
     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
-    if run.state == mlrun.run.RunStatuses.failed:
+    if run.state == mlrun_pipelines.common.models.RunStatuses.failed:
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
@@ -1131,7 +1103,7 @@ def load_and_run(
 
         pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state != mlrun.run.RunStatuses.succeeded:
+        if pipeline_state != mlrun_pipelines.common.models.RunStatuses.succeeded:
             raise RuntimeError(
                 f"Workflow {workflow_log_message} failed, state={pipeline_state}"
             )

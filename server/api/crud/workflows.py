@@ -15,8 +15,10 @@
 import os
 import uuid
 
+import mlrun_pipelines.common.models
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -71,7 +73,7 @@ class WorkflowRunners(
     def schedule(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         db_session: Session = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -86,8 +88,8 @@ class WorkflowRunners(
         :param auth_info:           auth info of the request
         """
         labels = {
-            "job-type": "workflow-runner",
-            "workflow": workflow_request.spec.name,
+            mlrun_constants.MLRunInternalLabels.job_type: "workflow-runner",
+            mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
 
         run_spec = self._prepare_run_object_for_scheduling(
@@ -95,18 +97,17 @@ class WorkflowRunners(
             workflow_request=workflow_request,
             labels=labels,
         )
+        workflow_spec = workflow_request.spec
+        if workflow_spec.workflow_runner_node_selector:
+            runner.spec.node_selector.update(
+                workflow_spec.workflow_runner_node_selector
+            )
+
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
 
-        if workflow_request.notifications:
-            run_spec.spec.notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
-        workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
             "task": run_spec.to_dict(),
@@ -126,7 +127,7 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_scheduling(
         self,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         labels: dict[str, str],
     ) -> mlrun.run.RunObject:
@@ -140,6 +141,11 @@ class WorkflowRunners(
         :returns: RunObject ready for schedule.
         """
         meta_uid = uuid.uuid4().hex
+
+        notifications = [
+            mlrun.model.Notification.from_dict(notification.dict())
+            for notification in workflow_request.notifications or []
+        ]
 
         source, save, is_context = self._validate_source(
             project, workflow_request.source
@@ -175,6 +181,7 @@ class WorkflowRunners(
                     project.metadata.name,
                     meta_uid,
                 ),
+                notifications=notifications,
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -193,7 +200,7 @@ class WorkflowRunners(
     def run(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -211,10 +218,10 @@ class WorkflowRunners(
         """
         labels = {"project": project.metadata.name}
         if load_only:
-            labels["job-type"] = "project-loader"
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "project-loader"
         else:
-            labels["job-type"] = "workflow-runner"
-            labels["workflow"] = runner.metadata.name
+            labels[mlrun_constants.MLRunInternalLabels.job_type] = "workflow-runner"
+            labels[mlrun_constants.MLRunInternalLabels.workflow] = runner.metadata.name
         mlrun.runtimes.utils.enrich_run_labels(
             labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
@@ -227,14 +234,13 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
-        notifications = None
-        if workflow_request and workflow_request.notifications:
-            notifications = [
-                mlrun.model.Notification.from_dict(notification.dict())
-                for notification in workflow_request.notifications
-            ]
-
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+        if workflow_request:
+            workflow_spec_node_selector = (
+                workflow_request.spec.workflow_runner_node_selector
+            )
+            if workflow_spec_node_selector:
+                runner.spec.node_selector.update(workflow_spec_node_selector)
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
         #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
@@ -242,7 +248,6 @@ class WorkflowRunners(
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
-            notifications=notifications,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -288,9 +293,10 @@ class WorkflowRunners(
 
             elif (
                 engine == "local"
-                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+                and state.casefold()
+                == mlrun_pipelines.common.models.RunStatuses.running.casefold()
             ):
-                workflow_id = ""
+                workflow_id = run_object.metadata.uid
             else:
                 raise mlrun.errors.MLRunNotFoundError(
                     f"Workflow id of run {project}:{uid} not found"
@@ -300,7 +306,7 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_single_run(
         self,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
@@ -317,6 +323,13 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
+        notifications = None
+        if workflow_request:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications or []
+            ]
+
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
         run_object = RunObject(
@@ -334,6 +347,7 @@ class WorkflowRunners(
                     wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
+                notifications=notifications,
             ),
             metadata=RunMetadata(name=run_name),
         )
@@ -366,7 +380,7 @@ class WorkflowRunners(
 
     @staticmethod
     def _validate_source(
-        project: mlrun.common.schemas.Project, source: str, load_only: bool = False
+        project: mlrun.common.schemas.ProjectOut, source: str, load_only: bool = False
     ) -> tuple[str, bool, bool]:
         """
         In case the user provided a source we want to load the project from the source
@@ -397,11 +411,16 @@ class WorkflowRunners(
                 return source, save, True
 
             if source.startswith("./") or source == ".":
+                build = project.spec.build
+                source_code_target_dir = (
+                    build.get("source_code_target_dir") if build else ""
+                )
+
                 # When the source is relative, it is relative to the project's source_code_target_dir
                 # If the project's source_code_target_dir is not set, the source is relative to the cwd
-                if project.spec.build and project.spec.build.source_code_target_dir:
+                if source_code_target_dir:
                     source = os.path.normpath(
-                        os.path.join(project.spec.build.source_code_target_dir, source)
+                        os.path.join(source_code_target_dir, source)
                     )
                 return source, save, True
 

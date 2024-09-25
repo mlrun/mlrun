@@ -29,12 +29,14 @@ list_header = [
     "iter",
     "start",
     "state",
+    "kind",
     "name",
     "labels",
     "inputs",
     "parameters",
     "results",
     "artifacts",
+    "artifact_uris",
     "error",
 ]
 
@@ -56,12 +58,14 @@ class RunList(list):
                 get_in(run, "metadata.iteration", ""),
                 get_in(run, "status.start_time", ""),
                 get_in(run, "status.state", ""),
+                get_in(run, "step_kind", get_in(run, "kind", "")),
                 get_in(run, "metadata.name", ""),
                 get_in(run, "metadata.labels", ""),
                 get_in(run, "spec.inputs", ""),
                 get_in(run, "spec.parameters", ""),
                 get_in(run, "status.results", ""),
                 get_in(run, "status.artifacts", []),
+                get_in(run, "status.artifact_uris", {}),
                 get_in(run, "status.error", ""),
             ]
             if extend_iterations and iterations:

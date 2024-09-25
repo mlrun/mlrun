@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ["TaskStep", "RouterStep", "RootFlowStep", "ErrorStep"]
+__all__ = [
+    "TaskStep",
+    "RouterStep",
+    "RootFlowStep",
+    "ErrorStep",
+    "MonitoringApplicationStep",
+]
 
 import os
 import pathlib
@@ -20,6 +26,8 @@ import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Union
+
+import storey.utils
 
 import mlrun
 
@@ -55,6 +63,7 @@ class StepKinds:
     choice = "choice"
     root = "root"
     error_step = "error_step"
+    monitoring_application = "monitoring_application"
 
 
 _task_step_fields = [
@@ -73,6 +82,9 @@ _task_step_fields = [
     "input_path",
     "result_path",
 ]
+
+
+MAX_ALLOWED_STEPS = 4500
 
 
 def new_model_endpoint(class_name, model_path, handler=None, **class_args):
@@ -379,6 +391,9 @@ class BaseStep(ModelObj):
         """
         raise NotImplementedError("set_flow() can only be called on a FlowStep")
 
+    def supports_termination(self):
+        return False
+
 
 class TaskStep(BaseStep):
     """task execution step, runs a class or handler"""
@@ -485,13 +500,15 @@ class TaskStep(BaseStep):
                 class_args[key] = arg
         class_args.update(extra_kwargs)
 
-        # add common args (name, context, ..) only if target class can accept them
-        argspec = getfullargspec(class_object)
-        for key in ["name", "context", "input_path", "result_path", "full_event"]:
-            if argspec.varkw or key in argspec.args:
-                class_args[key] = getattr(self, key)
-        if argspec.varkw or "graph_step" in argspec.args:
-            class_args["graph_step"] = self
+        if not isinstance(self, MonitoringApplicationStep):
+            # add common args (name, context, ..) only if target class can accept them
+            argspec = getfullargspec(class_object)
+
+            for key in ["name", "context", "input_path", "result_path", "full_event"]:
+                if argspec.varkw or key in argspec.args:
+                    class_args[key] = getattr(self, key)
+            if argspec.varkw or "graph_step" in argspec.args:
+                class_args["graph_step"] = self
         return class_args
 
     def get_step_class_object(self, namespace):
@@ -580,6 +597,39 @@ class TaskStep(BaseStep):
             else:
                 raise exc
         return event
+
+
+class MonitoringApplicationStep(TaskStep):
+    """monitoring application execution step, runs users class code"""
+
+    kind = "monitoring_application"
+    _default_class = ""
+
+    def __init__(
+        self,
+        class_name: Union[str, type] = None,
+        class_args: dict = None,
+        handler: str = None,
+        name: str = None,
+        after: list = None,
+        full_event: bool = None,
+        function: str = None,
+        responder: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+        )
 
 
 class ErrorStep(TaskStep):
@@ -686,6 +736,11 @@ class RouterStep(TaskStep):
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
         route.function = function or route.function
+
+        if len(self._routes) >= MAX_ALLOWED_STEPS:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot create the serving graph: the maximum number of steps is {MAX_ALLOWED_STEPS}"
+            )
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -790,13 +845,45 @@ class QueueStep(BaseStep):
     def async_object(self):
         return self._async_object
 
+    def to(
+        self,
+        class_name: Union[str, StepToDict] = None,
+        name: str = None,
+        handler: str = None,
+        graph_shape: str = None,
+        function: str = None,
+        full_event: bool = None,
+        input_path: str = None,
+        result_path: str = None,
+        **class_args,
+    ):
+        if not function:
+            name = get_name(name, class_name)
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"step '{name}' must specify a function, because it follows a queue step"
+            )
+        return super().to(
+            class_name,
+            name,
+            handler,
+            graph_shape,
+            function,
+            full_event,
+            input_path,
+            result_path,
+            **class_args,
+        )
+
     def run(self, event, *args, **kwargs):
         data = event.body
         if not data:
             return event
 
         if self._stream:
-            self._stream.push({"id": event.id, "body": data, "path": event.path})
+            full_event = self.options.get("full_event")
+            if full_event or full_event is None and self.next:
+                data = storey.utils.wrap_event_for_serialization(event, data)
+            self._stream.push(data)
             event.terminated = True
             event.body = None
         return event
@@ -1202,6 +1289,8 @@ class FlowStep(BaseStep):
             event.body = {"id": event.id}
             return event
 
+        event = storey.utils.unpack_event_if_wrapped(event)
+
         if len(self._start_steps) == 0:
             return event
         next_obj = self._start_steps[0]
@@ -1309,6 +1398,9 @@ class FlowStep(BaseStep):
 
         return step
 
+    def supports_termination(self):
+        return self.engine != "sync"
+
 
 class RootFlowStep(FlowStep):
     """root flow step"""
@@ -1323,6 +1415,7 @@ classes_map = {
     "flow": FlowStep,
     "queue": QueueStep,
     "error_step": ErrorStep,
+    "monitoring_application": MonitoringApplicationStep,
 }
 
 
@@ -1546,7 +1639,11 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    options = {}
+                    # in case of a queue, we default to a full_event=True
+                    full_event = step.options.get("full_event")
+                    options = {
+                        "full_event": full_event or full_event is None and step.next
+                    }
                     options.update(step.options)
 
                     kafka_brokers = get_kafka_brokers_from_dict(options, pop=True)
@@ -1600,7 +1697,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+    explicit_ack = (
+        is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack_enabled()
+    )
 
     # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
     default_source = storey.SyncEmitSource(

@@ -16,11 +16,11 @@ if one of the following is true:
 - Executed source code has changed, and the image has the code packaged in it - see
   [here](mlrun_jobs.html#deploy-build-the-function-container) for more details on source code, and using 
   {py:func}`~mlrun.runtimes.BaseRuntime.with_code()` to avoid re-building the image when the code has changed
-- The code runs nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
-  nuclio)
+- The code runs Nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
+  Nuclio)
 
 The build process in MLRun is based on [Kaniko](https://github.com/GoogleContainerTools/kaniko) and automated by MLRun -
-MLRun generates the dockerfile for the build process, and configures Kaniko with parameters needed for the build.
+MLRun generates the Dockerfile for the build process, and configures Kaniko with parameters needed for the build.
 
 Building images is done through functions provided by the {py:class}`~mlrun.projects.MlrunProject` class. By using 
 project functions, the same process is used to build and deploy a stand-alone function or functions serving as steps 
@@ -34,15 +34,15 @@ will require building of the image:
 project = mlrun.new_project(project_name, "./proj")
 
 project.set_function(
-   "train_code.py", 
-   name="trainer",
-   kind="job",
-   image="mlrun/mlrun",
-   handler="train_func",
-   requirements=["pandas"]
+    "train_code.py",
+    name="trainer",
+    kind="job",
+    image="mlrun/mlrun",
+    handler="train_func",
+    requirements=["pandas"],
 )
 
-# auto_build will trigger building the image before running, 
+# auto_build will trigger building the image before running,
 # due to the additional requirements.
 project.run_function("trainer", auto_build=True)
 ```
@@ -64,13 +64,13 @@ options that control and configure the build process.
 
 ### Specifying base image
 To use an existing image as the base image for building the image, set the image name in the `base_image` parameter.
-Note that this image serves as the base (dockerfile `FROM` property), and should not to be confused with the 
+Note that this image serves as the base (Dockerfile `FROM` property), and should not to be confused with the 
 resulting image name, as specified in the `image` parameter.
 
 ```python
 project.build_function(
-   "trainer",
-   base_image="myrepo/my_base_image:latest",
+    "trainer",
+    base_image="myrepo/my_base_image:latest",
 )
 ```
 
@@ -82,16 +82,16 @@ To run arbitrary commands during the image build, pass them in the `commands` pa
 github_repo = "myusername/myrepo.git@mybranch"
 
 project.build_function(
-   "trainer",
-   base_image="myrepo/base_image:latest",
-   commands= [
+    "trainer",
+    base_image="myrepo/base_image:latest",
+    commands=[
         "pip install git+https://github.com/" + github_repo,
-        "mkdir -p /some/path && chmod 0777 /some/path",    
-   ]
+        "mkdir -p /some/path && chmod 0777 /some/path",
+    ],
 )
 ```
 
-These commands are added as `RUN` operations to the dockerfile generating the image.
+These commands are added as `RUN` operations to the Dockerfile generating the image.
 
 ### MLRun package deployment
 The `with_mlrun` and `mlrun_version_specifier` parameters allow control over the inclusion of the MLRun package in the
@@ -104,11 +104,7 @@ of the specified version instead.
 For example:
 
 ```python
-project.build_function(
-   "trainer",
-   with_mlrun=True,
-   mlrun_version_specifier="1.0.0"
-)
+project.build_function("trainer", with_mlrun=True, mlrun_version_specifier="1.0.0")
 ```
 
 ### Working with code repository
@@ -134,6 +130,7 @@ To push resulting images to a different registry, specify the registry URL in th
 the registry requires credentials, create a k8s secret containing these credentials, and pass its name in the 
 `secret_name` parameter.
 
+#### Using ECR as a registry
 When using ECR as registry, MLRun uses Kaniko's ECR credentials helper, in which case the secret provided should contain
 AWS credentials needed to create ECR repositories, as described [here](https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr).
 MLRun detects automatically that the registry is an ECR registry based on its URL and configures Kaniko to
@@ -161,16 +158,22 @@ If you need to build your function and push the resulting container image to an 
 you can use Kaniko with the `--skip-tls-verify` flag.
 When using this flag, Kaniko ignores the SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
 
-Caution: Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
+```{admonition} Caution
+Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
 Only use this flag in trusted environments or with private registries where you are confident in the security of the network connections.
+```
 
 To use this flag, pass it in the extra_args parameter, for example:
 ```python
 project.build_function(
-    ...
+    "<function-name>",
     extra_args="--skip-tls-verify",
 )
 ```
+#### Best practice for self-signed registries
+
+Add the certificate authority to the trusted list. If you use a certificate that is not signed by a trusted CA, you are doing so at your own risk.
+
 
 ### Build environment variables
 It is possible to pass environment variables that will be set in the Kaniko pod that executes the build. This 
@@ -179,8 +182,8 @@ the `builder_env` parameter, for example:
 
 ```python
 project.build_function(
-   ...
-   builder_env={"GIT_TOKEN": token},
+    "<function-name>",
+    builder_env={"GIT_TOKEN": token},
 )
 ```
 
@@ -195,7 +198,7 @@ Kaniko directly, for example:
 
 ```python
 project.build_function(
-    ...
+    "<function-name>",
     extra_args="--build arg GIT_TOKEN=token --skip-tls-verify",
 )
 ```
@@ -204,9 +207,9 @@ Note that when building an image in MLRun, project secrets are automatically pas
 variables whose name is the secret key.
 
 
-## Deploying nuclio functions
-When using nuclio functions, the image build process is done by nuclio as part of the deployment of the function. 
-Most of the configurations mentioned in this page are available for nuclio functions as well. To deploy a nuclio 
+## Deploying Nuclio functions
+When using Nuclio functions, the image build process is done by Nuclio as part of the deployment of the function. 
+Most of the configurations mentioned in this page are available for Nuclio functions as well. To deploy a Nuclio 
 function, use {py:func}`~mlrun.projects.deploy_function()` instead of using 
 {py:func}`~mlrun.projects.build_function()` and {py:func}`~mlrun.projects.run_function()`.
 
@@ -227,9 +230,11 @@ To prepare this image, MLRun provides the following facilities:
 ```python
 # For remote Spark
 from mlrun.runtimes import RemoteSparkRuntime
+
 RemoteSparkRuntime.deploy_default_image()
 
 # For Spark operator
 from mlrun.runtimes import Spark3Runtime
+
 Spark3Runtime.deploy_default_image()
 ```

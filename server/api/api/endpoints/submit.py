@@ -19,6 +19,7 @@ import fastapi.concurrency
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.utils.helpers
@@ -115,22 +116,23 @@ async def submit_job(
         # if task is missing, we don't want to create one
         if "task" in data:
             labels = data["task"].setdefault("metadata", {}).setdefault("labels", {})
-            # TODO: remove this duplication
-            labels.setdefault("v3io_user", username)
-            labels.setdefault("owner", username)
+            labels.setdefault(mlrun_constants.MLRunInternalLabels.v3io_user, username)
+            labels.setdefault(mlrun_constants.MLRunInternalLabels.owner, username)
 
     client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
-        "mlrun/client_version"
+        mlrun_constants.MLRunInternalLabels.client_version
     )
     client_python_version = client_python_version or data["task"]["metadata"].get(
         "labels", {}
-    ).get("mlrun/client_python_version")
+    ).get(mlrun_constants.MLRunInternalLabels.client_python_version)
     if client_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {"mlrun/client_version": client_version}
+            {mlrun_constants.MLRunInternalLabels.client_version: client_version}
         )
     if client_python_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
-            {"mlrun/client_python_version": client_python_version}
+            {
+                mlrun_constants.MLRunInternalLabels.client_python_version: client_python_version
+            }
         )
     return await server.api.api.utils.submit_run(db_session, auth_info, data)

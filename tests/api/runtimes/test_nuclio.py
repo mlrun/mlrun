@@ -28,6 +28,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.nuclio.function
@@ -146,7 +147,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         expected_class="remote",
         call_count=1,
-        expected_params=[],
+        expected_params=None,
         expected_labels=None,
         expected_env_from_secrets=None,
         expected_service_account=None,
@@ -184,7 +185,9 @@ class TestNuclioRuntime(TestRuntimeBase):
             function_metadata = deploy_config["metadata"]
             assert function_metadata["name"] == expected_function_name
             labels_for_diff = expected_labels.copy()
-            labels_for_diff.update({"mlrun/class": expected_class})
+            labels_for_diff.update(
+                {mlrun_constants.MLRunInternalLabels.mlrun_class: expected_class}
+            )
             if parent_function:
                 labels_for_diff.update({"mlrun/parent-function": parent_function})
             assert deepdiff.DeepDiff(function_metadata["labels"], labels_for_diff) == {}
@@ -231,38 +234,46 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         return deploy_configs
 
-    def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
+    def _assert_http_trigger(self, http_trigger):
         args, _ = nuclio.deploy.deploy_config.call_args
         triggers_config = args[0]["spec"]["triggers"]
 
-        if http_trigger:
-            expected_struct = self._get_expected_struct_for_http_trigger(http_trigger)
-            assert (
-                deepdiff.DeepDiff(
-                    triggers_config["http"],
-                    expected_struct,
-                    ignore_order=True,
-                    # TODO - (in Nuclio) There is a bug with canary configuration:
-                    #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
-                    #        rather than the actual weight. Remove this once bug is fixed.
-                    exclude_paths=[
-                        "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
-                    ],
-                )
-                == {}
-            )
-
-        if v3io_trigger:
-            expected_struct = self._get_expected_struct_for_v3io_trigger(v3io_trigger)
-            diff_result = deepdiff.DeepDiff(
-                triggers_config[v3io_trigger["name"]],
+        expected_struct = self._get_expected_struct_for_http_trigger(http_trigger)
+        assert (
+            deepdiff.DeepDiff(
+                triggers_config["http"],
                 expected_struct,
                 ignore_order=True,
+                # TODO - (in Nuclio) There is a bug with canary configuration:
+                #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
+                #        rather than the actual weight. Remove this once bug is fixed.
+                exclude_paths=[
+                    "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
+                ],
             )
-            # It's ok if the Nuclio trigger has additional parameters, these are constants that we don't care
-            # about. We just care that the values we look for are fully there.
-            diff_result.pop("dictionary_item_removed", None)
-            assert diff_result == {}
+            == {}
+        )
+
+    def _assert_v3io_trigger(self, v3io_trigger):
+        args, _ = nuclio.deploy.deploy_config.call_args
+        triggers_config = args[0]["spec"]["triggers"]
+
+        expected_struct = self._get_expected_struct_for_v3io_trigger(v3io_trigger)
+
+        if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.13.11"
+        ):
+            expected_struct["password"] = mlrun.model.Credentials.generate_access_key
+
+        diff_result = deepdiff.DeepDiff(
+            triggers_config[v3io_trigger["name"]],
+            expected_struct,
+            ignore_order=True,
+        )
+        # It's ok if the Nuclio trigger has additional parameters, these are constants that we don't care
+        # about. We just care that the values we look for are fully there.
+        diff_result.pop("dictionary_item_removed", None)
+        assert diff_result == {}
 
     def _assert_nuclio_v3io_mount(self, local_path="", remote_path="", cred_only=False):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -297,9 +308,29 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
             "volumeMount": {"mountPath": local_path, "name": "v3io", "subPath": ""},
         }
+
+        expected_cm_volume = {
+            "volume": {
+                "name": "serving-conf",
+                "configMap": {"name": "serving-conf-test-project-test-function"},
+            },
+            "volumeMount": {
+                "name": "serving-conf",
+                "mountPath": "/tmp/mlrun/serving-conf",
+                "readOnly": True,
+            },
+        }
+        expected = (
+            [expected_volume, expected_cm_volume]
+            if self.runtime_kind == "serving"
+            else [expected_volume]
+        )
+
         assert (
             deepdiff.DeepDiff(
-                deploy_spec["volumes"], [expected_volume], ignore_order=True
+                deploy_spec["volumes"],
+                expected,
+                ignore_order=True,
             )
             == {}
         )
@@ -580,6 +611,23 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
         )
 
+    def test_deploy_mlrun_requirements(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        auth_info = mlrun.common.schemas.AuthInfo()
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        mlrun.utils.update_in(
+            function.spec.config,
+            "spec.build.baseImage",
+            "mlrun/mlrun:0.6.0",
+        )
+        function.spec.build.requirements = ["some-requirements"]
+        build_function(db, auth_info, function)
+        assert "mlrun[complete]==0.6.0" in function.spec.build.requirements
+
     def test_deploy_with_global_service_account(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
@@ -766,7 +814,15 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_labels=labels, expected_class=self.class_name
         )
 
-    def test_deploy_with_triggers(self, db: Session, client: TestClient):
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        ["1.12.1", "1.13.1", "1.13.11", "1.14.3"],
+    )
+    def test_deploy_with_triggers(
+        self, db: Session, client: TestClient, nuclio_version
+    ):
+        mlconf.nuclio_version = nuclio_version
+
         function = self._generate_runtime(self.runtime_kind)
 
         http_trigger = {
@@ -791,7 +847,8 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
-        self._assert_triggers(http_trigger, v3io_trigger)
+        self._assert_http_trigger(http_trigger)
+        self._assert_v3io_trigger(v3io_trigger)
 
     def test_deploy_with_v3io(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
@@ -804,10 +861,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
     def test_deploy_with_node_selection(self, db: Session, client: TestClient):
-        mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime(self.runtime_kind)
-
         node_name = "some-node-name"
+        mlconf.nuclio_version = "1.6.3"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
+            function.with_node_selection(node_name=node_name)
+
+        mlconf.nuclio_version = "1.5.21"
         function.with_node_selection(node_name=node_name)
 
         self.execute_function(function)
@@ -816,6 +876,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
 
+        mlconf.nuclio_version = "1.6.10"
         config_node_selector = {
             "label-1": "val1",
             "label-2": "val2",
@@ -832,6 +893,13 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function = self._generate_runtime(self.runtime_kind)
 
+        invalid_node_selector = {"label-3": "val=3"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            function.with_node_selection(node_selector=invalid_node_selector)
+
         node_selector = {
             "label-3": "val3",
             "label-4": "val4",
@@ -841,7 +909,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=3, expected_class=self.class_name
         )
-        self.assert_node_selection(node_selector=node_selector)
+        self.assert_node_selection(
+            node_selector={**config_node_selector, **node_selector}
+        )
 
         function = self._generate_runtime(self.runtime_kind)
         affinity = self._generate_affinity()
@@ -851,8 +921,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(
             call_count=4, expected_class=self.class_name
         )
+        # The node selector is specific to the service configuration, not the function itself.
+        # It is applied only to the run object on other run kinds. In case of a Nuclio function,
+        # since there is no run object, the node selector is included in the created config.
         self.assert_node_selection(
-            node_selector=config_node_selector, affinity=affinity
+            affinity=affinity, node_selector=config_node_selector
         )
 
         function = self._generate_runtime(self.runtime_kind)
@@ -863,7 +936,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         self.assert_node_selection(
             node_name=node_name,
-            node_selector=node_selector,
+            node_selector={**config_node_selector, **node_selector},
             affinity=affinity,
         )
 
@@ -880,9 +953,45 @@ class TestNuclioRuntime(TestRuntimeBase):
             call_count=6, expected_class=self.class_name
         )
         self.assert_node_selection(
-            node_selector=config_node_selector,
             tolerations=tolerations,
+            node_selector=config_node_selector,
         )
+
+    @pytest.mark.parametrize(
+        "config_node_selector, project_node_selector",
+        [({}, {}), ({"kubernetes.io/arch": "amd64"}, {"kubernetes.io/os": "linux"})],
+    )
+    def test_compile_function_config_node_selector_enriched_from_project(
+        self,
+        db: Session,
+        client: TestClient,
+        project_node_selector,
+        config_node_selector,
+    ):
+        config_node_selector = config_node_selector
+        mlconf.default_function_node_selector = base64.b64encode(
+            json.dumps(config_node_selector).encode("utf-8")
+        )
+
+        run_db = mlrun.get_run_db()
+        project = run_db.get_project(self.project)
+        project.spec.default_function_node_selector = project_node_selector
+        run_db.store_project(self.project, project)
+
+        function = self._generate_runtime(self.runtime_kind)
+        function_node_selector = {"kubernetes.io/hostname": "k8s-node1"}
+        function.spec.node_selector = function_node_selector
+
+        (
+            _,
+            _,
+            config,
+        ) = server.api.crud.runtimes.nuclio.function._compile_function_config(function)
+        assert config["spec"]["nodeSelector"] == {
+            **config_node_selector,
+            **project.spec.default_function_node_selector,
+            **function_node_selector,
+        }
 
     def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.5.20"
@@ -1018,7 +1127,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.5.13"
+        mlconf.nuclio_version = "1.5.13"
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",
@@ -1039,7 +1148,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.8.5"
+        mlconf.nuclio_version = "1.8.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1052,7 +1161,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
         )
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         function.set_env(decode_event_strings_env_var_name, "false")
         self.execute_function(function)
@@ -1066,7 +1175,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, env var not set - add it"
         )
         self._reset_mock()
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
+        mlconf.nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1076,7 +1185,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_is_nuclio_version_in_range(self):
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.2"
+        mlconf.nuclio_version = "1.7.2"
 
         assert not server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.6.11", "1.7.2"
@@ -1104,7 +1213,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         # best effort - assumes compatibility
-        server.api.utils.runtimes.nuclio.cached_nuclio_version = ""
+        mlconf.nuclio_version = ""
         assert server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "2.3.4"
         )
@@ -1125,6 +1234,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "1.6.11", "1.5.9"
+        )
+        assert mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.6.9", "1.7.0"
         )
         assert not mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
             "2.0.0"
@@ -1635,7 +1747,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 
@@ -1649,7 +1761,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.enable_default_http_trigger()
 
@@ -1663,7 +1775,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
-        mlconf.nuclio_version = "1.12.8"
+        mlconf.nuclio_version = "1.13.1"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 
@@ -1672,6 +1784,35 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
             function.invoke("/")
+
+    def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.11"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Multiple triggers cannot be used in conjunction with explicit ack. "
+            "Please upgrade to nuclio 1.13.12 or newer.",
+        ):
+            function.add_trigger(
+                "stream2",
+                nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+            )
+
+    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.12"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        function.add_trigger(
+            "stream2",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

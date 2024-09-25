@@ -45,6 +45,11 @@ s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 assets_path = str(pathlib.Path(__file__).parent / "assets")
 
+ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE = (
+    "The code file contains a function named “handler“, which is reserved. "
+    + "Use a different name for your function."
+)
+
 
 @contextlib.contextmanager
 def captured_output():
@@ -90,7 +95,16 @@ def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
         function.run(local=True, schedule="* * * * *")
-    assert "local and schedule cannot be used together" in str(excinfo.value)
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
+        function.run(schedule="* * * * *")
+    assert (
+        "Unexpected schedule='* * * * *' parameter for local function execution"
+        in str(excinfo.value)
+    )
 
 
 def test_invalid_name():
@@ -260,7 +274,7 @@ def test_run_class_code():
     ]
     fn = mlrun.code_to_function("mytst", filename=function_path, kind="local")
     for params, results in cases:
-        run = mlrun.run_function(fn, handler="mycls::mtd", params=params)
+        run = mlrun.run_function(fn, handler="MyCls::mtd", params=params)
         assert run.status.results == results
 
 
@@ -271,7 +285,7 @@ def test_run_class_file():
     ]
     fn = mlrun.new_function("mytst", command=function_path, kind="job")
     for params, results in cases:
-        run = fn.run(handler="mycls::mtd", params=params, local=True)
+        run = fn.run(handler="MyCls::mtd", params=params, local=True)
         assert run.status.results == results
 
 
@@ -296,3 +310,90 @@ def test_args_integrity():
     verify_state(result)
 
     assert output.find("It's, a, nice, day!") != -1, "params not detected in argv"
+
+
+def test_get_or_create_ctx_run_kind():
+    # varify the default run kind is local
+    context = mlrun.get_or_create_ctx("ctx")
+    assert context.labels.get("kind") == "local"
+    assert context.state == "running"
+    context.commit(completed=True)
+    assert context.state == "completed"
+
+
+def test_get_or_create_ctx_run_kind_local_from_function():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(
+        name="func",
+        func=f"{assets_path}/simple.py",
+        handler="get_ctx_kind_label",
+        image="mlrun/mlrun",
+    )
+    run = project.run_function(
+        "func",
+        local=True,
+    )
+    assert run.state() == "completed"
+    assert run.output("return") == "local"
+
+
+def test_get_or_create_ctx_run_kind_exists_in_mlrun_exec_config(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(
+        "MLRUN_EXEC_CONFIG",
+        '{"spec":{},"metadata":{"uid":"123411", "name":"tst", "labels": {"kind": "spark"}}}',
+    )
+    context = mlrun.get_or_create_ctx("ctx")
+    assert context.labels.get("kind") == "spark"
+
+
+@pytest.fixture
+def setup_project():
+    project = mlrun.get_or_create_project("dummy-project")
+    project.set_function(func=function_path, name="test", image="mlrun/mlrun")
+    return project
+
+
+@pytest.mark.parametrize(
+    "params, expected",
+    [
+        ({"tag": "v1"}, ":v1"),
+        ({"tag": "latest"}, ":latest"),
+        ({}, ":latest"),
+    ],
+)
+def test_verify_run_output_uri(setup_project, params, expected):
+    run = setup_project.run_function(
+        "test", handler="myhandler", params=params, local=True
+    )
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    # Verify that the expected tag exists in the URI
+    assert expected in output_uri
+    assert expected in outputs_uri
+
+
+def test_verify_tag_in_output_for_relogged_artifact(setup_project):
+    run = setup_project.run_function(
+        "test", handler="log_artifact_many_tags", local=True
+    )
+    output_uri = run.output("file_result")
+    outputs_uri = run.outputs["file_result"]
+
+    assert "v3" in output_uri, "Expected 'v3' tag in output_uri"
+    assert "v3" in outputs_uri, "Expected 'v3' tag in outputs_uri"
+
+
+def test_code_to_function_file_include_invalid_handler_name_for_nuclio_mlrun_run_kind():
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=ERROR_MSG_INVALID_HANDLER_NAME_IN_FILE,
+    ):
+        mlrun.code_to_function(
+            filename=f"{assets_path}/fail.py",
+            name="nuclio-mlrun",
+            image="mlrun/mlrun",
+            kind="nuclio:mlrun",
+        )

@@ -17,31 +17,30 @@ from typing import Optional, Union
 from urllib.parse import urljoin
 
 import requests
-from requests.auth import HTTPBasicAuth
+from nuclio.auth import AuthInfo as NuclioAuthInfo
+from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
-import mlrun.common.schemas
+import mlrun.common.constants as mlrun_constants
+import mlrun.common.schemas as schemas
+import mlrun.common.types
+from mlrun.model import ModelObj
+from mlrun.platforms.iguazio import min_iguazio_versions
+from mlrun.utils import logger
 
-from ...model import ModelObj
-from ..utils import logger
-from .function import RemoteRuntime, get_fullname, min_nuclio_versions
-from .serving import ServingRuntime
-
-NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH = "basicAuth"
-NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE = "none"
-PROJECT_NAME_LABEL = "nuclio.io/project-name"
+from .function import min_nuclio_versions
 
 
-class APIGatewayAuthenticator(typing.Protocol):
+class Authenticator(typing.Protocol):
     @property
     def authentication_mode(self) -> str:
-        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_NONE
+        return schemas.APIGatewayAuthenticationMode.none.value
 
     @classmethod
-    def from_scheme(cls, api_gateway_spec: mlrun.common.schemas.APIGatewaySpec):
+    def from_scheme(cls, api_gateway_spec: schemas.APIGatewaySpec):
         if (
             api_gateway_spec.authenticationMode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+            == schemas.APIGatewayAuthenticationMode.basic.value
         ):
             if api_gateway_spec.authentication:
                 return BasicAuth(
@@ -50,13 +49,22 @@ class APIGatewayAuthenticator(typing.Protocol):
                 )
             else:
                 return BasicAuth()
+        elif (
+            api_gateway_spec.authenticationMode
+            == schemas.APIGatewayAuthenticationMode.access_key.value
+        ):
+            return AccessKeyAuth()
         else:
             return NoneAuth()
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return None
+
+
+class APIGatewayAuthenticator(Authenticator, ModelObj):
+    _dict_fields = ["authentication_mode"]
 
 
 class NoneAuth(APIGatewayAuthenticator):
@@ -81,16 +89,26 @@ class BasicAuth(APIGatewayAuthenticator):
 
     @property
     def authentication_mode(self) -> str:
-        return NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
+        return schemas.APIGatewayAuthenticationMode.basic.value
 
     def to_scheme(
         self,
-    ) -> Optional[dict[str, Optional[mlrun.common.schemas.APIGatewayBasicAuth]]]:
+    ) -> Optional[dict[str, Optional[schemas.APIGatewayBasicAuth]]]:
         return {
-            "basicAuth": mlrun.common.schemas.APIGatewayBasicAuth(
+            "basicAuth": schemas.APIGatewayBasicAuth(
                 username=self._username, password=self._password
             )
         }
+
+
+class AccessKeyAuth(APIGatewayAuthenticator):
+    """
+    An API gateway authenticator with access key authentication.
+    """
+
+    @property
+    def authentication_mode(self) -> str:
+        return schemas.APIGatewayAuthenticationMode.access_key.value
 
 
 class APIGatewayMetadata(ModelObj):
@@ -138,17 +156,17 @@ class APIGatewaySpec(ModelObj):
     def __init__(
         self,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                RemoteRuntime,
-                ServingRuntime,
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         project: str = None,
         description: str = "",
@@ -163,7 +181,8 @@ class APIGatewaySpec(ModelObj):
             Can be a list of function names (["my-func1", "my-func2"])
             or a list or a single entity of
             :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
-            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.application.ApplicationRuntime`
         :param project: The project name
         :param description: Optional description of the API gateway
         :param path: Optional path of the API gateway, default value is "/"
@@ -189,17 +208,17 @@ class APIGatewaySpec(ModelObj):
         self,
         project: str,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                RemoteRuntime,
-                ServingRuntime,
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         canary: Optional[list[int]] = None,
         ports: Optional[list[int]] = None,
@@ -242,16 +261,17 @@ class APIGatewaySpec(ModelObj):
     def _validate_functions(
         project: str,
         functions: Union[
-            list[str],
-            Union[
-                list[
-                    Union[
-                        RemoteRuntime,
-                        ServingRuntime,
-                    ]
-                ],
-                Union[RemoteRuntime, ServingRuntime],
+            list[
+                Union[
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
+                ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
     ):
         if not isinstance(functions, list):
@@ -267,7 +287,21 @@ class APIGatewaySpec(ModelObj):
         function_names = []
         for func in functions:
             if isinstance(func, str):
-                function_names.append(func)
+                # check whether the function was passed as a URI or just a name
+                parsed_project, function_name, _, _ = (
+                    mlrun.common.helpers.parse_versioned_object_uri(func)
+                )
+
+                if parsed_project and function_name:
+                    # check that parsed project and passed project are the same
+                    if parsed_project != project:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "Function doesn't belong to passed project"
+                        )
+                    function_uri = func
+                else:
+                    function_uri = mlrun.utils.generate_object_uri(project, func)
+                function_names.append(function_uri)
                 continue
 
             function_name = (
@@ -282,9 +316,19 @@ class APIGatewaySpec(ModelObj):
                     f"input function {function_name} "
                     f"does not belong to this project"
                 )
-            nuclio_name = get_fullname(function_name, project, func.metadata.tag)
-            function_names.append(nuclio_name)
+            function_uri = mlrun.utils.generate_object_uri(
+                project,
+                function_name,
+                func.metadata.tag,
+                func.metadata.hash,
+            )
+            function_names.append(function_uri)
         return function_names
+
+
+class APIGatewayStatus(ModelObj):
+    def __init__(self, state: Optional[schemas.APIGatewayState] = None):
+        self.state = state or schemas.APIGatewayState.none
 
 
 class APIGateway(ModelObj):
@@ -299,16 +343,18 @@ class APIGateway(ModelObj):
         self,
         metadata: APIGatewayMetadata,
         spec: APIGatewaySpec,
+        status: Optional[APIGatewayStatus] = None,
     ):
         """
         Initialize the APIGateway instance.
 
         :param metadata: (APIGatewayMetadata) The metadata of the API gateway.
         :param spec: (APIGatewaySpec) The spec of the API gateway.
+        :param status: (APIGatewayStatus) The status of the API gateway.
         """
         self.metadata = metadata
         self.spec = spec
-        self.state = ""
+        self.status = status
 
     @property
     def metadata(self) -> APIGatewayMetadata:
@@ -326,11 +372,21 @@ class APIGateway(ModelObj):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", APIGatewaySpec)
 
+    @property
+    def status(self) -> APIGatewayStatus:
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = self._verify_dict(status, "status", APIGatewayStatus)
+
     def invoke(
         self,
         method="POST",
-        headers: dict = {},
-        auth: Optional[tuple[str, str]] = None,
+        headers: dict = None,
+        credentials: Optional[tuple[str, str]] = None,
+        path: Optional[str] = None,
+        body: Optional[Union[str, bytes, dict]] = None,
         **kwargs,
     ):
         """
@@ -338,7 +394,10 @@ class APIGateway(ModelObj):
 
         :param method: (str, optional) The HTTP method for the invocation.
         :param headers: (dict, optional) The HTTP headers for the invocation.
-        :param auth: (Optional[tuple[str, str]], optional) The authentication creds for the invocation if required.
+        :param credentials: (Optional[tuple[str, str]], optional) The (username,password) for the invocation if required
+            can also be set by the environment variable (_, V3IO_ACCESS_KEY) for access key authentication.
+        :param path: (str, optional) The sub-path for the invocation.
+        :param body: (Optional[Union[str, bytes, dict]]) The body of the invocation.
         :param kwargs: (dict) Additional keyword arguments.
 
         :return: The response from the API gateway invocation.
@@ -352,23 +411,54 @@ class APIGateway(ModelObj):
                 )
         if not self.is_ready():
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"API gateway is not ready. " f"Current state: {self.state}"
+                f"API gateway is not ready. " f"Current state: {self.status.state}"
             )
+
+        auth = None
 
         if (
             self.spec.authentication.authentication_mode
-            == NUCLIO_API_GATEWAY_AUTHENTICATION_MODE_BASIC_AUTH
-            and not auth
+            == schemas.APIGatewayAuthenticationMode.basic.value
         ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "API Gateway invocation requires authentication. Please pass credentials"
-            )
+            if not credentials:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please pass credentials"
+                )
+            auth = NuclioAuthInfo(
+                username=credentials[0], password=credentials[1]
+            ).to_requests_auth()
+
+        if (
+            self.spec.authentication.authentication_mode
+            == schemas.APIGatewayAuthenticationMode.access_key.value
+        ):
+            # inject access key from env
+            if credentials:
+                auth = NuclioAuthInfo(
+                    username=credentials[0],
+                    password=credentials[1],
+                    mode=NuclioAuthKinds.iguazio,
+                ).to_requests_auth()
+            else:
+                auth = NuclioAuthInfo().from_envvar().to_requests_auth()
+            if not auth:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "API Gateway invocation requires authentication. Please set V3IO_ACCESS_KEY env var"
+                )
+        url = urljoin(self.invoke_url, path or "")
+
+        # Determine the correct keyword argument for the body
+        if isinstance(body, dict):
+            kwargs["json"] = body
+        elif isinstance(body, (str, bytes)):
+            kwargs["data"] = body
+
         return requests.request(
             method=method,
-            url=self.invoke_url,
-            headers=headers,
+            url=url,
+            headers=headers or {},
+            auth=auth,
             **kwargs,
-            auth=HTTPBasicAuth(*auth) if auth else None,
         )
 
     def wait_for_readiness(self, max_wait_time=90):
@@ -393,10 +483,10 @@ class APIGateway(ModelObj):
         )
 
     def is_ready(self):
-        if self.state is not mlrun.common.schemas.api_gateway.APIGatewayState.ready:
+        if self.status.state is not schemas.api_gateway.APIGatewayState.ready:
             # try to sync the state
             self.sync()
-        return self.state == mlrun.common.schemas.api_gateway.APIGatewayState.ready
+        return self.status.state == schemas.api_gateway.APIGatewayState.ready
 
     def sync(self):
         """
@@ -413,7 +503,7 @@ class APIGateway(ModelObj):
         self.spec.functions = synced_gateway.spec.functions
         self.spec.canary = synced_gateway.spec.canary
         self.spec.description = synced_gateway.spec.description
-        self.state = synced_gateway.state
+        self.status.state = synced_gateway.status.state
 
     def with_basic_auth(self, username: str, password: str):
         """
@@ -424,16 +514,27 @@ class APIGateway(ModelObj):
         """
         self.spec.authentication = BasicAuth(username=username, password=password)
 
+    @min_iguazio_versions("3.5.5")
+    def with_access_key_auth(self):
+        """
+        Set access key authentication for the API gateway.
+        """
+        self.spec.authentication = AccessKeyAuth()
+
     def with_canary(
         self,
         functions: Union[
-            list[str],
             list[
                 Union[
-                    RemoteRuntime,
-                    ServingRuntime,
+                    str,
+                    "mlrun.runtimes.nuclio.function.RemoteRuntime",
+                    "mlrun.runtimes.nuclio.serving.ServingRuntime",
+                    "mlrun.runtimes.nuclio.application.ApplicationRuntime",
                 ]
             ],
+            "mlrun.runtimes.nuclio.function.RemoteRuntime",
+            "mlrun.runtimes.nuclio.serving.ServingRuntime",
+            "mlrun.runtimes.nuclio.application.ApplicationRuntime",
         ],
         canary: list[int],
     ):
@@ -444,7 +545,8 @@ class APIGateway(ModelObj):
             Can be a list of function names (["my-func1", "my-func2"])
             or a list of nuclio functions of types
             :py:class:`~mlrun.runtimes.nuclio.function.RemoteRuntime` OR
-            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime`
+            :py:class:`~mlrun.runtimes.nuclio.serving.ServingRuntime` OR
+            :py:class:`~mlrun.runtimes.nuclio.application.ApplicationRuntime`
         :param canary: The canary percents for the API gateway of type list[int]; for instance: [20,80]
 
         """
@@ -468,18 +570,45 @@ class APIGateway(ModelObj):
             project=self.spec.project, functions=self.spec.functions, ports=ports
         )
 
+    def with_force_ssl_redirect(self):
+        """
+        Set SSL redirect annotation for the API gateway.
+        """
+        self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
+            "true"
+        )
+
+    def with_gateway_timeout(self, gateway_timeout: int):
+        """
+        Set gateway proxy connect/read/send timeout annotations
+        :param gateway_timeout: The timeout in seconds
+        """
+        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+            self.metadata.annotations, gateway_timeout
+        )
+
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations in the metadata of the api gateway"""
+        for key, value in annotations.items():
+            self.metadata.annotations[key] = str(value)
+        return self
+
     @classmethod
-    def from_scheme(cls, api_gateway: mlrun.common.schemas.APIGateway):
-        project = api_gateway.metadata.labels.get(PROJECT_NAME_LABEL)
+    def from_scheme(cls, api_gateway: schemas.APIGateway):
+        project = api_gateway.metadata.labels.get(
+            mlrun_constants.MLRunInternalLabels.nuclio_project_name
+        )
         functions, canary = cls._resolve_canary(api_gateway.spec.upstreams)
         state = (
             api_gateway.status.state
             if api_gateway.status
-            else mlrun.common.schemas.APIGatewayState.none
+            else schemas.APIGatewayState.none
         )
         new_api_gateway = cls(
             metadata=APIGatewayMetadata(
                 name=api_gateway.spec.name,
+                annotations=api_gateway.metadata.annotations,
+                labels=api_gateway.metadata.labels,
             ),
             spec=APIGatewaySpec(
                 project=project,
@@ -490,18 +619,18 @@ class APIGateway(ModelObj):
                 functions=functions,
                 canary=canary,
             ),
+            status=APIGatewayStatus(state=state),
         )
-        new_api_gateway.state = state
         return new_api_gateway
 
-    def to_scheme(self) -> mlrun.common.schemas.APIGateway:
+    def to_scheme(self) -> schemas.APIGateway:
         upstreams = (
             [
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     nucliofunction={"name": self.spec.functions[0]},
                     percentage=self.spec.canary[0],
                 ),
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     # do not set percent for the second function,
                     # so we can define which function to display as a primary one in UI
                     nucliofunction={"name": self.spec.functions[1]},
@@ -509,7 +638,7 @@ class APIGateway(ModelObj):
             ]
             if self.spec.canary
             else [
-                mlrun.common.schemas.APIGatewayUpstream(
+                schemas.APIGatewayUpstream(
                     nucliofunction={"name": function_name},
                 )
                 for function_name in self.spec.functions
@@ -519,20 +648,23 @@ class APIGateway(ModelObj):
             for i, port in enumerate(self.spec.ports):
                 upstreams[i].port = port
 
-        api_gateway = mlrun.common.schemas.APIGateway(
-            metadata=mlrun.common.schemas.APIGatewayMetadata(
-                name=self.metadata.name, labels={}
+        api_gateway = schemas.APIGateway(
+            metadata=schemas.APIGatewayMetadata(
+                name=self.metadata.name,
+                labels=self.metadata.labels,
+                annotations=self.metadata.annotations,
             ),
-            spec=mlrun.common.schemas.APIGatewaySpec(
+            spec=schemas.APIGatewaySpec(
                 name=self.metadata.name,
                 description=self.spec.description,
                 host=self.spec.host,
                 path=self.spec.path,
-                authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.from_str(
+                authenticationMode=schemas.APIGatewayAuthenticationMode.from_str(
                     self.spec.authentication.authentication_mode
                 ),
                 upstreams=upstreams,
             ),
+            status=schemas.APIGatewayStatus(state=self.status.state),
         )
         api_gateway.spec.authentication = self.spec.authentication.to_scheme()
         return api_gateway
@@ -549,7 +681,7 @@ class APIGateway(ModelObj):
         host = self.spec.host
         if not self.spec.host.startswith("http"):
             host = f"https://{self.spec.host}"
-        return urljoin(host, self.spec.path)
+        return urljoin(host, self.spec.path).rstrip("/")
 
     @staticmethod
     def _generate_basic_auth(username: str, password: str):
@@ -558,7 +690,7 @@ class APIGateway(ModelObj):
 
     @staticmethod
     def _resolve_canary(
-        upstreams: list[mlrun.common.schemas.APIGatewayUpstream],
+        upstreams: list[schemas.APIGatewayUpstream],
     ) -> tuple[Union[list[str], None], Union[list[int], None]]:
         if len(upstreams) == 1:
             return [upstreams[0].nucliofunction.get("name")], None

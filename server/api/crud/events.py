@@ -27,24 +27,31 @@ class Events(
 ):
     # we cache alert names based on project and event name as key
     _cache: dict[(str, str), list[str]] = {}
+    cache_initialized = False
 
     @staticmethod
     def is_valid_event(project: str, event_data: mlrun.common.schemas.Event):
         if event_data.entity.project != project:
             return False
 
+        if len(event_data.entity.ids) > 1:
+            return False
+
         return bool(event_data.is_valid())
 
-    def add_event_configuration(self, project, name, alert_name):
-        self._cache.setdefault((project, name), []).append(alert_name)
+    def add_event_configuration(self, project, name, alert_id):
+        self._cache.setdefault((project, name), []).append(alert_id)
 
-    def remove_event_configuration(self, project, name):
-        del self._cache[(project, name)]
+    def remove_event_configuration(self, project, name, alert_id):
+        alerts = self._cache[(project, name)]
+        alerts.remove(alert_id)
+        if len(alerts) == 0:
+            self._cache.pop((project, name))
 
     def delete_project_alert_events(self, project):
         to_delete = [name for proj, name in self._cache if proj == project]
         for name in to_delete:
-            self.remove_event_configuration(project, name)
+            self._cache.pop((project, name))
 
     def process_event(
         self,
@@ -63,11 +70,19 @@ class Events(
 
         event_data.timestamp = datetime.datetime.now(datetime.timezone.utc)
 
+        if not self.cache_initialized:
+            server.api.crud.Alerts().process_event_no_cache(
+                session, event_name, event_data
+            )
+            return
+
         try:
-            for name in self._cache[(project, event_name)]:
-                server.api.crud.Alerts().process_event(
-                    session, project, name, event_data
-                )
+            for alert_id in self._cache[(project, event_name)]:
+                server.api.crud.Alerts().process_event(session, alert_id, event_data)
         except KeyError:
-            logger.warn("Received unknown event", project=project, name=event_name)
+            logger.debug(
+                "Received event has no associated alert",
+                project=project,
+                name=event_name,
+            )
             return

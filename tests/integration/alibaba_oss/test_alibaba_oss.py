@@ -29,8 +29,11 @@ from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-alibaba-oss.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+config = {}
+if os.path.exists(config_file_path):
+    with config_file_path.open() as fp:
+        config = yaml.safe_load(fp)
+
 
 test_filename = here / "test.txt"
 with open(test_filename) as f:
@@ -47,8 +50,10 @@ credential_params = [
 
 
 def alibaba_oss_configured(extra_params=None):
+    if not os.path.exists(config_file_path):
+        return False
     extra_params = extra_params or []
-    env_params = config["env"]
+    env_params = config.get("env", {})
     needed_params = ["bucket_name", *credential_params, *extra_params]
     for param in needed_params:
         if not env_params.get(param):

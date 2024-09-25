@@ -14,6 +14,7 @@
 #
 import typing
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,6 @@ import mlrun.runtimes.pod
 import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
-from mlrun import code_to_function
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -63,6 +63,18 @@ class TestApplicationRuntime(TestRuntimeBase):
             "spec.build.baseImage",
         )
 
+    def test_create_function_validate_min_nuclio_version(
+        self, db: Session, client: TestClient
+    ):
+        """Verify that the nuclio min version is validated by the ApplicationRuntime constructor"""
+        mlrun.mlconf.nuclio_version = "1.12.14"
+        with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError) as exc:
+            self._generate_runtime(self.runtime_kind)
+        assert (
+            str(exc.value)
+            == "'Application Runtime' function requires Nuclio v1.13.1 or higher"
+        )
+
     def _execute_run(self, runtime, **kwargs):
         # deploy_nuclio_function doesn't accept watch, so we need to remove it
         kwargs.pop("watch", None)
@@ -71,13 +83,13 @@ class TestApplicationRuntime(TestRuntimeBase):
         )
 
     def _generate_runtime(
-        self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
-        runtime = code_to_function(
+        self, kind=None
+    ) -> typing.Union[mlrun.runtimes.ApplicationRuntime]:
+        runtime = mlrun.new_function(
             name=self.name,
             project=self.project,
             kind=kind or self.runtime_kind,
-            description="test application runtime",
-            labels=labels,
         )
+        runtime._ensure_reverse_proxy_configurations(runtime)
+        runtime._configure_application_sidecar()
         return runtime

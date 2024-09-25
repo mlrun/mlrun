@@ -10,15 +10,15 @@
 MLRun provides a mock server as part of the `serving` runtime. This gives you the ability to deploy your serving function in your local environment for testing purposes.
 
 ```python
-serving_fn = code_to_function(name='myService', kind='serving', image='mlrun/mlrun')
-serving_fn.add_model('my_model', model_path=model_file_path)
+serving_fn = code_to_function(name="myService", kind="serving", image="mlrun/mlrun")
+serving_fn.add_model("my_model", model_path=model_file_path)
 server = serving_fn.to_mock_server()
 ```
 
 You can use test data and programmatically invoke the `predict()` method of mock server. In this example, the model is expecting a python dictionary as input.
 
 ```python
-my_data = '''{"inputs":[[5.1, 3.5, 1.4, 0.2],[7.7, 3.8, 6.7, 2.2]]}'''
+my_data = """{"inputs":[[5.1, 3.5, 1.4, 0.2],[7.7, 3.8, 6.7, 2.2]]}"""
 server.test("/v2/models/my_model/infer", body=my_data)
 ```
 
@@ -43,8 +43,9 @@ This example converts a notebook to a serving function and adds a model to it:
 
 ```python
 from mlrun import code_to_function
-fn = code_to_function('my-function', kind='serving')
-fn.add_model('m1', model_path=<model-artifact/dir>, class_name='MyClass', x=100)
+
+fn = code_to_function("my-function", kind="serving")
+fn.add_model("m1", model_path="<model-artifact/dir>", class_name="MyClass", x=100)
 ``` 
 
 See [`.add_model()`](../api/mlrun.runtimes.html#mlrun.runtimes.ServingRuntime.add_model) docstring for help and parameters.
@@ -54,11 +55,11 @@ See the full [Model Server example](https://github.com/mlrun/functions/blob/mast
 If you want to use multiple versions for the same model, use `:` to separate the name from the version. 
 For example, if the name is `mymodel:v2` it means model name `mymodel` version `v2`.
 
-You should specify the `model_path` (url of the model artifact/dir) and the `class_name` name 
+You should specify the `model_path` (url of the model artifact/dir) and the `class_name`
 (or class `module.submodule.class`). Alternatively, you can set the `model_url` for calling a 
 model that is served by another function (can be used for ensembles).
 
-The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or fn methods.
+The function object(fn) accepts many options. You can specify replicas range (auto-scaling), cpu/gpu/mem resources, add shared volume mounts, secrets, and any other Kubernetes resource through the `fn.spec` object or function methods.
 
 For example, `fn.gpu(1)` means each replica uses one GPU. 
 

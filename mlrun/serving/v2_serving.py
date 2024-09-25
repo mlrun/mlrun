@@ -15,12 +15,12 @@
 import threading
 import time
 import traceback
-from typing import Union
+from typing import Optional, Union
 
-import mlrun.common.model_monitoring
+import mlrun.artifacts
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
-from mlrun.artifacts import ModelArtifact  # noqa: F401
-from mlrun.config import config
+import mlrun.model_monitoring
 from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date
 
@@ -102,7 +102,7 @@ class V2ModelServer(StepToDict):
         self.error = ""
         self.protocol = protocol or "v2"
         self.model_path = model_path
-        self.model_spec: mlrun.artifacts.ModelArtifact = None
+        self.model_spec: Optional[mlrun.artifacts.ModelArtifact] = None
         self._input_path = input_path
         self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()
@@ -148,7 +148,7 @@ class V2ModelServer(StepToDict):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        if not self.context.is_mock or self.context.server.track_models:
+        if not self.context.is_mock or self.context.monitoring_mock:
             self.model_endpoint_uid = _init_endpoint_record(
                 graph_server=server, model=self
             )
@@ -258,6 +258,7 @@ class V2ModelServer(StepToDict):
                 "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
+                "timestamp": start.isoformat(sep=" ", timespec="microseconds"),
             }
             if self.version:
                 response["model_version"] = self.version
@@ -335,6 +336,7 @@ class V2ModelServer(StepToDict):
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
                 track_response = {"outputs": outputs or []}
+                # TODO : check dict/list
                 self._model_logger.push(start, track_request, track_response, op)
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
@@ -376,8 +378,10 @@ class V2ModelServer(StepToDict):
         """postprocess, before returning response"""
         return request
 
-    def predict(self, request: dict) -> dict:
-        """model prediction operation"""
+    def predict(self, request: dict) -> list:
+        """model prediction operation
+        :return: list with the model prediction results (can be multi-port) or list of lists for multiple predictions
+        """
         raise NotImplementedError()
 
     def explain(self, request: dict) -> dict:
@@ -528,7 +532,13 @@ def _init_endpoint_record(
         return None
 
     # Generating version model value based on the model name and model version
-    if model.version:
+    if model.model_path and model.model_path.startswith("store://"):
+        # Enrich the model server with the model artifact metadata
+        model.get_model()
+        if not model.version:
+            # Enrich the model version with the model artifact tag
+            model.version = model.model_spec.tag
+        model.labels = model.model_spec.labels
         versioned_model_name = f"{model.name}:{model.version}"
     else:
         versioned_model_name = f"{model.name}:latest"
@@ -538,48 +548,74 @@ def _init_endpoint_record(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 
-    # If model endpoint object was found in DB, skip the creation process.
     try:
-        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=uid)
-
+        model_ep = mlrun.get_run_db().get_model_endpoint(
+            project=project, endpoint_id=uid
+        )
     except mlrun.errors.MLRunNotFoundError:
+        model_ep = None
+    except mlrun.errors.MLRunBadRequestError as err:
+        logger.info(
+            "Cannot get the model endpoints store", err=mlrun.errors.err_to_str(err)
+        )
+        return
+
+    if model.context.server.track_models and not model_ep:
         logger.info("Creating a new model endpoint record", endpoint_id=uid)
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                project=project, labels=model.labels, uid=uid
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                function_uri=graph_server.function_uri,
+                model=versioned_model_name,
+                model_class=model.__class__.__name__,
+                model_uri=model.model_path,
+                stream_path=model.context.stream.stream_uri,
+                active=True,
+                monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
+            ),
+        )
 
-        try:
-            model_endpoint = mlrun.common.schemas.ModelEndpoint(
-                metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                    project=project, labels=model.labels, uid=uid
-                ),
-                spec=mlrun.common.schemas.ModelEndpointSpec(
-                    function_uri=graph_server.function_uri,
-                    model=versioned_model_name,
-                    model_class=model.__class__.__name__,
-                    model_uri=model.model_path,
-                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                        project=project, kind="stream"
-                    ),
-                    active=True,
-                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
-                    if model.context.server.track_models
-                    else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
-                ),
-                status=mlrun.common.schemas.ModelEndpointStatus(
-                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
-                ),
+        db = mlrun.get_run_db()
+        db.create_model_endpoint(
+            project=project,
+            endpoint_id=uid,
+            model_endpoint=model_endpoint.dict(),
+        )
+
+    elif model_ep:
+        attributes = {}
+        old_model_uri = model_ep.spec.model_uri
+        mlrun.model_monitoring.helpers.enrich_model_endpoint_with_model_uri(
+            model_endpoint=model_ep,
+            model_obj=model.model_spec,
+        )
+        if model_ep.spec.model_uri != old_model_uri:
+            attributes["model_uri"] = model_ep.spec.model_uri
+        if (
+            model_ep.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        ) != model.context.server.track_models:
+            attributes["monitoring_mode"] = (
+                mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+                if model.context.server.track_models
+                else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled
             )
-
+        if attributes:
             db = mlrun.get_run_db()
-
-            db.create_model_endpoint(
+            db.patch_model_endpoint(
                 project=project,
                 endpoint_id=uid,
-                model_endpoint=model_endpoint.dict(),
+                attributes=attributes,
             )
-
-        except Exception as e:
-            logger.error("Failed to create endpoint record", exc=err_to_str(e))
-
-    except Exception as e:
-        logger.error("Failed to retrieve model endpoint object", exc=err_to_str(e))
+            logger.info(
+                "Updating model endpoint attributes",
+                attributes=attributes,
+                endpoint_id=uid,
+            )
 
     return uid

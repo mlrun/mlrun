@@ -14,14 +14,15 @@
 import abc
 from typing import Optional
 
-import IPython
+import IPython.display
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
-from mlrun.utils import logger
+import mlrun.utils
 
 
 class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
@@ -69,13 +70,14 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def _store_function(
         runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun.common.runtimes.constants.RunLabels.owner]
         )
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}", run.metadata.labels["owner"]
+                "{{run.user}}",
+                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
             )
         db = runtime._get_db()
         if db and runtime.kind != "handler":
@@ -126,10 +128,10 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if result:
             results_tbl.append(result)
         else:
-            logger.info("no returned result (job may still be in progress)")
+            mlrun.utils.logger.info("no returned result (job may still be in progress)")
             results_tbl.append(run.to_dict())
 
-        if mlrun.utils.is_ipython and mlrun.mlconf.ipython_widget:
+        if mlrun.utils.is_jupyter and mlrun.mlconf.ipython_widget:
             results_tbl.show()
             print()
             ui_url = mlrun.utils.get_ui_url(project, uid)
@@ -145,9 +147,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             project_flag = f"-p {project}" if project else ""
             info_cmd = f"mlrun get run {uid} {project_flag}"
             logs_cmd = f"mlrun logs {uid} {project_flag}"
-            logger.info(
+            mlrun.utils.logger.info(
                 "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
             )
             ui_url = mlrun.utils.get_ui_url(project, uid)
             if ui_url:
-                logger.info("Or click for UI", ui_url=ui_url)
+                mlrun.utils.logger.info("Or click for UI", ui_url=ui_url)

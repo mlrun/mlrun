@@ -20,8 +20,9 @@ import typing
 from enum import Enum
 
 import dotenv
-import kfp.dsl
 import kubernetes.client as k8s_client
+import mlrun_pipelines.mounts
+from mlrun_pipelines.mixins import KfpAdapterMixin
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -37,11 +38,11 @@ from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
+    validate_node_selectors,
 )
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
-    apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
     set_named_item,
@@ -215,9 +216,7 @@ class KubeResourceSpec(FunctionSpec):
             image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
         )
         self.node_name = node_name
-        self.node_selector = (
-            node_selector or mlrun.mlconf.get_default_function_node_selector()
-        )
+        self.node_selector = node_selector or {}
         self._affinity = affinity
         self.priority_class_name = (
             priority_class_name or mlrun.mlconf.default_function_priority_class_name
@@ -532,7 +531,9 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         # merge node selectors - precedence to existing node selector
-        self.node_selector = {**node_selector, **self.node_selector}
+        self.node_selector = mlrun.utils.helpers.merge_dicts_with_precedence(
+            node_selector, self.node_selector
+        )
 
     def _merge_tolerations(
         self,
@@ -935,12 +936,12 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun.v3io_cred.__name__,
-            mlrun.mount_v3io.__name__,
-            mlrun.platforms.other.mount_pvc.__name__,
-            mlrun.auto_mount.__name__,
-            mlrun.platforms.mount_s3.__name__,
-            mlrun.platforms.set_env_variables.__name__,
+            mlrun_pipelines.mounts.v3io_cred.__name__,
+            mlrun_pipelines.mounts.mount_v3io.__name__,
+            mlrun_pipelines.mounts.mount_pvc.__name__,
+            mlrun_pipelines.mounts.auto_mount.__name__,
+            mlrun_pipelines.mounts.mount_s3.__name__,
+            mlrun_pipelines.mounts.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -957,27 +958,27 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun.v3io_cred
+            return mlrun_pipelines.mounts.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
             or "pvc_name" in mlconf.get_storage_auto_mount_params()
         )
-        return mlrun.platforms.other.mount_pvc if pvc_configured else None
+        return mlrun_pipelines.mounts.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun.mount_v3io,
-            AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
+            AutoMountType.v3io_credentials: mlrun_pipelines.mounts.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun_pipelines.mounts.mount_v3io,
+            AutoMountType.pvc: mlrun_pipelines.mounts.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
-            AutoMountType.s3: mlrun.platforms.mount_s3,
-            AutoMountType.env: mlrun.platforms.set_env_variables,
+            AutoMountType.s3: mlrun_pipelines.mounts.mount_s3,
+            AutoMountType.env: mlrun_pipelines.mounts.set_env_variables,
         }[self]
 
 
-class KubeResource(BaseRuntime):
+class KubeResource(BaseRuntime, KfpAdapterMixin):
     """
     A parent class for runtimes that generate k8s resources when executing.
     """
@@ -996,26 +997,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def apply(self, modify):
-        """
-        Apply a modifier to the runtime which is used to change the runtimes k8s object's spec.
-        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
-        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
-        one after the other.
-
-        :param modify: a modifier runnable object
-        :return: the runtime (self) after the modifications
-        """
-
-        # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
-        # we remove the hook to suppress kubeflow op registration and return it after the apply()
-        old_op_handler = kfp.dsl._container_op._register_op_handler
-        kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = kfp.dsl.ContainerOp("name", "image")
-        kfp.dsl._container_op._register_op_handler = old_op_handler
-
-        return apply_kfp(modify, cop, self)
 
     def set_env_from_secret(self, name, secret=None, secret_key=None):
         """set pod environment var from secret"""
@@ -1057,32 +1038,6 @@ class KubeResource(BaseRuntime):
             if get_item_name(env_var) == name:
                 return True
         return False
-
-    def enrich_runtime_spec(
-        self,
-        project_node_selector: dict[str, str],
-    ):
-        """
-        Enriches the runtime spec with the project-level node selector.
-
-        This method merges the project-level node selector with the existing function node_selector.
-        The merge logic used here combines the two dictionaries, giving precedence to
-        the keys in the runtime node_selector. If there are conflicting keys between the
-        two dictionaries, the values from self.spec.node_selector will overwrite the
-        values from project_node_selector.
-
-        Example:
-        Suppose self.spec.node_selector = {"type": "gpu", "zone": "us-east-1"}
-        and project_node_selector = {"type": "cpu", "environment": "production"}.
-        After the merge, the resulting node_selector will be:
-        {"type": "gpu", "zone": "us-east-1", "environment": "production"}
-
-        Note:
-        - The merge uses the ** operator, also known as the "unpacking" operator in Python,
-          combining key-value pairs from each dictionary. Later dictionaries take precedence
-          when there are conflicting keys.
-        """
-        self.spec.node_selector = {**project_node_selector, **self.spec.node_selector}
 
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
@@ -1152,12 +1107,12 @@ class KubeResource(BaseRuntime):
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
 
-            * pending_scheduled - The pod/crd is scheduled on a node but not yet running
-            * pending_not_scheduled - The pod/crd is not yet scheduled on a node
-            * executing - The pod/crd started and is running
-            * image_pull_backoff - The pod/crd is in image pull backoff
-            See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+                                 * pending_scheduled - The pod/crd is scheduled on a node but not yet running
+                                 * pending_not_scheduled - The pod/crd is not yet scheduled on a node
+                                 * executing - The pod/crd started and is running
+                                 * image_pull_backoff - The pod/crd is in image pull backoff
 
+                                See :code:`mlrun.mlconf.function.spec.state_thresholds` for the default thresholds.
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
@@ -1220,9 +1175,10 @@ class KubeResource(BaseRuntime):
         """
         if node_name:
             self.spec.node_name = node_name
-        if node_selector:
+        if node_selector is not None:
+            validate_node_selectors(node_selectors=node_selector, raise_on_error=False)
             self.spec.node_selector = node_selector
-        if affinity:
+        if affinity is not None:
             self.spec.affinity = affinity
         if tolerations is not None:
             self.spec.tolerations = tolerations
@@ -1391,19 +1347,25 @@ class KubeResource(BaseRuntime):
 
     def _build_image(
         self,
-        builder_env,
-        force_build,
-        mlrun_version_specifier,
-        show_on_failure,
-        skip_deployed,
-        watch,
-        is_kfp,
-        with_mlrun,
+        builder_env: dict,
+        force_build: bool,
+        mlrun_version_specifier: typing.Optional[bool],
+        show_on_failure: bool,
+        skip_deployed: bool,
+        watch: bool,
+        is_kfp: bool,
+        with_mlrun: typing.Optional[bool],
     ):
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:
             watch = True
+
+        if skip_deployed and self.requires_build() and not self.is_deployed():
+            logger.warning(
+                f"Even though {skip_deployed=}, the build might be triggered due to the function's configuration. "
+                "See requires_build() and is_deployed() for reasoning."
+            )
 
         db = self._get_db()
         data = db.remote_builder(
@@ -1562,7 +1524,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
 
     # check if attribute of type dict, and then check if type is sanitized
     if isinstance(attribute, dict):
-        if attribute_config["not_sanitized_class"] != dict:
+        if not isinstance(attribute_config["not_sanitized_class"], dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
@@ -1572,7 +1534,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     elif isinstance(attribute, list) and not isinstance(
         attribute[0], attribute_config["sub_attribute_type"]
     ):
-        if attribute_config["not_sanitized_class"] != list:
+        if not isinstance(attribute_config["not_sanitized_class"], list):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )

@@ -9,7 +9,7 @@ MLRun is organized into the following modules. The most common functions are exp
   :maxdepth: 1
   :glob:
 
-  mlrun.frameworks/index
   *
+  */index
 
 See also the :ref:`index of all functions and classes <genindex>`.

@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import typing
 
 import kubernetes
+import sqlalchemy.orm
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 from packaging.version import parse as parse_version
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
+import server.api.db.base as api_db_base
 import server.api.utils.singletons.k8s
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -45,6 +49,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         execution: mlrun.execution.MLClientCtx,
     ):
         command, args, extra_env = self._get_cmd_args(runtime, run)
+        run_node_selector = run.spec.node_selector
 
         if run.metadata.iteration:
             runtime.store_run(run)
@@ -57,9 +62,11 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
         pod_spec = func_to_pod(
             runtime.full_image_path(
-                client_version=run.metadata.labels.get("mlrun/client_version"),
+                client_version=run.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.client_version
+                ),
                 client_python_version=run.metadata.labels.get(
-                    "mlrun/client_python_version"
+                    mlrun_constants.MLRunInternalLabels.client_python_version
                 ),
             ),
             runtime,
@@ -68,6 +75,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             args,
             workdir,
             self._get_lifecycle(),
+            node_selector=run_node_selector,
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
@@ -184,7 +192,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
+        return f"{mlrun_constants.MLRunInternalLabels.uid}={object_id}"
 
     @staticmethod
     def _get_lifecycle():
@@ -206,8 +214,40 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
         )
         return client.V1Lifecycle(pre_stop=pre_stop_handler)
 
+    def _delete_pod_resources(
+        self,
+        db: api_db_base.DBInterface,
+        db_session: sqlalchemy.orm.Session,
+        namespace: str,
+        label_selector: str = None,
+        force: bool = False,
+        grace_period: int = None,
+        resource_deletion_grace_period: typing.Optional[int] = None,
+    ) -> list[dict]:
+        # override the grace period for the deletion of the pods
+        # because the databricks pods needs to signal the databricks cluster to stop the run
+        return super()._delete_pod_resources(
+            db,
+            db_session,
+            namespace,
+            label_selector,
+            force,
+            grace_period,
+            # coupled with "databricks_runtime.py:DatabricksSpec"
+            resource_deletion_grace_period=60,
+        )
 
-def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
+
+def func_to_pod(
+    image=None,
+    runtime=None,
+    extra_env=None,
+    command=None,
+    args=None,
+    workdir=None,
+    lifecycle=None,
+    node_selector=None,
+):
     container = client.V1Container(
         name="base",
         image=image,
@@ -222,7 +262,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
     )
 
     pod_spec = server.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
-        runtime.spec, container
+        runtime.spec, container, node_selector
     )
 
     if runtime.spec.image_pull_secret:

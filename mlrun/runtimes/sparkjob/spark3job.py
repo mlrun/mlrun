@@ -14,15 +14,16 @@
 import typing
 
 import kubernetes.client
+from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.common.schemas.function
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.runtimes.pod
 from mlrun.config import config
 
 from ...execution import MLClientCtx
 from ...model import RunObject
-from ...platforms.iguazio import mount_v3io, mount_v3iod
 from ...utils import update_in, verify_field_regex
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
@@ -451,7 +452,7 @@ class Spark3JobSpec(KubeResourceSpec):
 class Spark3Runtime(KubejobRuntime):
     group = "sparkoperator.k8s.io"
     version = "v1beta2"
-    apiVersion = group + "/" + version
+    apiVersion = group + "/" + version  # noqa: N815
     kind = "spark"
     plural = "sparkapplications"
 
@@ -505,13 +506,11 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        # TODO add affinity support
-        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
-        if affinity:
-            raise NotImplementedError(
-                "Setting affinity is not supported for spark runtime"
-            )
-        super().with_node_selection(node_name, node_selector, affinity, tolerations)
+        mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
+        self.with_driver_node_selection(node_name, node_selector, affinity, tolerations)
+        self.with_executor_node_selection(
+            node_name, node_selector, affinity, tolerations
+        )
 
     def with_driver_node_selection(
         self,
@@ -537,11 +536,12 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        if affinity:
+        if affinity is not None:
             self.spec.driver_affinity = affinity
-        if node_selector:
+        if node_selector is not None:
+            mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
             self.spec.driver_node_selector = node_selector
-        if tolerations:
+        if tolerations is not None:
             self.spec.driver_tolerations = tolerations
 
     def with_executor_node_selection(
@@ -568,11 +568,12 @@ class Spark3Runtime(KubejobRuntime):
             raise NotImplementedError(
                 "Setting node name is not supported for spark runtime"
             )
-        if affinity:
+        if affinity is not None:
             self.spec.executor_affinity = affinity
-        if node_selector:
+        if node_selector is not None:
+            mlrun.k8s_utils.validate_node_selectors(node_selector, raise_on_error=False)
             self.spec.executor_node_selector = node_selector
-        if tolerations:
+        if tolerations is not None:
             self.spec.executor_tolerations = tolerations
 
     def with_preemption_mode(
@@ -811,9 +812,7 @@ class Spark3Runtime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
-        from mlrun.run import new_function
-
-        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
+        sj = mlrun.new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
         # setting required resources

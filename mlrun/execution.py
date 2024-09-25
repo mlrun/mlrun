@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import uuid
 from copy import deepcopy
@@ -22,6 +23,7 @@ import yaml
 from dateutil import parser
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -33,13 +35,13 @@ from .features import Feature
 from .model import HyperParamOptions
 from .secrets import SecretsStore
 from .utils import (
+    RunKeys,
     dict_to_json,
     dict_to_yaml,
     get_in,
     is_relative_path,
     logger,
     now_date,
-    run_keys,
     to_date_str,
     update_in,
 )
@@ -77,13 +79,13 @@ class MLClientCtx:
         self._tmpfile = tmp
         self._logger = log_stream or logger
         self._log_level = "info"
-        self._matrics_db = None
         self._autocommit = autocommit
         self._notifications = []
         self._state_thresholds = {}
 
         self._labels = {}
         self._annotations = {}
+        self._node_selector = {}
 
         self._function = ""
         self._parameters = {}
@@ -101,8 +103,7 @@ class MLClientCtx:
         self._error = None
         self._commit = ""
         self._host = None
-        self._start_time = now_date()
-        self._last_update = now_date()
+        self._start_time = self._last_update = now_date()
         self._iteration_results = None
         self._children = []
         self._parent = None
@@ -110,6 +111,7 @@ class MLClientCtx:
 
         self._project_object = None
         self._allow_empty_resources = None
+        self._reset_on_run = None
 
     def __enter__(self):
         return self
@@ -129,7 +131,9 @@ class MLClientCtx:
     @property
     def tag(self):
         """Run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow") or self._uid
+        return (
+            self._labels.get(mlrun_constants.MLRunInternalLabels.workflow) or self._uid
+        )
 
     @property
     def state(self):
@@ -165,6 +169,8 @@ class MLClientCtx:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level, e.g. 'debug', 'info', 'error'"""
+        level = logging.getLevelName(value.upper())
+        self._logger.set_logger_level(level)
         self._log_level = value
 
     @property
@@ -202,6 +208,11 @@ class MLClientCtx:
     def labels(self):
         """Dictionary with labels (read-only)"""
         return deepcopy(self._labels)
+
+    @property
+    def node_selector(self):
+        """Dictionary with node selectors (read-only)"""
+        return deepcopy(self._node_selector)
 
     @property
     def annotations(self):
@@ -327,10 +338,12 @@ class MLClientCtx:
             "name": self.name,
             "kind": "run",
             "uri": uri,
-            "owner": get_in(self._labels, "owner"),
+            "owner": get_in(self._labels, mlrun_constants.MLRunInternalLabels.owner),
         }
-        if "workflow" in self._labels:
-            resp["workflow"] = self._labels["workflow"]
+        if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
+            resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[
+                mlrun_constants.MLRunInternalLabels.workflow
+            ]
         return resp
 
     @classmethod
@@ -359,7 +372,7 @@ class MLClientCtx:
             self._labels = meta.get("labels", self._labels)
         spec = attrs.get("spec")
         if spec:
-            self._secrets_manager = SecretsStore.from_list(spec.get(run_keys.secrets))
+            self._secrets_manager = SecretsStore.from_list(spec.get(RunKeys.secrets))
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
@@ -377,13 +390,15 @@ class MLClientCtx:
             self._allow_empty_resources = spec.get(
                 "allow_empty_resources", self._allow_empty_resources
             )
-            self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
-            self._in_path = spec.get(run_keys.input_path, self._in_path)
-            inputs = spec.get(run_keys.inputs)
+            self.artifact_path = spec.get(RunKeys.output_path, self.artifact_path)
+            self._in_path = spec.get(RunKeys.input_path, self._in_path)
+            inputs = spec.get(RunKeys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
             self._state_thresholds = spec.get(
                 "state_thresholds", self._state_thresholds
             )
+            self._node_selector = spec.get("node_selector", self._node_selector)
+            self._reset_on_run = spec.get("reset_on_run", self._reset_on_run)
 
         self._init_dbs(rundb)
 
@@ -396,7 +411,7 @@ class MLClientCtx:
                         self._set_input(k, v)
 
         if host and not is_api:
-            self.set_label("host", host)
+            self.set_label(mlrun_constants.MLRunInternalLabels.host, host)
 
         start = get_in(attrs, "status.start_time")
         if start:
@@ -560,7 +575,7 @@ class MLClientCtx:
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+            for artifact in get_in(task, ["status", RunKeys.artifacts], []):
                 self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
                     artifact
                 )
@@ -619,7 +634,9 @@ class MLClientCtx:
         :param viewer:        Kubeflow viewer type
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param src_path:      Deprecated, use local_path
-        :param upload:        Upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        A set of key/value labels to tag the artifact with
         :param format:        Optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key
@@ -909,6 +926,13 @@ class MLClientCtx:
                 updates, self._uid, self.project, iter=self._iteration
             )
 
+    def get_notifications(self):
+        """Get the list of notifications"""
+        return [
+            mlrun.model.Notification.from_dict(notification)
+            for notification in self._notifications
+        ]
+
     def to_dict(self):
         """Convert the run context to a dictionary"""
 
@@ -932,10 +956,11 @@ class MLClientCtx:
                 "parameters": self._parameters,
                 "handler": self._handler,
                 "outputs": self._outputs,
-                run_keys.output_path: self.artifact_path,
-                run_keys.inputs: self._inputs,
+                RunKeys.output_path: self.artifact_path,
+                RunKeys.inputs: self._inputs,
                 "notifications": self._notifications,
                 "state_thresholds": self._state_thresholds,
+                "node_selector": self._node_selector,
             },
             "status": {
                 "results": self._results,
@@ -957,7 +982,7 @@ class MLClientCtx:
         set_if_not_none(struct["status"], "commit", self._commit)
         set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        struct["status"][run_keys.artifacts] = self._artifacts_manager.artifact_list()
+        struct["status"][RunKeys.artifacts] = self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct["spec"])
         return struct
 
@@ -990,10 +1015,15 @@ class MLClientCtx:
         # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
         # configuration:
         labels = self.labels
-        if "host" in labels and labels.get("kind", "job") == "mpijob":
+        if (
+            mlrun_constants.MLRunInternalLabels.host in labels
+            and labels.get(mlrun_constants.MLRunInternalLabels.kind, "job") == "mpijob"
+        ):
             # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
             # the following template: ...-worker-<rank>
-            rank = int(labels["host"].rsplit("-", 1)[1])
+            rank = int(
+                labels[mlrun_constants.MLRunInternalLabels.host].rsplit("-", 1)[1]
+            )
             return rank == mlrun.mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
@@ -1029,9 +1059,14 @@ class MLClientCtx:
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is not decided by the execution as there may be
-        # multiple executions for a single run (e.g. mpi)
-        if self._state != "completed":
+        # Completion of runs is decided by the API runs monitoring as there may be
+        # multiple executions for a single run (e.g. mpi).
+        # For kinds that are not monitored by the API (local) we allow changing the state.
+        run_kind = self.labels.get(mlrun_constants.MLRunInternalLabels.kind, "")
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind)
+            or self._state != "completed"
+        ):
             struct["status.state"] = self._state
 
         if self.is_logging_worker():
@@ -1041,7 +1076,7 @@ class MLClientCtx:
         set_if_not_none(struct, "status.commit", self._commit)
         set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
+        struct[f"status.{RunKeys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
     def _init_dbs(self, rundb):

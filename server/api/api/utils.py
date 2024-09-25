@@ -15,10 +15,8 @@
 import asyncio
 import collections
 import copy
-import functools
 import json
 import re
-import time
 import traceback
 import typing
 import uuid
@@ -41,6 +39,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
+import server.api.crud.runtimes.nuclio
 import server.api.db.base
 import server.api.db.session
 import server.api.utils.auth.verifier
@@ -54,6 +53,7 @@ from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger
+from server.api.crud.runtimes.nuclio import delete_nuclio_functions_in_batches
 from server.api.db.sqldb.db import SQLDB
 from server.api.rundb.sqldb import SQLRunDB
 from server.api.utils.singletons.db import get_db
@@ -65,40 +65,6 @@ from server.api.utils.singletons.scheduler import get_scheduler
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
     logger.error(str(kw))
     raise HTTPException(status_code=status, detail=kw)
-
-
-def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
-    """
-    Thread-safety least-recently used cache with time-to-live (ttl_seconds) limit.
-    https://stackoverflow.com/a/71634221/5257501
-    """
-
-    class Result:
-        __slots__ = ("value", "death")
-
-        def __init__(self, value, death):
-            self.value = value
-            self.death = death
-
-    def decorator(func):
-        @functools.lru_cache(maxsize=maxsize, typed=typed)
-        def cached_func(*args, **kwargs):
-            value = func(*args, **kwargs)
-            death = time.monotonic() + ttl_seconds
-            return Result(value, death)
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            result = cached_func(*args, **kwargs)
-            if result.death < time.monotonic():
-                result.value = func(*args, **kwargs)
-                result.death = time.monotonic() + ttl_seconds
-            return result.value
-
-        wrapper.cache_clear = cached_func.cache_clear
-        return wrapper
-
-    return decorator
 
 
 def log_path(project, uid) -> Path:
@@ -392,15 +358,19 @@ def unmask_notification_params_secret(
             "Not running in k8s environment, cannot load notification params secret"
         )
 
-    notification_object.secret_params = json.loads(
-        server.api.crud.Secrets().get_project_secret(
-            project,
-            mlrun.common.schemas.SecretProviderName.kubernetes,
-            secret_key=params_secret,
-            allow_internal_secrets=True,
-            allow_secrets_from_k8s=True,
-        )
+    secret = server.api.crud.Secrets().get_project_secret(
+        project,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        secret_key=params_secret,
+        allow_internal_secrets=True,
+        allow_secrets_from_k8s=True,
     )
+
+    if secret is None:
+        # we don't want to provide a message that is too detailed due to security considerations here
+        raise mlrun.errors.MLRunPreconditionFailedError()
+
+    notification_object.secret_params = json.loads(secret)
 
     return notification_object
 
@@ -419,13 +389,14 @@ def delete_notification_params_secret(
             "Not running in k8s environment, cannot delete notification params secret"
         )
 
-    server.api.crud.Secrets().delete_project_secret(
-        project,
-        mlrun.common.schemas.SecretProviderName.kubernetes,
-        secret_key=params_secret,
-        allow_internal_secrets=True,
-        allow_secrets_from_k8s=True,
-    )
+    if server.api.crud.Secrets().is_internal_project_secret_key(params_secret):
+        server.api.crud.Secrets().delete_project_secret(
+            project,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            secret_key=params_secret,
+            allow_internal_secrets=True,
+            allow_secrets_from_k8s=True,
+        )
 
 
 def validate_and_mask_notification_list(
@@ -462,6 +433,8 @@ def validate_and_mask_notification_list(
 
         # validate notification schema
         mlrun.common.schemas.Notification(**notification_object.to_dict())
+
+        notification_object.validate_notification_params()
 
         notification_objects.append(notification_object)
 
@@ -1026,6 +999,7 @@ def submit_run_sync(
                 data,
                 cron_trigger,
                 schedule_labels,
+                fn_kind=fn.kind,
             )
 
             project = task["metadata"]["project"]
@@ -1132,6 +1106,7 @@ def get_or_create_project_deletion_background_task(
     """
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     wait_for_project_deletion = False
+    model_monitoring_access_key = None
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
     # project. Otherwise, we create a wrapper background task for deletion of the project.
@@ -1142,9 +1117,20 @@ def get_or_create_project_deletion_background_task(
         server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
+        if igz_version:
+            # Due to backwards compatibility reasons, the model monitoring access key should be retrieved before the
+            # project deletion. his key will be used to delete the model monitoring resources associated with the
+            # project.
+            model_monitoring_access_key = server.api.api.endpoints.nuclio.process_model_monitoring_secret(
+                db_session=db_session,
+                project_name=project.metadata.name,
+                secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                store=False,
+            )
         background_task_kind_format = (
             server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion
         )
+
     elif igz_version and igz_version < semver.VersionInfo.parse("3.5.5"):
         # The project deletion wrapper should wait for the project deletion to complete. This is a backwards
         # compatibility feature for when working with iguazio < 3.5.5 that does not support background tasks and
@@ -1176,6 +1162,7 @@ def get_or_create_project_deletion_background_task(
         auth_info=auth_info,
         wait_for_project_deletion=wait_for_project_deletion,
         background_task_name=background_task_name,
+        model_monitoring_access_key=model_monitoring_access_key,
     )
 
 
@@ -1186,6 +1173,7 @@ async def _delete_project(
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
+    model_monitoring_access_key: str = None,
 ):
     force_delete = False
     project_name = project.metadata.name
@@ -1199,6 +1187,7 @@ async def _delete_project(
             auth_info,
             wait_for_completion=True,
             background_task_name=background_task_name,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
     except mlrun.errors.MLRunNotFoundError as exc:
         if server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
@@ -1226,6 +1215,7 @@ async def _delete_project(
             project_name,
             deletion_strategy,
             auth_info,
+            model_monitoring_access_key=model_monitoring_access_key,
         )
 
     elif wait_for_project_deletion:
@@ -1286,6 +1276,8 @@ def create_function_deletion_background_task(
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
+    background_task_name = str(uuid.uuid4())
+
     # create the background task for function deletion
     return server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
         db_session,
@@ -1293,11 +1285,12 @@ def create_function_deletion_background_task(
         background_tasks,
         _delete_function,
         mlrun.mlconf.background_tasks.default_timeouts.operations.delete_function,
-        None,
+        background_task_name,
         db_session,
         project_name,
         function_name,
         auth_info,
+        background_task_name,
     )
 
 
@@ -1306,6 +1299,7 @@ async def _delete_function(
     project: str,
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
+    background_task_name: str,
 ):
     # getting all function tags
     functions = await run_in_threadpool(
@@ -1314,25 +1308,48 @@ async def _delete_function(
         project,
         function_name,
     )
-    if len(functions) > 0:
-        # Since we request functions by a specific name and project,
-        # in MLRun terminology, they are all just versions of the same function
-        # therefore, it's enough to check the kind of the first one only
-        if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-            # generate Nuclio function names based on function tags
-            nuclio_function_names = [
-                mlrun.runtimes.nuclio.function.get_fullname(
-                    function_name, project, function.get("metadata", {}).get("tag")
-                )
-                for function in functions
-            ]
-            # delete Nuclio functions associated with the function tags in batches
-            failed_requests = await _delete_nuclio_functions_in_batches(
-                auth_info, project, nuclio_function_names
+    if len(functions) == 0:
+        logger.debug(
+            "No functions to delete found", function_name=function_name, project=project
+        )
+        return True
+    logger.debug(
+        "Updating functions with deletion task id",
+        function_name=function_name,
+        functions_count=len(functions),
+        project=project,
+    )
+
+    # update functions with deletion task id
+    await _update_functions_with_deletion_info(
+        functions, project, {"status.deletion_task_id": background_task_name}
+    )
+
+    # Since we request functions by a specific name and project,
+    # in MLRun terminology, they are all just versions of the same function
+    # therefore, it's enough to check the kind of the first one only
+    if functions[0].get("kind") in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        # filter functions which don't have a status
+        # it means that they aren't attached to the actual nuclio function
+        nuclio_functions = [function for function in functions if function["status"]]
+
+        # generate Nuclio function names based on function tags
+        nuclio_function_names = [
+            mlrun.runtimes.nuclio.function.get_fullname(
+                function_name, project, function.get("metadata", {}).get("tag")
             )
-            if failed_requests:
-                error_message = f"Failed to delete function {function_name}. Errors: {' '.join(failed_requests)}"
-                raise mlrun.errors.MLRunInternalServerError(error_message)
+            for function in nuclio_functions
+        ]
+        # delete Nuclio functions associated with the function tags in batches
+        failed_requests = await delete_nuclio_functions_in_batches(
+            auth_info, project, nuclio_function_names
+        )
+        if failed_requests:
+            error_message = f"Failed to delete function {function_name}. {';'.join(failed_requests)}"
+            await _update_functions_with_deletion_info(
+                nuclio_functions, project, {"status.deletion_error": error_message}
+            )
+            raise mlrun.errors.MLRunInternalServerError(error_message)
 
     # delete the function from the database
     await run_in_threadpool(
@@ -1343,47 +1360,20 @@ async def _delete_function(
     )
 
 
-async def _delete_nuclio_functions_in_batches(
-    auth_info: mlrun.common.schemas.AuthInfo,
-    project_name: str,
-    function_names: list[str],
-):
-    async def delete_function(
-        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
-        project: str,
-        function: str,
-        _semaphore: asyncio.Semaphore,
-    ) -> tuple[str, str]:
-        async with _semaphore:
-            try:
-                await nuclio_client.delete_function(name=function, project_name=project)
-                return None
-            except Exception as exc:
-                # return tuple with failure info
-                return function, str(exc)
-
-    # Configure maximum concurrent deletions
-    max_concurrent_deletions = (
+async def _update_functions_with_deletion_info(functions, project, updates: dict):
+    semaphore = asyncio.Semaphore(
         mlrun.mlconf.background_tasks.function_deletion_batch_size
     )
-    semaphore = asyncio.Semaphore(max_concurrent_deletions)
-    failed_requests = []
 
-    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
-        tasks = [
-            delete_function(client, project_name, function_name, semaphore)
-            for function_name in function_names
-        ]
+    async def update_function(function):
+        async with semaphore:
+            await run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Functions().update_function,
+                function,
+                project,
+                updates,
+            )
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # process results to identify failed deletion requests
-        for result in results:
-            if isinstance(result, tuple):
-                nuclio_name, error_message = result
-                if error_message:
-                    failed_requests.append(
-                        f"Failed to delete nuclio function {nuclio_name}: {error_message}"
-                    )
-
-    return failed_requests
+    tasks = [update_function(function) for function in functions]
+    await asyncio.gather(*tasks)

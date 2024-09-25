@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -157,8 +158,9 @@ def make_kaniko_pod(
     runtime_spec=None,
     registry=None,
     extra_args="",
-    extra_labels={},
+    extra_labels=None,
     project_secrets=None,
+    project_default_fucntion_node_selector=None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -166,24 +168,14 @@ def make_kaniko_pod(
         registry = dest.partition("/")[0]
 
     # set kaniko's spec attributes from the runtime spec
-    for attribute in get_kaniko_spec_attributes_from_runtime():
-        attr_value = getattr(runtime_spec, attribute, None)
-        if attribute == "service_account":
-            from server.api.api.utils import resolve_project_default_service_account
-
-            (
-                allowed_service_accounts,
-                default_service_account,
-            ) = resolve_project_default_service_account(project)
-            if attr_value:
-                runtime_spec.validate_service_account(allowed_service_accounts)
-            else:
-                attr_value = default_service_account
-
-        if not attr_value:
-            continue
-
-        extra_runtime_spec[attribute] = attr_value
+    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
+        project,
+        runtime_spec,
+        project_default_fucntion_node_selector,
+    ).items():
+        attr_value = handler(getattr(runtime_spec, attribute, None))
+        if attr_value:
+            extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -301,20 +293,7 @@ def make_kaniko_pod(
             end = len(dest)
         repo = dest[dest.find("/") + 1 : end]
 
-        # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
-        assume_instance_role = not config.httpdb.builder.docker_registry_secret
-        configure_kaniko_ecr_init_container(kpod, registry, repo, assume_instance_role)
-
-        # project secret might conflict with the attached instance role
-        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
-        # due to credentials conflict / lack of permission on given credentials
-        if assume_instance_role:
-            kpod.pod.spec.containers[0].env.extend(
-                [
-                    client.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=""),
-                    client.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=""),
-                ]
-            )
+        configure_kaniko_ecr_env_and_init_container(kpod, registry, repo)
 
     # mount regular docker config secret
     elif secret_name:
@@ -324,9 +303,9 @@ def make_kaniko_pod(
     return kpod
 
 
-def configure_kaniko_ecr_init_container(
-    kpod, registry, repo, assume_instance_role=True
-):
+def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
+    # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
+    assume_instance_role = not config.httpdb.builder.docker_registry_secret
     region = registry.split(".")[3]
 
     # fail silently in order to ignore "repository already exists" errors
@@ -338,6 +317,15 @@ def configure_kaniko_ecr_init_container(
     init_container_env = {}
 
     kpod.env = kpod.env or []
+
+    # project secret might conflict with the attached instance role/docker registry secret
+    # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
+    # due to credentials conflict / lack of permission on given credentials
+    kpod.env = kpod.env = [
+        env_var
+        for env_var in kpod.env
+        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+    ]
 
     if assume_instance_role:
         # assume instance role has permissions to register and store a container image
@@ -402,6 +390,14 @@ def build_image(
 ):
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
+
+    project_default_function_node_selector = {}
+    if runtime and runtime._get_db():
+        project_obj = runtime._get_db().get_project(runtime.metadata.project)
+        if project_obj:
+            project_default_function_node_selector = (
+                project_obj.spec.default_function_node_selector
+            )
 
     extra_args = extra_args or {}
     builder_env = builder_env or {}
@@ -515,7 +511,6 @@ def build_image(
         extra_args=extra_args,
     )
 
-    label_prefix = mlrun.runtimes.utils.mlrun_key
     kpod = make_kaniko_pod(
         project,
         context,
@@ -534,10 +529,11 @@ def build_image(
         registry=registry,
         extra_args=extra_args,
         extra_labels={
-            label_prefix + "name": name,
-            label_prefix + "function": runtime.metadata.name,
-            label_prefix + "tag": runtime.metadata.tag or "latest",
+            mlrun_constants.MLRunInternalLabels.name: name,
+            mlrun_constants.MLRunInternalLabels.function: runtime.metadata.name,
+            mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
+        project_default_fucntion_node_selector=project_default_function_node_selector,
     )
 
     if to_mount:
@@ -561,16 +557,45 @@ def build_image(
         return f"build:{pod}"
 
 
-def get_kaniko_spec_attributes_from_runtime():
+def get_kaniko_spec_attributes_from_runtime(
+    project, runtime_spec, project_default_fucntion_node_selector
+):
     """get the names of Kaniko spec attributes that are defined for runtime but should also be applied to kaniko"""
-    return [
-        "node_name",
-        "node_selector",
-        "affinity",
-        "tolerations",
-        "priority_class_name",
-        "service_account",
-    ]
+
+    def service_account_handler(attr_value):
+        from server.api.api.utils import resolve_project_default_service_account
+
+        (
+            allowed_service_accounts,
+            default_service_account,
+        ) = resolve_project_default_service_account(project)
+        if attr_value:
+            runtime_spec.validate_service_account(allowed_service_accounts)
+        else:
+            attr_value = default_service_account
+        return attr_value
+
+    def node_selector_handler(attr_value):
+        attr_value = mlrun.utils.to_non_empty_values_dict(
+            mlrun.utils.helpers.merge_dicts_with_precedence(
+                mlrun.mlconf.get_default_function_node_selector(),
+                project_default_fucntion_node_selector,
+                attr_value,
+            )
+        )
+        return attr_value
+
+    def identity_handler(attr_value):
+        return attr_value
+
+    return {
+        "node_name": identity_handler,
+        "node_selector": node_selector_handler,
+        "affinity": identity_handler,
+        "tolerations": identity_handler,
+        "priority_class_name": identity_handler,
+        "service_account": service_account_handler,
+    }
 
 
 def resolve_mlrun_install_command_version(
@@ -640,20 +665,15 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    is_mlrun_image = False
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    if base_image:
-        mlrun_images = [
-            "mlrun/mlrun",
-            "mlrun/mlrun-gpu",
-            "mlrun/ml-base",
-        ]
-        if any([image in base_image for image in mlrun_images]):
-            # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
-            with_mlrun = False
-            is_mlrun_image = True
+
+    mlrun_image = False
+    # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
+    if base_image and is_mlrun_image(base_image):
+        mlrun_image = True
+        with_mlrun = False
 
     if force_build:
         mlrun.utils.logger.info("Forcefully building image")
@@ -699,23 +719,8 @@ def build_runtime(
         base_image, client_version, client_python_version
     )
 
-    # Add mlrun to the requirements even though it is already installed because
-    # we want pip to include mlrun constraints when installing other packages
-    if is_mlrun_image and build.requirements:
-        image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
-            enriched_base_image
-        )
-        if has_py_package or mlrun_version_specifier:
-            installed_mlrun_version_command = resolve_mlrun_install_command_version(
-                mlrun_version_specifier, client_version=image_tag
-            )
-            build.requirements.insert(0, installed_mlrun_version_command)
-
-        else:
-            mlrun.utils.logger.warning(
-                "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
-                base_image=enriched_base_image,
-            )
+    if mlrun_image and build.requirements:
+        add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier)
 
     mlrun.utils.logger.info(
         "Building runtime image",
@@ -773,6 +778,34 @@ def build_runtime(
     runtime.spec.image = local + build.image
     runtime.status.state = mlrun.common.schemas.FunctionState.ready
     return True
+
+
+def add_mlrun_to_requirements(build, enriched_base_image, mlrun_version_specifier=None):
+    # Add mlrun to the requirements even though it is already installed because
+    # we want pip to include mlrun constraints when installing other packages
+    image_tag, has_py_package = server.api.utils.helpers.extract_image_tag(
+        enriched_base_image
+    )
+    if has_py_package or mlrun_version_specifier:
+        installed_mlrun_version_command = resolve_mlrun_install_command_version(
+            mlrun_version_specifier, client_version=image_tag
+        )
+        build.requirements.insert(0, installed_mlrun_version_command)
+
+    else:
+        mlrun.utils.logger.warning(
+            "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
+            base_image=enriched_base_image,
+        )
+
+
+def is_mlrun_image(base_image):
+    mlrun_images = [
+        "mlrun/mlrun",
+        "mlrun/mlrun-gpu",
+        "mlrun/ml-base",
+    ]
+    return any([image in base_image for image in mlrun_images])
 
 
 def resolve_and_enrich_image_target(

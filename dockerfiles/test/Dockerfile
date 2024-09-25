@@ -45,7 +45,7 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global user.name "MLRun Test" \
      && git config --global init.defaultBranch "main"
 
-ARG MLRUN_PIP_VERSION=23.2.1
+ARG MLRUN_PIP_VERSION=24.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
@@ -73,6 +73,8 @@ RUN python -m pip install \
 
 COPY . .
 
-RUN pip install -e .[complete]
+RUN pip install -e .[complete] &&\
+    pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
+    pip install -e ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 ENV NO_COLOR=1

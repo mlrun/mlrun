@@ -21,6 +21,7 @@ import requests.adapters
 import requests.auth
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
@@ -139,7 +140,7 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: typing.Optional[list[str]] = None,
@@ -163,19 +164,19 @@ class Client(
             )
         response = self._send_request_to_api("GET", "projects", auth_info=auth_info)
         response_body = response.json()
-        projects = []
-        for nuclio_project in response_body.values():
-            projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if format_ == mlrun.common.schemas.ProjectsFormat.full:
-            return mlrun.common.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-            return mlrun.common.schemas.ProjectsOutput(
-                projects=[project.metadata.name for project in projects]
-            )
-        else:
-            raise NotImplementedError(
-                f"Provided format is not supported. format={format_}"
-            )
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=[
+                mlrun.common.formatters.ProjectFormat.format_obj(
+                    self._transform_nuclio_project_to_schema(nuclio_project),
+                    format_,
+                    exclude_formats=[
+                        mlrun.common.formatters.ProjectFormat.leader,
+                        mlrun.common.formatters.ProjectFormat.minimal,
+                    ],
+                )
+                for nuclio_project in response_body.values()
+            ]
+        )
 
     def list_project_summaries(
         self,

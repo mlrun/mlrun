@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 name: System Tests Enterprise
 
 on:
@@ -23,7 +23,7 @@ on:
 
     # * is a special character in YAML so you have to quote this string
     # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
-    - cron: '0 */8 * * *'
+    - cron: '0 0 * * *'
 
   workflow_dispatch:
     inputs:
@@ -56,7 +56,7 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass
@@ -97,7 +97,7 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install dependencies
       run: |
         apt-get update -qqy && apt-get install -y sshpass jq curl gnupg nodejs
@@ -164,7 +164,7 @@ jobs:
       # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
       # before merging the changes to upstream.
     - name: Checkout base branch
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install automation scripts dependencies
       run: |
@@ -173,7 +173,7 @@ jobs:
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
-        
+
         # Get the latest commit of mlrun/mlrun (that is older than 1 hour)
         echo "mlrun_hash=$( \
           cd /tmp && \
@@ -182,7 +182,7 @@ jobs:
           git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
-        
+
         # Get the latest commit of mlrun/ui (that is older than 1 hour)
         echo "ui_hash=$( \
           cd /tmp && \
@@ -191,7 +191,7 @@ jobs:
           git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
-        
+
         # Get the tested mlrun version
         echo "unstable_version_prefix=$( \
           curl https://raw.githubusercontent.com/mlrun/mlrun/${{ steps.current-branch.outputs.name }}/automation/version/unstable_version_prefix \
@@ -265,13 +265,13 @@ jobs:
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
           --output "$GITHUB_WORKSPACE/env.yml.gpg" \
           --symmetric "$GITHUB_WORKSPACE/env.yml"
-        
+
         echo "env_file_path=$(echo $GITHUB_WORKSPACE/env.yml.gpg)" >> $GITHUB_OUTPUT
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"
@@ -328,14 +328,14 @@ jobs:
       with:
         node-version: 18
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run
       # the system tests of the branch that triggered the system tests as it might be in a different version
       # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
       with:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: env
         path: /tmp
@@ -355,7 +355,7 @@ jobs:
 
     - name: Pre Tests Requirements
       run: |
-        
+
         # due to
         # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
         # ensure mlrun git is safe to use

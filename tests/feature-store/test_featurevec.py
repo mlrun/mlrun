@@ -70,6 +70,7 @@ def test_get_offline_features(mock_get_offline_features):
     test_order_by = "col1"
     test_spark_service = "test_spark_service"
     test_timestamp_for_filtering = {"col1": "2021-01-01"}
+    additional_filters = [("x", "=", 3)]
 
     fv.get_offline_features(
         entity_rows=test_entity_rows,
@@ -87,6 +88,7 @@ def test_get_offline_features(mock_get_offline_features):
         order_by=test_order_by,
         spark_service=test_spark_service,
         timestamp_for_filtering=test_timestamp_for_filtering,
+        additional_filters=additional_filters,
     )
     mock_get_offline_features.assert_called_once_with(
         fv,
@@ -105,4 +107,5 @@ def test_get_offline_features(mock_get_offline_features):
         test_order_by,
         test_spark_service,
         test_timestamp_for_filtering,
+        additional_filters,
     )

@@ -648,13 +648,13 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         if isinstance(value, list):
             if len(value) == 0:
                 return ""
-            text = "\n" + yaml.dump(value)
+            text = "\n" + yaml.safe_dump(value)
             text = "  \n".join(["  " * tabs + line for line in text.splitlines()])
             return text
         if isinstance(value, dict):
             if len(value) == 0:
                 return ""
-            text = yaml.dump(value)
+            text = yaml.safe_dump(value)
             text = "  \n".join(
                 ["  " * tabs + "- " + line for line in text.splitlines()]
             )

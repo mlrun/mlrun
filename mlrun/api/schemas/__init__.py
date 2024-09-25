@@ -25,6 +25,7 @@ schema.
 import sys
 import warnings
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact as old_artifact
 import mlrun.common.schemas.auth as old_auth
@@ -96,7 +97,7 @@ sys.modules["mlrun.api.schemas.tag"] = old_tag
 # and return the new schema. This is done for backwards compatibility with mlrun.api.schemas.
 ArtifactCategories = DeprecationHelper(mlrun.common.schemas.ArtifactCategories)
 ArtifactIdentifier = DeprecationHelper(mlrun.common.schemas.ArtifactIdentifier)
-ArtifactsFormat = DeprecationHelper(mlrun.common.schemas.ArtifactsFormat)
+ArtifactsFormat = DeprecationHelper(mlrun.common.formatters.ArtifactFormat)
 AuthInfo = DeprecationHelper(mlrun.common.schemas.AuthInfo)
 AuthorizationAction = DeprecationHelper(mlrun.common.schemas.AuthorizationAction)
 AuthorizationResourceTypes = DeprecationHelper(
@@ -221,7 +222,7 @@ ObjectKind = DeprecationHelper(mlrun.common.schemas.ObjectKind)
 ObjectMetadata = DeprecationHelper(mlrun.common.schemas.ObjectMetadata)
 ObjectSpec = DeprecationHelper(mlrun.common.schemas.ObjectSpec)
 ObjectStatus = DeprecationHelper(mlrun.common.schemas.ObjectStatus)
-PipelinesFormat = DeprecationHelper(mlrun.common.schemas.PipelinesFormat)
+PipelinesFormat = DeprecationHelper(mlrun.common.formatters.PipelineFormat)
 PipelinesOutput = DeprecationHelper(mlrun.common.schemas.PipelinesOutput)
 PipelinesPagination = DeprecationHelper(mlrun.common.schemas.PipelinesPagination)
 IguazioProject = DeprecationHelper(mlrun.common.schemas.IguazioProject)
@@ -229,7 +230,7 @@ Project = DeprecationHelper(mlrun.common.schemas.Project)
 ProjectDesiredState = DeprecationHelper(mlrun.common.schemas.ProjectDesiredState)
 ProjectMetadata = DeprecationHelper(mlrun.common.schemas.ProjectMetadata)
 ProjectOwner = DeprecationHelper(mlrun.common.schemas.ProjectOwner)
-ProjectsFormat = DeprecationHelper(mlrun.common.schemas.ProjectsFormat)
+ProjectsFormat = DeprecationHelper(mlrun.common.formatters.ProjectFormat)
 ProjectsOutput = DeprecationHelper(mlrun.common.schemas.ProjectsOutput)
 ProjectSpec = DeprecationHelper(mlrun.common.schemas.ProjectSpec)
 ProjectState = DeprecationHelper(mlrun.common.schemas.ProjectState)

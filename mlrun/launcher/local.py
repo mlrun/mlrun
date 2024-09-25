@@ -15,6 +15,7 @@ import os
 import pathlib
 from typing import Callable, Optional, Union
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
 import mlrun.errors
 import mlrun.launcher.client as launcher
@@ -68,11 +69,12 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
-        if self._is_run_local and schedule is not None:
+        if schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "local and schedule cannot be used together"
+                f"Unexpected {schedule=} parameter for local function execution"
             )
 
         self.enrich_runtime(runtime, project)
@@ -87,6 +89,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
                 name=name,
                 workdir=workdir,
                 handler=handler,
+                reset_on_run=reset_on_run,
             )
 
         # sanity check
@@ -132,8 +135,13 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-        if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
-            run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
+        if (
+            "V3IO_USERNAME" in os.environ
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
+            )
 
         # store function object in db unless running from within a run pod
         if not runtime.is_child:
@@ -206,6 +214,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         name: Optional[str] = "",
         workdir: Optional[str] = "",
         handler: Optional[str] = None,
+        reset_on_run: Optional[bool] = None,
     ):
         project = project or runtime.metadata.project
         function_name = name or runtime.metadata.name
@@ -244,6 +253,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             fn.spec.build = runtime.spec.build
 
         run.spec.handler = handler
+        run.spec.reset_on_run = reset_on_run
         return fn
 
     @staticmethod

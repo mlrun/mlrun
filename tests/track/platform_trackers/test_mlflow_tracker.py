@@ -74,16 +74,16 @@ def interrupted_run():
 def lgb_run():
     # prepare train and test data
     iris = datasets.load_iris()
-    X = iris.data
+    x = iris.data
     y = iris.target
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
     )
 
     # enable auto logging
     mlflow.lightgbm.autolog()
 
-    train_set = lgb.Dataset(X_train, label=y_train)
+    train_set = lgb.Dataset(x_train, label=y_train)
 
     with mlflow.start_run():
         # train model
@@ -106,7 +106,7 @@ def lgb_run():
         )
 
         # evaluate model
-        y_proba = model.predict(X_test)
+        y_proba = model.predict(x_test)
         y_pred = y_proba.argmax(axis=1)
         loss = log_loss(y_test, y_proba)
         acc = accuracy_score(y_test, y_pred)

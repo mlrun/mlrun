@@ -48,7 +48,11 @@ def newpipe():
     train = mlrun.run_function(
         "train",
         name="train",
-        params={"sample": -1, "label_column": project.get_param("label", "label"), "test_size": 0.10},
+        params={
+            "sample": -1,
+            "label_column": project.get_param("label", "label"),
+            "test_size": 0.10,
+        },
         hyperparams={
             "model_pkg_class": [
                 "sklearn.ensemble.RandomForestClassifier",

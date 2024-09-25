@@ -3,17 +3,43 @@
 
 This section lists the data stores, development tools, services, platforms, etc., supported by MLRun's open ecosystem. 
 
-## Data stores 
+## Data stores
 
-- Object (S3, GS, az) 
-- Files, NFS 
-- Pandas/Spark DF 
-- BigQuery 
+- Object (S3, GS, GCS, az)
+- Files, NFS
+- dbfs
+- V3IO
+
+## Sources
+
+- BigQuery
+- SnowFlake
+- SQL
+- CSV
+- Dataframe
+- Parquet
+- S3/Azure
+- Http
+
+## Streaming frameworks
+- Kafka
+- V3IO-stream
+
+## Targets
+
+- CSV
+- Kafka
+- Parquet
 - Snowflake
-- Databricks
-- Redis 
-- Iguazio V3IO object/key-value
-- SQL sources
+- Stream
+- NoSQL
+- RedisNoSQL
+- SQL
+
+## TSDB
+
+- V3IO TSDB
+- TDEngine
 
 ## Event sources 
 
@@ -66,8 +92,8 @@ This section lists the data stores, development tools, services, platforms, etc.
 ## CI/CD 
 
 - Jenkins 
-- Github Actions 
-- Gitlab CI/CD 
+- GitHub Actions 
+- GitLab CI/CD 
 - KFP
 
 ## Browser

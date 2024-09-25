@@ -32,7 +32,16 @@ class SlackNotification(NotificationBase):
         "completed": ":smiley:",
         "running": ":man-running:",
         "error": ":x:",
+        "skipped": ":zzz:",
     }
+
+    @classmethod
+    def validate_params(cls, params):
+        webhook = params.get("webhook", None) or mlrun.get_secret_or_env(
+            "SLACK_WEBHOOK"
+        )
+        if not webhook:
+            raise ValueError("Parameter 'webhook' is required for SlackNotification")
 
     async def push(
         self,
@@ -135,8 +144,16 @@ class SlackNotification(NotificationBase):
         line = [
             self._get_slack_row(f":bell: {alert.name} alert has occurred"),
             self._get_slack_row(f"*Project:*\n{alert.project}"),
-            self._get_slack_row(f"*UID:*\n{event_data.entity.id}"),
+            self._get_slack_row(f"*ID:*\n{event_data.entity.ids[0]}"),
         ]
+
+        if alert.summary:
+            line.append(
+                self._get_slack_row(
+                    f"*Summary:*\n{mlrun.utils.helpers.format_alert_summary(alert, event_data)}"
+                )
+            )
+
         if event_data.value_dict:
             data_lines = []
             for key, value in event_data.value_dict.items():
@@ -144,8 +161,8 @@ class SlackNotification(NotificationBase):
             data_text = "\n".join(data_lines)
             line.append(self._get_slack_row(f"*Event data:*\n{data_text}"))
 
-        if url := mlrun.utils.helpers.get_ui_url(alert.project, event_data.entity.id):
-            line.append(self._get_slack_row(f"*Overview:*\n<{url}|*Job overview*>"))
+        overview_type, url = self._get_overview_type_and_url(alert, event_data)
+        line.append(self._get_slack_row(f"*Overview:*\n<{url}|*{overview_type}*>"))
 
         return line
 
@@ -154,18 +171,21 @@ class SlackNotification(NotificationBase):
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
 
         # Only show the URL if the run is not a function (serving or mlrun function)
-        if run.get("kind") not in ["serving", None] and url:
+        kind = run.get("step_kind")
+        state = run["status"].get("state", "")
+        if state != "skipped" and (url and not kind or kind == "run"):
             line = f'<{url}|*{meta.get("name")}*>'
         else:
             line = meta.get("name")
-        state = run["status"].get("state", "")
+        if kind:
+            line = f'{line} *({run.get("step_kind", run.get("kind", ""))})*'
         line = f'{self.emojis.get(state, ":question:")}  {line}'
         return self._get_slack_row(line)
 
     def _get_run_result(self, run: dict) -> dict:
         state = run["status"].get("state", "")
         if state == "error":
-            error_status = run["status"].get("error", "")
+            error_status = run["status"].get("error", "") or state
             result = f"*{error_status}*"
         else:
             result = mlrun.utils.helpers.dict_to_str(

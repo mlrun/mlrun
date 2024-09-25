@@ -25,7 +25,9 @@ import sqlalchemy.orm
 
 import mlrun.artifacts
 import mlrun.artifacts.base
+import mlrun.common.formatters
 import mlrun.common.schemas
+import server.api.constants
 import server.api.crud.pagination_cache
 import server.api.db.sqldb.db
 import server.api.db.sqldb.helpers
@@ -33,6 +35,7 @@ import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
+import server.api.utils.scheduler
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -43,6 +46,7 @@ from mlrun.utils import (
 )
 from server.api.db.init_db import init_db
 from server.api.db.session import close_session, create_session
+from server.api.db.sqldb.models import ProjectSummary
 
 
 def init_data(
@@ -50,11 +54,20 @@ def init_data(
 ) -> None:
     logger.info("Initializing DB data")
 
+    alembic_util = None
+
     # create mysql util, and if mlrun is configured to use mysql, wait for it to be live and set its db modes
     mysql_util = server.api.utils.db.mysql.MySQLUtil(logger)
     if mysql_util.get_mysql_dsn_data():
         mysql_util.wait_for_db_liveness()
         mysql_util.set_modes(mlrun.mlconf.httpdb.db.mysql.modes)
+
+        alembic_util = _create_alembic_util()
+        (
+            is_migration_needed,
+            is_migration_from_scratch,
+            is_backup_needed,
+        ) = _resolve_needed_operations(alembic_util, from_scratch)
     else:
         dsn = mysql_util.get_dsn()
         if "sqlite" in dsn:
@@ -64,12 +77,10 @@ def init_data(
                 f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
             )
 
-    alembic_util = _create_alembic_util()
-    (
-        is_migration_needed,
-        is_migration_from_scratch,
-        is_backup_needed,
-    ) = _resolve_needed_operations(alembic_util, from_scratch)
+        # migration is not needed for sqlite, but we mark it as from scratch to initialize the db
+        is_migration_from_scratch = True
+        is_migration_needed = False
+        is_backup_needed = False
 
     if (
         not is_migration_from_scratch
@@ -107,7 +118,7 @@ def init_data(
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
     # therefore moving to migration_completed state, and other component will take care of moving to online
-    if not is_migration_from_scratch and is_migration_needed:
+    if alembic_util and not is_migration_from_scratch and is_migration_needed:
         config.httpdb.state = mlrun.common.schemas.APIStates.migrations_completed
     else:
         config.httpdb.state = mlrun.common.schemas.APIStates.online
@@ -129,15 +140,20 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 5
+latest_data_version = 7
 
 
 def update_default_configuration_data():
+    server.api.db.session.run_function_with_new_db_session(
+        server.api.crud.Alerts().populate_event_cache
+    )
+
     logger.debug("Updating default configuration data")
     db_session = create_session()
     try:
         db = server.api.db.sqldb.db.SQLDB()
         _add_default_hub_source_if_needed(db, db_session)
+        _add_default_alert_templates(db, db_session)
     finally:
         close_session(db_session)
 
@@ -175,13 +191,9 @@ def _resolve_needed_operations(
 
 
 def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
-    alembic_config_file_name = "alembic.ini"
-    if server.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data():
-        alembic_config_file_name = "alembic_mysql.ini"
-
     # run schema migrations on existing DB or create it with alembic
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-    alembic_config_path = dir_path / alembic_config_file_name
+    alembic_config_path = dir_path / "alembic.ini"
 
     alembic_util = server.api.utils.db.alembic.AlembicUtil(
         alembic_config_path, _is_latest_data_version()
@@ -190,8 +202,9 @@ def _create_alembic_util() -> server.api.utils.db.alembic.AlembicUtil:
 
 
 def _perform_schema_migrations(alembic_util: server.api.utils.db.alembic.AlembicUtil):
-    logger.info("Performing schema migration")
-    alembic_util.init_alembic()
+    if alembic_util:
+        logger.info("Performing schema migration")
+        alembic_util.init_alembic()
 
 
 def _is_latest_data_version():
@@ -229,6 +242,13 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_4_data_migrations(db, db_session)
             if current_data_version < 5:
                 _perform_version_5_data_migrations(db, db_session)
+            if current_data_version < 6:
+                _perform_version_6_data_migrations(db, db_session)
+            if current_data_version < 7:
+                _perform_version_7_data_migrations(db, db_session)
+            if current_data_version < 8:
+                _perform_version_8_data_migrations(db, db_session)
+
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -413,7 +433,7 @@ def _resolve_current_data_version(
     ) as exc:
         try:
             projects = db.list_projects(
-                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+                db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
             )
         except (
             sqlalchemy.exc.ProgrammingError,
@@ -567,7 +587,7 @@ def _migrate_artifacts_batch(
             link_artifact_ids.append(artifact.id)
             continue
 
-        artifact_metadata = artifact_dict.get("metadata", None)
+        artifact_metadata = artifact_dict.get("metadata", None) or {}
 
         # producer_id - the current uid value
         # uid can be in the metadata or in the artifact itself, or in the tree field
@@ -601,6 +621,11 @@ def _migrate_artifacts_batch(
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False
+
+        # to overcome issues with legacy artifacts with missing keys, we will set the key in the metadata
+        if not artifact_metadata.get("key"):
+            artifact_dict.setdefault("metadata", {})
+            artifact_dict["metadata"]["key"] = key
 
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
@@ -819,6 +844,63 @@ def _delete_state_file():
         os.remove(config.artifacts.artifact_migration_state_file_path)
     except FileNotFoundError:
         pass
+
+
+def _add_default_alert_templates(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    for template in server.api.constants.pre_defined_templates:
+        record = db.get_alert_template(db_session, template.template_name)
+        if record is None or record.templates_differ(template):
+            db.store_alert_template(db_session, template)
+
+
+def _perform_version_6_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _migrate_model_monitoring_jobs(db, db_session)
+
+
+def _migrate_model_monitoring_jobs(db, db_session):
+    db.delete_schedules(
+        session=db_session,
+        project="*",
+        names=["model-monitoring-controller", "model-monitoring-batch"],
+    )
+    db.delete_functions(
+        session=db_session,
+        project="*",
+        names=["model-monitoring-controller", "model-monitoring-batch"],
+    )
+
+
+def _perform_version_7_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _create_project_summaries(db, db_session)
+
+
+def _perform_version_8_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    db.align_schedule_labels(session=db_session)
+
+
+def _create_project_summaries(db, db_session):
+    # Create a project summary record for all projects.
+    # We need to create them manually because a summary record is created only when a new
+    # project is created, so project that existing prior to the upgrade don't have summaries.
+    projects = db.list_projects(
+        db_session, format_=mlrun.common.formatters.ProjectFormat.name_only
+    )
+    project_summaries = [
+        ProjectSummary(
+            project=project_name,
+            summary=mlrun.common.schemas.ProjectSummary(name=project_name).dict(),
+        )
+        for project_name in projects.projects
+    ]
+    db._upsert(db_session, project_summaries, ignore=True)
 
 
 def main() -> None:

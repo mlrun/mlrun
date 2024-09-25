@@ -25,11 +25,15 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
+from mlrun_pipelines.common.models import RunStatuses
 
 import mlrun
+import mlrun.alerts.alert
 import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring as mm_consts
+import mlrun.db.nopdb
 import mlrun.errors
 import mlrun.projects.project
 import mlrun.runtimes.base
@@ -235,7 +239,7 @@ def test_build_project_from_minimal_dict():
             True,
             "",
             True,
-            "project name mismatch",
+            "Project name mismatch",
         ),
         (
             pathlib.Path(tests.conftest.tests_root_directory)
@@ -533,6 +537,32 @@ def test_project_with_setup(context, op):
         assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
     else:
         assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+
+
+@pytest.mark.parametrize(
+    "setup_file_contents, exception",
+    [
+        (b"def setup(project): return 5", pytest.raises(Exception)),
+        (b"def setup(project): pass", pytest.raises(Exception)),
+        (b"def setup(project): return None", pytest.raises(Exception)),
+        (b"def setup(project): return project", does_not_raise()),
+    ],
+)
+def test_project_setup_must_return_project_object(
+    context, setup_file_contents, exception
+):
+    mlrun_project = mlrun.new_project(context=context, name="projset", save=False)
+    with tempfile.NamedTemporaryFile(dir=context, delete=False, suffix=".py") as fp:
+        fp.write(setup_file_contents)
+
+        # ensure the file is written, so the setup will be imported properly
+        fp.flush()
+        with exception as exc:
+            mlrun.projects.project._run_project_setup(
+                mlrun_project, fp.name, save=False
+            )
+        if exc:
+            assert "must return a project object" in str(exc.value)
 
 
 @pytest.mark.parametrize(
@@ -988,18 +1018,34 @@ def test_import_artifact_retain_producer(rundb_mock):
         name="project-2", context=f"{base_path}/project_2", save=False
     )
 
+    # set project owners
+    project_1.spec.owner = "owner-1"
+
     # create an artifact with a 'run' producer
     artifact = mlrun.artifacts.Artifact(key="x", body="123", is_inline=True)
     run_name = "my-run"
-    run_tag = "some-tag"
+    run_tag = "sometag123"
 
     # we set the producer as dict so the export will work
     artifact.producer = mlrun.artifacts.ArtifactProducer(
         kind="run",
         project=project_1.name,
         name=run_name,
-        tag=run_tag,
+        owner=project_1.spec.owner,
     ).get_meta()
+
+    # imitate the artifact being produced by a run with uri and without a tag
+    artifact.producer["uri"] = f"{project_1.name}/{run_tag}"
+    artifact.producer["project"] = project_1.name
+
+    # the uri is parsed when importing the artifact, so we set the expected producer
+    # also, the project is removed from the producer when importing
+    expected_producer = {
+        "kind": "run",
+        "name": run_name,
+        "tag": run_tag,
+        "owner": project_1.spec.owner,
+    }
 
     # export the artifact
     artifact_path = f"{base_path}/my-artifact.yaml"
@@ -1008,7 +1054,7 @@ def test_import_artifact_retain_producer(rundb_mock):
     # import the artifact to another project
     new_key = "y"
     imported_artifact = project_2.import_artifact(artifact_path, new_key)
-    assert imported_artifact.producer == artifact.producer
+    assert imported_artifact.producer == expected_producer
 
     # set the artifact on the first project
     project_1.set_artifact(artifact.key, artifact)
@@ -1021,7 +1067,7 @@ def test_import_artifact_retain_producer(rundb_mock):
 
     # make sure the artifact was registered with the new key
     loaded_artifact = project_3.get_artifact(new_key)
-    assert loaded_artifact.producer == artifact.producer
+    assert loaded_artifact.producer == expected_producer
 
 
 def test_replace_exported_artifact_producer(rundb_mock):
@@ -1067,6 +1113,30 @@ def test_replace_exported_artifact_producer(rundb_mock):
     loaded_artifact = project_3.get_artifact(key)
     assert loaded_artifact.producer != artifact.producer
     assert loaded_artifact.producer["name"] == project_3.name
+
+
+@pytest.mark.parametrize(
+    "project_owner,username",
+    [
+        ("project-owner", None),
+        (None, "username"),
+        ("project-owner", "username"),
+        (None, None),
+    ],
+)
+def test_artifact_owner(
+    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+):
+    if username:
+        monkeypatch.setenv("V3IO_USERNAME", username)
+
+    project = mlrun.new_project("artifact-owner", save=False)
+    project.spec.owner = project_owner
+    artifact = project.log_artifact("x", body="123", format="txt")
+    if username:
+        assert artifact.producer.get("owner") == username
+    else:
+        assert artifact.producer.get("owner") == project_owner
 
 
 @pytest.mark.parametrize(
@@ -1205,9 +1275,17 @@ def test_function_receives_project_default_image():
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
-    # Without a project default image, set_function with file-path for remote kind must get an image
+    # Without a project default image, set_function with file-path in context and repo for remote kind must get an image
     with pytest.raises(ValueError, match="image must be provided"):
-        proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+        proj1.set_source("git://mock.git", pull_at_runtime=False)
+        # Specify the relative path for the file to be considered in the project's context
+        proj1.set_function(
+            func="./assets/handler.py",
+            name="func",
+            kind="job",
+            handler="myhandler",
+            with_repo=True,
+        )
 
     proj1.set_default_image(default_image)
     proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
@@ -1246,7 +1324,7 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
-def test_function_receives_project_default_function_node_selector():
+def test_function_not_enriched_with_project_default_function_node_selector():
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)
@@ -1261,9 +1339,12 @@ def test_function_receives_project_default_function_node_selector():
     )
     assert non_enriched_function.spec.node_selector == {}
 
-    proj1.spec.default_function_node_selector = default_function_node_selector
+    proj1.default_function_node_selector = default_function_node_selector
     enriched_function = proj1.get_function("func", enrich=True)
-    assert enriched_function.spec.node_selector == default_function_node_selector
+    # Check that function is not affected by project
+    assert (
+        enriched_function.spec.node_selector == non_enriched_function.spec.node_selector
+    )
 
     # Same check - with a function object
     func1 = mlrun.code_to_function(
@@ -1279,15 +1360,15 @@ def test_function_receives_project_default_function_node_selector():
     assert non_enriched_function.spec.node_selector == {}
 
     enriched_function = proj1.get_function("func2", enrich=True)
-    assert enriched_function.spec.node_selector == default_function_node_selector
+    assert enriched_function.spec.node_selector == {}
 
     # If a function already has a node selector defined, the project-level node selector should merge with it,
-    # giving precedence to the function's node selector.
+    # but only apply the merged node selector to the job object. The function itself should remain unaffected.
     func1.spec.node_selector = {"zone": "us-west"}
     proj1.set_function(func1, name="func3")
 
     enriched_function = proj1.get_function("func3", enrich=True)
-    assert enriched_function.spec.node_selector == {"zone": "us-west", "gpu": "true"}
+    assert enriched_function.spec.node_selector == {"zone": "us-west"}
 
 
 def test_project_exports_default_image():
@@ -1795,7 +1876,14 @@ def test_load_project_from_yaml_with_function(context):
         ),
     ],
 )
-@pytest.mark.parametrize("with_basic_auth", [True, False])
+@pytest.mark.parametrize(
+    "authentication_mode",
+    [
+        mlrun.common.schemas.APIGatewayAuthenticationMode.none,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+        mlrun.common.schemas.APIGatewayAuthenticationMode.access_key,
+    ],
+)
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "store_api_gateway")
 def test_create_api_gateway_valid(
     patched_create_api_gateway,
@@ -1804,21 +1892,22 @@ def test_create_api_gateway_valid(
     kind_2,
     canary,
     upstreams,
-    with_basic_auth,
+    authentication_mode,
 ):
+    mlrun.mlconf.igz_version = "3.6.0"
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
-            labels={"nuclio.io/project-name": "project-name"},
+            labels={
+                mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+            },
         ),
         spec=mlrun.common.schemas.APIGatewaySpec(
             name="new-gw",
             path="/",
             host="gateway-f1-f2-project-name.some-domain.com",
             upstreams=upstreams,
-            authenticationMode=mlrun.common.schemas.APIGatewayAuthenticationMode.none
-            if not with_basic_auth
-            else mlrun.common.schemas.APIGatewayAuthenticationMode.basic,
+            authenticationMode=authentication_mode,
         ),
         status=mlrun.common.schemas.APIGatewayStatus(
             state=mlrun.common.schemas.APIGatewayState.ready,
@@ -1855,18 +1944,28 @@ def test_create_api_gateway_valid(
             project=project_name,
         ),
     )
-    if with_basic_auth:
+    if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         api_gateway.with_basic_auth("test_username", "test_password")
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
+        api_gateway.with_access_key_auth()
 
-    gateway = project.store_api_gateway(api_gateway)
+    gateway = project.store_api_gateway(api_gateway=api_gateway)
 
     gateway_dict = gateway.to_dict()
     assert "metadata" in gateway_dict
     assert "spec" in gateway_dict
 
-    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com/"
-    if with_basic_auth:
+    assert gateway.invoke_url == "https://gateway-f1-f2-project-name.some-domain.com"
+    if authentication_mode == mlrun.common.schemas.APIGatewayAuthenticationMode.basic:
         assert gateway.authentication.authentication_mode == "basicAuth"
+    elif (
+        authentication_mode
+        == mlrun.common.schemas.APIGatewayAuthenticationMode.access_key
+    ):
+        assert gateway.authentication.authentication_mode == "accessKey"
     else:
         assert gateway.authentication.authentication_mode == "none"
 
@@ -1922,7 +2021,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test",
@@ -1938,7 +2039,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
             "test2": mlrun.common.schemas.APIGateway(
                 metadata=mlrun.common.schemas.APIGatewayMetadata(
                     name="test2",
-                    labels={"nuclio.io/project-name": "project-name"},
+                    labels={
+                        mlrun_constants.MLRunInternalLabels.nuclio_project_name: "project-name"
+                    },
                 ),
                 spec=mlrun.common.schemas.APIGatewaySpec(
                     name="test2",
@@ -1959,9 +2062,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[0].name == "test"
     assert gateways[0].host == "http://gateway-f1-f2-project-name.some-domain.com"
-    assert gateways[0].spec.functions == ["my-func1"]
+    assert gateways[0].spec.functions == ["project-name/my-func1"]
 
-    assert gateways[1].invoke_url == "http://test-basic-default.domain.com/"
+    assert gateways[1].invoke_url == "http://test-basic-default.domain.com"
 
 
 def test_project_create_remote():
@@ -2250,6 +2353,48 @@ def test_workflow_path_with_project_workdir():
     assert path == "./context/./workdir/workflow.py"
 
 
+@pytest.mark.parametrize(
+    "alert_data",
+    [None, ""],
+)
+def test_store_alert_config_missing_alert_data(alert_data):
+    project_name = "dummy-project"
+    project = mlrun.new_project(project_name, save=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Alert data must be provided"
+    ):
+        project.store_alert_config(alert_data=alert_data)
+
+
+def test_run_project_sync_functions_fails_silently(rundb_mock):
+    proj = mlrun.new_project("proj", save=False)
+    proj.spec._function_definitions = {
+        "prep-data": {
+            "url": "prep_data.py",
+            "image": "mlrun/mlrun",
+            "handler": "prep_data",
+        },
+        "train": {
+            "url": "/User/some-notebook.ipynb",  # Absolute path
+            "name": "train",
+            "kind": "job",
+            "image": "mlrun/mlrun",
+            "handler": "trainer",
+        },
+    }
+    name = "my-pipeline"
+    proj.set_workflow(
+        name=name,
+        workflow_path=str(assets_path() / "localpipe.py"),
+        handler="my_pipe",
+    )
+
+    # Sync should fail silently and run should fail as the functions were not saved
+    run_status = proj.run(name)
+    assert run_status.state == RunStatuses.failed
+    assert "Function tstfunc not found" in str(run_status.exc)
+
+
 class TestModelMonitoring:
     """Test model monitoring project methods"""
 
@@ -2257,39 +2402,6 @@ class TestModelMonitoring:
     @pytest.fixture
     def project() -> mlrun.projects.MlrunProject:
         return unittest.mock.Mock()
-
-    @staticmethod
-    @pytest.mark.parametrize(
-        ("delete_app", "expected_deleted_fns"),
-        [
-            (
-                True,
-                mm_consts.constants.MonitoringFunctionNames.list()
-                + [mm_consts.constants.HistogramDataDriftApplicationConstants.NAME],
-            ),
-            (False, mm_consts.constants.MonitoringFunctionNames.list()),
-        ],
-    )
-    def test_disable(
-        project: mlrun.projects.MlrunProject,
-        delete_app: bool,
-        expected_deleted_fns: list[str],
-    ) -> None:
-        db_mock = unittest.mock.Mock(spec=mlrun.db.RunDBInterface)
-        with unittest.mock.patch(
-            "mlrun.db.get_run_db", unittest.mock.Mock(return_value=db_mock)
-        ):
-            mlrun.projects.MlrunProject.disable_model_monitoring(
-                project, delete_histogram_data_drift_app=delete_app
-            )
-
-        deleted_fns = [
-            call_args.kwargs["name"]
-            for call_args in db_mock.delete_function.call_args_list
-        ]
-        assert (
-            deleted_fns == expected_deleted_fns
-        ), "The deleted functions are different than expexted"
 
     @staticmethod
     def test_enable_wait_for_deployment(project: mlrun.projects.MlrunProject) -> None:

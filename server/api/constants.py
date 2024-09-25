@@ -14,6 +14,7 @@
 #
 from enum import Enum
 
+import mlrun.common.schemas
 from mlrun.common.types import StrEnum
 
 internal_abort_task_id = "internal-abort"
@@ -28,3 +29,37 @@ class LogSources(Enum):
 class MaskOperations(StrEnum):
     CONCEAL = "conceal"
     REDACT = "redact"
+
+
+# These are alert templates that come built-in with the system and pre-populated on system start
+# If we define new system templates, those should be added here
+
+pre_defined_templates = [
+    mlrun.common.schemas.AlertTemplate(
+        template_name="JobFailed",
+        template_description="Generic template for job failure alerts",
+        system_generated=True,
+        summary="A job has failed",
+        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.FAILED]},
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+    ),
+    mlrun.common.schemas.AlertTemplate(
+        template_name="DataDriftDetected",
+        template_description="Generic template for data drift detected alerts",
+        system_generated=True,
+        summary="Model data drift has been detected",
+        severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED]},
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+    ),
+    mlrun.common.schemas.AlertTemplate(
+        template_name="DataDriftSuspected",
+        template_description="Generic template for data drift suspected alerts",
+        system_generated=True,
+        summary="Model data drift is suspected",
+        severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
+        trigger={"events": [mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED]},
+        reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+    ),
+]

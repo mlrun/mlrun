@@ -15,11 +15,12 @@
 import time
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
+from .base import DataStore, FileStats, get_range, make_datastore_schema_sanitizer
 
 
 class S3Store(DataStore):
@@ -35,10 +36,17 @@ class S3Store(DataStore):
 
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
         assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
+
+        self.config = TransferConfig(
+            multipart_threshold=1024 * 1024 * 25,
+            max_concurrency=10,
+            multipart_chunksize=1024 * 1024 * 25,
+        )
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
@@ -87,14 +95,15 @@ class S3Store(DataStore):
             self.s3 = boto3.resource(
                 "s3", region_name=region, endpoint_url=endpoint_url
             )
-            # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
-            # due to no credentials found. These commands disable signing and allow anonymous mode (same as
-            # anon in the storage_options when working with fsspec).
-            from botocore.handlers import disable_signing
+            if not token_file:
+                # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
+                # due to no credentials found. These commands disable signing and allow anonymous mode (same as
+                # anon in the storage_options when working with fsspec).
+                from botocore.handlers import disable_signing
 
-            self.s3.meta.client.meta.events.register(
-                "choose-signer.s3.*", disable_signing
-            )
+                self.s3.meta.client.meta.events.register(
+                    "choose-signer.s3.*", disable_signing
+                )
 
     def get_spark_options(self):
         res = {}
@@ -119,7 +128,7 @@ class S3Store(DataStore):
         except ImportError as exc:
             raise ImportError("AWS s3fs not installed") from exc
         filesystem_class = get_filesystem_class(protocol=self.kind)
-        self._filesystem = makeDatastoreSchemaSanitizer(
+        self._filesystem = make_datastore_schema_sanitizer(
             filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
@@ -132,6 +141,7 @@ class S3Store(DataStore):
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
 
         if self._temp_credentials:
             access_key_id = self._temp_credentials["AccessKeyId"]
@@ -141,7 +151,7 @@ class S3Store(DataStore):
             token = None
 
         storage_options = dict(
-            anon=not (force_non_anonymous or (access_key_id and secret)),
+            anon=not (force_non_anonymous or (access_key_id and secret) or token_file),
             key=access_key_id,
             secret=secret,
             token=token,
@@ -166,7 +176,7 @@ class S3Store(DataStore):
 
     def upload(self, key, src_path):
         bucket, key = self.get_bucket_and_key(key)
-        self.s3.Object(bucket, key).put(Body=open(src_path, "rb"))
+        self.s3.Bucket(bucket).upload_file(src_path, key, Config=self.config)
 
     def get(self, key, size=None, offset=0):
         bucket, key = self.get_bucket_and_key(key)
@@ -176,6 +186,7 @@ class S3Store(DataStore):
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
+        data, _ = self._prepare_put_data(data, append)
         bucket, key = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=data)
 
@@ -197,6 +208,13 @@ class S3Store(DataStore):
         key_length = len(key)
         bucket = self.s3.Bucket(bucket)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        bucket, key = self.get_bucket_and_key(path)
+        path = f"{bucket}/{key}"
+        #  In order to raise an error if there is connection error, ML-7056.
+        self.filesystem.exists(path=path)
+        self.filesystem.rm(path=path, recursive=recursive, maxdepth=maxdepth)
 
 
 def parse_s3_bucket_and_key(s3_path):

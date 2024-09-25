@@ -30,6 +30,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
@@ -53,6 +54,7 @@ from mlrun.runtimes import RuntimeKinds
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
 from server.api.api.endpoints.nuclio import (
+    _get_api_gateways_urls_for_function,
     _handle_nuclio_deploy_status,
 )
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -113,6 +115,7 @@ async def get_function(
     name: str,
     tag: str = "",
     hash_key="",
+    format_: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -123,6 +126,7 @@ async def get_function(
         project,
         tag,
         hash_key,
+        format_,
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -203,14 +207,18 @@ async def list_functions(
     tag: str = None,
     labels: list[str] = Query([], alias="label"),
     hash_key: str = None,
+    since: str = None,
+    until: str = None,
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
     page_token: str = Query(None, alias="page-token"),
+    format_: str = Query(mlrun.common.formatters.FunctionFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     if project is None:
         project = config.default_project
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -245,6 +253,9 @@ async def list_functions(
         tag=tag,
         labels=labels,
         hash_key=hash_key,
+        format_=format_,
+        since=mlrun.utils.datetime_from_iso(since),
+        until=mlrun.utils.datetime_from_iso(until),
     )
 
     return {
@@ -449,6 +460,9 @@ async def build_status(
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.pure_nuclio_deployed_runtimes():
+        api_gateways_urls = await _get_api_gateways_urls_for_function(
+            auth_info, project, name, tag
+        )
         return await run_in_threadpool(
             _handle_nuclio_deploy_status,
             db_session,
@@ -459,6 +473,7 @@ async def build_status(
             tag,
             last_log_timestamp,
             verbose,
+            api_gateways_urls,
         )
 
     return await run_in_threadpool(

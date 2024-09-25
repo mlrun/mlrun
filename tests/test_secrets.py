@@ -12,22 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import environ
+from pathlib import Path
+
+import pytest
 
 from mlrun.secrets import SecretsStore
 
 spec = {
     "secret_sources": [
-        {"kind": "file", "source": "tests/secrets_test.txt"},
+        {"kind": "file", "source": Path(__file__).parent / "secrets_test.txt"},
         {"kind": "inline", "source": {"abc": "def"}},
         {"kind": "env", "source": "ENV123,ENV456"},
     ],
 }
 
 
-def test_load():
-    environ["ENV123"] = "xx"
-    environ["ENV456"] = "yy"
+def test_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENV123", "xx")
+    monkeypatch.setenv("ENV456", "yy")
     ss = SecretsStore.from_list(spec["secret_sources"])
 
     assert ss.get("ENV123") == "xx", "failed on 1st env var secret"
@@ -35,7 +37,6 @@ def test_load():
     assert ss.get("MYENV") == "123", "failed on 1st env var secret"
     assert ss.get("MY2NDENV") == "456", "failed on 1st env var secret"
     assert ss.get("abc") == "def", "failed on 1st env var secret"
-    print(ss.items())
 
 
 def test_inline_str():

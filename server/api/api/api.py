@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends
 
 from server.api.api import deps
 from server.api.api.endpoints import (
+    alert_template,
     alerts,
     artifacts,
     artifacts_v2,
@@ -26,6 +27,7 @@ from server.api.api.endpoints import (
     datastore_profile,
     events,
     feature_store,
+    feature_store_v2,
     files,
     frontend_spec,
     functions,
@@ -34,6 +36,7 @@ from server.api.api.endpoints import (
     healthz,
     hub,
     internal,
+    jobs,
     logs,
     model_endpoints,
     model_monitoring,
@@ -122,6 +125,11 @@ api_router.include_router(
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(
+    feature_store_v2.router,
+    tags=["feature-store"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
     frontend_spec.router,
     tags=["frontend-specs"],
     dependencies=[Depends(deps.authenticate_request)],
@@ -134,6 +142,7 @@ api_router.include_router(
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(model_monitoring.router, tags=["model-monitoring"])
+api_router.include_router(jobs.router, tags=["jobs"])
 api_router.include_router(
     hub.router,
     tags=["hub"],
@@ -162,6 +171,11 @@ api_router.include_router(
 api_router.include_router(
     alerts.router,
     tags=["alerts"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    alert_template.router,
+    tags=["alert-templates"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 api_router.include_router(

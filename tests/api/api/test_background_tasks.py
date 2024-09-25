@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import asyncio
 import datetime
 import http
@@ -24,6 +24,7 @@ import fastapi.concurrency
 import fastapi.testclient
 import httpx
 import pytest
+import pytest_asyncio
 import requests
 import sqlalchemy.orm
 
@@ -81,17 +82,21 @@ async def create_project_background_task(
 def create_internal_background_task(
     background_tasks: fastapi.BackgroundTasks,
     failed_task: bool = False,
+    project: str = None,
 ):
     function = bump_counter
     if failed_task:
         function = failing_function
+
+    if project:
+        project = mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project)
+        )
     (
         task,
         task_name,
     ) = server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
-        "bump_counter",
-        None,
-        function,
+        "bump_counter", None, function, project=project
     )
     background_tasks.add_task(task)
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
@@ -157,8 +162,8 @@ class ThreadedAsyncClient(httpx.AsyncClient):
         return future
 
 
-@pytest.fixture
-async def async_client() -> typing.Generator:
+@pytest_asyncio.fixture
+async def async_client() -> typing.Iterator[ThreadedAsyncClient]:
     """
     Async client that runs in a separate thread.
     When posting with the client, the request is sent on a different thread, and the method returns a future.
@@ -291,14 +296,13 @@ def test_get_project_background_task_not_exists(
     assert response.status_code == http.HTTPStatus.NOT_FOUND.value
 
 
-def test_get_background_task_auth_skip(
+def test_get_internal_background_task_auth(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
-    server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock()
     )
-    mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
-    response = client.post("/test/internal-background-tasks")
+    response = client.post("/test/internal-background-tasks?project=my-proj")
     assert response.status_code == http.HTTPStatus.OK.value
     background_task = mlrun.common.schemas.BackgroundTask(**response.json())
     response = client.get(
@@ -306,17 +310,18 @@ def test_get_background_task_auth_skip(
     )
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
-        == 0
+        server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
+        == 1
     )
 
-    mlrun.mlconf.igz_version = "3.7.0-b26.20210904121245"
-    response = client.get(
-        f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
-    )
+    # Create another task without a project should skip authz
+    response = client.post("/test/internal-background-tasks")
+    assert response.status_code == http.HTTPStatus.OK.value
+
+    response = client.get(f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks")
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
-        server.api.utils.auth.verifier.AuthVerifier().query_resource_permissions.call_count
+        server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
         == 1
     )
 

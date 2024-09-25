@@ -33,7 +33,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 23.2.1
+MLRUN_PIP_VERSION ?= 24.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -80,6 +80,15 @@ else
 	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "--ignore=tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT) tests/system"
 endif
 
+MLRUN_PYTHON_PACKAGE_INSTALLER ?= pip
+ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),pip)
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= python -m pip install
+else ifeq ($(MLRUN_PYTHON_PACKAGE_INSTALLER),uv)
+	MLRUN_PYTHON_VENV_PIP_INSTALL ?= uv pip install
+else
+	$(error MLRUN_PYTHON_PACKAGE_INSTALLER must be either "pip" or "uv")
+endif
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -90,8 +99,12 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install \
+	# relevant for pip package installer only
+	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
+		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
+	fi
+
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \
@@ -106,24 +119,20 @@ install-conda-requirements: ## Install all requirements needed for development w
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install .[complete]
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[complete]
 
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
-	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install .[all]
-
-.PHONY: create-migration-sqlite
-create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-	./automation/scripts/create_migration_sqlite.sh
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	$(MLRUN_PYTHON_VENV_PIP_INSTALL) .[all]
 
 .PHONY: create-migration-mysql
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
 	./automation/scripts/create_migration_mysql.sh
 
 .PHONY: create-migration
-create-migration: create-migration-sqlite create-migration-mysql
+create-migration: create-migration-mysql
 	@echo "Migrations created successfully"
 
 .PHONY: bump-version
@@ -312,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file
@@ -444,13 +453,16 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 
 .PHONY: test
 test: clean ## Run mlrun tests
-	python -m pytest -v \
+	python \
+		-X faulthandler \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
+		--forked \
 		-rf \
 		tests
 
@@ -481,19 +493,14 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-t \
 		--rm \
 		--network='host' \
+		-v $(shell pwd):/mlrun \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-migrations
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	python -m pytest -v \
-		--capture=no \
-		--disable-warnings \
-		--durations=100 \
-		-rf \
-		--test-alembic \
-		server/api/migrations_sqlite/tests/*
+	./automation/scripts/test_migration_mysql.sh
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -565,6 +572,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
+		--env MLRUN_LOG_FORMATTER=$(MLRUN_LOG_FORMATTER) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
@@ -575,22 +583,25 @@ run-test-db:
 	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
-		-v $(shell pwd):/mlrun \
-		-p 3306:3306 \
-		-e MYSQL_ROOT_PASSWORD="" \
-		-e MYSQL_ALLOW_EMPTY_PASSWORD="true" \
-		-e MYSQL_ROOT_HOST=% \
-		-e MYSQL_DATABASE="mlrun" \
-		-d \
-		mysql/mysql-server:8.0 \
+		--volume $(shell pwd):/mlrun \
+		--publish 3306:3306 \
+		--env MYSQL_ROOT_PASSWORD="" \
+		--env MYSQL_ALLOW_EMPTY_PASSWORD="true" \
+		--env MYSQL_ROOT_HOST=% \
+		--env MYSQL_DATABASE="mlrun" \
+		--detach \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
-		--collation-server=utf8_bin \
-		--sql_mode=""
+		--collation-server=utf8_bin
+
+.PHONY: clean-html-docs
+clean-html-docs: ## Clean html docs
+	rm -f docs/external/*.md
+	make -C docs clean
 
 .PHONY: html-docs
-html-docs: ## Build html docs
-	rm -f docs/external/*.md
-	cd docs && make html
+html-docs: clean-html-docs ## Build html docs
+	make -C docs html
 
 .PHONY: html-docs-dockerized
 html-docs-dockerized: build-test ## Build html docs dockerized
@@ -601,10 +612,20 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code using Ruff
+fmt: ## Format the code using Ruff and blacken-docs
 	@echo "Running ruff checks and fixes..."
 	python -m ruff check --fix-only
 	python -m ruff format
+	@echo "Formatting the code blocks with blacken-docs..."
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39
+
+.PHONY: lint-docs
+lint-docs: ## Format the code blocks in markdown files
+	@echo "Checking the code blocks with blacken-docs"
+	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t=py39 --check
+	@if [ "$(SKIP_VALE_CHECK)" != "true" ]; then \
+	    make vale-docs; \
+	fi
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -630,6 +651,11 @@ lint-go:
 fmt-go:
 	cd server/log-collector && \
 		make fmt
+
+.PHONY: vale-docs
+vale-docs: ## Run vale check for docs and sorts ignore.txt file
+	vale docs
+	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
 
 .PHONY: release
 release: ## Release a version

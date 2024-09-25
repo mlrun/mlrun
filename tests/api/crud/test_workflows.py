@@ -45,14 +45,12 @@ class TestWorkflows(tests.api.conftest.MockedK8sHelper):
         source_code_target_dir: str,
         source: str,
     ):
-        project = mlrun.common.schemas.Project(
+        project = mlrun.common.schemas.ProjectOut(
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
-            spec=mlrun.common.schemas.ProjectSpec(),
+            spec=mlrun.common.schemas.ProjectSpecOut(),
         )
         if source_code_target_dir:
-            project.spec.build = mlrun.common.schemas.common.ImageBuilder(
-                source_code_target_dir=source_code_target_dir
-            )
+            project.spec.build = {"source_code_target_dir": source_code_target_dir}
 
         server.api.crud.Projects().create_project(db, project)
 

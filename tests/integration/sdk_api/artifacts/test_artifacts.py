@@ -31,9 +31,6 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
     extra_env = {"MLRUN_HTTPDB__REAL_PATH": "/"}
 
-    def setup_method(self, method, extra_env=None):
-        super().setup_method(method, extra_env=self.extra_env)
-
     def test_artifacts(self):
         db = mlrun.get_run_db()
         prj, tree, key, body = "p9", "t19", "k802", "tomato"

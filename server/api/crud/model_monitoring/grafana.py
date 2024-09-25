@@ -20,6 +20,7 @@ import pandas as pd
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.utils.auth.verifier
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
@@ -47,7 +48,7 @@ def grafana_list_projects(
 
     projects_output = get_project_member().list_projects(
         db_session,
-        format_=mlrun.common.schemas.ProjectsFormat.name_only,
+        format_=mlrun.common.formatters.ProjectFormat.name_only,
         leader_session=auth_info.session,
     )
     return projects_output.projects
@@ -88,7 +89,6 @@ async def grafana_list_endpoints(
         )
     endpoint_list = await run_in_threadpool(
         server.api.crud.ModelEndpoints().list_model_endpoints,
-        auth_info=auth_info,
         project=project,
         model=model,
         function=function,
@@ -206,7 +206,6 @@ async def grafana_individual_feature_analysis(
 
     endpoint = await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         feature_analysis=True,
@@ -288,7 +287,6 @@ async def grafana_overall_feature_analysis(
     )
     endpoint = await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
         feature_analysis=True,
@@ -350,7 +348,6 @@ async def grafana_incoming_features(
 
     endpoint = await run_in_threadpool(
         server.api.crud.ModelEndpoints().get_model_endpoint,
-        auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
     )

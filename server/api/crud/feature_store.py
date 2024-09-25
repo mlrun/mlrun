@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -130,6 +131,7 @@ class FeatureStore(
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
+        format_: mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> mlrun.common.schemas.FeatureSetsOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_feature_sets(
@@ -145,6 +147,7 @@ class FeatureStore(
             rows_per_partition,
             partition_sort_by,
             partition_order,
+            format_=format_,
         )
 
     def delete_feature_set(
@@ -164,6 +167,7 @@ class FeatureStore(
             uid,
         )
 
+    # TODO: remove in 1.9.0
     def list_features(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -183,6 +187,26 @@ class FeatureStore(
             labels,
         )
 
+    def list_features_v2(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        entities: list[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.FeaturesOutputV2:
+        project = project or mlrun.mlconf.default_project
+        return server.api.utils.singletons.db.get_db().list_features_v2(
+            db_session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
+        )
+
+    # TODO: remove in 1.9.0
     def list_entities(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -193,6 +217,23 @@ class FeatureStore(
     ) -> mlrun.common.schemas.EntitiesOutput:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_entities(
+            db_session,
+            project,
+            name,
+            tag,
+            labels,
+        )
+
+    def list_entities_v2(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        name: str,
+        tag: typing.Optional[str] = None,
+        labels: list[str] = None,
+    ) -> mlrun.common.schemas.EntitiesOutputV2:
+        project = project or mlrun.mlconf.default_project
+        return server.api.utils.singletons.db.get_db().list_entities_v2(
             db_session,
             project,
             name,

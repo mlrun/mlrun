@@ -18,10 +18,11 @@ import os
 import uuid
 from typing import Any, Callable, Optional, Union
 
+import mlrun_pipelines.common.ops
+
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
@@ -390,7 +391,7 @@ class BaseLauncher(abc.ABC):
             return
 
         if result and runtime.kfp and err is None:
-            mlrun.kfpops.write_kfpmeta(result)
+            mlrun_pipelines.common.ops.write_kfpmeta(result)
 
         self._log_track_results(runtime.is_child, result, run)
 

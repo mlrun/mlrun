@@ -12,7 +12,9 @@ When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass a
    to `spark`. For example:
    
 ```python
-feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
+feature_set = fstore.FeatureSet(
+    "stocks", entities=[fstore.Entity("ticker")], engine="spark"
+)
 ```
 To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
 the `ingest` API. The actual remote function to execute depends on the object passed:
@@ -51,7 +53,9 @@ import mlrun.feature_store as fstore
 from pyspark.sql import SparkSession
 
 mlrun.get_or_create_project(name="stocks")
-feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
+feature_set = fstore.FeatureSet(
+    "stocks", entities=[fstore.Entity("ticker")], engine="spark"
+)
 
 # add_aggregation can be used in conjunction with Spark
 feature_set.add_aggregation("price", ["min", "max"], ["1h"], "10m")
@@ -73,6 +77,7 @@ It may take a few minutes to prepare the image.
 
 ```python
 from mlrun.runtimes import RemoteSparkRuntime
+
 RemoteSparkRuntime.deploy_default_image()
 ```
 
@@ -82,30 +87,39 @@ Remote ingestion:
 ```
 ```python
 from mlrun.feature_store.api import ingest
+
+
 def ingest_handler(context):
-    ingest(mlrun_context=context) # The handler function must call ingest with the mlrun_context
+    ingest(
+        mlrun_context=context
+    )  # The handler function must call ingest with the mlrun_context
 ```
 You can run your PySpark code for ingesting data into the feature store by adding:
 ```python
 def my_spark_func(df, context=None):
-    return df.filter("bid>55") # PySpark code
+    return df.filter("bid>55")  # PySpark code
 ```
 ```python
 # mlrun: end-code
 ```
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
-feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
+mlrun.get_or_create_project(name="remote-spark")
+
+feature_set = fstore.FeatureSet(
+    "stock-quotes", entities=[fstore.Entity("ticker")], engine="spark"
+)
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
-spark_service_name = "iguazio-spark-service" # As configured & shown in the Iguazio dashboard
+spark_service_name = (
+    "iguazio-spark-service"  # As configured & shown in the Iguazio dashboard
+)
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
-my_func = code_to_function("func", kind="remote-spark")
+my_func = project.set_function("func", kind="remote-spark")
 config = fstore.RunConfig(local=False, function=my_func, handler="ingest_handler")
 feature_set.ingest(source, run_config=config, spark_context=spark_service_name)
 ```
@@ -117,6 +131,7 @@ The following code should be executed only once to build the spark job image bef
 It may take a few minutes to prepare the image.
 ```python
 from mlrun.runtimes import Spark3Runtime
+
 Spark3Runtime.deploy_default_image()
 ```
 
@@ -126,28 +141,36 @@ Spark operator ingestion:
 
 from mlrun.feature_store.api import ingest
 
+
 def ingest_handler(context):
-    ingest(mlrun_context=context) # The handler function must call ingest with the mlrun_context
+    ingest(
+        mlrun_context=context
+    )  # The handler function must call ingest with the mlrun_context
+
 
 # You can add your own PySpark code as a graph step:
 def my_spark_func(df, context=None):
-    return df.filter("bid>55") # PySpark code
+    return df.filter("bid>55")  # PySpark code
+
 
 # mlrun: end-code
 ```
 
 ```python
 from mlrun.datastore.sources import CSVSource
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
-feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
+mlrun.get_or_create_project(name="spark-oper")
+
+feature_set = fstore.FeatureSet(
+    "stock-quotes", entities=[fstore.Entity("ticker")], engine="spark"
+)
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
 feature_set.graph.to(name="s1", handler="my_spark_func")
 
-my_func = code_to_function("func", kind="spark")
+my_func = project.set_function("func", kind="spark")
 
 my_func.with_driver_requests(cpu="200m", mem="1G")
 my_func.with_executor_requests(cpu="200m", mem="1G")
@@ -200,16 +223,18 @@ One-time setup:
 1. Deploy the default image for your job (this takes several minutes but should be executed only once per cluster for any MLRun/Iguazio upgrade):
    ```python
    from mlrun.runtimes import RemoteSparkRuntime
+
    RemoteSparkRuntime.deploy_default_image()
    ```
 2. Store your S3 credentials in a k8s [secret](../secrets.html#kubernetes-project-secrets):
    ```python
    import mlrun
-   secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
+
+   secrets = {"s3_access_key": AWS_ACCESS_KEY, "s3_secret_key": AWS_SECRET_KEY}
    mlrun.get_run_db().create_project_secrets(
-       project = "uhuh-proj",
+       project="uhuh-proj",
        provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-       secrets=secrets
+       secrets=secrets,
    )
    ```
 
@@ -222,22 +247,27 @@ from pyspark.sql import SparkSession
 
 
 from mlrun.feature_store.api import ingest
+
+
 def ingest_handler(context):
-    conf = (SparkConf()
-            .set("spark.hadoop.fs.s3a.path.style.access", True)
-            .set("spark.hadoop.fs.s3a.access.key", context.get_secret('s3_access_key'))
-            .set("spark.hadoop.fs.s3a.secret.key", context.get_secret('s3_secret_key'))
-            .set("spark.hadoop.fs.s3a.endpoint", context.get_param("s3_endpoint"))
-            .set("spark.hadoop.fs.s3a.region", context.get_param("s3_region"))
-            .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-            .set("com.amazonaws.services.s3.enableV4", True)
-            .set("spark.driver.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true"))
-    spark = (
-        SparkSession.builder.config(conf=conf).appName("S3 app").getOrCreate()
+    conf = (
+        SparkConf()
+        .set("spark.hadoop.fs.s3a.path.style.access", True)
+        .set("spark.hadoop.fs.s3a.access.key", context.get_secret("s3_access_key"))
+        .set("spark.hadoop.fs.s3a.secret.key", context.get_secret("s3_secret_key"))
+        .set("spark.hadoop.fs.s3a.endpoint", context.get_param("s3_endpoint"))
+        .set("spark.hadoop.fs.s3a.region", context.get_param("s3_region"))
+        .set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        .set("com.amazonaws.services.s3.enableV4", True)
+        .set(
+            "spark.driver.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true"
+        )
     )
-    
+    spark = SparkSession.builder.config(conf=conf).appName("S3 app").getOrCreate()
+
     ingest(mlrun_context=context, spark_context=spark)
-    
+
+
 # mlrun: end-code
 ```
 
@@ -245,30 +275,33 @@ Ingestion invocation:
 ```python
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
-feature_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")], engine="spark")
+feature_set = fstore.FeatureSet(
+    "stock-quotes", entities=[fstore.Entity("ticker")], engine="spark"
+)
 
 source = CSVSource("mycsv", path="v3io:///projects/quotes.csv")
 
-spark_service_name = "spark" # As configured & shown in the Iguazio dashboard
+spark_service_name = "spark"  # As configured & shown in the Iguazio dashboard
 
-fn = code_to_function(kind='remote-spark',  name='func')
+fn = project.set_function(kind="remote-spark", name="func")
 
 run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
-run_config.with_secret('kubernetes', ['s3_access_key', 's3_secret_key'])
+run_config.with_secret("kubernetes", ["s3_access_key", "s3_secret_key"])
 run_config.parameters = {
-    "s3_endpoint" : "s3.us-east-2.amazonaws.com",
-    "s3_region" : "us-east-2"
+    "s3_endpoint": "s3.us-east-2.amazonaws.com",
+    "s3_region": "us-east-2",
 }
 
 target = ParquetTarget(
-    path = "s3://my-s3-bucket/some/path",
-    partitioned = False,
+    path="s3://my-s3-bucket/some/path",
+    partitioned=False,
 )
 
-feature_set.ingest(source, targets=[target], run_config=run_config, spark_context=spark_service_name)
+feature_set.ingest(
+    source, targets=[target], run_config=run_config, spark_context=spark_service_name
+)
 ```
 
 ## Spark ingestion from Snowflake example
@@ -305,7 +338,7 @@ source = SnowflakeSource(
     user="<user>",
     password="<password>",
     database="SNOWFLAKE_SAMPLE_DATA",
-    schema="TPCH_SF1",
+    db_schema="TPCH_SF1",
     warehouse="compute_wh",
 )
 
@@ -328,7 +361,6 @@ RemoteSparkRuntime.deploy_default_image()
 
 from mlrun.datastore.sources import CSVSource
 from mlrun.datastore.targets import ParquetTarget
-from mlrun import code_to_function
 import mlrun.feature_store as fstore
 
 feature_set = fstore.FeatureSet("rides7", entities=[fstore.Entity("ride_id")], engine="spark", timestamp_key="key")
@@ -337,7 +369,7 @@ source = CSVSource("rides", path="wasbs://warroom@mlrunwarroom.blob.core.windows
 
 spark_service_name = "spark-fs" # As configured & shown in the Iguazio dashboard
 
-fn = code_to_function(kind='remote-spark',  name='func')
+fn = project.set_function(kind='remote-spark',  name='func')
 
 run_config = fstore.RunConfig(local=False, function=fn, handler="ingest_handler")
 

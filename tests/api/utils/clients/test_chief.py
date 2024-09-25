@@ -11,16 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import datetime
 import http
 import json
+import typing
 import unittest.mock
 
 import aiohttp
 import aiohttp.web
 import fastapi.encoders
 import pytest
+import pytest_asyncio
 import starlette.datastructures
 from aiohttp import ClientConnectorError
 from aiohttp.test_utils import TestClient, TestServer
@@ -33,16 +35,16 @@ from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture()
-async def api_url() -> str:
+def api_url() -> str:
     api_url = "http://chief-api.default-tenant.svc.cluster.local"
     mlrun.mlconf.httpdb.clusterization.chief.url = api_url
     return api_url
 
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 async def chief_client(
     api_url: str,
-) -> server.api.utils.clients.chief.Client:
+) -> typing.Iterator[server.api.utils.clients.chief.Client]:
     client = server.api.utils.clients.chief.Client()
     # force running init again so the configured api url will be used
     client.__init__()

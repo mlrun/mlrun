@@ -13,11 +13,16 @@
 # limitations under the License.
 
 import datetime
+import pathlib
 from unittest.mock import Mock, patch
+
+import pytest
 
 import mlrun.model_monitoring.api
 from mlrun.db import RunDBInterface
 from mlrun.model_monitoring import ModelEndpoint
+
+from .assets.application import DemoMonitoringApp
 
 
 def test_read_dataset_as_dataframe():
@@ -65,3 +70,35 @@ def test_record_result_updates_last_request() -> None:
         db_mock.patch_model_endpoint.call_args.kwargs["attributes"]["last_request"]
         == datetime_mock.isoformat()
     ), "last_request attribute of the model endpoint was not updated as expected"
+
+
+@pytest.mark.parametrize(
+    "function",
+    [
+        {
+            "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
+            "application_class": DemoMonitoringApp(param_1=1, param_2=2),
+        },
+        {
+            "func": str(pathlib.Path(__file__).parent / "assets" / "application.py"),
+            "application_class": "DemoMonitoringApp",
+            "param_1": 1,
+            "param_2": 2,
+        },
+    ],
+)
+def test_create_model_monitoring_function(function) -> None:
+    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+        project="", name="my-app", **function
+    )
+    assert app.metadata.name == "my-app"
+
+    steps = app.spec.graph.steps
+
+    assert "PrepareMonitoringEvent" in app.spec.graph.steps
+    assert "DemoMonitoringApp" in app.spec.graph.steps
+    assert "PushToMonitoringWriter" in app.spec.graph.steps
+    assert "ApplicationErrorHandler" in app.spec.graph.steps
+
+    app_step = steps["DemoMonitoringApp"]
+    assert app_step.class_args == {"param_1": 1, "param_2": 2}

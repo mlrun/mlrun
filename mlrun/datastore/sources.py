@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import operator
 import os
 import warnings
 from base64 import b64encode
@@ -29,7 +30,9 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.config import config
 from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.secrets import SecretsStore
+from mlrun.utils import logger
 
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
@@ -83,7 +86,8 @@ class BaseSourceDriver(DataSource):
             )
 
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         return storey.SyncEmitSource(
             context=context,
@@ -178,7 +182,7 @@ class CSVSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, list[int], list[str]] = None,
@@ -305,14 +309,19 @@ class ParquetSource(BaseSourceDriver):
         self,
         name: str = "",
         path: str = None,
-        attributes: dict[str, str] = None,
+        attributes: dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        additional_filters: Optional[list[tuple]] = None,
+        additional_filters: Optional[list[Union[tuple, list]]] = None,
     ):
+        if additional_filters:
+            attributes = copy(attributes) or {}
+            additional_filters = transform_list_filters_to_tuple(additional_filters)
+            attributes["additional_filters"] = additional_filters
+
         super().__init__(
             name,
             path,
@@ -323,7 +332,6 @@ class ParquetSource(BaseSourceDriver):
             start_time,
             end_time,
         )
-        self.additional_filters = additional_filters
 
     @property
     def start_time(self):
@@ -340,6 +348,10 @@ class ParquetSource(BaseSourceDriver):
     @end_time.setter
     def end_time(self, end_time):
         self._end_time = self._convert_to_datetime(end_time)
+
+    @property
+    def additional_filters(self):
+        return self.attributes.get("additional_filters")
 
     @staticmethod
     def _convert_to_datetime(time):
@@ -361,13 +373,13 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        attributes = self.attributes or {}
+        attributes = copy(self.attributes)
+        attributes.pop("additional_filters", None)
         if context:
             attributes["context"] = context
-
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         data_item = mlrun.store_manager.object(self.path)
         store, path, url = mlrun.store_manager.get_or_create_store(self.path)
-
         return storey.ParquetSource(
             paths=url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
@@ -378,6 +390,16 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=self.additional_filters or additional_filters,
             **attributes,
         )
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj.attributes["additional_filters"] = transform_list_filters_to_tuple(
+            new_obj.additional_filters
+        )
+        return new_obj
 
     def get_spark_options(self):
         store, path, _ = mlrun.store_manager.get_or_create_store(self.path)
@@ -401,6 +423,7 @@ class ParquetSource(BaseSourceDriver):
         additional_filters=None,
     ):
         reader_args = self.attributes.get("reader_args", {})
+        additional_filters = transform_list_filters_to_tuple(additional_filters)
         return mlrun.store_manager.object(url=self.path).as_df(
             columns=columns,
             df_module=df_module,
@@ -411,6 +434,84 @@ class ParquetSource(BaseSourceDriver):
             additional_filters=additional_filters or self.additional_filters,
             **reader_args,
         )
+
+    def _build_spark_additional_filters(self, column_types: dict):
+        if not self.additional_filters:
+            return None
+        from pyspark.sql.functions import col, isnan, lit
+
+        operators = {
+            "==": operator.eq,
+            "=": operator.eq,
+            ">": operator.gt,
+            "<": operator.lt,
+            ">=": operator.ge,
+            "<=": operator.le,
+            "!=": operator.ne,
+        }
+
+        spark_filter = None
+        new_filter = lit(True)
+        for filter_tuple in self.additional_filters:
+            if not filter_tuple:
+                continue
+            col_name, op, value = filter_tuple
+            if op.lower() in ("in", "not in") and isinstance(value, (list, tuple, set)):
+                none_exists = False
+                value = list(value)
+                for sub_value in value:
+                    if sub_value is None:
+                        value.remove(sub_value)
+                        none_exists = True
+                if none_exists:
+                    filter_nan = column_types[col_name] not in ("timestamp", "date")
+                    if value:
+                        if op.lower() == "in":
+                            new_filter = (
+                                col(col_name).isin(value) | col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+
+                        else:
+                            new_filter = (
+                                ~col(col_name).isin(value) & ~col(col_name).isNull()
+                            )
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                    else:
+                        if op.lower() == "in":
+                            new_filter = col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter | isnan(col(col_name))
+                        else:
+                            new_filter = ~col(col_name).isNull()
+                            if filter_nan:
+                                new_filter = new_filter & ~isnan(col(col_name))
+                else:
+                    if op.lower() == "in":
+                        new_filter = col(col_name).isin(value)
+                    elif op.lower() == "not in":
+                        new_filter = ~col(col_name).isin(value)
+            elif op in operators:
+                new_filter = operators[op](col(col_name), value)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"unsupported filter operator: {op}"
+                )
+            if spark_filter is not None:
+                spark_filter = spark_filter & new_filter
+            else:
+                spark_filter = new_filter
+        return spark_filter
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+        spark_additional_filters = self._build_spark_additional_filters(
+            column_types=dict(df.dtypes)
+        )
+        if spark_additional_filters is not None:
+            df = df.filter(spark_additional_filters)
+        return super()._filter_spark_df(df=df, time_field=time_field, columns=columns)
 
 
 class BigQuerySource(BaseSourceDriver):
@@ -648,7 +749,7 @@ class SnowflakeSource(BaseSourceDriver):
             url="...",
             user="...",
             database="...",
-            schema="...",
+            db_schema="...",
             warehouse="...",
         )
 
@@ -663,7 +764,8 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter url: URL of the snowflake cluster
     :parameter user: snowflake user
     :parameter database: snowflake database
-    :parameter schema: snowflake schema
+    :parameter schema: snowflake schema - deprecated, use db_schema
+    :parameter db_schema: snowflake schema
     :parameter warehouse: snowflake warehouse
     """
 
@@ -675,6 +777,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        attributes: dict[str, object] = None,
         time_field: str = None,
         schedule: str = None,
         start_time=None,
@@ -684,21 +787,34 @@ class SnowflakeSource(BaseSourceDriver):
         user: str = None,
         database: str = None,
         schema: str = None,
+        db_schema: str = None,
         warehouse: str = None,
         **kwargs,
     ):
-        attrs = {
-            "query": query,
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": schema,
-            "warehouse": warehouse,
-        }
+        # TODO: Remove in 1.9.0
+        if schema:
+            warnings.warn(
+                "schema is deprecated in 1.7.0, and will be removed in 1.9.0, please use db_schema"
+            )
+        db_schema = db_schema or schema  # TODO: Remove in 1.9.0
+
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if query:
+            attributes["query"] = query
 
         super().__init__(
             name,
-            attributes=attrs,
+            attributes=attributes,
             key_field=key_field,
             time_field=time_field,
             schedule=schedule,
@@ -711,6 +827,20 @@ class SnowflakeSource(BaseSourceDriver):
         spark_options = get_snowflake_spark_options(self.attributes)
         spark_options["query"] = self.attributes.get("query")
         return spark_options
+
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+        additional_filters=None,
+    ):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} supports only spark engine"
+        )
 
 
 class CustomSource(BaseSourceDriver):
@@ -816,7 +946,8 @@ class OnlineSource(BaseSourceDriver):
 
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
-            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+            is_explicit_ack_supported(context)
+            and mlrun.mlconf.is_explicit_ack_enabled()
         )
         # TODO: Change to AsyncEmitSource once we can drop support for nuclio<1.12.10
         src_class = storey.SyncEmitSource(
@@ -901,7 +1032,8 @@ class StreamSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             kwargs["explicit_ack_mode"] = "explicitOnly"
             kwargs["worker_allocation_mode"] = "static"
 
@@ -988,7 +1120,8 @@ class KafkaSource(OnlineSource):
         engine = "async"
         if hasattr(function.spec, "graph") and function.spec.graph.engine:
             engine = function.spec.graph.engine
-        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+
+        if mlrun.mlconf.is_explicit_ack_enabled() and engine == "async":
             explicit_ack_mode = "explicitOnly"
             extra_attributes["workerAllocationMode"] = extra_attributes.get(
                 "worker_allocation_mode", "static"
@@ -1029,6 +1162,59 @@ class KafkaSource(OnlineSource):
         raise NotImplementedError(
             "Conversion of a source of type 'KafkaSource' "
             "to a Spark dataframe is not possible, as this operation is not supported by Spark"
+        )
+
+    def create_topics(
+        self,
+        num_partitions: int = 4,
+        replication_factor: int = 1,
+        topics: list[str] = None,
+    ):
+        """
+        Create Kafka topics with the specified number of partitions and replication factor.
+
+        :param num_partitions:      number of partitions for the topics
+        :param replication_factor:  replication factor for the topics
+        :param topics:              list of topic names to create, if None,
+                                    the topics will be taken from the source attributes
+        """
+        from kafka.admin import KafkaAdminClient, NewTopic
+
+        brokers = self.attributes.get("brokers")
+        if not brokers:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "brokers must be specified in the KafkaSource attributes"
+            )
+        topics = topics or self.attributes.get("topics")
+        if not topics:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "topics must be specified in the KafkaSource attributes"
+            )
+        new_topics = [
+            NewTopic(topic, num_partitions, replication_factor) for topic in topics
+        ]
+        kafka_admin = KafkaAdminClient(
+            bootstrap_servers=brokers,
+            sasl_mechanism=self.attributes.get("sasl", {}).get("sasl_mechanism"),
+            sasl_plain_username=self.attributes.get("sasl", {}).get("username"),
+            sasl_plain_password=self.attributes.get("sasl", {}).get("password"),
+            sasl_kerberos_service_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_service_name", "kafka"
+            ),
+            sasl_kerberos_domain_name=self.attributes.get("sasl", {}).get(
+                "sasl_kerberos_domain_name"
+            ),
+            sasl_oauth_token_provider=self.attributes.get("sasl", {}).get("mechanism"),
+        )
+        try:
+            kafka_admin.create_topics(new_topics)
+        finally:
+            kafka_admin.close()
+        logger.info(
+            "Kafka topics created successfully",
+            topics=topics,
+            num_partitions=num_partitions,
+            replication_factor=replication_factor,
         )
 
 

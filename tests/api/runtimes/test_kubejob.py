@@ -21,6 +21,7 @@ import unittest.mock
 import deepdiff
 import pytest
 from fastapi.testclient import TestClient
+from mlrun_pipelines.mounts import auto_mount
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -29,7 +30,6 @@ import mlrun.k8s_utils
 import server.api.utils.builder
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
-from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
@@ -133,6 +133,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         self._assert_pod_creation_config(expected_node_name=node_name)
 
         runtime = self._generate_runtime()
+
+        invalid_node_selector = {"label-1": "val=1"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            runtime.with_node_selection(node_selector=invalid_node_selector)
+        assert runtime.spec.node_selector == {"label-1": "val=1"}
 
         node_selector = {
             "label-1": "val1",
@@ -275,7 +283,12 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "false"},
             ),
             # Common and user node selectors provided
-            ({"zone": "us-east"}, {}, {"test": "user"}, {"test": "user"}),
+            (
+                {"zone": "us-east"},
+                {},
+                {"test": "user"},
+                {"zone": "us-east", "test": "user"},
+            ),
             # Project and user node selectors provided
             ({}, {"gpu": "false"}, {"test": "user"}, {"gpu": "false", "test": "user"}),
             # All node selectors provided
@@ -297,7 +310,7 @@ class TestKubejobRuntime(TestRuntimeBase):
                 {"zone": "us-east", "gpu": "true"},
                 {"gpu": "false", "test": "test"},
                 {"test": "", "zone": "us-south"},
-                {"gpu": "false", "test": "", "zone": "us-south"},
+                {"gpu": "false", "zone": "us-south"},
             ),
         ],
     )

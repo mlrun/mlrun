@@ -19,9 +19,12 @@ import functools
 import http
 import json
 import typing
+import unittest.mock
 
 import deepdiff
 import fastapi
+import httpx
+import igz_mgmt.client
 import pytest
 import requests_mock as requests_mock_package
 import starlette.datastructures
@@ -215,6 +218,40 @@ async def test_get_grafana_service_url_success(
 
 @pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
 @pytest.mark.asyncio
+async def test_get_grafana_service_url_cache(
+    api_url: str,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    expected_grafana_url = (
+        "https://grafana.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
+    )
+    grafana_service = {
+        "spec": {"kind": "grafana"},
+        "status": {
+            "state": "ready",
+            "urls": [
+                {"kind": "http", "url": "https-has-precedence"},
+                {"kind": "https", "url": expected_grafana_url},
+            ],
+        },
+    }
+    response_body = _generate_app_services_manifests_body([grafana_service])
+    requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
+    assert grafana_url == expected_grafana_url
+
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
+    assert requests_mock.called_once
+    assert grafana_url == expected_grafana_url
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
 async def test_get_grafana_service_url_ignoring_disabled_service(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
@@ -268,7 +305,7 @@ async def test_get_grafana_service_url_no_urls(
 async def test_get_or_create_access_key_success(
     api_url: str,
     iguazio_client: server.api.utils.clients.iguazio.Client,
-    requests_mock: requests_mock_package.Mocker,
+    monkeypatch,
 ):
     planes = [
         server.api.utils.clients.iguazio.SessionPlanes.control,
@@ -276,43 +313,28 @@ async def test_get_or_create_access_key_success(
     access_key_id = "some-id"
     session = "1234"
 
-    def _get_or_create_access_key_mock(status_code, request, context):
-        _verify_request_cookie(request.headers, session)
-        context.status_code = status_code
-        expected_request_body = {
-            "data": {
-                "type": "access_key",
-                "attributes": {"label": "MLRun", "planes": planes},
-            }
-        }
-        assert (
-            deepdiff.DeepDiff(
-                expected_request_body,
-                request.json(),
-                ignore_order=True,
-            )
-            == {}
+    def _get_or_create_access_key_mock(request, **kwargs):
+        _verify_request_cookie(dict(list(request.headers.items())), session)
+        return httpx.Response(
+            status_code=http.HTTPStatus.CREATED.value,
+            json={
+                "data": {"type": "access_key", "id": access_key_id, "attributes": {}}
+            },
+            request=request,
         )
-        return {"data": {"id": access_key_id}}
 
-    # mock creation
-    requests_mock.post(
-        f"{api_url}/api/self/get_or_create_access_key",
-        json=functools.partial(
-            _get_or_create_access_key_mock, http.HTTPStatus.CREATED.value
-        ),
+    # mock internal sensing of external versions and etc
+    monkeypatch.setattr(igz_mgmt.Client, "_get_external_versions", lambda self: "3.5.5")
+    monkeypatch.setattr(
+        igz_mgmt.Client, "_session_verification", lambda *args, **kwargs: None
     )
-    returned_access_key = await maybe_coroutine(
-        iguazio_client.get_or_create_access_key(session, planes)
-    )
-    assert access_key_id == returned_access_key
 
-    # mock get
-    requests_mock.post(
-        f"{api_url}/api/self/get_or_create_access_key",
-        json=functools.partial(
-            _get_or_create_access_key_mock, http.HTTPStatus.OK.value
-        ),
+    # initiate the creation of the per access-key igz client
+    igz_internal_client: igz_mgmt.Client = iguazio_client._get_igz_client(session)
+
+    # get or create access key
+    monkeypatch.setattr(
+        igz_internal_client._client._session, "send", _get_or_create_access_key_mock
     )
     returned_access_key = await maybe_coroutine(
         iguazio_client.get_or_create_access_key(session, planes)
@@ -463,7 +485,7 @@ async def test_list_project(
             },
         )
     projects, latest_updated_at = await maybe_coroutine(
-        iguazio_client.list_projects(None)
+        iguazio_client.list_projects("")
     )
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
@@ -905,9 +927,14 @@ async def test_format_as_leader_project(
     iguazio_client: server.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
-    iguazio_project = await maybe_coroutine(
-        iguazio_client.format_as_leader_project(project)
-    )
+    with unittest.mock.patch(
+        "mlrun.utils.helpers.validate_component_version_compatibility",
+        return_value=True,
+    ):
+        iguazio_project = await maybe_coroutine(
+            iguazio_client.format_as_leader_project(project)
+        )
+
     assert (
         deepdiff.DeepDiff(
             _build_project_response(iguazio_client, project, with_mlrun_project=True),
@@ -920,6 +947,27 @@ async def test_format_as_leader_project(
         )
         == {}
     )
+
+
+@pytest.mark.parametrize(
+    "error_message,result_message,final_error_message",
+    [
+        ("dummy error", "dummy result", "dummy error: dummy result"),
+        ("dummy error", "", "dummy error"),
+        ("", "dummy result", "dummy result"),
+        ("", "", ""),
+        ("dummy error", None, "dummy error"),
+        (None, "dummy result", "dummy result"),
+        (None, None, ""),
+    ],
+)
+def test_resolve_final_error_message(
+    error_message, result_message, final_error_message
+):
+    message = server.api.utils.clients.iguazio.Client._resolve_final_error_message(
+        error_message, result_message
+    )
+    assert message == final_error_message
 
 
 def _generate_session_verification_response_headers(
@@ -1023,8 +1071,10 @@ def _verify_creation(iguazio_client, project, session, job_id, request, context)
 
 def _verify_request_cookie(headers: dict, session: str):
     expected_session_value = f'session=j:{{"sid": "{session}"}}'
-    if "Cookie" in headers:
-        assert headers["Cookie"] == expected_session_value
+    if cookie_header := set(headers.keys()).intersection({"Cookie", "cookie"}):
+        assert (
+            headers.get(list(cookie_header)[0]) == expected_session_value
+        ), cookie_header
     elif "cookies" in headers:
         # in async client we get the `cookies` key while it contains the cookies in form of a dict
         # use requests to construct it back to a string as expected above

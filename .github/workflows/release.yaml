@@ -71,7 +71,7 @@ jobs:
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
 
           # Fetch all history for all tags and branches
@@ -144,9 +144,9 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.9
           cache: pip
@@ -157,9 +157,9 @@ jobs:
           
           # TODO: move to a separated requirements file
           python -m pip install \
-            build~=1.0 \
-            wheel~=0.42 \
-            twine~=4.0
+            build~=1.2 \
+            wheel~=0.43 \
+            twine~=5.1
       - name: Build & push to pypi
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
@@ -202,7 +202,7 @@ jobs:
     needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - name: Create feature branch tag
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.git.createRef({
@@ -218,10 +218,10 @@ jobs:
     if: github.event.inputs.skip_create_tag_release != 'true'
     needs: [ prepare-inputs, create-releases ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.9
           cache: pip
@@ -261,7 +261,7 @@ jobs:
     needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create tutorials tar
         run: |
           wget -c https://github.com/v3io/tutorials/blob/mlrun-release-stable/welcome.ipynb -P docs
@@ -275,4 +275,25 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
+          
+  update-demos:
+    name: Bundle demos
+    needs: [ prepare-inputs, create-releases ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install prerequisits
+        run: |
+          pip install gitpython
+      - name: Create mlrun demos tar
+        run: |
+          python automation/scripts/bundle_demos.py
+      - name: Add mlrun-demos tar to release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: mlrun-demos.tar
           prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

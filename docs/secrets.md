@@ -40,7 +40,7 @@ The following is an example of using project secrets:
 ```python
 # Create project secrets for the myproj project
 project = mlrun.get_or_create_project("myproj", "./")
-secrets = {'AWS_KEY': '111222333'}
+secrets = {"AWS_KEY": "111222333"}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 
 # Create and run the MLRun job
@@ -49,7 +49,7 @@ function = mlrun.code_to_function(
     filename="my_code.py",
     handler="test_function",
     kind="job",
-    image="mlrun/mlrun"
+    image="mlrun/mlrun",
 )
 function.run()
 ```
@@ -133,7 +133,7 @@ a file containing a list of secrets. For example:
 ```python
 # Create project secrets for the myproj project.
 project = mlrun.get_or_create_project("myproj", "./")
-secrets = {'password': 'myPassw0rd', 'AWS_KEY': '111222333'}
+secrets = {"password": "myPassw0rd", "AWS_KEY": "111222333"}
 project.set_secrets(secrets=secrets, provider="kubernetes")
 ```
 
@@ -164,7 +164,7 @@ It is possible to limit access of an executing job to a
 subset of these secrets by calling the following function with a list of the secrets to be accessed:
 
 ```python
-task.with_secrets('kubernetes', ['password', 'AWS_KEY'])
+task.with_secrets("kubernetes", ["password", "AWS_KEY"])
 ```
 
 When the job is executed, the MLRun framework adds environment variables to the pod spec whose value is retrieved 
@@ -182,10 +182,10 @@ To maintain the confidentiality of secret values, these operations must be stric
 k8s RBAC and ensuring that elevated permissions are granted to a very limited number of users (very few users have and 
 use elevated permissions).
 
-##### Accessing secrets in nuclio functions
+##### Accessing secrets in Nuclio functions
 
 Nuclio functions do not have the MLRun context available to retrieve secret values. Secret values need to be retrieved 
-from the environment variable of the same name. For example, to access the `AWS_KEY` secret in a nuclio function use:
+from the environment variable of the same name. For example, to access the `AWS_KEY` secret in a Nuclio function use:
 ```python
 aws_key = os.environ.get("AWS_KEY")
 ```
@@ -237,8 +237,8 @@ Once these steps are done, use `with_secrets` in the following manner:
 task.with_secrets(
     "azure_vault",
     {
-        "name": <azure_key_vault_name>,
-        "k8s_secret": <azure_key_vault_k8s_secret>,
+        "name": "<azure_key_vault_name>",
+        "k8s_secret": "<azure_key_vault_k8s_secret>",
         "secrets": [],
     },
 )

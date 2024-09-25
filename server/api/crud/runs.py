@@ -19,6 +19,8 @@ import typing
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.artifacts
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.config
@@ -46,7 +48,7 @@ class Runs(
         data: dict,
         uid: str,
         iter: int = 0,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
 
@@ -55,6 +57,19 @@ class Runs(
         server.api.api.utils.mask_notification_params_on_task(
             data, server.api.constants.MaskOperations.REDACT
         )
+
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB.
+        data.setdefault("status", {})
+        artifacts = data["status"].get("artifacts", [])
+        artifact_uris = data["status"].get("artifact_uris", {})
+        for artifact in artifacts:
+            artifact = mlrun.artifacts.dict_to_artifact(artifact)
+            artifact_uris[artifact.key] = artifact.uri
+
+        if artifact_uris:
+            data["status"]["artifact_uris"] = artifact_uris
+        data["status"].pop("artifacts", None)
 
         server.api.utils.singletons.db.get_db().store_run(
             db_session,
@@ -78,6 +93,21 @@ class Runs(
             "Updating run", project=project, uid=uid, iter=iter, run_state=run_state
         )
 
+        # Clients before 1.7.0 send the full artifact metadata in the run object, we need to strip it
+        # to avoid bloating the DB.
+        artifacts = data.get("status.artifacts", None)
+        artifact_uris = data.get("status.artifact_uris", None)
+        # If neither was given, nothing to do. Otherwise, we merge the two fields into artifact_uris.
+        if artifacts is not None or artifact_uris is not None:
+            artifacts = artifacts or []
+            artifact_uris = artifact_uris or {}
+            for artifact in artifacts:
+                artifact = mlrun.artifacts.dict_to_artifact(artifact)
+                artifact_uris[artifact.key] = artifact.uri
+
+            data["status.artifact_uris"] = artifact_uris
+        data.pop("status.artifacts", None)
+
         # Note: Abort run moved to a separated endpoint
         # TODO: Remove below function for 1.8.0 (once 1.5.x clients are not supported)
         self._update_aborted_run(db_session, project, uid, iter, data)
@@ -90,12 +120,18 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
+        format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().read_run(
+        run = server.api.utils.singletons.db.get_db().read_run(
             db_session, uid, project, iter
         )
+
+        if format_ == mlrun.common.formatters.RunFormat.full:
+            self._enrich_run_artifacts(db_session, run, iter, project, uid)
+
+        return run
 
     def list_runs(
         self,
@@ -104,8 +140,10 @@ class Runs(
         uid: typing.Optional[typing.Union[str, list[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        state: typing.Optional[str] = None,
-        states: typing.Optional[list[str]] = None,  # Backward compatibility
+        state: typing.Optional[
+            mlrun.common.runtimes.constants.RunStates
+        ] = None,  # Backward compatibility
+        states: typing.Optional[typing.Union[str, list[str]]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
@@ -148,7 +186,7 @@ class Runs(
             start_time_from = (
                 datetime.datetime.now() - datetime.timedelta(days=7)
             ).isoformat()
-            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_by = mlrun.common.schemas.RunPartitionByField.project_and_name
             partition_sort_by = mlrun.common.schemas.SortField.updated
 
         if isinstance(start_time_from, str):
@@ -170,7 +208,9 @@ class Runs(
             uid=uid,
             project=project,
             labels=labels,
-            states=[state] if state is not None else states or None,
+            states=mlrun.utils.helpers.as_list(state)
+            if state is not None
+            else states or None,
             sort=sort,
             last=last,
             iter=iter,
@@ -195,7 +235,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         try:
@@ -220,7 +260,11 @@ class Runs(
                 f"Can not delete run in {run_state} state, consider aborting the run first"
             )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = server.api.runtime_handlers.get_runtime_handler(
                 runtime_kind
@@ -230,7 +274,7 @@ class Runs(
                     server.api.utils.singletons.db.get_db(),
                     db_session,
                     object_id=uid,
-                    label_selector=f"mlrun/project={project}",
+                    label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project}",
                     force=True,
                 )
 
@@ -249,7 +293,7 @@ class Runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
         labels=None,
         state=None,
         days_ago: int = 0,
@@ -367,7 +411,11 @@ class Runs(
                 "Run is already in terminal state, can not be aborted"
             )
 
-        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
+        runtime_kind = (
+            run.get("metadata", {})
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.kind)
+        )
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
             raise mlrun.errors.MLRunBadRequestError(
                 f"Run of kind {runtime_kind} can not be aborted"
@@ -389,7 +437,7 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )
 
@@ -414,6 +462,37 @@ class Runs(
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter
         )
+
+    def _enrich_run_artifacts(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        run: dict,
+        iteration: int,
+        project: str,
+        uid: str,
+    ):
+        # Since we don't store the artifacts in the run body, we need to fetch them separately
+        # The client may be using them as in pipeline as input for the next step
+        workflow_id = (
+            run["metadata"]
+            .get("labels", {})
+            .get(mlrun_constants.MLRunInternalLabels.workflow)
+        )
+        if not workflow_id:
+            artifacts = self._list_run_artifacts(
+                db_session, iteration, producer_id=uid, project=project
+            )
+
+        else:
+            # For workflow runs, we fetch the artifacts one by one since listing them with the workflow_id as
+            # the producer_id may be too heavy as it fetches all the artifacts of the workflow and then
+            # filters by producer URI in memory.
+            artifacts = self._get_artifacts_from_uris(
+                db_session, project=project, producer_id=workflow_id, run=run
+            )
+        if artifacts or "artifacts" in run.get("status", {}):
+            run.setdefault("status", {})
+            run["status"]["artifacts"] = artifacts
 
     @staticmethod
     async def _post_delete_run(project, uid):
@@ -445,7 +524,11 @@ class Runs(
                 raise mlrun.errors.MLRunConflictError(
                     "Run is already in terminal state, can not be aborted"
                 )
-            runtime_kind = current_run.get("metadata", {}).get("labels", {}).get("kind")
+            runtime_kind = (
+                current_run.get("metadata", {})
+                .get("labels", {})
+                .get(mlrun_constants.MLRunInternalLabels.kind)
+            )
             if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Run of kind {runtime_kind} can not be aborted"
@@ -455,6 +538,78 @@ class Runs(
             #  "knowledge" on the label selector
             server.api.crud.RuntimeResources().delete_runtime_resources(
                 db_session,
-                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                label_selector=f"{mlrun_constants.MLRunInternalLabels.project}={project},{mlrun_constants.MLRunInternalLabels.uid}={uid}",
                 force=True,
             )
+
+    @staticmethod
+    def _get_artifacts_from_uris(
+        db_session: sqlalchemy.orm.Session, project: str, producer_id: str, run: dict
+    ):
+        """Fetch run artifacts by their artifact URIs in the run status"""
+        artifact_uris = run.get("status", {}).get("artifact_uris", {})
+        key_tag_iteration_pairs = []
+        for _, uri in artifact_uris.items():
+            _, uri = mlrun.datastore.parse_store_uri(uri)
+            project, key, iteration, tag, artifact_producer_id = (
+                mlrun.utils.parse_artifact_uri(uri, project)
+            )
+            if artifact_producer_id != producer_id:
+                logger.warning(
+                    "Artifact producer ID does not match the run/workflow ID, skipping artifact",
+                    project=project,
+                    key=key,
+                    tag=tag,
+                    iteration=iteration,
+                    artifact_producer_id=artifact_producer_id,
+                )
+                continue
+
+            key_tag_iteration_pairs.append((key, tag, iteration))
+
+        if not key_tag_iteration_pairs:
+            return []
+
+        artifacts = server.api.crud.Artifacts().list_artifacts_for_producer_id(
+            db_session,
+            producer_id,
+            project,
+            key_tag_iteration_pairs,
+        )
+
+        # DB artifacts result may contain more artifacts if the job is still running
+        if len(artifacts) < len(artifact_uris):
+            missing_artifacts = set(artifact_uris.keys()) - {
+                artifact["metadata"]["key"] for artifact in artifacts
+            }
+            logger.warning(
+                "Some artifacts are missing from final run response, they may have been deleted",
+                project=project,
+                run_uid=run.get("metadata", {}).get("uid"),
+                producer_id=producer_id,
+                missing_artifacts=missing_artifacts,
+            )
+        return artifacts
+
+    @staticmethod
+    def _list_run_artifacts(
+        db_session: sqlalchemy.orm.Session,
+        iteration: int,
+        producer_id: str,
+        project: str,
+    ):
+        best_iteration = False
+        # If the iteration is 0, we mark the artifacts as best iteration.
+        # Specifically for hyper runs, iteration 0 is the parent run, so we need the get the artifacts
+        # of the real best iteration run, which can be from a different iteration.
+        if not iteration:
+            iteration = None
+            best_iteration = True
+        artifacts = server.api.crud.Artifacts().list_artifacts(
+            db_session,
+            iter=iteration,
+            best_iteration=best_iteration,
+            producer_id=producer_id,
+            project=project,
+        )
+        return artifacts

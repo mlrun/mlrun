@@ -24,7 +24,9 @@ import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
+from mlrun_pipelines.models import PipelineRun
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -61,15 +63,13 @@ def test_list_pipelines_formats(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.common.schemas.PipelinesFormat.full,
-        mlrun.common.schemas.PipelinesFormat.metadata_only,
-        mlrun.common.schemas.PipelinesFormat.name_only,
+        mlrun.common.formatters.PipelineFormat.full,
+        mlrun.common.formatters.PipelineFormat.metadata_only,
+        mlrun.common.formatters.PipelineFormat.name_only,
     ]:
         runs = _generate_list_runs_mocks()
-        expected_runs = [run.to_dict() for run in runs]
-        expected_runs = server.api.crud.Pipelines()._format_runs(
-            db, expected_runs, format_
-        )
+        expected_runs = [PipelineRun(run.to_dict()) for run in runs]
+        expected_runs = server.api.crud.Pipelines()._format_runs(expected_runs, format_)
         _mock_list_runs(kfp_client_mock, runs)
         response = client.get(
             "projects/*/pipelines",
@@ -87,10 +87,10 @@ def test_get_pipeline_formats(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.common.schemas.PipelinesFormat.full,
-        mlrun.common.schemas.PipelinesFormat.metadata_only,
-        mlrun.common.schemas.PipelinesFormat.summary,
-        mlrun.common.schemas.PipelinesFormat.name_only,
+        mlrun.common.formatters.PipelineFormat.full,
+        mlrun.common.formatters.PipelineFormat.metadata_only,
+        mlrun.common.formatters.PipelineFormat.summary,
+        mlrun.common.formatters.PipelineFormat.name_only,
     ]:
         api_run_detail = _generate_get_run_mock()
         _mock_get_run(kfp_client_mock, api_run_detail)
@@ -99,7 +99,8 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            PipelineRun(api_run_detail),
+            format_,
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -109,7 +110,7 @@ def test_get_pipeline_no_project_opa_validation(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
+    format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "project-name"
     server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
         return_value=project
@@ -138,10 +139,10 @@ def test_get_pipeline_specific_project(
     kfp_client_mock: kfp.Client,
 ) -> None:
     for format_ in [
-        mlrun.common.schemas.PipelinesFormat.full,
-        mlrun.common.schemas.PipelinesFormat.metadata_only,
-        mlrun.common.schemas.PipelinesFormat.summary,
-        mlrun.common.schemas.PipelinesFormat.name_only,
+        mlrun.common.formatters.PipelineFormat.full,
+        mlrun.common.formatters.PipelineFormat.metadata_only,
+        mlrun.common.formatters.PipelineFormat.summary,
+        mlrun.common.formatters.PipelineFormat.name_only,
     ]:
         project = "project-name"
         api_run_detail = _generate_get_run_mock()
@@ -154,7 +155,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = server.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            PipelineRun(api_run_detail), format_
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -187,7 +188,7 @@ def test_list_pipelines_time_fields_default(
     _mock_list_runs(kfp_client_mock, runs)
     response = client.get(
         "projects/*/pipelines",
-        params={"format": mlrun.common.schemas.PipelinesFormat.metadata_only},
+        params={"format": mlrun.common.formatters.PipelineFormat.metadata_only},
     )
     response = response.json()["runs"][0]
 
@@ -222,8 +223,9 @@ def test_list_pipelines_name_contains(
     run_name_filter: str,
     expected_runs_ids: list,
 ) -> None:
+    project_name = "test-project"
     server.api.crud.Pipelines().resolve_project_from_pipeline = unittest.mock.Mock(
-        return_value="test-project"
+        return_value=project_name
     )
     runs = _generate_list_runs_project_name_mocks()
     expected_page_size = (
@@ -235,6 +237,7 @@ def test_list_pipelines_name_contains(
         kfp_client_mock,
         runs,
         expected_page_size=expected_page_size,
+        expected_filter=mlrun.utils.get_kfp_project_filter(project_name=project_name),
     )
     response = client.get(
         f"projects/{project_name}/pipelines",
@@ -244,7 +247,7 @@ def test_list_pipelines_name_contains(
     )
 
     expected_runs = server.api.crud.Pipelines()._format_runs(
-        db, [run.to_dict() for run in runs if run.id in expected_runs_ids]
+        [PipelineRun(run.to_dict()) for run in runs if run.id in expected_runs_ids]
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -266,7 +269,7 @@ def test_list_pipelines_specific_project(
     )
     response = client.get(
         f"projects/{project}/pipelines",
-        params={"format": mlrun.common.schemas.PipelinesFormat.name_only},
+        params={"format": mlrun.common.formatters.PipelineFormat.name_only},
     )
     expected_response = mlrun.common.schemas.PipelinesOutput(
         runs=expected_runs, total_size=len(expected_runs), next_page_token=None
@@ -282,7 +285,7 @@ def test_create_pipeline(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    project = "some-project"
+    project = "getting-started-tutorial-iguazio"
     pipeline_file_path = (
         tests.conftest.tests_root_directory
         / "api"
@@ -310,6 +313,7 @@ def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetai
             id="id1",
             name="run1",
             description="desc1",
+            created_at="0001-01-01 00:00:00+00:00",
             pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
                 pipeline_id="pipe_id1",
                 workflow_manifest=workflow_manifest,
@@ -326,7 +330,7 @@ def test_get_pipeline_nonexistent_project(
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
-    format_ = (mlrun.common.schemas.PipelinesFormat.summary,)
+    format_ = (mlrun.common.formatters.PipelineFormat.summary,)
     project = "n0_pr0ject"
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)
@@ -375,6 +379,16 @@ def _generate_list_runs_mocks():
                 pipeline_id="pipe_id4",
                 workflow_manifest=workflow_manifest,
             ),
+        ),
+        kfp_server_api.models.api_run.ApiRun(
+            id="id5",
+            name="run5",
+            description="desc5",
+            pipeline_spec=kfp_server_api.models.api_pipeline_spec.ApiPipelineSpec(
+                pipeline_id="pipe_id5",
+                workflow_manifest=workflow_manifest,
+            ),
+            error="error",
         ),
     ]
 
@@ -552,7 +566,7 @@ def _mock_pipelines_creation(kfp_client_mock: kfp.Client):
         experiment_id,
         job_name,
         pipeline_package_path=None,
-        params={},
+        params=None,
         pipeline_id=None,
         version_id=None,
     ):
@@ -575,7 +589,7 @@ def _mock_list_runs_with_one_run_per_page(kfp_client_mock: kfp.Client, runs):
             [runs.pop(0)], 1, next_page_token=expected_page_tokens[0]
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_list_runs(
@@ -597,7 +611,7 @@ def _mock_list_runs(
             runs, len(runs)
         )
 
-    kfp_client_mock._run_api.list_runs = list_runs_mock
+    kfp_client_mock.list_runs = list_runs_mock
 
 
 def _mock_get_run(

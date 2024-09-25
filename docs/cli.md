@@ -46,7 +46,7 @@ Example:  `mlrun build myfunc.yaml`
 | \--with-mlrun         | Add the MLRun package ("mlrun")                                                                                                                                                                    |
 | \--db TEXT            | Save the run results to path or DB url                                                                                                                                                             |
 | -r, --runtime TEXT    | Function spec dict, for pipeline usage                                                                                                                                                             |
-| \--kfp                | Running inside Kubeflow Piplines, do not use                                                                                                                                                       |
+| \--kfp                | Running inside Kubeflow Pipelines, do not use                                                                                                                                                      |
 | \--skip               | Skip if already deployed                                                                                                                                                                           |
 | \--env-file TEXT      | Path to .env file to load config/variables from                                                                                                                                                    |
 | \--ensure-project     | Ensure the project exists, if not, create project                                                                                                                                                  |
@@ -104,7 +104,7 @@ Example:  `mlrun config`
 
 Use the `get` CLI command to list one or more objects per kind/class.
 
-Usage: get pods | runs | artifacts | func [name]
+Usage: `get pods | runs | artifacts | func [name]`
 
 Examples:
 
@@ -204,16 +204,16 @@ Examples:
 | -s, --secrets TEXT           | Secrets, either as `file=<filename>` or `env=<ENVAR>,...`; for example, `-s file=secrets.txt`           |
 | \--uid TEXT                  | Unique run ID                                                                                           |
 | \--name TEXT                 | Run name                                                                                                |
-| \--workflow TEXT             | Workflow name/id                                                                                        |
+| \--workflow TEXT             | Sets the run labels to match the given workflow name/id                                                 |
 | \--project TEXT              | Project name or ID                                                                                      |
 | \--db TEXT                   | Save run results to DB url                                                                              |
 | \--runtime TEXT              | Function spec dict, for pipeline usage                                                                  |
-| \--kfp                       | Running inside Kubeflow Piplines, do not use                                                            |
-| -h, --hyperparam TEXT        | Hyper parameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]                           |
+| \--kfp                       | Running inside Kubeflow Pipelines, do not use                                                           |
+| -h, --hyperparam TEXT        | Hyperparameters (will expand to multiple tasks) e.g. --hyperparam p2=[1,2,3]                            |
 | \--param-file TEXT           | Path to csv table of execution (hyper) params                                                           |
 | \--selector TEXT             | How to select the best result from a list, e.g. max.accuracy                                            |
-| \--hyper-param-strategy TEXT | Hyperparam tuning strategy list, grid, random                                                           |
-| \--hyper-param-options TEXT  | Hyperparam options json string                                                                          |
+| \--hyper-param-strategy TEXT | Hyperparameter tuning strategy list, grid, random                                                       |
+| \--hyper-param-options TEXT  | Hyperparameter options json string                                                                      |
 | -f, --func-url TEXT          | Path/URL of a YAML function-configuration file, or db://<project>/<name>[:tag] for a DB function object |
 | \--task TEXT                 | Path/URL of a YAML task-configuration file                                                              |
 | \--handler TEXT              | Invoke the function handler inside the code file                                                        |
@@ -279,7 +279,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.6.2
+    base_image: mlrun/mlrun:1.6.4
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -309,7 +309,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.6.2
+    base_image: mlrun/mlrun:1.6.4
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -319,7 +319,7 @@ spec:
 The `-a|--archive` option of the CLI [`build`](#cli-cmd-build) command enables you to define a remote object path for storing TAR archive files with all the required code dependencies.
 The remote location can be, for example, in an AWS S3 bucket or in a data container in an Iguazio MLOps Platform ("platform") cluster.
 Alternatively, you can also set the archive path by using the `MLRUN_DEFAULT_ARCHIVE` environment variable.
-When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#cli-cmd-build) option) into a TAR archive file, and then extracts (untars) all of the archive files (i.e., the function sources) into the configured archive location.
+When an archive path is provided, the remote builder archives the configured function sources (see the `-s|-source` [`build`](#cli-cmd-build) option) into a TAR archive file, and then extracts all of the archive files (i.e., the function sources) into the configured archive location.
 <!-- [IntInfo] MLRUN_DEFAULT_ARCHIVE is referenced in the code using
   `mlconf.default_archive` when using `from .config import config as mlconf`.
 -->
@@ -337,7 +337,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.6.2
+    base_image: mlrun/mlrun:1.6.4
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

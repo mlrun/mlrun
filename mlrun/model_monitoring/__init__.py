@@ -15,7 +15,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 # for backwards compatibility
 
-from .db import get_store_object
+from .db import get_store_object, get_tsdb_connector
 from .helpers import get_stream_path
 from .model_endpoint import ModelEndpoint
 from .tracking_policy import TrackingPolicy

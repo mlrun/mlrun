@@ -28,6 +28,7 @@ class ClientSpec(
         mpijob_crd_version = (
             server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
         )
+
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,
@@ -42,7 +43,7 @@ class ClientSpec(
             kfp_image=self._resolve_image_by_client_versions(
                 config.kfp_image, client_version, client_python_version
             ),
-            kfp_url=config.resolve_kfp_url(),
+            kfp_url=config.kfp_url,
             dask_kfp_image=self._resolve_image_by_client_versions(
                 config.dask_kfp_image, client_version, client_python_version
             ),
@@ -107,11 +108,14 @@ class ClientSpec(
             external_platform_tracking=self._get_config_value_if_not_default(
                 "external_platform_tracking"
             ),
-            model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
-                "model_endpoint_monitoring.store_type"
-            ),
             model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.endpoint_store_connection"
+            ),
+            model_monitoring_tsdb_connection=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.tsdb_connection"
+            ),
+            model_monitoring_stream_connection=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.stream_connection"
             ),
             packagers=self._get_config_value_if_not_default("packagers"),
             alerts_mode=self._get_config_value_if_not_default("alerts.mode"),

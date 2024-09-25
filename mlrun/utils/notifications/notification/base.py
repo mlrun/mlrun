@@ -28,6 +28,10 @@ class NotificationBase:
         self.name = name
         self.params = params or {}
 
+    @classmethod
+    def validate_params(cls, params):
+        pass
+
     @property
     def active(self) -> bool:
         return True
@@ -69,16 +73,27 @@ class NotificationBase:
         if custom_html:
             return custom_html
 
-        if self.name:
-            message = f"{self.name}: {message}"
-
         if alert:
             if not event_data:
                 return f"[{severity}] {message}"
-            return (
-                f"[{severity}] {message} for project {alert.project} "
-                f"UID {event_data.entity.id}. Value {event_data.value}"
-            )
+
+            html = f"<h3>[{severity}] {message}</h3>"
+            html += f"<br>{alert.name} alert has occurred<br>"
+            html += f"<br><h4>Project:</h4>{alert.project}<br>"
+            html += f"<br><h4>ID:</h4>{event_data.entity.ids[0]}<br>"
+            html += f"<br><h4>Summary:</h4>{mlrun.utils.helpers.format_alert_summary(alert, event_data)}<br>"
+
+            if event_data.value_dict:
+                html += "<br><h4>Event data:</h4>"
+                for key, value in event_data.value_dict.items():
+                    html += f"{key}: {value}<br>"
+
+            overview_type, url = self._get_overview_type_and_url(alert, event_data)
+            html += f"<br><h4>Overview:</h4><a href={url}>{overview_type}</a>"
+            return html
+
+        if self.name:
+            message = f"{self.name}: {message}"
 
         if not runs:
             return f"[{severity}] {message}"
@@ -90,3 +105,24 @@ class NotificationBase:
         html += "<br>click the hyper links below to see detailed results<br>"
         html += runs.show(display=False, short=True)
         return html
+
+    def _get_overview_type_and_url(
+        self,
+        alert: mlrun.common.schemas.AlertConfig,
+        event_data: mlrun.common.schemas.Event,
+    ) -> (str, str):
+        if (
+            event_data.entity.kind == mlrun.common.schemas.alert.EventEntityKind.JOB
+        ):  # JOB entity
+            uid = event_data.value_dict.get("uid")
+            url = mlrun.utils.helpers.get_ui_url(alert.project, uid)
+            overview_type = "Job overview"
+        else:  # MODEL entity
+            model_name = event_data.value_dict.get("model")
+            model_endpoint_id = event_data.value_dict.get("model_endpoint_id")
+            url = mlrun.utils.helpers.get_model_endpoint_url(
+                alert.project, model_name, model_endpoint_id
+            )
+            overview_type = "Model endpoint"
+
+        return overview_type, url

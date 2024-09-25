@@ -11,14 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from copy import deepcopy
 from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
+import mlrun.k8s_utils
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
 import mlrun.projects.operations
@@ -77,6 +80,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         notifications: Optional[list[mlrun.model.Notification]] = None,
         returns: Optional[list[Union[str, dict[str, str]]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
+        reset_on_run: Optional[bool] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -162,13 +166,77 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 last_err = err
 
             finally:
-                result = runtime._update_run_state(task=run, err=last_err)
+                result = runtime._update_run_state(
+                    task=run,
+                    err=last_err,
+                    run_format=mlrun.common.formatters.RunFormat.standard,
+                )
 
         self._save_notifications(run)
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
+
+    def _enrich_run(
+        self,
+        runtime,
+        run,
+        handler=None,
+        project_name=None,
+        name=None,
+        params=None,
+        inputs=None,
+        returns=None,
+        hyperparams=None,
+        hyper_param_options=None,
+        verbose=None,
+        scrape_metrics=None,
+        out_path=None,
+        artifact_path=None,
+        workdir=None,
+        notifications: list[mlrun.model.Notification] = None,
+        state_thresholds: Optional[dict[str, int]] = None,
+    ):
+        run = super()._enrich_run(
+            runtime=runtime,
+            run=run,
+            handler=handler,
+            project_name=project_name,
+            name=name,
+            params=params,
+            inputs=inputs,
+            returns=returns,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            out_path=out_path,
+            artifact_path=artifact_path,
+            workdir=workdir,
+            notifications=notifications,
+            state_thresholds=state_thresholds,
+        )
+
+        return self._pre_run_node_selector_enrichement(runtime, run)
+
+    def _pre_run_node_selector_enrichement(self, runtime, run):
+        """
+        Enrich the run object with the project's default node selector.
+        This ensures the node selector is correctly set on the run
+        while maintaining the runtime's integrity from system-specific project settings.
+        """
+        run.spec.node_selector = deepcopy(runtime.spec.node_selector)
+        if runtime._get_db():
+            project = runtime._get_db().get_project(run.metadata.project)
+            project_node_selector = project.spec.default_function_node_selector
+            resolved_node_selectors = mlrun.runtimes.utils.resolve_node_selectors(
+                project_node_selector, run.spec.node_selector
+            )
+            # Validate node selectors before enrichment
+            mlrun.k8s_utils.validate_node_selectors(resolved_node_selectors)
+            run.spec.node_selector = resolved_node_selectors
+        return run
 
     def enrich_runtime(
         self,
@@ -216,6 +284,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             not runtime.spec.image
             and not runtime.requires_build()
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+            and not runtime.skip_image_enrichment()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
                 runtime.kind
@@ -253,7 +322,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _store_function(
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
-        run.metadata.labels["kind"] = runtime.kind
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

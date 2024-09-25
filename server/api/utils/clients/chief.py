@@ -199,9 +199,29 @@ class Client(
                 **(await chief_response.json())
             )
 
+    async def store_alert_template(
+        self, name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT", f"alert_templates/{name}", request, json
+        )
+
+    async def delete_alert_template(
+        self, name: str, request: fastapi.Request
+    ) -> fastapi.Response:
+        """
+        Alert templates are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "DELETE", f"alert_templates/{name}", request
+        )
+
     async def store_alert(
         self, project: str, name: str, request: fastapi.Request, json: dict
-    ) -> fastapi.Response:
+    ) -> typing.Union[fastapi.Response, mlrun.common.schemas.AlertConfig]:
         """
         Alerts are running only on chief
         """
@@ -220,7 +240,7 @@ class Client(
         )
 
     async def reset_alert(
-        self, project: str, name: int, request: fastapi.Request
+        self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
         Alerts are running only on chief

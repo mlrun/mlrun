@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import inspect
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -24,8 +26,11 @@ from hypothesis import strategies as st
 
 import mlrun.artifacts.manager
 import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
+    EventFieldType,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -44,6 +49,11 @@ assets_folder = Path(__file__).parent / "assets"
 def application() -> HistogramDataDriftApplication:
     app = HistogramDataDriftApplication()
     return app
+
+
+@pytest.fixture
+def logger() -> mlrun.utils.Logger:
+    return mlrun.utils.Logger(level=logging.DEBUG, name=__name__)
 
 
 @pytest.fixture
@@ -104,13 +114,15 @@ class TestDataDriftClassifier:
 
 
 class TestApplication:
-    @staticmethod
+    COUNT = 12  # the sample df size
+
+    @classmethod
     @pytest.fixture
-    def sample_df_stats() -> mlrun.common.model_monitoring.helpers.FeatureStats:
+    def sample_df_stats(cls) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         return mlrun.common.model_monitoring.helpers.FeatureStats(
             {
                 "timestamp": {
-                    "count": 1,
+                    "count": cls.COUNT,
                     "25%": "2024-03-11 09:31:39.152301+00:00",
                     "50%": "2024-03-11 09:31:39.152301+00:00",
                     "75%": "2024-03-11 09:31:39.152301+00:00",
@@ -118,18 +130,24 @@ class TestApplication:
                     "mean": "2024-03-11 09:31:39.152301+00:00",
                     "min": "2024-03-11 09:31:39.152301+00:00",
                 },
+                "ticker": {
+                    "count": cls.COUNT,
+                    "unique": 1,
+                    "top": "AAPL",
+                    "freq": cls.COUNT,
+                },
                 "f1": {
-                    "count": 100,
-                    "hist": [[10, 30, 0, 30, 5, 25], [-10, -5, 0, 5, 10, 15, 20]],
+                    "count": cls.COUNT,
+                    "hist": [[2, 3, 0, 3, 1, 3], [-10, -5, 0, 5, 10, 15, 20]],
                 },
                 "f2": {
-                    "count": 100,
-                    "hist": [[0, 50, 0, 20, 5, 25], [66, 67, 68, 69, 70, 71, 72]],
+                    "count": cls.COUNT,
+                    "hist": [[0, 6, 0, 2, 1, 3], [66, 67, 68, 69, 70, 71, 72]],
                 },
                 "l": {
-                    "count": 100,
+                    "count": cls.COUNT,
                     "hist": [
-                        [90, 0, 0, 0, 0, 10],
+                        [10, 0, 0, 0, 0, 2],
                         [0.0, 0.16, 0.33, 0.5, 0.67, 0.83, 1.0],
                     ],
                 },
@@ -166,6 +184,7 @@ class TestApplication:
         feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
         application: HistogramDataDriftApplication,
         monitoring_context: Mock,
+        logger: mlrun.utils.Logger,
     ) -> dict[str, Any]:
         kwargs = {}
         kwargs["monitoring_context"] = monitoring_context
@@ -181,15 +200,18 @@ class TestApplication:
         monitoring_context.dict_to_histogram = (
             mm_context.MonitoringApplicationContext.dict_to_histogram
         )
+        monitoring_context.logger = logger
         assert (
             kwargs.keys()
             == inspect.signature(application.do_tracking).parameters.keys()
         )
         return kwargs
 
-    @staticmethod
+    @classmethod
     def test(
-        application: HistogramDataDriftApplication, application_kwargs: dict[str, Any]
+        cls,
+        application: HistogramDataDriftApplication,
+        application_kwargs: dict[str, Any],
     ) -> None:
         results = application.do_tracking(**application_kwargs)
         metrics = []
@@ -208,6 +230,12 @@ class TestApplication:
                 assert (
                     res.status == ResultStatusApp.potential_detection
                 ), "Expected potential detection in the general drift"
+                assert (
+                    json.loads(res.extra_data[EventFieldType.CURRENT_STATS])[
+                        EventFieldType.TIMESTAMP
+                    ]["count"]
+                    == cls.COUNT
+                ), "The current statistics count is different than expected"
             elif isinstance(
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric,
@@ -216,36 +244,48 @@ class TestApplication:
         assert len(metrics) == 3, "Expected three metrics"
 
 
-@pytest.mark.parametrize(
-    ("sample_df_stats", "feature_stats"),
-    [
-        pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
-        pytest.param(
-            pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
-            pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
-            id="real-world-csv-dfs",
-        ),
-    ],
-)
-def test_compute_metrics_per_feature(
-    application: HistogramDataDriftApplication,
-    monitoring_context: Mock,
-    sample_df_stats: pd.DataFrame,
-    feature_stats: pd.DataFrame,
-) -> None:
-    monitoring_context.sample_df_stats = sample_df_stats
-    monitoring_context.feature_stats = feature_stats
+class TestMetricsPerFeature:
+    @staticmethod
+    @pytest.fixture
+    def monitoring_context(
+        logger: mlrun.utils.Logger,
+    ) -> mm_context.MonitoringApplicationContext:
+        ctx = Mock()
 
-    def dict_to_histogram(df: pd.DataFrame) -> pd.DataFrame:
-        return df
+        def dict_to_histogram(df: pd.DataFrame) -> pd.DataFrame:
+            return df
 
-    monitoring_context.dict_to_histogram = dict_to_histogram
-    metrics_per_feature = application._compute_metrics_per_feature(
-        monitoring_context=monitoring_context
+        ctx.dict_to_histogram = dict_to_histogram
+        ctx.logger = logger
+        return ctx
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("sample_df_stats", "feature_stats"),
+        [
+            pytest.param(pd.DataFrame(), pd.DataFrame(), id="empty-dfs"),
+            pytest.param(
+                pd.read_csv(assets_folder / "sample_df_stats.csv", index_col=0),
+                pd.read_csv(assets_folder / "feature_stats.csv", index_col=0),
+                id="real-world-csv-dfs",
+            ),
+        ],
     )
-    assert set(metrics_per_feature.columns) == {
-        metric.NAME for metric in application.metrics
-    }, "Different metrics than expected"
-    assert set(metrics_per_feature.index) == set(
-        feature_stats.columns
-    ), "The features are different than expected"
+    def test_compute_metrics_per_feature(
+        application: HistogramDataDriftApplication,
+        monitoring_context: Mock,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+    ) -> None:
+        monitoring_context.sample_df_stats = sample_df_stats
+        monitoring_context.feature_stats = feature_stats
+
+        metrics_per_feature = application._compute_metrics_per_feature(
+            monitoring_context=monitoring_context
+        )
+        assert set(metrics_per_feature.columns) == {
+            metric.NAME for metric in application.metrics
+        }, "Different metrics than expected"
+        assert set(metrics_per_feature.index) == set(
+            feature_stats.columns
+        ), "The features are different than expected"

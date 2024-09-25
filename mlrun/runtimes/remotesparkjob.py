@@ -15,11 +15,11 @@ import re
 from subprocess import run
 
 import kubernetes.client
+from mlrun_pipelines.mounts import mount_v3io, mount_v3iod
 
 import mlrun.errors
 from mlrun.config import config
 
-from ..platforms.iguazio import mount_v3io, mount_v3iod
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
 
@@ -102,16 +102,13 @@ class RemoteSparkRuntime(KubejobRuntime):
 
     @classmethod
     def deploy_default_image(cls):
-        from mlrun import get_run_db
-        from mlrun.run import new_function
-
-        sj = new_function(
+        sj = mlrun.new_function(
             kind="remote-spark", name="remote-spark-default-image-deploy-temp"
         )
         sj.spec.build.image = cls.default_image
         sj.with_spark_service(spark_service="dummy-spark")
         sj.deploy()
-        get_run_db().delete_function(name=sj.metadata.name)
+        mlrun.get_run_db().delete_function(name=sj.metadata.name)
 
     def is_deployed(self):
         if (
@@ -130,14 +127,20 @@ class RemoteSparkRuntime(KubejobRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", RemoteSparkSpec)
 
-    def with_spark_service(self, spark_service, provider=RemoteSparkProviders.iguazio):
+    def with_spark_service(
+        self,
+        spark_service,
+        provider=RemoteSparkProviders.iguazio,
+        with_v3io_mount=True,
+    ):
         """Attach spark service to function"""
         self.spec.provider = provider
         if provider == RemoteSparkProviders.iguazio:
             self.spec.env.append(
                 {"name": "MLRUN_SPARK_CLIENT_IGZ_SPARK", "value": "true"}
             )
-            self.apply(mount_v3io())
+            if with_v3io_mount:
+                self.apply(mount_v3io())
             self.apply(
                 mount_v3iod(
                     namespace=config.namespace,

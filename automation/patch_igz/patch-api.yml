@@ -18,5 +18,12 @@ spec:
       containers:
       - name: mlrun-api
         imagePullPolicy: Always
+#        env:
+#        - name: MLRUN_MEMRAY
+#          value: "1"
+#        - name: MLRUN_MEMRAY_OUTPUT_FILE
+#          value: "/mlrun/db/api_memray.bin"
+#        - name: MLRUN_MEMRAY_EXTRA_FLAGS
+#          value: "--trace-python-allocators"
       - name: mlrun-log-collector
         imagePullPolicy: Always

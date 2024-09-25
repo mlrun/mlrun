@@ -24,7 +24,7 @@ from tests.conftest import tests_root_directory
 
 def load_rst_cases(name):
     with open(tests_root_directory / "runtimes" / name) as fp:
-        data = yaml.load(fp)
+        data = yaml.safe_load(fp)
 
     for i, case in enumerate(data):
         name = case.get("name", "")
@@ -52,7 +52,7 @@ def ast_func(code):
 
 def load_info_cases():
     with open(tests_root_directory / "runtimes" / "info_cases.yml") as fp:
-        cases = yaml.load(fp)
+        cases = yaml.safe_load(fp)
 
     for case in cases:
         obj = ast_func(case["code"])

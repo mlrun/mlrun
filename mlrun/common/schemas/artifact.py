@@ -15,6 +15,7 @@
 import typing
 
 import pydantic
+from deprecated import deprecated
 
 import mlrun.common.types
 
@@ -58,8 +59,13 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # hash: typing.Optional[str]
 
 
+@deprecated(
+    version="1.7.0",
+    reason="mlrun.common.schemas.ArtifactsFormat is deprecated and will be removed in 1.9.0. "
+    "Use mlrun.common.formatters.ArtifactFormat instead.",
+    category=FutureWarning,
+)
 class ArtifactsFormat(mlrun.common.types.StrEnum):
-    # TODO: add a format that returns a minimal response
     full = "full"
 
 
@@ -93,3 +99,18 @@ class Artifact(pydantic.BaseModel):
     metadata: ArtifactMetadata
     spec: ArtifactSpec
     status: ObjectStatus
+
+
+class ArtifactsDeletionStrategies(mlrun.common.types.StrEnum):
+    """Artifacts deletion strategies types."""
+
+    metadata_only = "metadata-only"
+    """Only removes the artifact db record, leaving all related artifact data in-place"""
+
+    data_optional = "data-optional"
+    """Delete the artifact data of the artifact as a best-effort.
+    If artifact data deletion fails still try to delete the artifact db record"""
+
+    data_force = "data-force"
+    """Delete the artifact data, and if cannot delete it fail the deletion
+    and don’t delete the artifact db record"""

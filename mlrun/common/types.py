@@ -29,3 +29,10 @@ class StrEnum(str, enum.Enum):
 class HTTPMethod(StrEnum):
     GET = "GET"
     POST = "POST"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+
+
+class Operation(StrEnum):
+    ADD = "add"
+    REMOVE = "remove"

@@ -29,7 +29,11 @@ from mergedeep import merge
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.datastore.snowflake_utils import get_snowflake_spark_options
+from mlrun.datastore.snowflake_utils import (
+    get_snowflake_password,
+    get_snowflake_spark_options,
+)
+from mlrun.datastore.utils import transform_list_filters_to_tuple
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import logger, now_date
 from mlrun.utils.helpers import to_parquet
@@ -43,7 +47,6 @@ from .spark_utils import spark_session_update_hadoop_options
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
-    parse_kafka_url,
     select_columns_from_df,
 )
 
@@ -386,6 +389,7 @@ class BaseStoreTarget(DataTargetBase):
     is_offline = False
     support_spark = False
     support_storey = False
+    support_pandas = False
     support_append = False
 
     def __init__(
@@ -435,6 +439,12 @@ class BaseStoreTarget(DataTargetBase):
         self.storage_options = storage_options
         self.schema = schema or {}
         self.credentials_prefix = credentials_prefix
+        if credentials_prefix:
+            warnings.warn(
+                "The 'credentials_prefix' parameter is deprecated and will be removed in "
+                "1.9.0. Please use datastore profiles instead.",
+                FutureWarning,
+            )
 
         self._target = None
         self._resource = None
@@ -545,9 +555,7 @@ class BaseStoreTarget(DataTargetBase):
                     os.makedirs(dir, exist_ok=True)
             target_df = df
             partition_cols = None  # single parquet file
-            if not target_path.endswith(".parquet") and not target_path.endswith(
-                ".pq"
-            ):  # directory
+            if not mlrun.utils.helpers.is_parquet_file(target_path):  # directory
                 partition_cols = []
                 if timestamp_key and (
                     self.partitioned or self.time_partitioning_granularity
@@ -695,6 +703,7 @@ class BaseStoreTarget(DataTargetBase):
             self.kind, self.name, self.get_target_templated_path()
         )
         target = self._target
+        target.attributes = self.attributes
         target.run_id = self.run_id
         target.status = status or target.status or "created"
         target.updated = now_date().isoformat()
@@ -723,11 +732,25 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         featureset_status=None,
     ):
+        if not self.support_storey:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support storey engine"
+            )
         raise NotImplementedError()
 
     def purge(self):
+        """
+        Delete the files of the target.
+
+        Do not use this function directly from the sdk. Use FeatureSet.purge_targets.
+        """
         store, path_in_store, target_path = self._get_store_and_path()
-        store.rm(target_path, recursive=True)
+        if path_in_store not in ["", "/"]:
+            store.rm(path_in_store, recursive=True)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to delete target. Please Use purge_targets from FeatureSet object."
+            )
 
     def as_df(
         self,
@@ -741,6 +764,8 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ):
         """return the target data as dataframe"""
+        if not self.support_pandas:
+            raise NotImplementedError()
         mlrun.utils.helpers.additional_filters_warning(
             additional_filters, self.__class__
         )
@@ -755,13 +780,21 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         # options used in spark.read.load(**options)
+        if not self.support_spark:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{type(self).__name__} does not support spark engine"
+            )
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options={}):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         return df
 
     def get_dask_options(self):
         raise NotImplementedError()
+
+    @property
+    def source_spark_attributes(self) -> dict:
+        return {}
 
 
 class ParquetTarget(BaseStoreTarget):
@@ -794,6 +827,7 @@ class ParquetTarget(BaseStoreTarget):
     support_spark = True
     support_storey = True
     support_dask = True
+    support_pandas = True
     support_append = True
 
     def __init__(
@@ -899,10 +933,9 @@ class ParquetTarget(BaseStoreTarget):
                 if time_unit == time_partitioning_granularity:
                     break
 
-        if (
-            not self.partitioned
-            and not self.get_target_path().endswith(".parquet")
-            and not self.get_target_path().endswith(".pq")
+        target_path = self.get_target_path()
+        if not self.partitioned and not mlrun.utils.helpers.is_parquet_file(
+            target_path
         ):
             partition_cols = []
 
@@ -910,25 +943,16 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        store, path_in_store, target_path = self._get_store_and_path()
-
-        storage_options = store.get_storage_options()
-        if storage_options and self.storage_options:
-            storage_options = merge(storage_options, self.storage_options)
-        else:
-            storage_options = storage_options or self.storage_options
-
         step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.ParquetTarget",
+            class_name="mlrun.datastore.storeytargets.ParquetStoreyTarget",
             path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,
@@ -999,7 +1023,7 @@ class ParquetTarget(BaseStoreTarget):
             start_time=start_time,
             end_time=end_time,
             time_column=time_column,
-            additional_filters=additional_filters,
+            additional_filters=transform_list_filters_to_tuple(additional_filters),
             **kwargs,
         )
         if not columns:
@@ -1021,9 +1045,7 @@ class ParquetTarget(BaseStoreTarget):
         return result
 
     def is_single_file(self):
-        if self.path:
-            return self.path.endswith(".parquet") or self.path.endswith(".pq")
-        return False
+        return mlrun.utils.helpers.is_parquet_file(self.path)
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         # If partitioning by time, add the necessary columns
@@ -1063,6 +1085,7 @@ class CSVTarget(BaseStoreTarget):
     is_offline = True
     support_spark = True
     support_storey = True
+    support_pandas = True
 
     @staticmethod
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
@@ -1084,17 +1107,16 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, path_in_store, target_path = self._get_store_and_path()
+        target_path = self.get_target_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.CSVTarget",
+            class_name="mlrun.datastore.storeytargets.CSVStoreyTarget",
             path=target_path,
             columns=column_list,
             header=True,
             index_cols=key_columns,
-            storage_options=store.get_storage_options(),
             **self.attributes,
         )
 
@@ -1196,19 +1218,20 @@ class SnowflakeTarget(BaseStoreTarget):
         warehouse: str = None,
         table_name: str = None,
     ):
-        attrs = {
-            "url": url,
-            "user": user,
-            "database": database,
-            "schema": db_schema,
-            "warehouse": warehouse,
-            "table": table_name,
-        }
-        extended_attrs = {
-            key: value for key, value in attrs.items() if value is not None
-        }
-        attributes = {} if not attributes else attributes
-        attributes.update(extended_attrs)
+        attributes = attributes or {}
+        if url:
+            attributes["url"] = url
+        if user:
+            attributes["user"] = user
+        if database:
+            attributes["database"] = database
+        if db_schema:
+            attributes["db_schema"] = db_schema
+        if warehouse:
+            attributes["warehouse"] = warehouse
+        if table_name:
+            attributes["table"] = table_name
+
         super().__init__(
             name,
             path,
@@ -1232,7 +1255,31 @@ class SnowflakeTarget(BaseStoreTarget):
         return spark_options
 
     def purge(self):
-        pass
+        import snowflake.connector
+
+        missing = [
+            key
+            for key in ["database", "db_schema", "table", "url", "user", "warehouse"]
+            if self.attributes.get(key) is None
+        ]
+        if missing:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't purge Snowflake target, "
+                f"some attributes are missing: {', '.join(missing)}"
+            )
+        account = self.attributes["url"].replace(".snowflakecomputing.com", "")
+
+        with snowflake.connector.connect(
+            account=account,
+            user=self.attributes["user"],
+            password=get_snowflake_password(),
+            warehouse=self.attributes["warehouse"],
+        ) as snowflake_connector:
+            drop_statement = (
+                f"DROP TABLE IF EXISTS {self.attributes['database']}.{self.attributes['db_schema']}"
+                f".{self.attributes['table']}"
+            )
+            snowflake_connector.execute_string(drop_statement)
 
     def as_df(
         self,
@@ -1245,7 +1292,18 @@ class SnowflakeTarget(BaseStoreTarget):
         additional_filters=None,
         **kwargs,
     ):
-        raise NotImplementedError()
+        raise mlrun.errors.MLRunRuntimeError(
+            f"{type(self).__name__} does not support pandas engine"
+        )
+
+    @property
+    def source_spark_attributes(self) -> dict:
+        keys = ["url", "user", "database", "db_schema", "warehouse"]
+        attributes = self.attributes or {}
+        snowflake_dict = {key: attributes.get(key) for key in keys}
+        table = attributes.get("table")
+        snowflake_dict["query"] = f"SELECT * from {table}" if table else None
+        return snowflake_dict
 
 
 class NoSqlBaseTarget(BaseStoreTarget):
@@ -1272,6 +1330,19 @@ class NoSqlBaseTarget(BaseStoreTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
+        table, column_list = self._get_table_and_columns(features, key_columns)
+
+        graph.add_step(
+            name=self.name or self.writer_step_name,
+            after=after,
+            graph_shape="cylinder",
+            class_name="mlrun.datastore.storeytargets.NoSqlStoreyTarget",
+            columns=column_list,
+            table=table,
+            **self.attributes,
+        )
+
+    def _get_table_and_columns(self, features, key_columns):
         key_columns = list(key_columns.keys())
         table = self._resource.uri
         column_list = self._get_column_list(
@@ -1290,15 +1361,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
                 col for col in column_list if col[0] not in aggregate_features
             ]
 
-        graph.add_step(
-            name=self.name or self.writer_step_name,
-            after=after,
-            graph_shape="cylinder",
-            class_name="storey.NoSqlTarget",
-            columns=column_list,
-            table=table,
-            **self.attributes,
-        )
+        return table, column_list
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         raise NotImplementedError()
@@ -1308,19 +1371,6 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
     def get_dask_options(self):
         return {"format": "csv"}
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1434,11 +1484,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
-    # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
-    # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
-    # Then look for username and password at REDIS_xxx secrets
-    def _get_server_endpoint(self):
-        endpoint, uri = parse_path(self.get_target_path())
+    @staticmethod
+    def get_server_endpoint(path, credentials_prefix=None):
+        endpoint, uri = parse_path(path)
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds://"):
             datastore_profile = datastore_profile_read(endpoint)
@@ -1455,8 +1503,15 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Provide Redis username and password only via secrets"
                 )
-            user = self._get_credential("REDIS_USER", "")
-            password = self._get_credential("REDIS_PASSWORD", "")
+            credentials_prefix = credentials_prefix or mlrun.get_secret_or_env(
+                key="CREDENTIALS_PREFIX"
+            )
+            user = mlrun.get_secret_or_env(
+                "REDIS_USER", default="", prefix=credentials_prefix
+            )
+            password = mlrun.get_secret_or_env(
+                "REDIS_PASSWORD", default="", prefix=credentials_prefix
+            )
             host = parsed_endpoint.hostname
             port = parsed_endpoint.port if parsed_endpoint.port else "6379"
             scheme = parsed_endpoint.scheme
@@ -1470,7 +1525,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = self._get_server_endpoint()
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
 
         return Table(
             uri,
@@ -1479,7 +1536,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        endpoint, uri = self._get_server_endpoint()
+        endpoint, uri = self.get_server_endpoint(
+            self.get_target_path(), self.credentials_prefix
+        )
         parsed_endpoint = urlparse(endpoint)
         store, path_in_store, path = self._get_store_and_path()
         return {
@@ -1511,6 +1570,29 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
         return df
 
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        table, column_list = self._get_table_and_columns(features, key_columns)
+
+        graph.add_step(
+            path=self.get_target_path(),
+            name=self.name or self.writer_step_name,
+            after=after,
+            graph_shape="cylinder",
+            class_name="mlrun.datastore.storeytargets.RedisNoSqlStoreyTarget",
+            columns=column_list,
+            table=table,
+            credentials_prefix=self.credentials_prefix,
+            **self.attributes,
+        )
+
 
 class StreamTarget(BaseStoreTarget):
     kind = TargetTypes.stream
@@ -1529,44 +1611,24 @@ class StreamTarget(BaseStoreTarget):
         timestamp_key=None,
         featureset_status=None,
     ):
-        from storey import V3ioDriver
-
         key_columns = list(key_columns.keys())
-        store, path_in_store, path = self._get_store_and_path()
-        if not path:
-            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
-        endpoint, uri = parse_path(path)
-        storage_options = store.get_storage_options()
-        access_key = storage_options.get("v3io_access_key")
+
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
+        stream_path = self.get_target_path()
+        if not stream_path:
+            raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
         graph.add_step(
             name=self.name or "StreamTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.StreamTarget",
+            class_name="mlrun.datastore.storeytargets.StreamStoreyTarget",
             columns=column_list,
-            storage=V3ioDriver(
-                webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
-            ),
-            stream_path=uri,
+            stream_path=stream_path,
             **self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
 
 class KafkaTarget(BaseStoreTarget):
@@ -1640,48 +1702,20 @@ class KafkaTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        if self.path and self.path.startswith("ds://"):
-            datastore_profile = datastore_profile_read(self.path)
-            attributes = datastore_profile.attributes()
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
-            topic = datastore_profile.topic
-        else:
-            attributes = copy(self.attributes)
-            brokers = attributes.pop(
-                "brokers", attributes.pop("bootstrap_servers", None)
-            )
-            topic, brokers = parse_kafka_url(self.get_target_path(), brokers)
+        path = self.get_target_path()
 
-        if not topic:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "KafkaTarget requires a path (topic)"
-            )
+        if not path:
+            raise mlrun.errors.MLRunInvalidArgumentError("KafkaTarget requires a path")
 
         graph.add_step(
             name=self.name or "KafkaTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.KafkaTarget",
+            class_name="mlrun.datastore.storeytargets.KafkaStoreyTarget",
             columns=column_list,
-            topic=topic,
-            brokers=brokers,
-            **attributes,
+            path=path,
+            attributes=self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def purge(self):
         pass
@@ -1717,7 +1751,7 @@ class TSDBTarget(BaseStoreTarget):
 
         graph.add_step(
             name=self.name or "TSDBTarget",
-            class_name="storey.TSDBTarget",
+            class_name="mlrun.datastore.storeytargets.TSDBStoreyTarget",
             after=after,
             graph_shape="cylinder",
             path=uri,
@@ -1726,19 +1760,6 @@ class TSDBTarget(BaseStoreTarget):
             columns=column_list,
             **self.attributes,
         )
-
-    def as_df(
-        self,
-        columns=None,
-        df_module=None,
-        entities=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        additional_filters=None,
-        **kwargs,
-    ):
-        raise NotImplementedError()
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
@@ -1777,6 +1798,7 @@ class CustomTarget(BaseStoreTarget):
     is_online = False
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -1812,6 +1834,7 @@ class CustomTarget(BaseStoreTarget):
 class DFTarget(BaseStoreTarget):
     kind = TargetTypes.dataframe
     support_storey = True
+    support_pandas = True
 
     def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
@@ -1874,6 +1897,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    support_pandas = True
 
     def __init__(
         self,
@@ -2016,7 +2040,7 @@ class SQLTarget(BaseStoreTarget):
             name=self.name or "SqlTarget",
             after=after,
             graph_shape="cylinder",
-            class_name="storey.NoSqlTarget",
+            class_name="mlrun.datastore.storeytargets.NoSqlStoreyTarget",
             columns=column_list,
             header=True,
             table=table,
@@ -2134,7 +2158,7 @@ class SQLTarget(BaseStoreTarget):
                 raise ValueError(f"Table named {table_name} is not exist")
 
             elif not table_exists and create_table:
-                TYPE_TO_SQL_TYPE = {
+                type_to_sql_type = {
                     int: sqlalchemy.Integer,
                     str: sqlalchemy.String(self.attributes.get("varchar_len")),
                     datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
@@ -2147,7 +2171,7 @@ class SQLTarget(BaseStoreTarget):
                 # creat new table with the given name
                 columns = []
                 for col, col_type in self.schema.items():
-                    col_type_sql = TYPE_TO_SQL_TYPE.get(col_type)
+                    col_type_sql = type_to_sql_type.get(col_type)
                     if col_type_sql is None:
                         raise TypeError(
                             f"'{col_type}' unsupported type for column '{col}'"

@@ -12,7 +12,7 @@ the ingestion process runs the graph transformations, infers metadata and stats,
 
 When targets are not specified, data is stored in the configured default targets (i.e. NoSQL for real-time and Parquet for offline).
 
-### Ingestion engines
+## Ingestion engines
 
 MLRun supports a several ingestion engines:
 - `storey` engine (default) is designed for real-time data (e.g. individual records) that will be transformed using Python functions and classes
@@ -86,12 +86,12 @@ metadata/stats and once for the actual ingest. This is normal behavior.
 Use a feature set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
 ```python
-# Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
+# Simple feature set that reads a csv file as a dataframe and ingests it "as is"
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
 df = stocks_set.ingest(stocks)
 
-# Specify a csv file as source, specify a custom CSV target 
+# Specify a csv file as source, specify a custom CSV target
 source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 measurements.ingest(source, targets)
@@ -101,6 +101,7 @@ To append data you need to reuse the feature set that was used in previous inges
 that was saved in the DB (and not create a new feature set on every ingest).<br>
 For example:
 ```python
+try:
     my_fset = fstore.get_feature_set("my_fset")
 except mlrun.errors.MLRunNotFoundError:
     my_fset = FeatureSet("my_fset", entities=[Entity("key")])
@@ -120,25 +121,26 @@ It also enables you to schedule the job or use bigger/faster resources.
 ```python
 # Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
-config = RunConfig(image='mlrun/mlrun')
+config = RunConfig(image="mlrun/mlrun")
 df = stocks_set.ingest(stocks, run_config=config)
 ```
 
 ## Real-time ingestion
 
 Real-time use cases (e.g. real-time fraud detection) require feature engineering on live data (e.g. z-score calculation)
-while the data is coming from a streaming engine (e.g. kafka) or a live http endpoint. <br>
+while the data is coming from a streaming engine (e.g. Kafka) or a live http endpoint. <br>
 The feature store enables you to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real-time serverless function 
-(the nuclio function) that runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
-There are multiple data source options including http, kafka, kinesis, v3io stream, etc. <br>
+(the Nuclio function) that runs the pipeline and stores the data results in the "offline" and "online" feature store by default. <br>
+There are multiple data source options including HTTP, Kafka, Kinesis, v3io stream, etc. <br>
 Due to the asynchronous nature of feature store's execution engine, errors are not returned, but rather logged and pushed to the defined
 error stream. <br>
 ```python
-# Create a real time function that receives http requests
+# Create a project, then a real time function that receives http requests
 # the "ingest" function runs the feature engineering logic on live events
+project = mlrun.get_or_create_project("real-time")
 source = HTTPSource()
-func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+func = project.set_function(name="ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
 my_set.deploy_ingestion_service(source, run_config=config)
 ```

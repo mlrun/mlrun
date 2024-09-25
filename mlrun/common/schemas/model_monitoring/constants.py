@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import hashlib
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Optional
 
+import mlrun.common.constants
 import mlrun.common.helpers
 from mlrun.common.types import StrEnum
 
@@ -52,9 +54,11 @@ class EventFieldType:
     PREDICTIONS = "predictions"
     NAMED_PREDICTIONS = "named_predictions"
     ERROR_COUNT = "error_count"
+    MODEL_ERROR = "model_error"
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    LAST_REQUEST_TIMESTAMP = "last_request_timestamp"
     METRIC = "metric"
     METRICS = "metrics"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
@@ -78,9 +82,9 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
-    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
-    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    TIME = "time"
+    TABLE_COLUMN = "table_column"
 
 
 class FeatureSetFeatures(MonitoringStrEnum):
@@ -101,15 +105,8 @@ class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
-    LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
-    MLRUN_CONTEXT = "mlrun_context"
-
-    # Deprecated fields - TODO : delete in 1.9.0  (V1 app deprecation)
-    SAMPLE_PARQUET_PATH = "sample_parquet_path"
-    CURRENT_STATS = "current_stats"
-    FEATURE_STATS = "feature_stats"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -156,21 +153,40 @@ class EventKeyMetrics:
     REAL_TIME = "real_time"
 
 
-class TimeSeriesTarget:
-    TSDB = "tsdb"
-
-
-class ModelEndpointTarget:
+class ModelEndpointTarget(MonitoringStrEnum):
     V3IO_NOSQL = "v3io-nosql"
     SQL = "sql"
+
+
+class StreamKind(MonitoringStrEnum):
+    V3IO_STREAM = "v3io_stream"
+    KAFKA = "kafka"
+
+
+class TSDBTarget(MonitoringStrEnum):
+    V3IO_TSDB = "v3io-tsdb"
+    TDEngine = "tdengine"
 
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
-    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
-    KAFKA_BROKERS = "KAFKA_BROKERS"
     STREAM_PATH = "STREAM_PATH"
+    TSDB_CONNECTION = "TSDB_CONNECTION"
+
+    @classmethod
+    def mandatory_secrets(cls):
+        return [
+            cls.ENDPOINT_STORE_CONNECTION,
+            cls.STREAM_PATH,
+            cls.TSDB_CONNECTION,
+        ]
+
+
+class ModelEndpointTargetSchemas(MonitoringStrEnum):
+    V3IO = "v3io"
+    MYSQL = "mysql"
+    SQLITE = "sqlite"
 
 
 class ModelMonitoringStoreKinds:
@@ -188,12 +204,16 @@ class SchedulingKeys:
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
+    PREDICTIONS = "predictions"
     STREAM = "stream"
     PARQUET = "parquet"
     APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
     APP_RESULTS = "app_results"
+    APP_METRICS = "app_metrics"
     MONITORING_SCHEDULES = "monitoring_schedules"
+    MONITORING_APPLICATION = "monitoring_application"
+    ERRORS = "errors"
 
 
 class ModelMonitoringMode(str, Enum):
@@ -207,25 +227,23 @@ class EndpointType(IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
-class PrometheusMetric:
-    PREDICTIONS_TOTAL = "predictions_total"
-    MODEL_LATENCY_SECONDS = "model_latency_seconds"
-    INCOME_FEATURES = "income_features"
-    ERRORS_TOTAL = "errors_total"
-    DRIFT_METRICS = "drift_metrics"
-    DRIFT_STATUS = "drift_status"
-
-
-class PrometheusEndpoints(MonitoringStrEnum):
-    MODEL_MONITORING_METRICS = "/model-monitoring-metrics"
-    MONITORING_BATCH_METRICS = "/monitoring-batch-metrics"
-    MONITORING_DRIFT_STATUS = "/monitoring-drift-status"
-
-
 class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"
     WRITER = "model-monitoring-writer"
+
+
+class V3IOTSDBTables(MonitoringStrEnum):
+    APP_RESULTS = "app-results"
+    METRICS = "metrics"
+    EVENTS = "events"
+    ERRORS = "errors"
+
+
+class TDEngineSuperTables(MonitoringStrEnum):
+    APP_RESULTS = "app_results"
+    METRICS = "metrics"
+    PREDICTIONS = "predictions"
 
 
 @dataclass
@@ -271,7 +289,7 @@ class EndpointUID:
     function_hash_key: str
     model: str
     model_version: str
-    uid: Optional[str] = None
+    uid: str = field(init=False)
 
     def __post_init__(self):
         function_ref = (
@@ -304,6 +322,7 @@ class ResultKindApp(Enum):
     concept_drift = 1
     model_performance = 2
     system_performance = 3
+    mm_app_anomaly = 4
 
 
 class ResultStatusApp(IntEnum):
@@ -318,7 +337,7 @@ class ResultStatusApp(IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "mlrun__type"
+    KEY = mlrun.common.constants.MLRunInternalLabels.mlrun_type
     VAL = "mlrun__model-monitoring-application"
 
     def __str__(self) -> str:
@@ -332,3 +351,38 @@ class ControllerPolicy:
 class HistogramDataDriftApplicationConstants:
     NAME = "histogram-data-drift"
     GENERAL_RESULT_NAME = "general_drift"
+
+
+class PredictionsQueryConstants:
+    DEFAULT_AGGREGATION_GRANULARITY = "10m"
+    INVOCATIONS = "invocations"
+
+
+class SpecialApps:
+    MLRUN_INFRA = "mlrun-infra"
+
+
+_RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_INFRA]
+
+
+V3IO_MODEL_MONITORING_DB = "v3io"
+
+
+class ModelEndpointMonitoringMetricType(StrEnum):
+    RESULT = "result"
+    METRIC = "metric"
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+FQN_PATTERN = (
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+FQN_REGEX = re.compile(FQN_PATTERN)
+
+# refer to `mlrun.utils.regex.project_name`
+PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+
+MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"

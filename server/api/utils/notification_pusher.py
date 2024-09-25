@@ -21,9 +21,33 @@ import mlrun.errors
 import mlrun.model
 import mlrun.utils.helpers
 import server.api.api.utils
+import server.api.constants
 from mlrun.utils import logger
 from mlrun.utils.notifications.notification import NotificationBase, NotificationTypes
-from mlrun.utils.notifications.notification_pusher import _NotificationPusherBase
+from mlrun.utils.notifications.notification_pusher import (
+    NotificationPusher,
+    _NotificationPusherBase,
+)
+
+
+class RunNotificationPusher(NotificationPusher):
+    def _prepare_notification_args(
+        self, run: mlrun.model.RunObject, notification_object: mlrun.model.Notification
+    ):
+        """
+        Prepare notification arguments for the notification pusher.
+        In the server side implementation, we need to mask the notification parameters on the task as they are
+        unmasked to extract the credentials required to send the notification.
+        """
+        message, severity, runs = super()._prepare_notification_args(
+            run, notification_object
+        )
+        for run in runs:
+            server.api.api.utils.mask_notification_params_on_task(
+                run, server.api.constants.MaskOperations.REDACT
+            )
+
+        return message, severity, runs
 
 
 class AlertNotificationPusher(_NotificationPusherBase):
@@ -43,7 +67,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
             tasks = []
             for notification_data in alert.notifications:
                 notification_object = mlrun.model.Notification.from_dict(
-                    notification_data.dict()
+                    notification_data.notification.dict()
                 )
 
                 notification_object = (
@@ -55,7 +79,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
                 name = notification_object.name
                 notification_type = NotificationTypes(notification_object.kind)
                 params = {}
-                params.update(notification_object.secret_params)
+                if notification_object.secret_params:
+                    params.update(notification_object.secret_params)
                 if notification_object.params:
                     params.update(notification_object.params)
                 notification = notification_type.get_notification()(name, params)
@@ -64,7 +89,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
                     self._push_notification_async(
                         notification,
                         alert,
-                        notification_data,
+                        notification_data.notification,
                         event_data,
                     )
                 )
@@ -77,8 +102,6 @@ class AlertNotificationPusher(_NotificationPusherBase):
                         "Failed to push notification async",
                         error=mlrun.errors.err_to_str(result),
                     )
-
-        logger.debug("Pushing notification")
 
         self._push(sync_push, async_push)
 
@@ -134,13 +157,12 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification_object: mlrun.common.schemas.Notification,
     ):
         message = (
-            f": {notification_object.message}" if notification_object.message else ""
+            f": {notification_object.message}"
+            if notification_object.message
+            else alert.summary
         )
 
-        severity = (
-            notification_object.severity
-            or mlrun.common.schemas.NotificationSeverity.INFO
-        )
+        severity = alert.severity
         return message, severity
 
     @staticmethod
@@ -157,6 +179,7 @@ class AlertNotificationPusher(_NotificationPusherBase):
 
         # There is no need to mask the params as the secrets are already loaded
         db.store_alert_notifications(
+            None,
             [notification],
             alert_id,
             project,

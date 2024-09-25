@@ -20,6 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, R
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
@@ -133,9 +134,12 @@ async def get_run(
     iter: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    format_: mlrun.common.formatters.RunFormat = Query(
+        mlrun.common.formatters.RunFormat.full, alias="format"
+    ),
 ):
     data = await run_in_threadpool(
-        server.api.crud.Runs().get_run, db_session, uid, iter, project
+        server.api.crud.Runs().get_run, db_session, uid, iter, project, format_
     )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,
@@ -185,7 +189,7 @@ async def delete_run(
     "/runs",
     deprecated=True,
     description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
-    "use /projects/{project}/runs/{uid} instead",
+    "use /projects/{project}/runs/ instead",
 )
 @router.get("/projects/{project}/runs")
 async def list_runs(
@@ -193,7 +197,7 @@ async def list_runs(
     name: str = None,
     uid: list[str] = Query([]),
     labels: list[str] = Query([], alias="label"),
-    state: str = None,
+    states: list[str] = Query([], alias="state"),
     last: int = 0,
     sort: bool = True,
     iter: bool = True,
@@ -251,7 +255,7 @@ async def list_runs(
         uid=uid,
         project=project,
         labels=labels,
-        state=state,
+        states=states,
         sort=sort,
         last=last,
         iter=iter,

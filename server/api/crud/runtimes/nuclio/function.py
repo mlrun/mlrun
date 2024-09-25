@@ -12,16 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import asyncio
 import base64
 import shlex
+import typing
 
 import nuclio
 import nuclio.utils
 import requests
+import semver
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
@@ -31,8 +34,14 @@ import mlrun.utils
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.runtime_handlers
 import server.api.utils.builder
+import server.api.utils.clients.async_nuclio
+import server.api.utils.clients.iguazio
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.utils import logger
+
+# Configmap objects on Kubernetes have 1Mb size limit
+SERVING_SPEC_MAX_LENGTH = 1048576
 
 
 def deploy_nuclio_function(
@@ -172,6 +181,57 @@ def get_nuclio_deploy_status(
         return state, address, name, last_log_timestamp, text, function_status
 
 
+async def delete_nuclio_functions_in_batches(
+    auth_info: mlrun.common.schemas.AuthInfo,
+    project_name: str,
+    function_names: list[str],
+):
+    async def delete_function(
+        nuclio_client: server.api.utils.clients.iguazio.AsyncClient,
+        project: str,
+        function: str,
+        _semaphore: asyncio.Semaphore,
+        k8s_helper_: server.api.utils.singletons.k8s.K8sHelper,
+    ) -> typing.Optional[tuple[str, str]]:
+        async with _semaphore:
+            try:
+                await nuclio_client.delete_function(name=function, project_name=project)
+
+                config_map = k8s_helper_.get_configmap(function)
+                if config_map:
+                    k8s_helper_.delete_configmap(config_map.metadata.name)
+                return None
+            except Exception as exc:
+                # return tuple with failure info (intentionally not using mlrun.errors.err_to_str to avoid bloating
+                # the failure message)
+                return function, str(exc)
+
+    # Configure maximum concurrent deletions
+    max_concurrent_deletions = (
+        mlrun.mlconf.background_tasks.function_deletion_batch_size
+    )
+    semaphore = asyncio.Semaphore(max_concurrent_deletions)
+    failed_requests = []
+
+    async with server.api.utils.clients.async_nuclio.Client(auth_info) as client:
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        tasks = [
+            delete_function(client, project_name, function_name, semaphore, k8s_helper)
+            for function_name in function_names
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # process results to identify failed deletion requests
+        for result in results:
+            if isinstance(result, tuple):
+                nuclio_name, error_message = result
+                if error_message:
+                    failed_requests.append(error_message)
+
+    return failed_requests
+
+
 def pure_nuclio_deployed_restricted():
     """
     Decorator to restrict the usage of the decorated function to pure nuclio deployed runtimes only.
@@ -201,6 +261,17 @@ def _compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
+    """
+    Compile the nuclio function configuration from the mlrun function object.
+
+    :param function:              mlrun function object
+    :param client_version:        mlrun client version
+    :param client_python_version: mlrun client python version
+    :param builder_env:           mlrun builder environment (for config/credentials)
+    :param auth_info:             service AuthInfo
+
+    :return: function name, project name, nuclio function config
+    """
     _set_function_labels(function)
 
     # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
@@ -212,20 +283,43 @@ def _compile_function_config(
     serving_spec_volume = None
     serving_spec = function._get_serving_spec()
     if serving_spec is not None:
+        # To keep backward compatability, allow passing service spec
+        # via Config Map only for client version higher then 1.7.0
+        # TODO: remove in 1.9.0.
+        can_pass_via_cm = (
+            not client_version
+            or (
+                semver.Version.parse(client_version)
+                >= semver.Version.parse("1.7.0-rc30")
+            )
+            or "unstable" in client_version
+        )
         # since environment variables have a limited size,
         # large serving specs are stored in config maps that are mounted to the pod
-        if len(serving_spec) >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff:
+        serving_spec_len = len(serving_spec.encode("utf-8"))
+        if (
+            can_pass_via_cm
+            and serving_spec_len >= mlrun.mlconf.httpdb.nuclio.serving_spec_env_cutoff
+        ):
+            if serving_spec_len >= SERVING_SPEC_MAX_LENGTH:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The serving spec length exceeds the limit of {SERVING_SPEC_MAX_LENGTH}. "
+                    + "Run `mlrun.runtimes.nuclio.serving.ServingRuntime._get_serving_spec`, delete a large field "
+                    + "in the returned json, and check if the function runs successfully. "
+                    + "Repeat as necessary to get the spec to an allowed size"
+                )
             function_name = mlrun.runtimes.nuclio.function.get_fullname(
                 function.metadata.name, project, tag
             )
             k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
             confmap_name = k8s_helper.ensure_configmap(
-                mlrun.common.constants.MLRUN_MODEL_CONF,
+                mlrun.common.constants.MLRUN_SERVING_CONF,
                 function_name,
                 {mlrun.common.constants.MLRUN_SERVING_SPEC_FILENAME: serving_spec},
-                labels={mlrun.common.constants.MLRUN_CREATED_LABEL: "true"},
+                labels={mlrun_constants.MLRunInternalLabels.created: "true"},
+                project=project,
             )
-            volume_name = mlrun.common.constants.MLRUN_MODEL_CONF
+            volume_name = mlrun.common.constants.MLRUN_SERVING_CONF
             volume_mount = {
                 "name": volume_name,
                 "mountPath": mlrun.common.constants.MLRUN_SERVING_SPEC_MOUNT_PATH,
@@ -237,6 +331,12 @@ def _compile_function_config(
                 "volumeMount": volume_mount,
             }
         else:
+            if not can_pass_via_cm:
+                logger.debug(
+                    "Client version does not support passing serving spec via ConfigMap",
+                    client_version=client_version,
+                    serving_spec_length=len(serving_spec),
+                )
             env_dict["SERVING_SPEC_ENV"] = serving_spec
 
     # resolve sidecars images
@@ -256,7 +356,6 @@ def _compile_function_config(
         config=function.spec.config,
     )
 
-    _resolve_and_set_build_requirements_and_commands(function, nuclio_spec)
     _resolve_and_set_nuclio_runtime(
         function, nuclio_spec, client_version, client_python_version
     )
@@ -310,6 +409,8 @@ def _compile_function_config(
     )
 
     _resolve_and_set_base_image(function, config, client_version, client_python_version)
+    _resolve_and_set_build_requirements_and_commands(function, config)
+
     function_name = _set_function_name(function, config, project, tag)
 
     if serving_spec_volume is not None:
@@ -320,7 +421,7 @@ def _compile_function_config(
 
 def _set_function_labels(function):
     labels = function.metadata.labels or {}
-    labels.update({"mlrun/class": function.kind})
+    labels.update({mlrun_constants.MLRunInternalLabels.mlrun_class: function.kind})
     for key, value in labels.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
         function.set_config(f"metadata.labels.\\{key}\\", value)
@@ -361,6 +462,7 @@ def _resolve_and_set_nuclio_runtime(
     )
 
     # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
+    # TODO: remove in 1.8, default to 3.9
     if server.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
         "0.0.0", "1.6.0"
     ) and nuclio_runtime in [
@@ -381,12 +483,14 @@ def _resolve_and_set_nuclio_runtime(
 
 
 @pure_nuclio_deployed_restricted()
-def _resolve_and_set_build_requirements_and_commands(function, nuclio_spec):
-    nuclio_spec.cmd = function.spec.build.commands or []
-    _resolve_and_set_build_requirements(function, nuclio_spec)
+def _resolve_and_set_build_requirements_and_commands(function, config):
+    _add_mlrun_to_requirements_if_needed(config, function)
 
-
-def _resolve_and_set_build_requirements(function, nuclio_spec):
+    commands = (
+        mlrun.utils.get_in(config, "spec.build.commands")
+        or function.spec.build.commands
+        or []
+    )
     if function.spec.build.requirements:
         resolved_requirements = []
         # wrap in single quote to ensure that the requirement is treated as a single string
@@ -405,7 +509,32 @@ def _resolve_and_set_build_requirements(function, nuclio_spec):
             resolved_requirements.append(shlex.quote(requirement))
 
         encoded_requirements = " ".join(resolved_requirements)
-        nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
+        commands.append(f"python -m pip install {encoded_requirements}")
+
+    mlrun.utils.update_in(config, "spec.build.commands", commands)
+
+
+def _resolve_node_selector(run_db, project_name, function_node_selector):
+    project_node_selector = {}
+
+    if run_db and project_name:
+        if project := run_db.get_project(project_name):
+            project_node_selector = project.spec.default_function_node_selector
+
+    return mlrun.runtimes.utils.resolve_node_selectors(
+        project_node_selector, function_node_selector
+    )
+
+
+def _add_mlrun_to_requirements_if_needed(config, function):
+    build: mlrun.model.ImageBuilder = function.spec.build
+    base_image = mlrun.utils.get_in(config, "spec.build.baseImage")
+    if (
+        base_image
+        and server.api.utils.builder.is_mlrun_image(base_image)
+        and build.requirements
+    ):
+        server.api.utils.builder.add_mlrun_to_requirements(build, base_image)
 
 
 def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):
@@ -444,11 +573,20 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
 def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible
+
     if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
     ):
-        if function.spec.node_selector:
-            nuclio_spec.set_config("spec.nodeSelector", function.spec.node_selector)
+        # We handle the enrichment of node selectors directly within MLRun, on the nuclio spec config.
+        # This approach ensures that node selector settings from both the project and MLRun service levels
+        # are incorporated into the Nuclio config.
+        if node_selector := _resolve_node_selector(
+            function._get_db(), function.metadata.project, function.spec.node_selector
+        ):
+            nuclio_spec.set_config(
+                "spec.nodeSelector",
+                node_selector,
+            )
         if function.spec.node_name:
             nuclio_spec.set_config("spec.nodeName", function.spec.node_name)
         if function.spec.affinity:

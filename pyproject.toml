@@ -1,7 +1,6 @@
 [tool.ruff]
-extend-include = ["*.ipynb"]
 target-version = "py39"
-required-version = ">=0.4.2"
+required-version = ">=0.6.3"
 
 [tool.ruff.lint]
 extend-select = [
@@ -9,10 +8,11 @@ extend-select = [
     "W",   # pycodestyle
     "E",   # pycodestyle
     "I",   # isort
+    "N",   # pep8-naming
     "UP",  # pyupgrade
     "CPY", # flake8-copyright
+    "B006", # mutable default arguments
 ]
-exclude = ["*.ipynb"]
 explicit-preview-rules = true
 
 [tool.ruff.lint.pycodestyle]
@@ -21,6 +21,7 @@ max-line-length = 120
 [tool.ruff.lint.extend-per-file-ignores]
 "__init__.py" = ["F401"]
 "docs/**.py" = ["CPY001"]
+"*.ipynb" = ["ALL"]  # TODO: enable linting rules on Jupyter notebooks
 
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"
@@ -37,6 +38,7 @@ python_files = [
 timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
+asyncio_mode = "auto"
 
 [tool.importlinter]
 root_packages = [
@@ -70,7 +72,6 @@ forbidden_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",
@@ -81,6 +82,17 @@ ignore_imports = [
     "mlrun.config -> mlrun.db",
     "mlrun.utils.clones -> mlrun",
     "mlrun.utils.helpers -> mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun should not directly import kfp [use mlrun_pipelines instead]"
+type = "forbidden"
+source_modules = [
+    "mlrun",
+    "server.api",
+]
+forbidden_modules = [
+    "kfp",
 ]
 
 [[tool.importlinter.contracts]]
@@ -114,7 +126,6 @@ source_modules = [
     "mlrun.execution",
     "mlrun.features",
     "mlrun.k8s_utils",
-    "mlrun.kfpops",
     "mlrun.lists",
     "mlrun.model",
     "mlrun.render",

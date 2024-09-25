@@ -18,6 +18,7 @@ import os
 import shutil
 import tempfile
 
+import mlrun_pipelines.mounts
 import pytest
 
 import mlrun.errors
@@ -243,7 +244,7 @@ class TestAutoMount:
         mlconf.storage.auto_mount_params = pvc_params_str
 
         runtime = self._generate_runtime()
-        runtime.apply(mlrun.auto_mount())
+        runtime.apply(mlrun_pipelines.mounts.auto_mount())
         assert runtime.spec.disable_auto_mount
 
         self._execute_run(runtime)
@@ -255,7 +256,7 @@ class TestAutoMount:
         with pytest.raises(
             ValueError, match="failed to auto mount, need to set env vars"
         ):
-            runtime.apply(mlrun.auto_mount())
+            runtime.apply(mlrun_pipelines.mounts.auto_mount())
 
     @staticmethod
     def _setup_s3_mount(use_secret, non_anonymous):

@@ -27,12 +27,15 @@ SSH_PASSWORD:
 
 # Docker registry you can push to. Make sure you are logged into it before running the script (required)
 # e.g. docker.io/my_user
-# For iguazio datanode registry use <data-node-ip>:8009/mlrun
+# For iguazio datanode registry use <data-node-ip>:8009
 DOCKER_REGISTRY:
+
+# Docker repository to push to (optional), added as a suffix to the registry
+DOCKER_REPO:
 
 # Optional - Use when your registry is connected to a DNS which is accessible from the cluster
 # For iguazio datanode registry use:
-# datanode-registry.iguazio-platform.app.<system-name>.<lab.iguazeng/cloud-cd>.com:80/mlrun
+# datanode-registry.iguazio-platform.app.<system-name>.<lab.iguazeng/cloud-cd>.com:80
 OVERWRITE_IMAGE_REGISTRY:
 
 # Optional - will attempt docker login if defined, need to login manually otherwise
@@ -41,5 +44,12 @@ REGISTRY_USERNAME:
 # Optional - will attempt docker login if defined
 REGISTRY_PASSWORD:
 
+# Optional - use alternative registry url
+REGISTRY_URL:
+
 # Optional - only required if asking to reset DB
 DB_USER:
+
+# Optional - relevant when working with multiple DATA_NODES and iguazio datanode registry
+# set to "true" if you want the image to be pushed only to a single registry specified in DOCKER_REGISTRY
+SKIP_MULTI_NODE_PUSH:

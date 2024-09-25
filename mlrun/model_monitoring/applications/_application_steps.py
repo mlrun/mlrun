@@ -11,17 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
-import json
-import typing
-from typing import Optional
 
-import mlrun.common.helpers
-import mlrun.common.model_monitoring.helpers
+import json
+from typing import Any, Optional, Union
+
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.datastore
-import mlrun.utils.v3io_clients
+import mlrun.model_monitoring
 from mlrun.model_monitoring.helpers import get_stream_path
+from mlrun.serving import GraphContext
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
@@ -34,8 +33,8 @@ class _PushToMonitoringWriter(StepToDict):
 
     def __init__(
         self,
-        project: Optional[str] = None,
-        writer_application_name: Optional[str] = None,
+        project: str,
+        writer_application_name: str,
         stream_uri: Optional[str] = None,
         name: Optional[str] = None,
     ):
@@ -60,7 +59,7 @@ class _PushToMonitoringWriter(StepToDict):
         self,
         event: tuple[
             list[
-                typing.Union[
+                Union[
                     ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric
                 ]
             ],
@@ -109,6 +108,7 @@ class _PushToMonitoringWriter(StepToDict):
                 f"Pushing data = {writer_event} \n to stream = {self.stream_uri}"
             )
             self.output_stream.push([writer_event])
+            logger.info(f"Pushed data to {self.stream_uri} successfully")
 
     def _lazy_init(self):
         if self.output_stream is None:
@@ -118,41 +118,67 @@ class _PushToMonitoringWriter(StepToDict):
 
 
 class _PrepareMonitoringEvent(StepToDict):
-    def __init__(self, application_name: str):
+    def __init__(self, context: GraphContext, application_name: str) -> None:
         """
         Class for preparing the application event for the application step.
 
         :param application_name: Application name.
         """
+        self.graph_context = context
+        self.application_name = application_name
+        self.model_endpoints: dict[str, mlrun.model_monitoring.ModelEndpoint] = {}
 
-        self.context = self._create_mlrun_context(application_name)
-        self.model_endpoints = {}
-
-    def do(self, event: dict[str, dict]) -> MonitoringApplicationContext:
+    def do(self, event: dict[str, Any]) -> MonitoringApplicationContext:
         """
         Prepare the application event for the application step.
 
         :param event: Application event.
-        :return: Application event.
+        :return: Application context.
         """
-        if not event.get("mlrun_context"):
-            application_context = MonitoringApplicationContext().from_dict(
-                event,
-                context=copy.deepcopy(self.context),
-                model_endpoint_dict=self.model_endpoints,
-            )
-        else:
-            application_context = MonitoringApplicationContext().from_dict(event)
+        application_context = MonitoringApplicationContext(
+            graph_context=self.graph_context,
+            application_name=self.application_name,
+            event=event,
+            model_endpoint_dict=self.model_endpoints,
+        )
+
         self.model_endpoints.setdefault(
             application_context.endpoint_id, application_context.model_endpoint
         )
+
         return application_context
 
-    @staticmethod
-    def _create_mlrun_context(app_name: str):
-        context = mlrun.get_or_create_ctx(
-            f"{app_name}-logger",
-            upload_artifacts=True,
+
+class _ApplicationErrorHandler(StepToDict):
+    def __init__(self, project: str, name: Optional[str] = None):
+        self.project = project
+        self.name = name or "ApplicationErrorHandler"
+
+    def do(self, event):
+        """
+        Handle model monitoring application error. This step will generate an event, describing the error.
+
+        :param event: Application event.
+        """
+
+        logger.error(f"Error in application step: {event}")
+
+        event_data = alert_objects.Event(
+            kind=alert_objects.EventKind.MM_APP_FAILED,
+            entity=alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION,
+                project=self.project,
+                ids=[f"{self.project}_{event.body.application_name}"],
+            ),
+            value_dict={
+                "Error": event.error,
+                "Timestamp": event.timestamp,
+                "Application Class": event.body.application_name,
+                "Endpoint ID": event.body.endpoint_id,
+            },
         )
-        context.__class__ = MonitoringApplicationContext
-        return context
+
+        mlrun.get_run_db().generate_event(
+            name=alert_objects.EventKind.MM_APP_FAILED, event_data=event_data
+        )
+        logger.info("Event generated successfully")

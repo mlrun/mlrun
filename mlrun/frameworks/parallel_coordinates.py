@@ -18,8 +18,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from IPython.core.display import HTML
-from IPython.display import display
+from IPython.display import HTML, display
 from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 import mlrun
@@ -216,7 +215,7 @@ def _show_and_export_html(html: str, show=None, filename=None, runs_list=None):
                 fp.write("</body></html>")
             else:
                 fp.write(html)
-    if show or (show is None and mlrun.utils.is_ipython):
+    if show or (show is None and mlrun.utils.is_jupyter):
         display(HTML(html))
         if runs_list and len(runs_list) <= max_table_rows:
             display(HTML(html_table))
@@ -295,7 +294,7 @@ def compare_db_runs(
     iter=False,
     start_time_from: datetime = None,
     hide_identical: bool = True,
-    exclude: list = [],
+    exclude: list = None,
     show=None,
     colorscale: str = "Blues",
     filename=None,
@@ -332,6 +331,7 @@ def compare_db_runs(
         **query_args,
     )
 
+    exclude = exclude or []
     runs_df = _runs_list_to_df(runs_list)
     plot_as_html = gen_pcp_plot(
         runs_df,

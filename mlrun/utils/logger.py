@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import logging
+import os
+import typing
 from enum import Enum
+from functools import cached_property
 from sys import stdout
 from traceback import format_exception
 from typing import IO, Optional, Union
@@ -91,14 +94,64 @@ class HumanReadableFormatter(_BaseFormatter):
 
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
+    _colors = {
+        logging.NOTSET: "",
+        logging.DEBUG: "\x1b[34m",
+        logging.INFO: "\x1b[36m",
+        logging.WARNING: "\x1b[33m",
+        logging.ERROR: "\x1b[0;31m",
+        logging.CRITICAL: "\x1b[1;31m",
+    }
+    _color_reset = "\x1b[0m"
+
     def format(self, record) -> str:
-        more = self._resolve_more(record)
+        more = ""
+        record_with = self._record_with(record)
+        if record_with:
+
+            def _format_value(val):
+                formatted_val = (
+                    val
+                    if isinstance(val, str)
+                    else str(orjson.loads(self._json_dump(val)))
+                )
+                return (
+                    formatted_val.replace("\n", "\n\t\t")
+                    if len(formatted_val) < 4096
+                    else repr(formatted_val)
+                )
+
+            more = "\n\t" + "\n\t".join(
+                [f"{key}: {_format_value(val)}" for key, val in record_with.items()]
+            )
         return (
-            "> "
+            f"{self._get_message_color(record.levelno)}> "
             f"{self.formatTime(record, self.datefmt)} "
             f"[{record.name}:{record.levelname.lower()}] "
-            f"{record.getMessage()}{more}"
+            f"{record.getMessage()}{more}{self._get_color_reset()}"
         )
+
+    def _get_color_reset(self):
+        if not self._have_color_support:
+            return ""
+
+        return self._color_reset
+
+    def _get_message_color(self, levelno):
+        if not self._have_color_support:
+            return ""
+
+        return self._colors[levelno]
+
+    @cached_property
+    def _have_color_support(self):
+        if os.environ.get("PYCHARM_HOSTED"):
+            return True
+        if os.environ.get("NO_COLOR"):
+            return False
+        if os.environ.get("CLICOLOR_FORCE"):
+            return True
+        return stdout.isatty()
 
 
 class Logger:
@@ -221,12 +274,25 @@ class FormatterKinds(Enum):
     JSON = "json"
 
 
-def create_formatter_instance(formatter_kind: FormatterKinds) -> logging.Formatter:
+def resolve_formatter_by_kind(
+    formatter_kind: FormatterKinds,
+) -> type[
+    typing.Union[HumanReadableFormatter, HumanReadableExtendedFormatter, JSONFormatter]
+]:
     return {
-        FormatterKinds.HUMAN: HumanReadableFormatter(),
-        FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter(),
-        FormatterKinds.JSON: JSONFormatter(),
+        FormatterKinds.HUMAN: HumanReadableFormatter,
+        FormatterKinds.HUMAN_EXTENDED: HumanReadableExtendedFormatter,
+        FormatterKinds.JSON: JSONFormatter,
     }[formatter_kind]
+
+
+def create_test_logger(name: str = "mlrun", stream: IO[str] = stdout) -> Logger:
+    return create_logger(
+        level="debug",
+        formatter_kind=FormatterKinds.HUMAN_EXTENDED.name,
+        name=name,
+        stream=stream,
+    )
 
 
 def create_logger(
@@ -243,11 +309,11 @@ def create_logger(
     logger_instance = Logger(level, name=name, propagate=False)
 
     # resolve formatter
-    formatter_instance = create_formatter_instance(
+    formatter_instance = resolve_formatter_by_kind(
         FormatterKinds(formatter_kind.lower())
     )
 
     # set handler
-    logger_instance.set_handler("default", stream or stdout, formatter_instance)
+    logger_instance.set_handler("default", stream or stdout, formatter_instance())
 
     return logger_instance

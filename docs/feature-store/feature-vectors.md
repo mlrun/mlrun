@@ -35,19 +35,23 @@ Example of creating a feature vector:
 import mlrun.feature_store as fstore
 
 # Feature vector definitions
-feature_vector_name = 'example-fv'
-feature_vector_description = 'Example feature vector'
-features = ['data_source_1.*', 
-            'data_source_2.feature_1', 
-            'data_source_2.feature_2',
-            'data_source_3.*']
-label_feature = 'label_source_1.label_feature'
+feature_vector_name = "example-fv"
+feature_vector_description = "Example feature vector"
+features = [
+    "data_source_1.*",
+    "data_source_2.feature_1",
+    "data_source_2.feature_2",
+    "data_source_3.*",
+]
+label_feature = "label_source_1.label_feature"
 
 # Feature vector creation
-fv = fstore.FeatureVector(name=feature_vector_name,
-                          features=features,
-                          label_feature=label_feature,
-                          description=feature_vector_description)
+fv = fstore.FeatureVector(
+    name=feature_vector_name,
+    features=features,
+    label_feature=label_feature,
+    description=feature_vector_description,
+)
 
 # Save the feature vector in the MLRun DB
 # so it can be referenced by the `store://`
@@ -66,7 +70,7 @@ You can also view some metadata about the feature vector, including all the feat
 ### Feature vectors with different entities and complex joins
 
 ```{admonition} Note
-Tech Preview
+This feature is currently in Tech Preview status.
 ```
 
 You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 
@@ -137,13 +141,14 @@ as a function input using `store://feature-vectors/{project}/{feature_vector_nam
 For example:
 
 ```python
-fn = mlrun.import_function('hub://sklearn-classifier').apply(auto_mount())
+fn = mlrun.import_function("hub://sklearn-classifier").apply(auto_mount())
 
 # Define the training task, including the feature vector and label
-task = mlrun.new_task('training', 
-                      inputs={'dataset': f'store://feature-vectors/{project}/{feature_vector_name}'},
-                      params={'label_column': 'label'}
-                     )
+task = mlrun.new_task(
+    "training",
+    inputs={"dataset": f"store://feature-vectors/{project}/{feature_vector_name}"},
+    params={"label_column": "label"},
+)
 
 # Run the function
 run = fn.run(task)
@@ -236,8 +241,7 @@ resp = fs.get_offline_features(
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
-First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the 
-feature vector to `get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
+First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.FeatureVector.get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
 the timestamp (of the last event that updated the feature sets) is not part of the response. 
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
@@ -246,7 +250,7 @@ To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need
 import mlrun.feature_store as fstore
 
 # Create the Feature Vector Online Service
-feature_vector = 'store://feature-vectors/{project}/{feature_vector_name}'
+feature_vector = "store://feature-vectors/{project}/{feature_vector_name}"
 fvec = fstore.get_feature_vector(feature_vector)
 svc = fvec.get_online_feature_service()
 ```
@@ -268,7 +272,7 @@ For example:
 
 ```python
 # Define the wanted entities
-entities = [{<feature-vector-entity-column-name>: <entity>}]
+entities = [{"<feature-vector-entity-column-name>": "<entity>"}]
 
 # Get the feature vectors from the service
 svc.get(entities)
@@ -280,13 +284,13 @@ If you want to return an ordered list of values, set the `as_list` parameter to 
 frameworks and this eliminates additional glue logic. 
    
 When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
-the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
+the `get_online_feature_service` uses QueryByKey on the key-value store: all join types in the graph turn 
 into left joins. Consequently, the function performs joins using the latest events for each required 
 entity within each feature set.
 
 You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, 
 and the starting place. 
-See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
+See {py:meth}`mlrun.feature_store.FeatureVector.get_online_feature_service`.
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
 

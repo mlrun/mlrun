@@ -14,15 +14,19 @@
 #
 import os
 import string
+import tempfile
 from contextlib import nullcontext as does_not_raise
+from datetime import datetime
 from unittest.mock import Mock
 
 import dask.dataframe as dd
+import pandas as pd
 import pytest
+import pytz
 
 import mlrun.datastore
 import mlrun.datastore.wasbfs
-from mlrun import new_function
+from mlrun import MLRunInvalidArgumentError, new_function
 from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
@@ -52,7 +56,8 @@ def test_http_fs_parquet_with_params_as_df():
 
 def test_s3_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
-        "s3://aws-roda-hcls-datalake/gnomad/chrm/run-DataSink0-1-part-block-0-r-00009-snappy.parquet"
+        "s3://aws-public-blockchain/v1.0/btc/blocks/date=2023-02-27/"
+        "part-00000-7de4c87e-242f-4568-b5d7-aae4cc75e9ad-c000.snappy.parquet"
     )
     data_item.as_df()
 
@@ -213,3 +218,52 @@ def test_schema_to_store(schemas, expected_class, expected):
     with expected:
         stores = [schema_to_store(schema) for schema in schemas]
         assert all(store == expected_class for store in stores)
+
+
+# ML-6308
+@pytest.mark.parametrize("start_time_tz", [None, "naive", "with_tz"])
+@pytest.mark.parametrize("end_time_tz", [None, "naive", "with_tz"])
+@pytest.mark.parametrize("df_tz", [False, True])
+def test_as_df_time_filters(start_time_tz, end_time_tz, df_tz):
+    time_column = "timestamp"
+
+    parquet_file = os.path.join(
+        os.path.join(os.path.dirname(__file__), "assets"), "testdata.parquet"
+    )
+    full_df = pd.read_parquet(parquet_file)
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".parquet", delete=True
+    ) as parquet_file:
+        if df_tz:
+            full_df[time_column] = full_df[time_column].dt.tz_localize("UTC")
+        full_df.to_parquet(parquet_file.name)
+
+        data_item = mlrun.datastore.store_manager.object(f"file://{parquet_file.name}")
+
+        start_time = None
+        tzinfo = pytz.UTC if start_time_tz == "with_tz" else None
+        if start_time_tz:
+            start_time = datetime(2020, 12, 1, 17, 28, 15, tzinfo=tzinfo)
+
+        end_time = None
+        tzinfo = pytz.UTC if end_time_tz == "with_tz" else None
+        if end_time_tz:
+            end_time = datetime(2020, 12, 1, 17, 29, 15, tzinfo=tzinfo)
+
+        if {start_time_tz, end_time_tz} == {"naive", "with_tz"}:
+            expectation = pytest.raises(
+                MLRunInvalidArgumentError,
+                match="start_time and end_time must have the same time zone",
+            )
+        else:
+            expectation = does_not_raise()
+
+        with expectation:
+            resp = data_item.as_df(
+                start_time=start_time, end_time=end_time, time_column=time_column
+            )
+            num_row_expected = (
+                190 - (80 if start_time_tz else 0) - (90 if end_time_tz else 0)
+            )
+            assert len(resp) == num_row_expected

@@ -597,6 +597,10 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 	// if no run uids were provided, delete the entire project's logs
 	if len(request.RunUIDs) == 0 {
 
+		s.Logger.DebugWithCtx(ctx,
+			"Deleting all project logs",
+			"project", request.Project)
+
 		// remove entire project from persistent state
 		if err := s.deleteProjectLogs(request.Project); err != nil {
 			message := fmt.Sprintf("Failed to delete project logs for project %s", request.Project)
@@ -606,6 +610,10 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 				ErrorMessage: message,
 			}, errors.Wrap(err, message)
 		}
+
+		s.Logger.DebugWithCtx(ctx,
+			"Successfully deleted all project logs",
+			"project", request.Project)
 
 		return s.successfulBaseResponse(), nil
 	}
@@ -775,7 +783,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
-	file, err := os.OpenFile(logFilePath, openFlags, 0644)
+	file, err := os.OpenFile(logFilePath, openFlags, 0600)
 	if err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to open file",
@@ -1033,7 +1041,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	}
 
 	// open log file for reading
-	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0600)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to open log file for run id %s", runUID)
 	}

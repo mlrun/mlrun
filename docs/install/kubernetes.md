@@ -21,11 +21,11 @@ These instructions install the community edition, which currently includes MLRun
 
 ## Prerequisites
 
-- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. MLRun fully supports k8s releases 1.22, 1.23, and 1.26. 
+- Access to a Kubernetes cluster. To install MLRun on your cluster, you must have administrator permissions. 
 For local installation on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. 
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm >=3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 
   - 8Gi
@@ -46,7 +46,7 @@ The MLRun CE (Community Edition) includes the following components:
 * Nuclio - https://github.com/nuclio/nuclio
 * Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
 * MPI Operator - https://github.com/kubeflow/mpi-operator
-* Minio - https://github.com/minio/minio/tree/master/helm/minio
+* MinIO - https://github.com/minio/minio/tree/master/helm/minio
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
 * Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
@@ -105,7 +105,7 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
 
 Where:
 
-- `<your-registry-server>` is your Private Docker Registry FQDN. (https://index.docker.io/v1/ for Docker Hub).
+- `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).
 - `<your-username>` is your Docker username.
 - `<your-password>` is your Docker password.
 - `<your-email>` is your Docker email.
@@ -138,7 +138,7 @@ When the installation is complete, the helm command prints the URLs and ports of
 
 > **Note:**
 > There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
-> mysql database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
+> MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
 > `--set pipelines.enabled=false`.
 
 ## Configuring the online feature store
@@ -235,7 +235,7 @@ To learn about the various UI options and their usage, see:
 
 When installing the MLRun Community Edition, several storage resources are created:
 
-- **PVs via default configured storage class**: Holds the file system of the stacks pods, including the MySQL database of MLRun, Minio for artifacts and Pipelines Storage and more. 
+- **PVs via default configured storage class**: Holds the file system of the stacks pods, including the MySQL database of MLRun, MinIO for artifacts and Pipelines Storage and more. 
 These are not deleted when the stack is uninstalled, which allows upgrading without losing data.
 - **Container Images in the configured docker-registry**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are 
 stored in the given configured docker registry. These images persist in the docker registry and are not deleted.
@@ -256,7 +256,7 @@ helm --namespace mlrun uninstall mlrun-ce
 
 ### Note on terminating pods and hanging resources
 This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 
-Upon uninstallation, any hanging / terminating pods hold the PVCs and PVs respectively, as those prevent their safe removal.
+Upon uninstalling, any hanging / terminating pods hold the PVCs and PVs respectively, as those prevent their safe removal.
 Since pods that are stuck in terminating state seem to be a never-ending plague in Kubernetes, note this,
 and remember to clean the remaining PVs and PVCs.
 
@@ -322,16 +322,16 @@ If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you mi
 
 ## Storing artifacts in AWS S3 storage
 
-MLRun CE uses a Minio service as shared storage for artifacts, and accesses it using S3 protocol. This means that
-any path that begins with `s3://` is automatically directed by MLRun to the Minio service. The default artifact
+MLRun CE uses a MinIO service as shared storage for artifacts, and accesses it using S3 protocol. This means that
+any path that begins with `s3://` is automatically directed by MLRun to the MinIO service. The default artifact
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
-Minio service.
+MinIO service.
 
-To store artifacts in AWS S3 buckets instead of the local Minio service, these configurations need to be overridden to 
+To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 
 make `s3://` paths lead to AWS buckets instead.
 
 ```{admonition} Note
-These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in Minio. For other
+These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in MinIO. For other
 storage options (such as GCS, Azure blobs etc.) only the artifact path needs to be modified, and credentials need to
 be provided.
 ```
@@ -350,7 +350,7 @@ for any project used:
 ### Disabling auto-mount
 
 Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
-auto-mount adds S3 configurations that point at the Minio service (refer to 
+auto-mount adds S3 configurations that point at the MinIO service (refer to 
 [**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
 of following ways:
 
@@ -358,7 +358,7 @@ of following ways:
   after this command:
     ```python
     from mlrun.config import config as mlconf
-    
+
     mlconf.storage.auto_mount_type = "none"
     ```
 * If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
@@ -375,7 +375,7 @@ of following ways:
 
 The artifact path needs to be modified since the bucket name is set to `mlrun` by default. It is recommended to keep 
 the same path structure as the default, while modifying the bucket name. For example:
-```python
+```text
 s3://<bucket name>/projects/{{run.project}}/artifacts
 ```
 

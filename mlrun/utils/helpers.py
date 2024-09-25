@@ -1276,6 +1276,7 @@ def template_artifact_path(artifact_path, project, run_uid=None):
     run_uid = run_uid or "project"
     artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
     artifact_path = _fill_project_path_template(artifact_path, project)
+    artifact_path = _fill_environment_variable_templates(artifact_path)
     return artifact_path
 
 

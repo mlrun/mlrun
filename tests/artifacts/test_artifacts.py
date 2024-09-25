@@ -599,13 +599,13 @@ def test_register_artifacts(rundb_mock):
     assert artifact.tree == expected_tree
 
 
-def test_artifact_with_additional_place_holders_in_artifact_path():
+def test_artifact_with_additional_place_holders_in_artifact_path(monkeypatch):
     project_name = "my-projects"
     project = mlrun.new_project(project_name)
     artifact_path = f"{results_dir}/{{{{FOLDER}}}}/{{{{SUB_FOLDER}}}}"
 
-    os.environ["FOLDER"] = "my-folder"
-    os.environ["SUB_FOLDER"] = "my-sub-folder"
+    monkeypatch.setenv("FOLDER", "my-folder")
+    monkeypatch.setenv("SUB_FOLDER", "my-sub-folder")
 
     artifact = project.log_artifact(
         "res",

@@ -155,7 +155,8 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json()["pagination"]["page-token"] is None
 
 
 def _assert_pagination_info(

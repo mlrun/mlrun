@@ -353,5 +353,7 @@ def test_scikit_learn_requirements_are_aligned() -> None:
     no_matches = output.returncode == 1
     assert no_matches, (
         "The following files include a scikit-learn requirement which is not aligned "
-        f"to version {scikit_learn_version}:\n{output.stdout.decode()}"
+        f"to version {scikit_learn_version}:\n{output.stdout.decode()}\n"
+        f"returncode: {output.returncode}\n"
+        f"stderr:\n{output.stderr.decode()}"
     )

@@ -454,7 +454,12 @@ class _PipelineRunner(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
         pass
 
     @staticmethod
@@ -627,7 +632,12 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
         project_name = project.metadata.name if project else ""
         logger.info(
             "Waiting for pipeline run completion",

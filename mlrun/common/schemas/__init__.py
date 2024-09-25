@@ -175,6 +175,7 @@ from .project import (
     ProjectOwner,
     ProjectsOutput,
     ProjectSpec,
+    ProjectSpecOut,
     ProjectState,
     ProjectStatus,
     ProjectSummariesOutput,

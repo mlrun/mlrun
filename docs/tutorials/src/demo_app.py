@@ -1,6 +1,5 @@
-import pandas as pd
-
-import mlrun
+import mlrun.model_monitoring.applications.context as mm_context
+import mlrun.model_monitoring.applications.results as mm_results
 from mlrun.artifacts import (
     TableArtifact,
 )
@@ -8,7 +7,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
-from mlrun.model_monitoring.application import (
+from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
     ModelMonitoringApplicationResult,
 )
@@ -19,20 +18,15 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
     check_num_events = True
 
     def do_tracking(
-        self,
-        application_name: str,
-        sample_df_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-        feature_stats: mlrun.common.model_monitoring.helpers.FeatureStats,
-        sample_df: pd.DataFrame,
-        start_infer_time: pd.Timestamp,
-        end_infer_time: pd.Timestamp,
-        latest_request: pd.Timestamp,
-        endpoint_id: str,
-        output_stream_uri: str,
-    ) -> list[ModelMonitoringApplicationResult]:
-        self.context.logger.info("Running demo app")
-        self.context.log_artifact(
-            TableArtifact(f"sample_df_{start_infer_time}", df=sample_df)
+        self, monitoring_context: mm_context.MonitoringApplicationContext
+    ) -> list[mm_results.ModelMonitoringApplicationResult]:
+        monitoring_context.logger.info("Running demo app")
+        monitoring_context.nuclio_logger.info("Running demo app")
+        monitoring_context.log_artifact(
+            TableArtifact(
+                f"sample_df_{monitoring_context.start_infer_time}",
+                df=monitoring_context.sample_df,
+            )
         )
         return [
             ModelMonitoringApplicationResult(

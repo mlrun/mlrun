@@ -24,8 +24,7 @@ You can set up alerts and notifications on various channels once an issue is det
 to your IT via email and Slack when operational performance metrics pass a threshold. You can also set-up automated actions, for example,
 call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
 
-```
-{admonition} Note
+```{admonition} Note
 Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to later versions will not maintain backwards compatibility.
 ```
 
@@ -37,7 +36,6 @@ Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to la
 ../model-monitoring/index
 ../model-monitoring/model-monitoring-flow
 ../model-monitoring/monitoring-models
+../model-monitoring/applications
 ../concepts/alerts
 ```
-
-See also {ref}`genai-mmonitor`.

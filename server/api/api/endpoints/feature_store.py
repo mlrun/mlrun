@@ -21,6 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from mlrun_pipelines.mounts import v3io_cred
 from sqlalchemy.orm import Session
 
+import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.feature_store
@@ -239,6 +240,7 @@ async def list_feature_sets(
     partition_order: mlrun.common.schemas.OrderType = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
+    format_: str = Query(mlrun.common.formatters.FeatureSetFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -261,6 +263,7 @@ async def list_feature_sets(
         rows_per_partition,
         partition_sort_by,
         partition_order,
+        format_,
     )
     feature_sets = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.feature_set,

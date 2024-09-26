@@ -2,7 +2,7 @@
 # Change log
 
 
-- [v1.7.0](#)
+- [v1.7.0](#1-october-2024)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -14,7 +14,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.0 (          September 2024)
+## v1.7.0 (1 October 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -56,7 +56,7 @@
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours. <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
+|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours.  <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
@@ -90,8 +90,10 @@
 |-------|----------------------------------------------------------------------------|
 |ML-6052|New page: {ref}`log-artifacts`.|
 |NA     |New tutorial: {ref}`genai-02-mm-llm`.|
-|NA     |Enhanced {ref}`model-monitoring-des`.|
-|NA     |New: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
+|NA     |Updated page: {ref}`model-monitoring-des`.|
+|NA    |New page: {ref}`mm-applications`.
+|ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
+|ML-7480|New topic: [Setup for for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
 
 
 
@@ -111,23 +113,36 @@
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
 |ML-5774|UI: Improved speed of Querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
-|ML-6065|Fixed model serving with kafka trigger.|
+|ML-6065|Fixed model serving with Kafka trigger.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
-|ML-6249|Reduction in the time feature sets with a large number of entities take to query (and no longer time out).|
+|ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer time out).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
-|ML-6839|   **Is it in v1.7?** (change in scheduling behaviour!!)|
 |ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
+|ML-6885||
 |ML-6991|UI: Now shows KFP pod errors.|
 |ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
+|ML-7119|When attempting to create a project without the required permissions, the error now reads: You don’t have permission to create a project.|
 |ML-7135|Fixed Upgrading to mlrun if the `spec.build` was saved incorrectly.|
 |ML-7162|UI: Erroneous "“No data matches…” messages no longer appear.|
-|ML-7203|**Is it in 1.7?** Function yaml is no longer created twice during a scheduled workflow trigger.|
+|ML-7192|Improved the liveness and readiness probes responsiveness.|
+|ML-7202|The run state does now indicates if a pod failed on OOM.|
 |ML-7226|Exception now raised when using use KFP engine with `pass schedule` argument, which is not supported with the KFP engine.|
 |ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
-|ML-7270|**Is it in 1.7?** |
-
+|ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.html#node-selection).|
+|ML-7335|Serving functions now suport up to 4000 models.|
+|ML-7358|MLRun client now validates certificates by default.|
+|ML-7367|Updated OS packages for MLRun UI.|
+|ML-7404|Nuclio version 1.12.8 and higher now supports `disable_default_http_trigger`.|
+|ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
+|ML-7599|Fixed mlrun-api vulnerabilities.|
+|ML-7613||
+|ML-7655|The "filter by label" in the Models pageis now case insensitive.|
+|ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
+|ML-7706||
+|ML-7796|Can now set a label selector for the workflow-runner pod thru the SDK.|
+|ML-7907|Fixed model serving with RabbitMQ trigger.|
 
 ## v1.6.4 (2 July 2024)
 

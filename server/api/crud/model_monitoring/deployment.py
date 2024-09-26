@@ -46,6 +46,7 @@ import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -1198,6 +1199,11 @@ class MonitoringDeployment:
             )
         )
 
+        stream_path = secrets_dict.get(
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+        )
+        self._verify_v3io_access(stream_path)
+
         server.api.crud.Secrets().store_project_secrets(
             project=self.project,
             secrets=mlrun.common.schemas.SecretsData(
@@ -1205,6 +1211,15 @@ class MonitoringDeployment:
                 secrets=secrets_dict,
             ),
         )
+
+    @staticmethod
+    def _verify_v3io_access(path):
+        import v3io.dataplane
+
+        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+        container, stream_path = split_path(path)
+        # We don't expect the stream to exist. The purpose is to make sure we have access.
+        v3io_client.stream.describe(container, stream_path, raise_for_status=[404])
 
     def _is_the_same_cred(
         self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str

@@ -1212,14 +1212,19 @@ class MonitoringDeployment:
             ),
         )
 
-    @staticmethod
-    def _verify_v3io_access(path):
+    def _verify_v3io_access(self, path):
         import v3io.dataplane
 
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
         container, stream_path = split_path(path)
+        print(f"111 path={path}, container={container}, stream_path={stream_path}")
         # We don't expect the stream to exist. The purpose is to make sure we have access.
-        v3io_client.stream.describe(container, stream_path, raise_for_status=[200, 404])
+        v3io_client.stream.describe(
+            container,
+            stream_path,
+            access_key=self.model_monitoring_access_key,
+            raise_for_status=[200, 404],
+        )
 
     def _is_the_same_cred(
         self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str

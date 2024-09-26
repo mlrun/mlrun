@@ -1,7 +1,7 @@
 (using-mlrun)=
 # Using MLRun
 
-MLRun is an open AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
+MLRun is an open source AI orchestration platform for quickly building and managing continuous (gen) AI applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
 Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, 
@@ -111,10 +111,13 @@ Collect production data, metadata, and metrics to tune the model and application
 
 
 `````{div} full-width
-{octicon}`mortar-board` **Tutorial:**
-{bdg-link-info}`Model monitoring using LLM <./genai/live-ops/monitoring-llm.html>`
+{octicon}`mortar-board` **Docs:**
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
+<br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Deploy LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
 <br> {octicon}`code-square` **Demo:**
-{bdg-link-success}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
 `````
 
 ## MLOps tasks
@@ -131,23 +134,33 @@ Collect production data, metadata, and metrics to tune the model and application
 ```
 
 ```{grid-item-card} Ingest and process data
+:columns: 4
 :text-align: center
 :link: ./data-prep/index.html
 ```
 
 ```{grid-item-card} Develop and train models 
+:columns: 4
 :text-align: center
 :link: ./development/index.html
 ```
 
 ```{grid-item-card} Deploy models and app
+:columns: 4
 :text-align: center
 :link: ./deployment/index.html
 ```
 
-```{grid-item-card} Monitor and alert
+```{grid-item-card} Model Monitoring
+:columns: 4
 :text-align: center
 :link: ./monitoring/index.html
+```
+
+```{grid-item-card} Alerts and Notifications
+:columns: 4
+:text-align: center
+:link: ./concepts/alerts-notifications.html
 ```
 
 ````
@@ -241,8 +254,8 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Monitor and alert <monitoring>`
-{bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
+{bdg-link-info}`Model monitoring <monitoring>`
+{bdg-link-info}`Alerts and notifications <alerts-notifications>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
@@ -311,9 +324,9 @@ MLRun includes the following major components:
 
 **{ref}`Real-time serving pipeline <serving-graph>`:** Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 
-**{ref}`Real-time monitoring <monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
+**{ref}`Real-time monitoring <model-monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
-
+**{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on runs and pipelines.
 
 
 ```{toctree}

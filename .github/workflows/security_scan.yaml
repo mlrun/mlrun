@@ -116,6 +116,7 @@ jobs:
           output-format: ${{ steps.output-format.outputs.format }}
           fail-build: ${{ steps.output-format.outputs.fail_build }}
           severity-cutoff: ${{ github.event.inputs.severity_threshold }}
+          by-cve: true
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''
@@ -153,6 +154,7 @@ jobs:
           output-format: ${{ steps.output-format.outputs.format }}
           fail-build: ${{ steps.output-format.outputs.fail_build }}
           severity-cutoff: ${{ github.event.inputs.severity_threshold }}
+          by-cve: true
 
       - name: Upload scan results
         if: github.event.inputs.publish_results != ''

@@ -132,6 +132,10 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
+        labels = server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+            labels=labels,
+            scheduled_object=scheduled_object,
+        )
         labels = self._enrich_schedule(
             auth_info, kind, labels, name, project, scheduled_object
         )
@@ -206,10 +210,11 @@ class Scheduler:
 
         db_schedule = get_db().get_schedule(db_session, project, name)
 
-        # if labels are None, then we don't want to overwrite them and labels should remain the same as in db
-        # if labels are {} then we do want to overwrite them
-        if labels is None:
-            labels = {label.name: label.value for label in db_schedule.labels}
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
+        )
 
         labels = self._enrich_schedule(
             auth_info, db_schedule.kind, labels, name, project, scheduled_object
@@ -345,14 +350,20 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
+        db_schedule = get_db().get_schedule(
+            db_session, project, name, raise_on_not_found=False
+        )
         if not kind:
             # TODO: Need to think of a way to not use `get_schedule`
             #  in this function or in `get_db().store_function()` in this flow
             #  because we must have kind to ensure that auth info has access key.
-            db_schedule = get_db().get_schedule(
-                db_session, project, name, raise_on_not_found=False
-            )
             kind = db_schedule.kind
+
+        labels, scheduled_object = (
+            server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+                labels, scheduled_object, db_schedule
+            )
+        )
 
         labels = self._enrich_schedule(
             auth_info, kind, labels, name, project, scheduled_object, fn_kind
@@ -942,6 +953,7 @@ class Scheduler:
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
+        server.api.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
         return labels
 
     @staticmethod

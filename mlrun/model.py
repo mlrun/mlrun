@@ -681,7 +681,8 @@ class ImageBuilder(ModelObj):
 class Notification(ModelObj):
     """Notification object
 
-    :param kind: notification implementation kind - slack, webhook, etc.
+    :param kind: notification implementation kind - slack, webhook, etc. See
+        :py:class:`mlrun.common.schemas.notification.NotificationKind`
     :param name: for logging and identification
     :param message: message content in the notification
     :param severity: severity to display in the notification
@@ -2043,6 +2044,8 @@ class DataSource(ModelObj):
     ]
     kind = None
 
+    _fields_to_serialize = ["start_time", "end_time"]
+
     def __init__(
         self,
         name: str = None,
@@ -2070,6 +2073,16 @@ class DataSource(ModelObj):
 
     def set_secrets(self, secrets):
         self._secrets = secrets
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        value = super()._serialize_field(struct, field_name, strip)
+        # We pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        if field_name in ("start_time", "end_time") and isinstance(value, datetime):
+            return value.isoformat()
+        return value
 
 
 class DataTargetBase(ModelObj):

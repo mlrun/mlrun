@@ -438,8 +438,10 @@ class ApplicationRuntime(RemoteRuntime):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
         An application without an API gateway is not accessible.
-        :param name:                    The name of the API gateway, defaults to <function-name>-<function-tag>
-        :param path:                    Optional path of the API gateway, default value is "/"
+
+        :param name:                    The name of the API gateway
+        :param path:                    Optional path of the API gateway, default value is "/".
+                                        The given path should be supported by the deployed application
         :param direct_port_access:      Set True to allow direct port access to the application sidecar
         :param authentication_mode:     API Gateway authentication mode
         :param authentication_creds:    API Gateway basic authentication credentials as a tuple (username, password)
@@ -448,8 +450,7 @@ class ApplicationRuntime(RemoteRuntime):
         :param set_as_default:          Set the API gateway as the default for the application (`status.api_gateway`)
         :param gateway_timeout:         nginx ingress timeout in sec (request timeout, when will the gateway return an
                                         error)
-
-        :return:    The API gateway URL
+        :return:                        The API gateway URL
         """
         if not name:
             raise mlrun.errors.MLRunInvalidArgumentError(

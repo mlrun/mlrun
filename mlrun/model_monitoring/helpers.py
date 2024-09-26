@@ -18,6 +18,10 @@ import typing
 import numpy as np
 import pandas as pd
 
+if typing.TYPE_CHECKING:
+    from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
+
 import mlrun
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
@@ -26,15 +30,10 @@ import mlrun.data_types.infer
 import mlrun.model_monitoring
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
-    ModelEndpointMonitoringMetricType,
     _compose_full_name,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import logger
-
-if typing.TYPE_CHECKING:
-    from mlrun.db.base import RunDBInterface
-    from mlrun.projects import MlrunProject
 
 
 class _BatchDict(typing.TypedDict):
@@ -63,7 +62,6 @@ def get_stream_path(
     )
 
     if not stream_uri or stream_uri == "v3io":
-        # TODO : remove the first part of this condition in 1.9.0
         stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=project,
             kind=mm_constants.FileTargetKind.STREAM,
@@ -71,8 +69,6 @@ def get_stream_path(
             function_name=function_name,
         )
 
-    if isinstance(stream_uri, list):  # ML-6043 - user side gets only the new stream uri
-        stream_uri = stream_uri[1]  # get new stream path, under projects
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
         stream_uri=stream_uri, project=project, function_name=function_name
     )
@@ -179,7 +175,7 @@ def _get_monitoring_time_window_from_controller_run(
 def update_model_endpoint_last_request(
     project: str,
     model_endpoint: ModelEndpoint,
-    current_request: datetime,
+    current_request: datetime.datetime,
     db: "RunDBInterface",
 ) -> None:
     """
@@ -190,7 +186,8 @@ def update_model_endpoint_last_request(
     :param current_request: current request time
     :param db:              DB interface.
     """
-    if model_endpoint.spec.stream_path != "":
+    is_model_server_endpoint = model_endpoint.spec.stream_path != ""
+    if is_model_server_endpoint:
         current_request = current_request.isoformat()
         logger.info(
             "Update model endpoint last request time (EP with serving)",
@@ -204,12 +201,13 @@ def update_model_endpoint_last_request(
             endpoint_id=model_endpoint.metadata.uid,
             attributes={mm_constants.EventFieldType.LAST_REQUEST: current_request},
         )
-    else:
+    else:  # model endpoint without any serving function - close the window "manually"
         try:
             time_window = _get_monitoring_time_window_from_controller_run(project, db)
         except mlrun.errors.MLRunNotFoundError:
-            logger.debug(
-                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet"
+            logger.warn(
+                "Not bumping model endpoint last request time - the monitoring controller isn't deployed yet.\n"
+                "Call `project.enable_model_monitoring()` first."
             )
             return
 
@@ -265,13 +263,6 @@ def calculate_inputs_statistics(
                 counts.tolist(),
                 bins.tolist(),
             ]
-        elif "hist" in inputs_statistics[feature]:
-            # Comply with the other common features' histogram length
-            mlrun.common.model_monitoring.helpers.pad_hist(
-                mlrun.common.model_monitoring.helpers.Histogram(
-                    inputs_statistics[feature]["hist"]
-                )
-            )
         else:
             # If the feature is not in the sample set and doesn't have a histogram, remove it from the statistics:
             inputs_statistics.pop(feature)
@@ -309,7 +300,7 @@ def get_invocations_fqn(project: str) -> str:
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
-        type=ModelEndpointMonitoringMetricType.METRIC,
+        type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
     )
 
 
@@ -323,7 +314,7 @@ def get_invocations_metric(project: str) -> ModelEndpointMonitoringMetric:
     return ModelEndpointMonitoringMetric(
         project=project,
         app=mm_constants.SpecialApps.MLRUN_INFRA,
-        type=ModelEndpointMonitoringMetricType.METRIC,
+        type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
         name=mm_constants.PredictionsQueryConstants.INVOCATIONS,
         full_name=get_invocations_fqn(project),
     )

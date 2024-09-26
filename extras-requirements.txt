@@ -10,12 +10,12 @@
 # we have a test test_extras_requirement_file_aligned to verify this file is aligned to setup.py
 # The versions of gcsfs and s3fs should be identical to the fsspec version;
 # Therefore, they must be equal to each other.
-s3fs>=2023.9.2, <2024.4
-gcsfs>=2023.9.2, <2024.4
+s3fs>=2023.9.2, <2024.7
+gcsfs>=2023.9.2, <2024.7
 ossfs==2023.12.0
-boto3>=1.28.0,<1.29.0
+boto3>=1.28.0,<1.36
 oss2==2.18.1
-aiobotocore>=2.5.0,<2.8
+aiobotocore>=2.5.0,<2.16
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
 azure-core~=1.24
@@ -45,7 +45,7 @@ mlflow~=2.8
 databricks-sdk~=0.13.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=1.4
-dask~=2023.9.0
-distributed~=2023.9.0
-taos-ws-py~=0.3.2
+dask~=2023.12.1
+distributed~=2023.12.1
+taos-ws-py~=0.3.3
 snowflake-connector-python~=3.7

@@ -19,6 +19,7 @@ import mlrun
 import mlrun.model_monitoring.helpers
 from mlrun.datastore.base import DataStore
 
+from ..platforms.iguazio import parse_path
 from .utils import (
     parse_kafka_url,
 )
@@ -82,15 +83,17 @@ class StreamStoreyTarget(storey.StreamTarget):
     def __init__(self, *args, **kwargs):
         args = list(args)
 
-        path = args[0] if args else kwargs.get("stream_path")
-        endpoint, storage_options = get_url_and_storage_options(path)
+        uri = args[0] if args else kwargs.get("stream_path")
 
-        if not path:
+        if not uri:
             raise mlrun.errors.MLRunInvalidArgumentError("StreamTarget requires a path")
 
+        _, storage_options = get_url_and_storage_options(uri)
+        endpoint, path = parse_path(uri)
+
         access_key = storage_options.get("v3io_access_key")
-        storage = (
-            V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key),
+        storage = V3ioDriver(
+            webapi=endpoint or mlrun.mlconf.v3io_api, access_key=access_key
         )
 
         if storage_options:
@@ -98,7 +101,7 @@ class StreamStoreyTarget(storey.StreamTarget):
         if args:
             args[0] = endpoint
         if "stream_path" in kwargs:
-            kwargs["stream_path"] = endpoint
+            kwargs["stream_path"] = path
 
         super().__init__(*args, **kwargs)
 
@@ -137,7 +140,8 @@ class RedisNoSqlStoreyTarget(storey.NoSqlTarget):
     def __init__(self, *args, **kwargs):
         path = kwargs.pop("path")
         endpoint, uri = mlrun.datastore.targets.RedisNoSqlTarget.get_server_endpoint(
-            path
+            path,
+            kwargs.pop("credentials_prefix", None),
         )
         kwargs["path"] = endpoint + "/" + uri
         super().__init__(*args, **kwargs)

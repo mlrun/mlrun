@@ -1,3 +1,5 @@
+.. _mlrun.model_monitoring:
+
 mlrun.model_monitoring
 ======================
 
@@ -14,11 +16,11 @@ mlrun.model_monitoring
    :members:
    :exclude-members: sample_df, model_endpoint, feature_stats, sample_df_stats, feature_names, label_names, model
 
-.. autoclass:: mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2
+.. autoclass:: mlrun.model_monitoring.applications.ModelMonitoringApplicationBase
    :members:
    :exclude-members: do
 
-.. autoclass:: mlrun.model_monitoring.applications.ModelMonitoringApplicationBase
+.. autoclass:: mlrun.model_monitoring.applications.EvidentlyModelMonitoringApplicationBase
    :members:
    :exclude-members: do
 

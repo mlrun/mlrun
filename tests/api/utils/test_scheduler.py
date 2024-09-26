@@ -19,6 +19,7 @@ import time
 import typing
 import unittest.mock
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
@@ -32,6 +33,7 @@ import mlrun.launcher.factory
 import server.api.crud
 import server.api.utils.auth
 import server.api.utils.auth.verifier
+import server.api.utils.helpers
 import server.api.utils.singletons.project_member
 import tests.api.conftest
 from mlrun.common.runtimes.constants import RunStates
@@ -1046,10 +1048,14 @@ async def test_update_schedule(
         "label1": "value1",
         "label2": "value2",
     }
+    expected_labels_1 = labels_1.copy()
+    expected_labels_1.update({"mlrun-auth-key": "auth-secret"})
     labels_2 = {
         "label3": "value3",
         "label4": "value4",
     }
+    expected_labels_2 = labels_2.copy()
+    expected_labels_2.update({"mlrun-auth-key": "auth-secret"})
     inactive_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project_name = config.default_project
@@ -1068,7 +1074,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         scheduled_object,
         inactive_cron_trigger,
-        labels=labels_1,
+        labels=labels_1.copy(),
     )
 
     schedule = scheduler.get_schedule(db, project_name, schedule_name)
@@ -1080,7 +1086,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         inactive_cron_trigger,
         None,
-        labels_1,
+        expected_labels_1,
         config.httpdb.scheduling.default_concurrency_limit,
     )
 
@@ -1101,7 +1107,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         inactive_cron_trigger,
         None,
-        labels_2,
+        expected_labels_2,
         config.httpdb.scheduling.default_concurrency_limit,
     )
 
@@ -1121,7 +1127,7 @@ async def test_update_schedule(
         mlrun.common.schemas.ScheduleKinds.job,
         inactive_cron_trigger,
         None,
-        labels_2,
+        expected_labels_2,
         config.httpdb.scheduling.default_concurrency_limit,
     )
 
@@ -1476,6 +1482,212 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
     )
 
 
+@pytest.mark.parametrize(
+    "labels, scheduled_object, expected",
+    [
+        (
+            {"key1": "value1", "key2": "value2"},
+            {
+                "task": {
+                    "metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}
+                }
+            },
+            {"key1": "value1", "key2": "new_value2", "key3": "value3"},
+        ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+        (
+            {},
+            {"task": {"metadata": {"labels": {"key1": "value1"}}}},
+            {"key1": "value1"},
+        ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": None}}},
+            {"key1": "value1"},
+        ),
+        (
+            {},
+            {"task": {"metadata": {"labels": None}}},
+            None,
+        ),
+        (
+            None,
+            {"task": {"metadata": {"labels": None}}},
+            None,
+        ),
+        (
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+    ],
+)
+def test_merge_schedule_and_schedule_object_labels(
+    scheduler, labels, scheduled_object, expected
+):
+    result = server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+        labels,
+        scheduled_object,
+    )
+    assert result == expected
+    assert scheduled_object["task"]["metadata"]["labels"] == expected
+
+
+@pytest.mark.parametrize(
+    "labels, scheduled_object, db_schedule_labels, db_scheduled_object, expected",
+    [
+        (
+            # if schedule.labels and task.labels are passed,
+            # we expect to get merged values of the passed values
+            {"key1": "value1", "key2": "value2"},
+            {
+                "task": {
+                    "metadata": {"labels": {"key2": "new_value2", "key3": "value3"}}
+                }
+            },
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
+            ],
+            {"task": {"metadata": {"labels": {"key1": "db_value1"}}}},
+            {"key1": "value1", "key2": "new_value2", "key3": "value3"},
+        ),
+        (
+            # if schedule.labels is passed and task.labels isn't,
+            # we expect to get schedule.labels
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": {}}}},
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                )
+            ],
+            {"task": {"metadata": {"labels": {"key1": "db_value2"}}}},
+            {"key1": "value1"},
+        ),
+        (
+            # if schedule.labels is passed and task.labels isn't,
+            # we expect to get schedule.labels
+            {"key1": "value1"},
+            {"task": {"metadata": {"labels": None}}},
+            [],
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+        (
+            # if schedule.labels isn't passed and task.labels is,
+            # we expect to get task.labels
+            {},
+            {"task": {"metadata": {"labels": {"key1": "value1"}}}},
+            [],
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+        (
+            # Nothing is passed, expect to get {}
+            None,
+            {"task": {"metadata": {"labels": None}}},
+            [],
+            {"task": {"metadata": {"labels": {}}}},
+            {},
+        ),
+        (
+            # if schedule.labels and task.labels are an empty dict,
+            # we expect values from db to be cleaned up
+            {},
+            {"task": {"metadata": {"labels": {}}}},
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key1", value="db_value1"
+                )
+            ],
+            {"task": {"metadata": {"labels": {}}}},
+            {},
+        ),
+        (
+            # if schedule.labels is empty, task.labels is None, and db.labels has values,
+            # where db label values are different
+            # we expect to get merged values from db.labels and db_task.labels
+            {},
+            {"task": {"metadata": {"labels": None}}},
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
+            ],
+            {"task": {"metadata": {"labels": {"key5": "db_value5"}}}},
+            {"key3": "db_value3", "key4": "db_value4", "key5": "db_value5"},
+        ),
+        (
+            # if schedule.labels is None, task.labels is None, and db.labels has values,
+            # we expect to get values from db.labels
+            None,
+            {"task": {"metadata": {"labels": None}}},
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
+            ],
+            {"task": {"metadata": {"labels": {}}}},
+            {"key3": "db_value3", "key4": "db_value4"},
+        ),
+        (
+            # if schedule.labels is passed, schedule object isn't passed at all None,
+            # we expect to get values from schedule.labels
+            {"key1": "value1"},
+            None,
+            [
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="1", name="key3", value="db_value3"
+                ),
+                mlrun.common.schemas.schedule.LabelRecord(
+                    id="2", name="key4", value="db_value4"
+                ),
+            ],
+            {"task": {"metadata": {"labels": {}}}},
+            {"key1": "value1"},
+        ),
+    ],
+)
+def test_merge_schedule_and_db_schedule_labels(
+    scheduler,
+    labels,
+    scheduled_object,
+    db_schedule_labels,
+    db_scheduled_object,
+    expected,
+):
+    # Create a mock of ScheduleRecord
+    db_schedule = MagicMock()
+    db_schedule.labels = db_schedule_labels
+    db_schedule.scheduled_object = db_scheduled_object
+
+    result_labels, result_scheduled_object = (
+        server.api.utils.helpers.merge_schedule_and_db_schedule_labels(
+            labels,
+            scheduled_object,
+            db_schedule,
+        )
+    )
+
+    assert result_labels == expected
+    assert result_scheduled_object["task"]["metadata"]["labels"] == expected
+
+
 def _assert_schedule_get_and_list_credentials_enrichment(
     db: Session,
     scheduler: Scheduler,
@@ -1579,6 +1791,16 @@ def _assert_schedule(
     assert schedule.cron_trigger == cron_trigger
     assert schedule.creation_time is not None
     assert DeepDiff(schedule.labels, labels, ignore_order=True) == {}
+    if isinstance(schedule.scheduled_object, dict):
+        # only for cases when scheduled_object is not a callable function
+        assert (
+            DeepDiff(
+                schedule.labels,
+                schedule.scheduled_object["task"]["metadata"]["labels"],
+                ignore_order=True,
+            )
+            == {}
+        )
     assert schedule.concurrency_limit == concurrency_limit
 
 

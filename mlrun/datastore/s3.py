@@ -36,6 +36,7 @@ class S3Store(DataStore):
 
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
@@ -94,14 +95,15 @@ class S3Store(DataStore):
             self.s3 = boto3.resource(
                 "s3", region_name=region, endpoint_url=endpoint_url
             )
-            # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
-            # due to no credentials found. These commands disable signing and allow anonymous mode (same as
-            # anon in the storage_options when working with fsspec).
-            from botocore.handlers import disable_signing
+            if not token_file:
+                # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
+                # due to no credentials found. These commands disable signing and allow anonymous mode (same as
+                # anon in the storage_options when working with fsspec).
+                from botocore.handlers import disable_signing
 
-            self.s3.meta.client.meta.events.register(
-                "choose-signer.s3.*", disable_signing
-            )
+                self.s3.meta.client.meta.events.register(
+                    "choose-signer.s3.*", disable_signing
+                )
 
     def get_spark_options(self):
         res = {}
@@ -139,6 +141,7 @@ class S3Store(DataStore):
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         access_key_id = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        token_file = self._get_secret_or_env("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
 
         if self._temp_credentials:
             access_key_id = self._temp_credentials["AccessKeyId"]
@@ -148,7 +151,7 @@ class S3Store(DataStore):
             token = None
 
         storage_options = dict(
-            anon=not (force_non_anonymous or (access_key_id and secret)),
+            anon=not (force_non_anonymous or (access_key_id and secret) or token_file),
             key=access_key_id,
             secret=secret,
             token=token,

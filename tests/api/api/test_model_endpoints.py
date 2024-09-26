@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import os
 import string
 import typing
@@ -27,12 +27,9 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring.db.stores import (  # noqa: F401
-    ObjectStoreFactory,
-    StoreBase,
-)
+from mlrun.model_monitoring.db.stores import StoreBase
 
-TEST_PROJECT = "test_model_endpoints"
+TEST_PROJECT = "test-model-endpoints"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
@@ -315,7 +312,11 @@ def _mock_random_endpoint(
 
 def test_validate_model_endpoints_schema():
     # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
-    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint()
+    model_endpoint_basemodel = mlrun.common.schemas.ModelEndpoint(
+        metadata=mlrun.common.schemas.ModelEndpointMetadata(
+            project=TEST_PROJECT, uid="a-12_"
+        )
+    )
     model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
 
     # Compare status

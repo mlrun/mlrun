@@ -38,6 +38,7 @@ from ..k8s_utils import (
     generate_preemptible_nodes_affinity_terms,
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
+    validate_node_selectors,
 )
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
@@ -1106,12 +1107,12 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
 
-            * pending_scheduled - The pod/crd is scheduled on a node but not yet running
-            * pending_not_scheduled - The pod/crd is not yet scheduled on a node
-            * executing - The pod/crd started and is running
-            * image_pull_backoff - The pod/crd is in image pull backoff
-            See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+                                 * pending_scheduled - The pod/crd is scheduled on a node but not yet running
+                                 * pending_not_scheduled - The pod/crd is not yet scheduled on a node
+                                 * executing - The pod/crd started and is running
+                                 * image_pull_backoff - The pod/crd is in image pull backoff
 
+                                See :code:`mlrun.mlconf.function.spec.state_thresholds` for the default thresholds.
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
@@ -1175,6 +1176,7 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         if node_name:
             self.spec.node_name = node_name
         if node_selector is not None:
+            validate_node_selectors(node_selectors=node_selector, raise_on_error=False)
             self.spec.node_selector = node_selector
         if affinity is not None:
             self.spec.affinity = affinity
@@ -1345,19 +1347,25 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
 
     def _build_image(
         self,
-        builder_env,
-        force_build,
-        mlrun_version_specifier,
-        show_on_failure,
-        skip_deployed,
-        watch,
-        is_kfp,
-        with_mlrun,
+        builder_env: dict,
+        force_build: bool,
+        mlrun_version_specifier: typing.Optional[bool],
+        show_on_failure: bool,
+        skip_deployed: bool,
+        watch: bool,
+        is_kfp: bool,
+        with_mlrun: typing.Optional[bool],
     ):
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
         if is_kfp:
             watch = True
+
+        if skip_deployed and self.requires_build() and not self.is_deployed():
+            logger.warning(
+                f"Even though {skip_deployed=}, the build might be triggered due to the function's configuration. "
+                "See requires_build() and is_deployed() for reasoning."
+            )
 
         db = self._get_db()
         data = db.remote_builder(

@@ -28,6 +28,7 @@ class ClientSpec(
         mpijob_crd_version = (
             server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
         )
+
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,
@@ -106,9 +107,6 @@ class ClientSpec(
             ),
             external_platform_tracking=self._get_config_value_if_not_default(
                 "external_platform_tracking"
-            ),
-            model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
-                "model_endpoint_monitoring.store_type"
             ),
             model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.endpoint_store_connection"

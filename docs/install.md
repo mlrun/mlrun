@@ -19,9 +19,7 @@ This release of MLRun supports only Python 3.9 for both the server and the clien
 
 ## Deployment options
 
-There are several deployment options:
-- {ref}`Local deployment<install-local-docker>`: Deploy a Docker on your laptop or on a single server.
-   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but simpler for deployment.
+The deployment options are:
 - {ref}`Kubernetes cluster<install-on-kubernetes>`: Deploy an MLRun server on Kubernetes.
    This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>

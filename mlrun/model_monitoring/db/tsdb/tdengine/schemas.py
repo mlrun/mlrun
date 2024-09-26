@@ -94,20 +94,20 @@ class TDEngineSchema:
         tags = ", ".join(f"{col} {val}" for col, val in self.tags.items())
         return f"CREATE STABLE if NOT EXISTS {self.database}.{self.super_table} ({columns}) TAGS ({tags});"
 
-    def _create_subtable_query(
+    def _create_subtable_sql(
         self,
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> str:
         try:
-            values = ", ".join(f"'{values[val]}'" for val in self.tags)
+            tags = ", ".join(f"'{values[val]}'" for val in self.tags)
         except KeyError:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"values must contain all tags: {self.tags.keys()}"
             )
-        return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({values});"
+        return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({tags});"
 
-    def _insert_subtable_query(
+    def _insert_subtable_stmt(
         self,
         connection: taosws.Connection,
         subtable: str,
@@ -116,7 +116,7 @@ class TDEngineSchema:
         stmt = connection.statement()
         question_marks = ", ".join("?" * len(self.columns))
         stmt.prepare(f"INSERT INTO ? VALUES ({question_marks});")
-        stmt.set_tbname_tags(subtable, [])
+        stmt.set_tbname(subtable)
 
         bind_params = []
 
@@ -163,8 +163,8 @@ class TDEngineSchema:
     @staticmethod
     def _get_records_query(
         table: str,
-        start: datetime,
-        end: datetime,
+        start: datetime.datetime,
+        end: datetime.datetime,
         columns_to_filter: list[str] = None,
         filter_query: Optional[str] = None,
         interval: Optional[str] = None,
@@ -211,7 +211,7 @@ class TDEngineSchema:
                 if filter_query:
                     query.write(f"{filter_query} AND ")
                 if start:
-                    query.write(f"{timestamp_column} >= '{start}'" + " AND ")
+                    query.write(f"{timestamp_column} >= '{start}' AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             if interval:

@@ -379,7 +379,7 @@ class DaskCluster(KubejobRuntime):
         :param show_on_failure:         show logs only in case of build failure
         :param force_build:             force building the image, even when no changes were made
 
-        :return True if the function is ready (deployed)
+        :return:                        True if the function is ready (deployed)
         """
         return super().deploy(
             watch,

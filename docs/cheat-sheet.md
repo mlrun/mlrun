@@ -77,7 +77,7 @@ project.set_function(
     name="train_model", func="train_model.py", kind="job", image="mlrun/mlrun"
 )
 
-# Add aworkflow (pipeline) to the project
+# Add a workflow (pipeline) to the project
 project.set_workflow(name="training_pipeline", workflow_path="straining_pipeline.py")
 
 # Save the project and generate the project.yaml file
@@ -241,7 +241,8 @@ Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 #### MPIJob (Horovod)
 
 ```python
-mpijob = mlrun.code_to_function(
+project = mlrun.get_or_create_project("mpijob")
+mpijob = project.set_function(
     name="my-mpijob",
     filename="my_mpijob.py",
     kind="mpijob",
@@ -255,7 +256,8 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project("dask")
+dask = project.set_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = "NodePort"
@@ -272,8 +274,10 @@ dask.client
 import os
 
 read_csv_filepath = os.path.join(os.path.abspath("."), "spark_read_csv.py")
-
-spark = mlrun.new_function(kind="spark", command=read_csv_filepath, name="sparkreadcsv")
+project = mlrun.get_or_create_project("spark")
+spark = project.set_function(
+    kind="spark", command=read_csv_filepath, name="sparkreadcsv"
+)
 spark.with_driver_limits(cpu="1300m")
 spark.with_driver_requests(cpu=1, mem="512m")
 spark.with_executor_limits(cpu="1400m")
@@ -360,6 +364,10 @@ Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/developmen
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:
 `function.disable_default_http_trigger()`
+```{admonition} Note
+
+`disable_default_http_trigger` is supported from Nuclio 1.13.1.
+```
 
 Also, you can explicitly enable the default HTTP trigger creation with:
 `function.enable_default_http_trigger()`
@@ -666,6 +674,8 @@ serving_fn = import_function("hub://v2_model_server", project=project_name).appl
 serving_fn.add_model(
     "model", model_path="store://models/project-name/model:latest"
 )  # Model path comes from experiment tracking DB
+
+# Enable monitoring
 serving_fn.set_tracking()
 
 # Deploy the model server
@@ -675,7 +685,7 @@ serving_fn.deploy()
 ### Batch drift detection
 
 ```python
-batch_inference = mlrun.import_function("hub://batch_inference")
+batch_inference = mlrun.import_function("hub://batch_inference_v2")
 batch_run = project.run_function(
     batch_inference,
     inputs={"dataset": prediction_set_path, "sample_set": training_set_path},
@@ -1238,7 +1248,10 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
+project = mlrun.get_or_create_project(dask - cluster)
+dask_cluster = project.set_function(
+    name="dask-cluster", kind="dask", image="mlrun/ml-base"
+)
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

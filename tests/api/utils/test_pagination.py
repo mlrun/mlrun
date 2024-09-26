@@ -158,9 +158,6 @@ async def test_paginate_request(
         cache_record, auth_info.user_id, paginated_method, 2, page_size
     )
 
-    logger.info("Saving token for next assert")
-    token = pagination_info.page_token
-
     logger.info(
         "Requesting third page, which is the end of the items and should return empty response"
     )
@@ -169,12 +166,6 @@ async def test_paginate_request(
     )
     assert len(response) == 0
     assert not pagination_info
-
-    logger.info("Checking db cache record was removed")
-    cache_record = server.api.crud.PaginationCache().get_pagination_cache_record(
-        db, token
-    )
-    assert cache_record is None
 
 
 @pytest.mark.asyncio
@@ -384,7 +375,6 @@ async def test_pagination_cache_cleanup(
             token,
             1,
             page_size,
-            **method_kwargs,
         )
 
 
@@ -463,7 +453,9 @@ async def test_paginate_permission_filtered_request(
 
     auth_info = mlrun.common.schemas.AuthInfo(user_id="user1")
     page_size = 4
-    method_kwargs = {"total_amount": 20}
+    total = 20
+    last_page = total // page_size
+    method_kwargs = {"total_amount": total}
 
     paginator = server.api.utils.pagination.Paginator()
 
@@ -482,7 +474,11 @@ async def test_paginate_permission_filtered_request(
     assert len(response) == len(permitted_items)
     for i, item in enumerate(permitted_items):
         assert response[i]["name"] == item
-    assert pagination_info.page_token is not None
+
+    if target_page < last_page:
+        assert pagination_info.page_token is not None
+    else:
+        assert pagination_info.page_token is None
     assert pagination_info.page == target_page
     assert pagination_info.page_size == page_size
 
@@ -592,16 +588,26 @@ async def test_paginate_permission_filtered_with_token(
         db, paginated_method, filter_, auth_info, token
     )
     pagination_info = mlrun.common.schemas.PaginationInfo(**pagination_info)
-    _assert_paginated_response(response, pagination_info, 5, page_size, ["item12"])
+    _assert_paginated_response(
+        response, pagination_info, 5, page_size, ["item12"], last_page=True
+    )
 
 
 def _assert_paginated_response(
-    response, pagination_info, page, page_size, expected_items
+    response,
+    pagination_info,
+    page,
+    page_size,
+    expected_items,
+    last_page=False,
 ):
     assert len(response) == len(expected_items)
     for i, item in enumerate(expected_items):
         assert response[i]["name"] == item
-    assert pagination_info.page_token is not None
+    if not last_page:
+        assert pagination_info.page_token is not None
+    else:
+        assert pagination_info.page_token is None
     assert pagination_info.page == page
     assert pagination_info.page_size == page_size
 

@@ -19,7 +19,7 @@ Dockerfile.mlrun-test-nb
 docs/_build
 docs/external/*.html
 docs/external/*.md
-docs/api/generated_rsts/
+docs/api/**/generated_rsts/
 iteration_results.csv
 mlrun.egg-info/
 model.txt

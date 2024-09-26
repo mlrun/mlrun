@@ -40,34 +40,29 @@ import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
+    SUPPORTED_EVIDENTLY_VERSION,
     ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationBaseV2,
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
-from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
-    DemoMonitoringAppV2,
     ErrApp,
     NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import (
     CustomEvidentlyMonitoringApp,
-    CustomEvidentlyMonitoringAppV2,
 )
 
 
 @dataclass
 class _AppData:
-    class_: type[
-        typing.Union[ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2]
-    ]
+    class_: type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
@@ -258,13 +253,13 @@ class _V3IORecordsChecker:
             ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
-    def _test_apps_parquet(
+    def _test_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
-                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+                kind=mm_constants.FileTargetKind.PARQUET,
             )
         )
         df = ParquetTarget(
@@ -289,7 +284,7 @@ class _V3IORecordsChecker:
         last_request: datetime = None,
         error_count: float = None,
     ) -> None:
-        cls._test_apps_parquet(ep_id, inputs, outputs)
+        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
@@ -384,7 +379,7 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v2"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
     error_count = 10
@@ -415,12 +410,12 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.apps_data: list[_AppData] = [
             _DefaultDataDriftAppData,
             _AppData(
-                class_=DemoMonitoringAppV2,
+                class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringAppV2,
+                class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -673,13 +668,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The endpoint's feature stats keys are not the same as the feature names"
         assert set(ep.status.current_stats.keys()) == set(
             ep.status.feature_stats.keys()
-        ) | {
-            "timestamp",
-            "latency",
-            "error_count",
-            "metrics",
-            "p0",
-        }, "The endpoint's current stats is different than expected"
+        ), "The endpoint's current stats is different than expected"
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
 
@@ -787,43 +776,6 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
-class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
-    # TODO : delete in 1.9.0 (V1 app deprecation)
-    project_name = "test-app-flow-v1"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        super().custom_setup_class()
-        cls.apps_data: list[_AppData] = [
-            _AppData(
-                class_=DemoMonitoringApp,
-                rel_path="assets/application.py",
-                results={"data_drift_test", "model_perf"},
-            ),
-            _AppData(
-                class_=CustomEvidentlyMonitoringApp,
-                rel_path="assets/custom_evidently_app.py",
-                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
-                kwargs={
-                    "evidently_workspace_path": cls.evidently_workspace_path,
-                    "evidently_project_id": cls.evidently_project_id,
-                    "with_training_set": True,
-                },
-                results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
-            ),
-        ]
-
-    @pytest.mark.parametrize("with_training_set", [True, False])
-    def test_app_flow(self, with_training_set) -> None:
-        super().test_app_flow(with_training_set)
-
-
-@TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
-@pytest.mark.model_monitoring
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-mm-record-results"
     name_prefix = "infer-monitoring"
@@ -853,7 +805,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         # model monitoring app
         cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp, rel_path="assets/application.py"
+            class_=NoCheckDemoMonitoringApp,
+            rel_path="assets/application.py",
+            results={"data_drift_test", "model_perf"},
         )
 
         # model monitoring infra

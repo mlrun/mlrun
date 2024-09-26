@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import uuid
 from copy import deepcopy
@@ -168,6 +169,8 @@ class MLClientCtx:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level, e.g. 'debug', 'info', 'error'"""
+        level = logging.getLevelName(value.upper())
+        self._logger.set_logger_level(level)
         self._log_level = value
 
     @property
@@ -335,7 +338,7 @@ class MLClientCtx:
             "name": self.name,
             "kind": "run",
             "uri": uri,
-            "owner": get_in(self._labels, "owner"),
+            "owner": get_in(self._labels, mlrun_constants.MLRunInternalLabels.owner),
         }
         if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
             resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[
@@ -631,7 +634,9 @@ class MLClientCtx:
         :param viewer:        Kubeflow viewer type
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param src_path:      Deprecated, use local_path
-        :param upload:        Upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        A set of key/value labels to tag the artifact with
         :param format:        Optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key

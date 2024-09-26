@@ -50,6 +50,12 @@ class FeatureFlags(pydantic.BaseModel):
     preemption_nodes: PreemptionNodesFeatureFlag
 
 
+class ArtifactLimits(pydantic.BaseModel):
+    max_chunk_size: int
+    max_preview_size: int
+    max_download_size: int
+
+
 class FrontendSpec(pydantic.BaseModel):
     jobs_dashboard_url: typing.Optional[str]
     model_monitoring_dashboard_url: typing.Optional[str]
@@ -71,3 +77,4 @@ class FrontendSpec(pydantic.BaseModel):
     allowed_artifact_path_prefixes_list: list[str]
     ce: typing.Optional[dict]
     internal_labels: list[str] = []
+    artifact_limits: ArtifactLimits

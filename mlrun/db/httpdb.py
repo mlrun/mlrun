@@ -332,21 +332,21 @@ class HTTPRunDB(RunDBInterface):
         first_page_params["page"] = 1
         first_page_params["page-size"] = config.httpdb.pagination.default_page_size
         response = _api_call(first_page_params)
-        page_token = response.json().get("pagination", {}).get("page-token")
-        if not page_token:
-            yield response
-            return
 
-        params_with_page_token = deepcopy(params) or {}
-        params_with_page_token["page-token"] = page_token
+        yield response
+        page_token = response.json().get("pagination", {}).get("page-token", None)
+
         while page_token:
-            yield response
             try:
-                response = _api_call(params_with_page_token)
+                # Use the page token to get the next page.
+                # No need to supply any other parameters as the token informs the pagination cache
+                # which parameters to use.
+                response = _api_call({"page-token": page_token})
             except mlrun.errors.MLRunNotFoundError:
                 # pagination token expired
                 break
 
+            yield response
             page_token = response.json().get("pagination", {}).get("page-token", None)
 
     @staticmethod
@@ -524,10 +524,6 @@ class HTTPRunDB(RunDBInterface):
             config.external_platform_tracking = (
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
-            )
-            config.model_endpoint_monitoring.store_type = (
-                server_cfg.get("model_endpoint_monitoring_store_type")
-                or config.model_endpoint_monitoring.store_type
             )
             config.model_endpoint_monitoring.endpoint_store_connection = (
                 server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
@@ -1374,20 +1370,14 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
             that were removed.
         """
-        if grace_period is None:
-            grace_period = config.runtime_resources_deletion_grace_period
-            logger.info(
-                "Using default grace period for runtime resources deletion",
-                grace_period=grace_period,
-            )
-
         params = {
             "label-selector": label_selector,
             "kind": kind,
             "object-id": object_id,
             "force": force,
-            "grace-period": grace_period,
         }
+        if grace_period is not None:
+            params["grace-period"] = grace_period
         error = "Failed deleting runtime resources"
         project_path = project if project else "*"
         response = self.api_call(
@@ -2245,6 +2235,9 @@ class HTTPRunDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[FeatureSet]:
         """Retrieve a list of feature-sets matching the criteria provided.
 
@@ -2262,6 +2255,9 @@ class HTTPRunDB(RunDBInterface):
         :param partition_sort_by: What field to sort the results by, within each partition defined by `partition_by`.
             Currently the only allowed value are `created` and `updated`.
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
+        :param format_: Format of the results. Possible values are:
+            - ``minimal`` - Return minimal feature set objects, not including stats and preview for each feature set.
+            - ``full`` - Return full feature set objects.
         :returns: List of matching :py:class:`~mlrun.feature_store.FeatureSet` objects.
         """
 
@@ -2274,6 +2270,7 @@ class HTTPRunDB(RunDBInterface):
             "entity": entities or [],
             "feature": features or [],
             "label": labels or [],
+            "format": format_,
         }
         if partition_by:
             params.update(
@@ -4193,6 +4190,9 @@ class HTTPRunDB(RunDBInterface):
         :param event_data: The data of the event.
         :param project:    The project that the event belongs to.
         """
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            logger.warning("Alerts are disabled, event will not be generated")
+
         project = project or config.default_project
         endpoint_path = f"projects/{project}/events/{name}"
         error_message = f"post event {project}/events/{name}"
@@ -4218,6 +4218,11 @@ class HTTPRunDB(RunDBInterface):
         """
         if not alert_data:
             raise mlrun.errors.MLRunInvalidArgumentError("Alert data must be provided")
+
+        if mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.disabled:
+            logger.warning(
+                "Alerts are disabled, alert will still be stored but will not be triggered"
+            )
 
         project = project or config.default_project
         endpoint_path = f"projects/{project}/alerts/{alert_name}"

@@ -234,38 +234,46 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         return deploy_configs
 
-    def _assert_triggers(self, http_trigger=None, v3io_trigger=None):
+    def _assert_http_trigger(self, http_trigger):
         args, _ = nuclio.deploy.deploy_config.call_args
         triggers_config = args[0]["spec"]["triggers"]
 
-        if http_trigger:
-            expected_struct = self._get_expected_struct_for_http_trigger(http_trigger)
-            assert (
-                deepdiff.DeepDiff(
-                    triggers_config["http"],
-                    expected_struct,
-                    ignore_order=True,
-                    # TODO - (in Nuclio) There is a bug with canary configuration:
-                    #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
-                    #        rather than the actual weight. Remove this once bug is fixed.
-                    exclude_paths=[
-                        "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
-                    ],
-                )
-                == {}
-            )
-
-        if v3io_trigger:
-            expected_struct = self._get_expected_struct_for_v3io_trigger(v3io_trigger)
-            diff_result = deepdiff.DeepDiff(
-                triggers_config[v3io_trigger["name"]],
+        expected_struct = self._get_expected_struct_for_http_trigger(http_trigger)
+        assert (
+            deepdiff.DeepDiff(
+                triggers_config["http"],
                 expected_struct,
                 ignore_order=True,
+                # TODO - (in Nuclio) There is a bug with canary configuration:
+                #        the nginx.ingress.kubernetes.io/canary-weight annotation gets assigned the host name
+                #        rather than the actual weight. Remove this once bug is fixed.
+                exclude_paths=[
+                    "root['annotations']['nginx.ingress.kubernetes.io/canary-weight']"
+                ],
             )
-            # It's ok if the Nuclio trigger has additional parameters, these are constants that we don't care
-            # about. We just care that the values we look for are fully there.
-            diff_result.pop("dictionary_item_removed", None)
-            assert diff_result == {}
+            == {}
+        )
+
+    def _assert_v3io_trigger(self, v3io_trigger):
+        args, _ = nuclio.deploy.deploy_config.call_args
+        triggers_config = args[0]["spec"]["triggers"]
+
+        expected_struct = self._get_expected_struct_for_v3io_trigger(v3io_trigger)
+
+        if mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility(
+            "1.13.11"
+        ):
+            expected_struct["password"] = mlrun.model.Credentials.generate_access_key
+
+        diff_result = deepdiff.DeepDiff(
+            triggers_config[v3io_trigger["name"]],
+            expected_struct,
+            ignore_order=True,
+        )
+        # It's ok if the Nuclio trigger has additional parameters, these are constants that we don't care
+        # about. We just care that the values we look for are fully there.
+        diff_result.pop("dictionary_item_removed", None)
+        assert diff_result == {}
 
     def _assert_nuclio_v3io_mount(self, local_path="", remote_path="", cred_only=False):
         args, _ = nuclio.deploy.deploy_config.call_args
@@ -806,7 +814,15 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_labels=labels, expected_class=self.class_name
         )
 
-    def test_deploy_with_triggers(self, db: Session, client: TestClient):
+    @pytest.mark.parametrize(
+        "nuclio_version",
+        ["1.12.1", "1.13.1", "1.13.11", "1.14.3"],
+    )
+    def test_deploy_with_triggers(
+        self, db: Session, client: TestClient, nuclio_version
+    ):
+        mlconf.nuclio_version = nuclio_version
+
         function = self._generate_runtime(self.runtime_kind)
 
         http_trigger = {
@@ -831,7 +847,8 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
-        self._assert_triggers(http_trigger, v3io_trigger)
+        self._assert_http_trigger(http_trigger)
+        self._assert_v3io_trigger(v3io_trigger)
 
     def test_deploy_with_v3io(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
@@ -875,6 +892,13 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.assert_node_selection(node_selector=config_node_selector)
 
         function = self._generate_runtime(self.runtime_kind)
+
+        invalid_node_selector = {"label-3": "val=3"}
+        with pytest.warns(
+            Warning,
+            match="The node selector you’ve set does not meet the validation rules for the current Kubernetes version",
+        ):
+            function.with_node_selection(node_selector=invalid_node_selector)
 
         node_selector = {
             "label-3": "val3",
@@ -1760,6 +1784,35 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
             function.invoke("/")
+
+    def test_error_on_multiple_stream_triggers_old_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.11"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Multiple triggers cannot be used in conjunction with explicit ack. "
+            "Please upgrade to nuclio 1.13.12 or newer.",
+        ):
+            function.add_trigger(
+                "stream2",
+                nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+            )
+
+    def test_multiple_stream_triggers_new_nuclio_explicit_ack(self):
+        mlconf.nuclio_version = "1.13.12"
+        function = self._generate_runtime(self.runtime_kind)
+        function.add_trigger(
+            "stream1",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
+        function.add_trigger(
+            "stream2",
+            nuclio.triggers.V3IOStreamTrigger(explicit_ack_mode="explicitOnly"),
+        )
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

@@ -1,3 +1,5 @@
+.. _mlrun.platforms:
+
 mlrun.platforms
 ===============
 

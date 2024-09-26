@@ -37,6 +37,7 @@ class FeatureSetFormat(ObjectFormat, mlrun.common.types.StrEnum):
                     "spec.entities",
                     "spec.description",
                     "spec.targets",
+                    "spec.engine",  # It's not needed by the UI, but we override it anyway to storey if empty
                     "status.state",
                 ]
             ),

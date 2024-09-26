@@ -1199,10 +1199,11 @@ class MonitoringDeployment:
             )
         )
 
-        stream_path = secrets_dict.get(
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
-        )
-        self._verify_v3io_access(stream_path)
+        if not mlrun.mlconf.is_ce_mode():
+            stream_path = secrets_dict.get(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+            )
+            self._verify_v3io_access(stream_path)
 
         server.api.crud.Secrets().store_project_secrets(
             project=self.project,
@@ -1212,16 +1213,19 @@ class MonitoringDeployment:
             ),
         )
 
-    def _verify_v3io_access(self, path):
+    def _verify_v3io_access(self, stream_path: str):
         import v3io.dataplane
 
+        stream_path = server.api.crud.model_monitoring.get_stream_path(
+            project=self.project, stream_uri=stream_path
+        )
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
-        container, stream_path = split_path(path)
-        print(f"111 path={path}, container={container}, stream_path={stream_path}")
+        container, path = split_path(stream_path)
+        print(f"111 stream_path={stream_path}, container={container}, path={path}")
         # We don't expect the stream to exist. The purpose is to make sure we have access.
         v3io_client.stream.describe(
             container,
-            stream_path,
+            path,
             access_key=self.model_monitoring_access_key,
             raise_for_status=[200, 404],
         )

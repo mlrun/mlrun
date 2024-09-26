@@ -159,6 +159,7 @@ def set_environment(
                 "artifact_path must refer to an absolute path" " or a valid url"
             )
         mlconf.artifact_path = artifact_path
+    mlconf.reload()
     return mlconf.default_project, mlconf.artifact_path
 
 

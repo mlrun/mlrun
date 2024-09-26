@@ -93,7 +93,7 @@
 |NA     |Updated page: {ref}`model-monitoring-des`.|
 |NA    |New page: Writing an MM application.
 |ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
-|ML-7480|New topic: [Setup for for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
+|ML-7480|New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
 
 
 

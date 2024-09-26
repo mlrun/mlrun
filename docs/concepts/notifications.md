@@ -25,7 +25,7 @@ Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
 - Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
-  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines For Pipelines for more details.)
+  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines) for more details.
 - Dask: Dask runs are always local (against a remote Dask cluster), so the notifications are sent locally as well.
 
 > **Disclaimer:** Notifications of local runs aren't persisted.

@@ -2162,7 +2162,8 @@ class MlrunProject(ModelObj):
 
         :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
-                                                  function is triggered. By default, the base period is 10 minutes.
+                                                  function is triggered. By default, the base period is 10 minutes
+                                                  (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
@@ -2181,6 +2182,12 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
             image = default_controller_image
+        if base_period < 10:
+            logger.warn(
+                "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
+                project=self.name,
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,

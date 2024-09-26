@@ -232,8 +232,20 @@ class V2ModelServer(StepToDict):
 
     @property
     def versioned_model_name(self):
+        if self._versioned_model_name:
+            return self._versioned_model_name
+
+        # Generating version model value based on the model name and model version
+        if self.model_path and self.model_path.startswith("store://"):
+            # Enrich the model server with the model artifact metadata
+            self.get_model()
+            if not self.version:
+                # Enrich the model version with the model artifact tag
+                self.version = self.model_spec.tag
+            self.labels = self.model_spec.labels
         version = self.version or "latest"
-        return f"{self.name}:{version}"
+        self._versioned_model_name = f"{self.name}:{version}"
+        return self._versioned_model_name
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
@@ -571,15 +583,6 @@ def _init_endpoint_record(
     except Exception as e:
         logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
-
-    # Generating version model value based on the model name and model version
-    if model.model_path and model.model_path.startswith("store://"):
-        # Enrich the model server with the model artifact metadata
-        model.get_model()
-        if not model.version:
-            # Enrich the model version with the model artifact tag
-            model.version = model.model_spec.tag
-        model.labels = model.model_spec.labels
 
     # Generating model endpoint ID based on function uri and model version
     uid = mlrun.common.model_monitoring.create_model_endpoint_uid(

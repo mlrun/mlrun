@@ -1219,7 +1219,7 @@ class MonitoringDeployment:
         v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
         container, stream_path = split_path(path)
         # We don't expect the stream to exist. The purpose is to make sure we have access.
-        v3io_client.stream.describe(container, stream_path, raise_for_status=[404])
+        v3io_client.stream.describe(container, stream_path, raise_for_status=[200, 404])
 
     def _is_the_same_cred(
         self, endpoint_store_connection: str, stream_path: str, tsdb_connection: str

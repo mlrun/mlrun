@@ -262,7 +262,7 @@ class TDEngineConnector(TSDBConnector):
 
         project_condition = f"project = '{self.project}'"
         filter_query = (
-            f"{filter_query} AND {project_condition}"
+            f"({filter_query}) AND ({project_condition})"
             if filter_query
             else project_condition
         )
@@ -341,7 +341,7 @@ class TDEngineConnector(TSDBConnector):
                 for metric in metrics
             ]
         )
-        filter_query = f"endpoint_id='{endpoint_id}' AND ({metrics_condition})"
+        filter_query = f"(endpoint_id='{endpoint_id}') AND ({metrics_condition})"
 
         df = self._get_records(
             table=table,

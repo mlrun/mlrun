@@ -56,7 +56,7 @@
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours.  <br><br>  <img src="../_static/images/cross-project-view.png" width="800" >|
+|ML-4666|The new cross-project view gives a summary of all jobs, workflows, and schedules that ran in the last 24 hours.   <p align="center"><img src="../_static/images/cross-project-view.png" alt="cross-project-view" /></p><br>|
 |ML-5140|Improved responsiveness for runs and functions.|
 |ML-5846|The Filter in the Projects>ML Functions table is now a popup menu.|
 |ML-6275|The Projects dashboard now notifies when MLRun isn't reachable.|
@@ -91,7 +91,7 @@
 |ML-6052|New page: {ref}`log-artifacts`.|
 |NA     |New tutorial: {ref}`genai-02-mm-llm`.|
 |NA     |Updated page: {ref}`model-monitoring-des`.|
-|NA    |New page: {ref}`mm-applications`.
+|NA    |New page: Writing an MM application.
 |ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 |ML-7480|New topic: [Setup for for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
 

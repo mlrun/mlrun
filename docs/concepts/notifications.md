@@ -16,7 +16,7 @@ MLRun supports configuring notifications on jobs and scheduled jobs. This sectio
 
 
 ## The notification object
-See {ref}`~module-mlrun.common.schemas.notification`.
+See {py:class}`~module-mlrun.common.schemas.notification`.
 
 
 ## Local vs. remote

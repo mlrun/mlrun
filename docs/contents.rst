@@ -54,8 +54,8 @@ Table of Contents
    genindex
    api/index
    cli
-   glossary
    resources
+   glossary
    
 .. toctree::
    :maxdepth: 1

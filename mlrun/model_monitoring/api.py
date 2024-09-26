@@ -24,7 +24,6 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.feature_store
-import mlrun.model_monitoring.application
 import mlrun.model_monitoring.applications as mm_app
 import mlrun.serving
 from mlrun.data_types.infer import InferOptions, get_df_stats
@@ -561,8 +560,7 @@ def _create_model_monitoring_function_base(
     func: typing.Union[str, None] = None,
     application_class: typing.Union[
         str,
-        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
-        mm_app.ModelMonitoringApplicationBaseV2,
+        mm_app.ModelMonitoringApplicationBase,
         None,
     ] = None,
     name: typing.Optional[str] = None,
@@ -576,15 +574,6 @@ def _create_model_monitoring_function_base(
     Note: this is an internal API only.
     This function does not set the labels or mounts v3io.
     """
-    if isinstance(
-        application_class,
-        mlrun.model_monitoring.application.ModelMonitoringApplicationBase,
-    ):
-        warnings.warn(
-            "The `ModelMonitoringApplicationBase` class is deprecated from version 1.7.0, "
-            "please use `ModelMonitoringApplicationBaseV2`. It will be removed in 1.9.0.",
-            FutureWarning,
-        )
     if name in mm_constants._RESERVED_FUNCTION_NAMES:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "An application cannot have the following names: "

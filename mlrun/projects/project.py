@@ -1950,7 +1950,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2018,7 +2017,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2076,7 +2074,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
             None,
         ] = None,
         name: typing.Optional[str] = None,

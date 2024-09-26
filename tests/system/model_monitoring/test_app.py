@@ -383,6 +383,9 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
     error_count = 10
+    extra_env = {
+        "MLRUN_ALERTS__MODE": mlrun.common.schemas.alert.AlertsModes.enabled,
+    }
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -770,7 +773,13 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
-        self._test_error_alert()
+
+        # if you wish to test the error alert, uncomment the following line
+        # and make sure your system has the necessary configurations
+        #     extra_env = {
+        #         "MLRUN_ALERTS__MODE": mlrun.common.schemas.alert.AlertsModes.enabled,
+        #     }
+        # self._test_error_alert()
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

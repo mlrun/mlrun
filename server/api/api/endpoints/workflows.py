@@ -87,7 +87,7 @@ async def submit_workflow(
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
-    project = await run_in_threadpool(
+    project: mlrun.common.schemas.ProjectOut = await run_in_threadpool(
         server.api.utils.singletons.project_member.get_project_member().get_project,
         db_session=db_session,
         name=project,
@@ -244,7 +244,7 @@ async def submit_workflow(
 def _is_requested_schedule(
     name: str,
     workflow_spec: mlrun.common.schemas.WorkflowSpec,
-    project: mlrun.common.schemas.Project,
+    project: mlrun.common.schemas.ProjectOut,
 ) -> bool:
     """
     Checks if the workflow needs to be scheduled, which can be decided either the request itself
@@ -264,7 +264,7 @@ def _is_requested_schedule(
 
 
 def _get_workflow_by_name(
-    project: mlrun.common.schemas.Project, name: str
+    project: mlrun.common.schemas.ProjectOut, name: str
 ) -> typing.Optional[dict]:
     """
     Getting workflow from project by name.
@@ -281,7 +281,7 @@ def _get_workflow_by_name(
 
 
 def _fill_workflow_missing_fields_from_project(
-    project: mlrun.common.schemas.Project,
+    project: mlrun.common.schemas.ProjectOut,
     workflow_name: str,
     spec: mlrun.common.schemas.WorkflowSpec,
     arguments: dict,

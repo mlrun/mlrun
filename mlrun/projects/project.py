@@ -67,13 +67,7 @@ from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..secrets import SecretsStore
-from ..utils import (
-    is_ipython,
-    is_relative_path,
-    is_yaml_path,
-    logger,
-    update_in,
-)
+from ..utils import is_jupyter, is_relative_path, is_yaml_path, logger, update_in
 from ..utils.clones import (
     add_credentials_git_remote_url,
     clone_git,
@@ -1558,7 +1552,7 @@ class MlrunProject(ModelObj):
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
-            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+            raise FileNotFoundError(f"{url} not found")
 
         return url, in_context
 
@@ -1599,7 +1593,9 @@ class MlrunProject(ModelObj):
         :param format:        artifact file format: csv, png, ..
         :param tag:           version tag
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param upload:        upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        a set of key/value labels to tag the artifact with
 
         :returns: artifact object
@@ -1954,7 +1950,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2022,7 +2017,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2080,7 +2074,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
             None,
         ] = None,
         name: typing.Optional[str] = None,
@@ -2169,7 +2162,8 @@ class MlrunProject(ModelObj):
 
         :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
-                                                  function is triggered. By default, the base period is 10 minutes.
+                                                  function is triggered. By default, the base period is 10 minutes
+                                                  (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
@@ -2188,6 +2182,12 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
             image = default_controller_image
+        if base_period < 10:
+            logger.warn(
+                "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
+                project=self.name,
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -2439,7 +2439,7 @@ class MlrunProject(ModelObj):
         ):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
-            if is_ipython:
+            if is_jupyter:
                 from IPython import get_ipython
 
                 kernel = get_ipython()
@@ -2842,11 +2842,13 @@ class MlrunProject(ModelObj):
         The function objects are synced against the definitions spec in `self.spec._function_definitions`.
         Referenced files/URLs in the function spec will be reloaded.
         Function definitions are parsed by the following precedence:
-            1. Contains runtime spec.
-            2. Contains module in the project's context.
-            3. Contains path to function definition (yaml, DB, Hub).
-            4. Contains path to .ipynb or .py files.
-            5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
+        1. Contains runtime spec.
+        2. Contains module in the project's context.
+        3. Contains path to function definition (yaml, DB, Hub).
+        4. Contains path to .ipynb or .py files.
+        5. Contains a Nuclio/Serving function image / an 'Application' kind definition.
+
         If function definition is already an object, some project metadata updates will apply however,
         it will not be reloaded.
 
@@ -2902,6 +2904,16 @@ class MlrunProject(ModelObj):
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+
+                except Exception as exc:
+                    if silent:
+                        logger.warn(
+                            "Failed to instantiate function",
+                            name=name,
+                            error=mlrun.utils.err_to_str(exc),
+                        )
+                        continue
+                    raise exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:
@@ -3089,9 +3101,10 @@ class MlrunProject(ModelObj):
 
                           * Remote URL which is loaded dynamically to the workflow runner.
                           * A path to the project's context on the workflow runner's image.
-                          Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
-                          (enriched when building a project image with source, see `MlrunProject.build_image`).
-                          For other engines the source is used to validate that the code is up-to-date.
+                            Path can be absolute or relative to `project.spec.build.source_code_target_dir` if defined
+                            (enriched when building a project image with source, see `MlrunProject.build_image`).
+                            For other engines the source is used to validate that the code is up-to-date.
+
         :param cleanup_ttl:
                           Pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
@@ -3173,7 +3186,7 @@ class MlrunProject(ModelObj):
                     workflow_runner_node_selector
                 )
             else:
-                logger.debug(
+                logger.warn(
                     "'workflow_runner_node_selector' applies only to remote engines"
                     " and is ignored for non-remote runs."
                 )

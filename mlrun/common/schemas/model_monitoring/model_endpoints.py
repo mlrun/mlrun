@@ -14,25 +14,31 @@
 
 import enum
 import json
-import re
 from datetime import datetime
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, TypeVar
 
-from pydantic import BaseModel, Field, validator
-from pydantic.main import Extra
+from pydantic import BaseModel, Extra, Field, constr, validator
 
-import mlrun.common.types
+# TODO: remove the unused import below after `mlrun.datastore` and `mlrun.utils` usage is removed.
+# At the moment `make lint` fails if this is removed.
+import mlrun.common.model_monitoring
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (
+    FQN_REGEX,
+    MODEL_ENDPOINT_ID_PATTERN,
+    PROJECT_PATTERN,
     EndpointType,
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
+    ModelEndpointMonitoringMetricType,
     ModelMonitoringMode,
     ResultKindApp,
     ResultStatusApp,
 )
+
+Model = TypeVar("Model", bound=BaseModel)
 
 
 class ModelMonitoringStoreKinds:
@@ -42,9 +48,9 @@ class ModelMonitoringStoreKinds:
 
 
 class ModelEndpointMetadata(BaseModel):
-    project: Optional[str] = ""
+    project: constr(regex=PROJECT_PATTERN)
+    uid: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
     labels: Optional[dict] = {}
-    uid: Optional[str] = ""
 
     class Config:
         extra = Extra.allow
@@ -57,12 +63,11 @@ class ModelEndpointMetadata(BaseModel):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [EventFieldType.LABELS]
 
         return _mapping_attributes(
-            base_model=new_object,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -89,7 +94,6 @@ class ModelEndpointSpec(ObjectSpec):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
                 EventFieldType.FEATURE_NAMES,
@@ -97,7 +101,7 @@ class ModelEndpointSpec(ObjectSpec):
                 EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
-            base_model=new_object,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -191,7 +195,6 @@ class ModelEndpointStatus(ObjectStatus):
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
                                   dictionary using json.loads().
         """
-        new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
                 EventFieldType.FEATURE_STATS,
@@ -203,7 +206,7 @@ class ModelEndpointStatus(ObjectStatus):
                 EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
-            base_model=new_object,
+            model_class=cls,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
@@ -211,21 +214,12 @@ class ModelEndpointStatus(ObjectStatus):
 
 class ModelEndpoint(BaseModel):
     kind: ObjectKind = Field(ObjectKind.model_endpoint, const=True)
-    metadata: ModelEndpointMetadata = ModelEndpointMetadata()
+    metadata: ModelEndpointMetadata
     spec: ModelEndpointSpec = ModelEndpointSpec()
     status: ModelEndpointStatus = ModelEndpointStatus()
 
     class Config:
         extra = Extra.allow
-
-    def __init__(self, **data: Any):
-        super().__init__(**data)
-        if self.metadata.uid is None:
-            uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
-                function_uri=self.spec.function_uri,
-                versioned_model=self.spec.model,
-            )
-            self.metadata.uid = str(uid)
 
     def flat_dict(self):
         """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing
@@ -267,7 +261,7 @@ class ModelEndpoint(BaseModel):
         return flatten_dict
 
     @classmethod
-    def from_flat_dict(cls, endpoint_dict: dict):
+    def from_flat_dict(cls, endpoint_dict: dict) -> "ModelEndpoint":
         """Create a `ModelEndpoint` object from an endpoint flattened dictionary. Because the provided dictionary
         is flattened, we pass it as is to the subclasses without splitting the keys into spec, metadata, and status.
 
@@ -283,11 +277,6 @@ class ModelEndpoint(BaseModel):
 
 class ModelEndpointList(BaseModel):
     endpoints: list[ModelEndpoint] = []
-
-
-class ModelEndpointMonitoringMetricType(mlrun.common.types.StrEnum):
-    RESULT = "result"
-    METRIC = "metric"
 
 
 class ModelEndpointMonitoringMetric(BaseModel):
@@ -308,18 +297,8 @@ def _compose_full_name(
     return ".".join([project, app, type, name])
 
 
-_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
-_FQN_PATTERN = (
-    rf"^(?P<project>{_FQN_PART_PATTERN})\."
-    rf"(?P<app>{_FQN_PART_PATTERN})\."
-    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
-    rf"(?P<name>{_FQN_PART_PATTERN})$"
-)
-_FQN_REGEX = re.compile(_FQN_PATTERN)
-
-
 def _parse_metric_fqn_to_monitoring_metric(fqn: str) -> ModelEndpointMonitoringMetric:
-    match = _FQN_REGEX.fullmatch(fqn)
+    match = FQN_REGEX.fullmatch(fqn)
     if match is None:
         raise ValueError("The fully qualified name is not in the expected format")
     return ModelEndpointMonitoringMetric.parse_obj(
@@ -364,20 +343,18 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 
 
 def _mapping_attributes(
-    base_model: BaseModel,
-    flattened_dictionary: dict,
-    json_parse_values: list = None,
-):
+    model_class: type[Model], flattened_dictionary: dict, json_parse_values: list
+) -> Model:
     """Generate a `BaseModel` object with the provided dictionary attributes.
 
-    :param base_model:           `BaseModel` object (e.g. `ModelEndpointMetadata`).
+    :param model_class:          `BaseModel` class (e.g. `ModelEndpointMetadata`).
     :param flattened_dictionary: Flattened dictionary that contains the model endpoint attributes.
     :param json_parse_values:    List of dictionary keys with a JSON string value that will be parsed into a
                                  dictionary using json.loads().
     """
     # Get the fields of the provided base model object. These fields will be used to filter to relevent keys
     # from the flattened dictionary.
-    wanted_keys = base_model.__fields__.keys()
+    wanted_keys = model_class.__fields__.keys()
 
     # Generate a filtered flattened dictionary that will be parsed into the BaseModel object
     dict_to_parse = {}
@@ -391,7 +368,7 @@ def _mapping_attributes(
             else:
                 dict_to_parse[field_key] = flattened_dictionary[field_key]
 
-    return base_model.parse_obj(dict_to_parse)
+    return model_class.parse_obj(dict_to_parse)
 
 
 def _json_loads_if_not_none(field: Any) -> Any:

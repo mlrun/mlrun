@@ -127,19 +127,41 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return items
 
     @raise_for_status_code
-    def list_pods_paginated(self, namespace=None, selector="", states=None):
+    def list_pods_paginated(
+        self,
+        namespace: str = None,
+        selector: str = "",
+        states: list[str] = None,
+        max_retry: int = 3,
+    ):
+        """
+        List pods paginated
+        :param namespace:       Namespace to query
+        :param selector:        Pods label selector
+        :param states:          List of pod states to filter by
+        :param max_retry:       Maximum number of retries on 410 Gone (when continue token is stale)
+        """
         _continue = None
+        retry_count = 0
         limit = int(mlrun.mlconf.kubernetes.pagination.list_pods_limit)
         if limit <= 0:
             limit = None
         while True:
-            pods_list = self.v1api.list_namespaced_pod(
-                self.resolve_namespace(namespace),
-                label_selector=selector,
-                watch=False,
-                limit=limit,
-                _continue=_continue,
-            )
+            try:
+                pods_list = self.v1api.list_namespaced_pod(
+                    self.resolve_namespace(namespace),
+                    label_selector=selector,
+                    watch=False,
+                    limit=limit,
+                    _continue=_continue,
+                )
+            except ApiException as exc:
+                self._validate_paginated_list_retry(
+                    exc, retry_count, max_retry, resource_name="pods"
+                )
+                _continue = None
+                retry_count += 1
+                continue
 
             for item in pods_list.items:
                 if not states or item.status.phase in states:
@@ -153,13 +175,24 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def list_crds_paginated(
         self,
-        crd_group,
-        crd_version,
-        crd_plural,
-        namespace=None,
-        selector="",
+        crd_group: str,
+        crd_version: str,
+        crd_plural: str,
+        namespace: str = None,
+        selector: str = "",
+        max_retry: int = 3,
     ):
+        """
+        List custom resources paginated
+        :param crd_group:       The CRD group name
+        :param crd_version:     The CRD version
+        :param crd_plural:      The CRD plural name
+        :param namespace:       Namespace to query
+        :param selector:        Custom resource's label selector
+        :param max_retry:       Maximum number of retries on 410 Gone (when continue token is stale)
+        """
         _continue = None
+        retry_count = 0
         limit = int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit)
         if limit <= 0:
             limit = None
@@ -180,7 +213,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             except ApiException as exc:
                 # ignore error if crd is not defined
                 if exc.status != 404:
-                    raise
+                    self._validate_paginated_list_retry(
+                        exc, retry_count, max_retry, resource_name=crd_plural
+                    )
+                    _continue = None
+                    retry_count += 1
+                    continue
 
             else:
                 crd_items = crd_objects["items"]
@@ -400,10 +438,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
         )
-
-    @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
 
     def store_project_secrets(
         self, project, secrets, namespace=""
@@ -726,6 +760,43 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             if raise_on_error:
                 raise exc
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha224(access_key.encode()).hexdigest()
+
+    @staticmethod
+    @raise_for_status_code
+    def _validate_paginated_list_retry(
+        exc: ApiException, retry_count: int, max_retry: int, resource_name: str
+    ):
+        """
+        Validates 410 Gone retries.
+        Raises `exc` if error is not 410 or retries are exhausted.
+        Otherwise, logs an appropriate warning.
+        :param exc:             The ApiException raised by the list query
+        :param retry_count:     The current retry count
+        :param max_retry:       The maximum retries allowed
+        :param resource_name:   The resource that was listed
+        """
+        if exc.status != 410:
+            raise exc
+
+        if retry_count >= max_retry:
+            logger.error(
+                "Failed to list resources paginated, max retries exceeded",
+                retry_count=retry_count,
+                max_retry=max_retry,
+                resource_name=resource_name,
+            )
+            raise exc
+
+        logger.warning(
+            "Failed to list resources due to stale continue token. Retrying from scratch",
+            retry_count=retry_count,
+            resource_name=resource_name,
+            exc=mlrun.errors.err_to_str(exc),
+        )
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)

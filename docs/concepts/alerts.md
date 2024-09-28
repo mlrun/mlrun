@@ -3,6 +3,11 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
+```{admonition} Note
+Alets are in Tech Preview state and disabled by default.
+To enable, add an environment variable to the override-env configmap: `MLRUN_ALERTS__MODE: "enabled"`.
+```
+
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)
@@ -46,7 +51,7 @@ The predefined event types are:
 - `mm_app_anomaly_suspected` &mdash; An alert based on user-defined metrics/results.
 - `failed` &mdash; The job failed.
 
-See {ref}`monitoring-overview` for more details on drift and performance.
+See {ref}`model-monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.

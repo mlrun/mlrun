@@ -34,17 +34,17 @@ class EventEntities(pydantic.BaseModel):
 
 
 class EventKind(StrEnum):
-    DATA_DRIFT_DETECTED = "data_drift_detected"
-    DATA_DRIFT_SUSPECTED = "data_drift_suspected"
-    CONCEPT_DRIFT_DETECTED = "concept_drift_detected"
-    CONCEPT_DRIFT_SUSPECTED = "concept_drift_suspected"
-    MODEL_PERFORMANCE_DETECTED = "model_performance_detected"
-    MODEL_PERFORMANCE_SUSPECTED = "model_performance_suspected"
-    SYSTEM_PERFORMANCE_DETECTED = "system_performance_detected"
-    SYSTEM_PERFORMANCE_SUSPECTED = "system_performance_suspected"
-    MM_APP_ANOMALY_DETECTED = "mm_app_anomaly_detected"
-    MM_APP_ANOMALY_SUSPECTED = "mm_app_anomaly_suspected"
-    MM_APP_FAILED = "mm_app_failed"
+    DATA_DRIFT_DETECTED = "data-drift-detected"
+    DATA_DRIFT_SUSPECTED = "data-drift-suspected"
+    CONCEPT_DRIFT_DETECTED = "concept-drift-detected"
+    CONCEPT_DRIFT_SUSPECTED = "concept-drift-suspected"
+    MODEL_PERFORMANCE_DETECTED = "model-performance-detected"
+    MODEL_PERFORMANCE_SUSPECTED = "model-performance-suspected"
+    SYSTEM_PERFORMANCE_DETECTED = "system-performance-detected"
+    SYSTEM_PERFORMANCE_SUSPECTED = "system-performance-suspected"
+    MM_APP_ANOMALY_DETECTED = "mm-app-anomaly-detected"
+    MM_APP_ANOMALY_SUSPECTED = "mm-app-anomaly-suspected"
+    MM_APP_FAILED = "mm-app-failed"
     FAILED = "failed"
 
 

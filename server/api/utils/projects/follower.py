@@ -233,7 +233,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         from_leader: bool = False,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-    ) -> mlrun.common.schemas.Project:
+    ) -> mlrun.common.schemas.ProjectOutput:
         # by default, get project will use mlrun db to get/list the project.
         # from leader is relevant for cases where we want to get the project from the leader
         if from_leader:

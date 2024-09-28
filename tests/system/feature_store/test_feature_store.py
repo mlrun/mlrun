@@ -64,6 +64,7 @@ from mlrun.datastore.targets import (
     ParquetTarget,
     RedisNoSqlTarget,
     SnowflakeTarget,
+    StreamTarget,
     TargetTypes,
     get_offline_target,
     get_online_target,
@@ -435,11 +436,11 @@ class TestFeatureStore(TestMLRunSystem):
         pq_path = f"{tmpdir}/features.parquet"
         resp.to_parquet(pq_path)
         read_back_df = pd.read_parquet(pq_path)
-        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
+        assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
         csv_path = f"{tmpdir}/features.csv"
         resp.to_csv(csv_path)
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
-        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
+        assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
 
         assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
         assert df_no_time.index.name is None
@@ -900,41 +901,74 @@ class TestFeatureStore(TestMLRunSystem):
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("with_tz", [False, True])
-    def test_filtering_parquet_by_time(self, with_tz):
+    @pytest.mark.parametrize("local", [True, False])
+    def test_filtering_parquet_by_time(self, with_tz, local):
+        config_parameters = {} if local else {"image": "mlrun/mlrun"}
+        run_config = fstore.RunConfig(local=local, **config_parameters)
         key = "patient_id"
         measurements = fstore.FeatureSet(
-            "measurements", entities=[Entity(key)], timestamp_key="timestamp"
+            "measurements",
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
         )
+        df = pd.read_parquet(str(self.assets_path / "testdata.parquet"))
+        run_uuid = uuid.uuid4()
+        v3io_parquet_source_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time_{run_uuid}.parquet"
+        v3io_parquet_target_path = f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time{run_uuid}"
+        df.to_parquet(v3io_parquet_source_path)
+        start_time = datetime(
+            2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+        )
+        end_time_query = "2020-12-01 17:33:16"
+        start_time_query = start_time.replace(tzinfo=None)  # noqa
+        expected_result = df.query(
+            "timestamp > @start_time_query and timestamp < @end_time_query"
+        )
+        end_time = end_time_query + ("+00:00" if with_tz else "")
+
         source = ParquetSource(
             "myparquet",
-            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(
-                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
-            ),
-            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
+            path=v3io_parquet_source_path,
+            start_time=start_time,
+            end_time=end_time,
         )
 
-        resp = measurements.ingest(
+        measurements.ingest(
             source,
-            return_df=True,
+            targets=[ParquetTarget("parquet_target", path=v3io_parquet_target_path)],
+            run_config=run_config,
         )
-        assert len(resp) == 10
-
+        result_offline_target = get_offline_target(measurements, name="parquet_target")
+        result_df = result_offline_target.as_df()
+        assert_frame_equal(
+            sort_df(expected_result, ["patient_id"]),
+            sort_df(result_df.reset_index(drop=False), ["patient_id"]),
+        )
         # start time > timestamp in source
         source = ParquetSource(
             "myparquet",
-            path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            path=v3io_parquet_source_path,
             start_time=datetime(
                 2022, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
             ),
             end_time="2022-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
-
-        resp = measurements.ingest(
-            source,
-            return_df=True,
+        v3io_parquet_target_path = (
+            f"v3io:///projects/{self.project_name}/test_filtering_parquet_by_time{run_uuid}_"
+            f"second.parquet"
         )
-        assert len(resp) == 0
+        measurements.ingest(
+            source,
+            targets=[
+                ParquetTarget("second_parquet_target", path=v3io_parquet_target_path)
+            ],
+            run_config=run_config,
+        )
+        result_offline_target = get_offline_target(
+            measurements, name="second_parquet_target"
+        )
+        with pytest.raises(FileNotFoundError):
+            result_offline_target.as_df()
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("key_bucketing_number", [None, 0, 4])
@@ -1416,7 +1450,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
+        assert_frame_equal(resp_df, expected, check_dtype=False)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -1810,7 +1844,7 @@ class TestFeatureStore(TestMLRunSystem):
         default_file_path = quotes_set.get_target_path(TargetTypes.parquet)
         side_file_path = quotes_set.get_target_path(non_default_target_name)
 
-        side_file_out = pd.read_csv(side_file_path)
+        side_file_out = pd.read_csv(side_file_path, parse_dates=["time"])
         default_file_out = pd.read_parquet(default_file_path)
         # default parquet target is partitioned
         default_file_out.drop(
@@ -1818,13 +1852,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
-        assert all(self._split_graph_expected_default == default_file_out.round(2))
-        assert all(self._split_graph_expected_default == ing_out.round(2))
-        assert all(self._split_graph_expected_default == inf_out.round(2))
-
-        assert all(
-            self._split_graph_expected_side.sort_index(axis=1)
-            == side_file_out.sort_index(axis=1).round(2)
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            default_file_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            ing_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_default,
+            inf_out.round(2),
+            check_dtype=False,
+        )
+        assert_frame_equal(
+            self._split_graph_expected_side.sort_index(axis=1),
+            side_file_out.sort_index(axis=1).round(2),
+            check_dtype=False,
         )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -1942,7 +1988,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         df = pd.read_parquet(quotes_set.get_target_path())
-        assert all(df.columns.values == columns)
+        assert df.columns.tolist() == columns
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -1952,6 +1998,7 @@ class TestFeatureStore(TestMLRunSystem):
             "csv-align", "ticker", quotes, timestamp_key="time", targets=targets
         )
         csv_df = csv_align_set.to_dataframe()
+        csv_df["time"] = csv_df["time"].astype("datetime64[us]")
 
         features = ["csv-align.*"]
         csv_vec = fstore.FeatureVector("csv-align-vector", features)
@@ -1968,8 +2015,8 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(parquet_vec)
         parquet_vec_df = resp.to_dataframe()
 
-        assert all(csv_df == parquet_df)
-        assert all(csv_vec_df == parquet_vec_df)
+        assert_frame_equal(csv_df, parquet_df, check_dtype=False)
+        assert_frame_equal(csv_vec_df, parquet_vec_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2000,7 +2047,7 @@ class TestFeatureStore(TestMLRunSystem):
         columns = ["department", "room"] if with_columns else None
         df_from_partitioned = measurements_partitioned.to_dataframe(columns)
         df_from_nonpartitioned = measurements_nonpartitioned.to_dataframe(columns)
-        assert df_from_partitioned.equals(df_from_nonpartitioned)
+        assert_frame_equal(df_from_partitioned, df_from_nonpartitioned)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2050,7 +2097,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # patient_id (index) and timestamp (timestamp_key) are not in features list
         assert features + ["timestamp"] == list(reference_df.columns)
-        assert df.equals(reference_df), "output dataframe is different from expected"
+        assert_frame_equal(df, reference_df)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -2098,8 +2145,8 @@ class TestFeatureStore(TestMLRunSystem):
         final_path2 = feature_set.get_target_path(name="parquet2")
         parquet2 = pd.read_parquet(final_path2)
 
-        assert all(parquet1 == quotes.set_index("ticker"))
-        assert all(parquet1 == parquet2)
+        assert_frame_equal(parquet1, quotes.set_index("ticker"), check_dtype=False)
+        assert_frame_equal(parquet1, parquet2, check_dtype=False)
 
         os.remove(final_path1)
         os.remove(final_path2)
@@ -2539,7 +2586,7 @@ class TestFeatureStore(TestMLRunSystem):
         off_df = off_df.sort_values(by=["temdojgz", "bikyseca", "nkxuonfx"]).sort_index(
             axis=1
         )
-        pd.testing.assert_frame_equal(
+        assert_frame_equal(
             off_df,
             orig_df,
             check_dtype=False,
@@ -3573,11 +3620,11 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = prediction_set.ingest(df)
 
             read_back_df = pd.read_parquet(outdir)
-            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
+            assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
             expected_df.index.name = "id"
-            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
+            assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -3609,7 +3656,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"{prediction_set.get_target_path()}year=2022/month=01/day=01/hour=01/"
             )
 
-            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
+            assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame(
                 {
@@ -3622,7 +3669,7 @@ class TestFeatureStore(TestMLRunSystem):
                 index=["a", "b"],
             )
             expected_df.index.name = "id"
-            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
+            assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     # regression test for #2557
     @TestMLRunSystem.skip_test_if_env_not_configured
@@ -5035,6 +5082,23 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             feature_set.ingest(source, targets=[target], run_config=run_config)
 
+    def test_stream_target(self):
+        source = pd.DataFrame(
+            {
+                "time_stamp": [
+                    datetime(2024, 9, 19, 16, 22, 7, 51001),
+                    datetime(2024, 9, 19, 16, 22, 8, 52002),
+                    datetime(2024, 9, 19, 16, 22, 9, 53003),
+                ],
+                "key": [0.339612325, 0.3446700093, 0.9394242442],
+            }
+        )
+
+        target = StreamTarget(
+            path=f"v3io:///projects/{self.project_name}/test_stream_target"
+        )
+        verify_ingest(source, "key", infer=False, targets=[target])
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
@@ -5110,7 +5174,9 @@ def verify_ingest(
     if infer:
         data.set_index(keys=keys, inplace=True)
     for idx in range(len(df)):
-        assert all(df.values[idx] == data.values[idx])
+        assert_frame_equal(
+            df, data, check_dtype=False, check_categorical=False, check_index_type=False
+        )
 
 
 def prepare_feature_set(

@@ -25,7 +25,6 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.helpers
 import mlrun.common.schemas as schemas
 import mlrun.common.types
-import mlrun.runtimes.nuclio.application
 from mlrun.model import ModelObj
 from mlrun.platforms.iguazio import min_iguazio_versions
 from mlrun.utils import logger
@@ -204,7 +203,12 @@ class APIGatewaySpec(ModelObj):
         self.project = project
         self.ports = ports
 
+        self.enrich()
         self.validate(project=project, functions=functions, canary=canary, ports=ports)
+
+    def enrich(self):
+        if self.path and not self.path.startswith("/"):
+            self.path = f"/{self.path}"
 
     def validate(
         self,
@@ -234,11 +238,6 @@ class APIGatewaySpec(ModelObj):
         # validating ports
         if ports:
             self.ports = self._validate_ports(ports)
-
-        if self.path and not self.path.startswith("/"):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Path must start with a forward slash"
-            )
 
     def _validate_canary(self, canary: list[int]):
         if len(self.functions) != len(canary):

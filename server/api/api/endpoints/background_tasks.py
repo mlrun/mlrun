@@ -205,6 +205,8 @@ async def _authorize_get_background_task_request(
     # TODO: Check resource permissions for background tasks. We need to ensure that the user can read the project
     # when attempting to access the background task. It appears that when a project is deleted, its associated
     # policies are also removed, leading to "access denied" errors for users trying to access the background task.
+    # Related to ML-7484
+    # Enable the test `test_get_internal_background_task_auth` once this is resolved.
 
     # Iguazio manifest doesn't support the global background task resource yet - therefore if the background task has a
     # project (e.g. delete project), we can authorize on the project

@@ -2,7 +2,7 @@
 # Change log
 
 
-- [v1.7.0](#1-october-2024)
+- [v1.7.0](#v1-7-0-1-october-2024)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -109,13 +109,13 @@
 |ML-4636|A local run that was created via `get_or_create_ctx` can be marked as complete using `commit()` method.|
 |ML-4846|CE: `V3IO_ACCESS_KEY` is no longer required for Parquet target.|
 |ML-4934|Modifying the parameters of a serving-function (for example changing `default_batch_intervals`) that is configured for model-monitoring tracking does not require a specific workflow. |
-|ML-5079|Cannot now update git remote with `project.create_remote()`.| 
+|ML-5079|You can now update git remote with `project.create_remote()`.| 
 |ML-5204|UI: The Project settings now provide validation rules on labels.|
-|ML-5774|UI: Improved speed of Querying for pipelines of specific projects in the Pipelines page.|
+|ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed model serving with Kafka trigger.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
-|ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer time out).|
+|ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
 |ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
@@ -124,10 +124,10 @@
 |ML-6991|UI: Now shows KFP pod errors.|
 |ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
 |ML-7119|When attempting to create a project without the required permissions, the error now reads: You don’t have permission to create a project.|
-|ML-7135|Fixed Upgrading to mlrun if the `spec.build` was saved incorrectly.|
+|ML-7135|Fixed upgrading to mlrun if the `spec.build` was saved incorrectly.|
 |ML-7162|UI: Erroneous "“No data matches…” messages no longer appear.|
 |ML-7192|Improved the liveness and readiness probes responsiveness.|
-|ML-7202|The run state does now indicates if a pod failed on OOM.|
+|ML-7202|The run state now indicates if a pod failed on OOM.|
 |ML-7226|Exception now raised when using use KFP engine with `pass schedule` argument, which is not supported with the KFP engine.|
 |ML-7256|Deleting artifact by UID deletes only the artifact with the given UID.|
 |ML-7290|Nuclio functions deployed by MLRun: At the Nuclio service level, node selectors are added by Nuclio. In cases where there is overlap between the node selectors specified at the MLRun service level and those applied by Nuclio, the node selectors from the MLRun side take precedence to prevent any conflicts. See [node selection](../runtimes/configuring-job-resources.html#node-selection).|
@@ -141,7 +141,7 @@
 |ML-7655|The "filter by label" in the Models pageis now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
 |ML-7706||
-|ML-7796|Can now set a label selector for the workflow-runner pod thru the SDK.|
+|ML-7796|New `project.run()` {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` parameter that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed model serving with RabbitMQ trigger.|
 
 ## v1.6.4 (2 July 2024)

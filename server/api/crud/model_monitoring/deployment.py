@@ -874,8 +874,10 @@ class MonitoringDeployment:
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
                 try:
-                    function_pod = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                        selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
+                    function_pod = (
+                        server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                            selector=label_selector
+                        )
                     )
                 except Exception as exc:
                     raise mlrun.errors.MLRunStreamConnectionFailureError(

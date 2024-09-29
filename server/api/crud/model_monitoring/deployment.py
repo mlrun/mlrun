@@ -863,12 +863,7 @@ class MonitoringDeployment:
         for function_name in function_names:
             label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
             if len(label_selector) > 63:
-                logger.warning(
-                    "k8s label character limit exceeded, skipping deletion of stream resources",
-                    project_name=project,
-                    function=function_name,
-                    label_selector=label_selector,
-                )
+                # k8s label character limit exceeded, skipping deletion of stream resources"
                 continue
             for i in range(10):
                 # waiting for the function pod to be deleted

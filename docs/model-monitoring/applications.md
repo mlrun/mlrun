@@ -1,3 +1,4 @@
+(mm-applications)=
 # Writing a model monitoring application
 
 ## Basics

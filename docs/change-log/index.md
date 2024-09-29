@@ -94,6 +94,7 @@
 |NA    |New page: Writing an MM application.
 |ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 |ML-7480|New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
+|NA|Updated {ref}`ecosystem`.|
 
 
 
@@ -114,13 +115,14 @@
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed model serving with Kafka trigger.|
+|ML-6194||
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
 |ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|
 |ML-6585|The application runtime base image is now taken from the data node registry to support dark sites. Requires Provazio v0.24.271 or higher.|
 |ML-6602/6556|You can now specify a UID when running `artifacts.get_model`.|
 |ML-6800|Resolved spiking of CPU and memory of mlrun-api service.|
-|ML-6885||
+|ML-6885|Webhook notification now contains run logs when `override_body=True`|
 |ML-6991|UI: Now shows KFP pod errors.|
 |ML-7103|UI: New option to show untagged functions in the Functions page (disabled by default). Added time filters to the fFunctions page, by default shows only functions that were modified in the last week.|
 |ML-7119|When attempting to create a project without the required permissions, the error now reads: You don’t have permission to create a project.|
@@ -134,13 +136,12 @@
 |ML-7335|Serving functions now suport up to 4000 models.|
 |ML-7358|MLRun client now validates certificates by default.|
 |ML-7367|Updated OS packages for MLRun UI.|
-|ML-7404|Nuclio version 1.12.8 and higher now supports `disable_default_http_trigger`.|
 |ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
 |ML-7613||
 |ML-7655|The "filter by label" in the Models pageis now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
-|ML-7706||
+|ML-7706|Fixed the skip `sync_functions` when scheduling workflows or running remote workflows.|
 |ML-7796|New `project.run()` {py:meth}`workflow_runner_node_selector <mlrun.projects.MlrunProject.run>` parameter that defines the node selector for the workflow runner pod when using a remote engine.|
 |ML-7907|Fixed model serving with RabbitMQ trigger.|
 

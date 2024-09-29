@@ -127,6 +127,7 @@ helm --namespace mlrun \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=<host-machine-address> \
+	--set nuclio.dashboard.externalIPAddresses \
     mlrun-ce/mlrun-ce
 ```
 

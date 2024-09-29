@@ -360,21 +360,10 @@ def enrich_function_object(
         f.enrich_runtime_spec(
             project.spec.default_function_node_selector,
         )
-    skip_automount_for_kfp = False
-    # When running pipelines with engine="kfp", the workflow YAML is compiled on the client side
-    # and contains plaintext secrets. In this case, we disable the automount and add the secrets as references on the
-    # server side.
-    if pipeline_context.workflow:
-        skip_automount_for_kfp = (
-            pipeline_context.workflow.engine
-            == mlrun.common.schemas.workflow.EngineType.KFP
-        )
     if try_auto_mount:
         if (
-            (decorator and AutoMountType.is_auto_modifier(decorator))
-            or project.spec.disable_auto_mount
-            or skip_automount_for_kfp
-        ):
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
             f.spec.disable_auto_mount = True
         f.try_auto_mount_based_on_config()
 
@@ -470,7 +459,12 @@ class _PipelineRunner(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
         pass
 
     @staticmethod
@@ -643,12 +637,19 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(run, project=None, timeout=None, expected_statuses=None):
+    def wait_for_completion(
+        run: "_PipelineRunStatus",
+        project: typing.Optional["mlrun.projects.MlrunProject"] = None,
+        timeout: typing.Optional[int] = None,
+        expected_statuses: list[str] = None,
+    ):
+        project_name = project.metadata.name if project else ""
         logger.info(
-            "Waiting for pipeline run completion", run_id=run.run_id, project=project
+            "Waiting for pipeline run completion",
+            run_id=run.run_id,
+            project=project_name,
         )
         timeout = timeout or 60 * 60
-        project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run.run_id,
             timeout=timeout,

@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.common.types import StrEnum
+import enum
+
+
+class StrEnum(str, enum.Enum):
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 
 class RunStatuses(StrEnum):

@@ -30,7 +30,6 @@ import semver
 import sqlalchemy.orm
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -772,62 +771,6 @@ def ensure_function_has_auth_set(
         }
         for env_key, (secret_name, secret_key) in auth_env_vars.items():
             function.set_env_from_secret(env_key, secret_name, secret_key)
-
-
-def create_secret_env_vars_for_pipeline(
-    auth_info: mlrun.common.schemas.AuthInfo,
-) -> list[V1EnvVar]:
-    """
-    :param auth_info:   The auth info of the request.
-    """
-    access_key = auth_info.access_key
-    if not access_key:
-        access_key = (
-            server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
-                session=auth_info.get_session(),
-                planes=[
-                    server.api.utils.clients.iguazio.SessionPlanes.data,
-                    server.api.utils.clients.iguazio.SessionPlanes.control,
-                ],
-            )
-        )
-
-    mlrun_auth_secret_name = server.api.crud.Secrets().store_auth_secret(
-        secret=mlrun.common.schemas.AuthSecretData(
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-            username=auth_info.username,
-            access_key=access_key,
-        )
-    )
-    env_vars = [
-        V1EnvVar(
-            name="MLRUN_AUTH_SESSION",
-            value_from=V1EnvVarSource(
-                secret_key_ref=V1SecretKeySelector(
-                    name=mlrun_auth_secret_name,
-                    key=mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                        "access_key"
-                    ),
-                )
-            ),
-        ),
-        V1EnvVar(
-            name="V3IO_USER",
-            value=auth_info.username,
-        ),
-        V1EnvVar(
-            name="V3IO_ACCESS_KEY",
-            value_from=V1EnvVarSource(
-                secret_key_ref=V1SecretKeySelector(
-                    name=mlrun_auth_secret_name,
-                    key=mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                        "access_key"
-                    ),
-                )
-            ),
-        ),
-    ]
-    return env_vars
 
 
 def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):

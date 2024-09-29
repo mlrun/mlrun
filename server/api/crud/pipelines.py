@@ -141,6 +141,7 @@ class Pipelines(
         self, db_session: sqlalchemy.orm.Session, project_name: str
     ):
         _, _, project_pipeline_runs = self.list_pipelines(
+            db_session=db_session,
             project=project_name,
             format_=mlrun.common.formatters.PipelineFormat.metadata_only,
         )
@@ -254,7 +255,6 @@ class Pipelines(
         content_type: str,
         data: bytes,
         arguments: dict = None,
-        auth_info: dict = None,
     ):
         if arguments is None:
             arguments = {}
@@ -267,14 +267,12 @@ class Pipelines(
                 http.HTTPStatus.BAD_REQUEST.value,
                 reason=f"unsupported pipeline type {content_type}",
             )
-
         logger.debug("Writing pipeline to temp file", content_type=content_type)
-
-        env_vars = server.api.api.utils.create_secret_env_vars_for_pipeline(auth_info)
-        data = mlrun_pipelines.common.ops.enrich_kfp_workflow_credentials(
+        data = mlrun_pipelines.common.ops.replace_kfp_plaintext_secret_env_vars_with_secret_refs(
             byte_buffer=data,
             content_type=content_type,
-            env_vars=env_vars,
+            env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
+            secrets_store=server.api.crud.Secrets(),
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

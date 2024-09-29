@@ -17,7 +17,6 @@ import http
 import importlib
 import json
 import unittest.mock
-from unittest.mock import patch
 
 import deepdiff
 import fastapi.testclient
@@ -34,8 +33,6 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import tests.conftest
 from mlrun.api.schemas import AuthInfo
-from server.api.api import deps
-from server.api.main import app
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
@@ -306,23 +303,18 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
-    app.dependency_overrides[deps.authenticate_request] = mock_authenticate_request
 
-    with patch(
-        target="server.api.utils.auth.verifier.AuthVerifier.get_or_create_access_key",
-        return_value="mock-access-key",
-    ):
-        response = client.post(
-            f"projects/{project}/pipelines",
-            data=contents,
-            headers={"content-type": "application/yaml"},
-            auth=BasicAuth(username="admin", password="mock_token"),
-        )
+    response = client.post(
+        f"projects/{project}/pipelines",
+        data=contents,
+        headers={"content-type": "application/yaml"},
+        auth=BasicAuth(username="admin", password="mock_token"),
+    )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
     assert k8s_secrets_mock.auth_secrets_map[
-        "secret-ref-test_user-mock-access-key"
-    ] == {"accessKey": "mock-access-key", "username": "test_user"}
+        "secret-ref-V3IO_ACCESS_KEY-some-session"
+    ] == {"accessKey": "some-session", "username": "V3IO_ACCESS_KEY"}
 
 
 def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:

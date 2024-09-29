@@ -68,32 +68,22 @@ def _create_enriched_mlrun_workflow(
                 )
                 return workflow
 
+        # enrich each pipeline step with your desire k8s attribute
         for kfp_step_template in workflow["spec"]["templates"]:
-            if not kfp_step_template.get("container"):
-                # The DAG node has no container settings.
-                continue
-            env_vars = kfp_step_template["container"].get("env", [])
-            # Here we are filtering these secret vars that get set on the client side to prevent them from
-            # being visible in the workflow pod yaml.
-            kfp_step_template["container"]["env"] = [
-                env_var
-                for env_var in env_vars
-                if env_var["name"] not in ["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"]
-            ]
-            for function_obj in functions:
-                # we condition within each function since the comparison between the function and
-                # the kfp pod may change depending on the attribute type.
-                _set_function_attribute_on_kfp_pod(
-                    kfp_step_template,
-                    function_obj,
-                    "PriorityClassName",
-                    "priority_class_name",
-                )
-                _enrich_kfp_pod_security_context(
-                    kfp_step_template,
-                    function_obj,
-                )
-
+            if kfp_step_template.get("container"):
+                for function_obj in functions:
+                    # we condition within each function since the comparison between the function and
+                    # the kfp pod may change depending on the attribute type.
+                    _set_function_attribute_on_kfp_pod(
+                        kfp_step_template,
+                        function_obj,
+                        "PriorityClassName",
+                        "priority_class_name",
+                    )
+                    _enrich_kfp_pod_security_context(
+                        kfp_step_template,
+                        function_obj,
+                    )
     except mlrun.errors.MLRunInvalidArgumentError:
         raise
     except Exception as err:

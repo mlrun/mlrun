@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
+
+if typing.TYPE_CHECKING:
+    from mlrun.secrets import SecretsStore
+
 
 import io
 import json
@@ -19,15 +24,17 @@ import multiprocessing
 import os
 import warnings
 import zipfile
+from ast import literal_eval
 from copy import deepcopy
 from typing import Union
 
 import mlrun_pipelines.common.models
 import yaml
-from kubernetes.client import V1EnvVar
+from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 
 import mlrun
 import mlrun.common.constants
+import mlrun.common.schemas
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
@@ -687,24 +694,42 @@ def _enrich_node_selector(function):
     return mlrun.utils.helpers.to_non_empty_values_dict(function_node_selector)
 
 
-def _enrich_wrapper(
-    queue: multiprocessing.Queue,
+def replace_kfp_plaintext_secret_env_vars_with_secret_refs(
     byte_buffer: bytes,
     content_type: str,
-    env_vars: list[V1EnvVar],
-):
-    result = _enrich_kfp_workflow_zip_credentials(byte_buffer, content_type, env_vars)
-    queue.put(result)
+    env_var_names: list[str],
+    secrets_store: "SecretsStore",
+) -> bytes:
+    if content_type.endswith(
+        "zip"
+    ):  # The kfp workflow can also be delivered as a zip package containing
+        # the workflow pipeline yaml as well as script and resource files.
+        modified_zip_bytes = _enrich_kfp_workflow_credentials_in_subprocess(
+            byte_buffer=byte_buffer,
+            env_var_names=env_var_names,
+            secrets_store=secrets_store,
+        )
+        return modified_zip_bytes
+    elif content_type.endswith(("yaml", "plain")):
+        modified_yaml_bytes = _enrich_kfp_workflow_yaml_credentials(
+            yaml_bytes=byte_buffer,
+            env_var_names=env_var_names,
+            secrets_store=secrets_store,
+        )
+        return modified_yaml_bytes
+    else:
+        raise ValueError(f"Unsupported content type {content_type}")
 
 
 def _enrich_kfp_workflow_credentials_in_subprocess(
     byte_buffer: bytes,
-    content_type: str,
-    env_vars: list[V1EnvVar],
+    env_var_names: list[str],
+    secrets_store: "SecretsStore",
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
-        target=_enrich_wrapper, args=(queue, byte_buffer, content_type, env_vars)
+        target=_enrich_wrapper,
+        args=(queue, byte_buffer, env_var_names, secrets_store),
     )
     process.start()
     result = queue.get()
@@ -712,30 +737,24 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     return result
 
 
-def enrich_kfp_workflow_credentials(
+def _enrich_wrapper(
+    queue: multiprocessing.Queue,
     byte_buffer: bytes,
-    content_type: str,
-    env_vars: list[V1EnvVar],
-) -> bytes:
-    if content_type.endswith("zip"):
-        modified_zip_bytes = _enrich_kfp_workflow_credentials_in_subprocess(
-            byte_buffer=byte_buffer,
-            env_vars=env_vars,
-        )
-        return modified_zip_bytes
-    elif content_type.endswith(("yaml", "plain")):
-        modified_yaml_bytes = _enrich_kfp_workflow_yaml_credentials(
-            yaml_bytes=byte_buffer,
-            env_vars=env_vars,
-        )
-        return modified_yaml_bytes
-    else:
-        raise ValueError(f"Unsupported content type {content_type}")
+    env_var_names: list[str],
+    secrets_store: "SecretsStore",
+):
+    result = _enrich_kfp_workflow_zip_credentials(
+        byte_buffer=byte_buffer,
+        env_var_names=env_var_names,
+        secrets_store=secrets_store,
+    )
+    queue.put(result)
 
 
 def _enrich_kfp_workflow_zip_credentials(
     byte_buffer: bytes,
-    env_vars: list[V1EnvVar],
+    env_var_names: list[str],
+    secrets_store: "SecretsStore",
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -749,7 +768,8 @@ def _enrich_kfp_workflow_zip_credentials(
         if file_name.endswith(("yaml", "plain")):
             modified_yaml = _enrich_kfp_workflow_yaml_credentials(
                 yaml_bytes=file_data,
-                env_vars=env_vars,
+                env_var_names=env_var_names,
+                secrets_store=secrets_store,
             )
             files_data[file_name] = modified_yaml
 
@@ -763,19 +783,13 @@ def _enrich_kfp_workflow_zip_credentials(
 
 def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
-    env_vars: list[V1EnvVar],
+    env_var_names: list[str],
+    secrets_store: "SecretsStore",
 ) -> bytes:
     """
-    Modifies the given workflow dictionary to add environment variables from a Kubernetes secret
-    to the container specifications.
-    The function checks if the workflow is compatible with KFP v1 or KFP v2 and adds the
+    Modifies the given workflow YAML to add secret environment variables to container specifications.
+    The function checks if the workflow uses Argo Workflows or Tekton Pipelines and injects the
     environment variables accordingly.
-
-    Parameters:
-    - workflow_dict: dict representing the workflow
-
-    Returns:
-    - None (the dict is modified in place)
     """
     workflow_dict = yaml.safe_load(yaml_bytes)
     # Determine the KFP version by checking the 'apiVersion' field
@@ -784,34 +798,166 @@ def _enrich_kfp_workflow_yaml_credentials(
     )
 
     if "argoproj.io" in api_version:  # KFP Argo Workflow
-        for template in workflow_dict["spec"]["templates"]:
-            if "container" in template:
-                container = template["container"]
-                for env_var in env_vars:
-                    env_var = create_env_for_container(env_var)
-                    if "env" in container and container["env"] is not None:
-                        container["env"].append(env_var)
-                    else:
-                        container["env"] = [env_var]
+        spec = workflow_dict.get("spec")
+        if not spec:
+            logger.warning("Missing spec, not modifying workflow")
+            return yaml_bytes
+
+        for template in spec.get("templates", []):
+            container = template.get("container")
+            if container is not None:
+                _replace_secret_envs_in_argocd_template(
+                    env_var_names=env_var_names,
+                    container=container,
+                    secrets_store=secrets_store,
+                )
+
         return yaml.safe_dump(workflow_dict).encode()
 
     elif "tekton.dev" in api_version:  # KFP Tekton Pipeline
         for task in workflow_dict["spec"].get("tasks", []):
             if "name" in task:
-                step = task.get("stepTemplate", {})
-                for env_var in env_vars:
-                    env_var = create_env_for_container(env_var)
-                    if "env" in step and step["env"] is not None:
-                        step["env"].append(env_var)
-                    else:
-                        step["env"] = [env_var]
-                task["stepTemplate"] = step
-        return yaml.safe_dump(workflow_dict).encode()
+                _replace_secret_envs_in_tekton_template(
+                    env_var_names=env_var_names,
+                    task=task,
+                    secrets_store=secrets_store,
+                )
+        result = yaml.safe_dump(workflow_dict).encode()
+        return result
     else:
-        raise ValueError("Unknown or unsupported KFP version. No changes made.")
+        raise ValueError(
+            f"Unknown or unsupported KFP version '{api_version}'. No changes made."
+        )
 
 
-def create_env_for_container(env_var):
+def _replace_secret_envs_in_argocd_template(
+    env_var_names: list[str],
+    container: dict,
+    secrets_store: "SecretsStore",
+) -> None:
+    """
+    Replaces specified environment variables in the container with secret references.
+    """
+    secret_name_to_secret_ref = {}
+    container_envs = container.get("env", [])
+    container["env"] = _replace_env_vars_with_secrets(
+        env_vars=container_envs,
+        env_var_names=env_var_names,
+        secret_name_to_secret_ref=secret_name_to_secret_ref,
+        secrets_store=secrets_store,
+    )
+
+    cmd_parts = container.get("command", [])
+    _replace_secret_vars_in_function_spec(
+        cmd_parts=cmd_parts,
+        env_var_names=env_var_names,
+        secret_name_to_secret_ref=secret_name_to_secret_ref,
+        secrets_store=secrets_store,
+    )
+
+
+def _replace_secret_envs_in_tekton_template(
+    env_var_names: list[str],
+    task: dict,
+    secrets_store: "SecretsStore",
+) -> None:
+    secret_name_to_secret_ref = {}
+    step_template = task.get("stepTemplate", {})
+    step_template["env"] = _replace_env_vars_with_secrets(
+        env_vars=step_template.get("env", []),
+        env_var_names=env_var_names,
+        secret_name_to_secret_ref=secret_name_to_secret_ref,
+        secrets_store=secrets_store,
+    )
+
+
+def _replace_secret_vars_in_function_spec(
+    cmd_parts: list[str],
+    env_var_names: list[str],
+    secret_name_to_secret_ref: dict[str, V1EnvVar],
+    secrets_store: "SecretsStore",
+) -> None:
+    """
+    Replaces specified environment variables in the function spec within cmd_parts.
+    """
+    for cmd_part_index, cmd_part in enumerate(cmd_parts):
+        # When calling mlrun, a -r flag specifies the runtime spec.
+        # Here we modify the runtime spec to use secret references instead of plain text values.
+        if cmd_part == "-r" and cmd_part_index + 1 < len(cmd_parts):
+            raw_func_data = cmd_parts[cmd_part_index + 1]
+            try:
+                func_data = literal_eval(raw_func_data)
+            except (ValueError, SyntaxError):
+                logger.warning("Invalid func data, skipping", func_data=raw_func_data)
+                continue
+
+            func_spec = func_data.get("spec", {})
+            func_envs = func_spec.get("env", [])
+            func_spec["env"] = _replace_env_vars_with_secrets(
+                env_vars=func_envs,
+                env_var_names=env_var_names,
+                secret_name_to_secret_ref=secret_name_to_secret_ref,
+                secrets_store=secrets_store,
+            )
+            cmd_parts[cmd_part_index + 1] = repr(func_data)
+            break
+
+
+def _create_secret_env_var_for_pipeline(
+    name: str,
+    value: str,
+    secrets_store: "SecretsStore",
+) -> V1EnvVar:
+    secret_name = secrets_store.store_auth_secret(
+        secret=mlrun.common.schemas.AuthSecretData(
+            username=name,
+            access_key=value,
+        ),
+    )
+    env_var = V1EnvVar(
+        name=name,
+        value_from=V1EnvVarSource(
+            secret_key_ref=V1SecretKeySelector(
+                name=secret_name,
+                key=mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                    "access_key"
+                ),
+            )
+        ),
+    )
+
+    return env_var
+
+
+def _replace_env_vars_with_secrets(
+    env_vars: list[dict],
+    env_var_names: list[str],
+    secret_name_to_secret_ref: dict[str, V1EnvVar],
+    secrets_store: "SecretsStore",
+) -> list[dict]:
+    """
+    Helper function to replace environment variables with secrets.
+    """
+    for env_var_index, env_var in enumerate(env_vars):
+        env_var_name = env_var.get("name")
+        if env_var_name in env_var_names:
+            if env_var_name in secret_name_to_secret_ref:
+                secret_env_var = secret_name_to_secret_ref[env_var_name]
+            else:
+                value = env_var.get("value")
+                if value is None:
+                    logger.warning("Skipping empty secret value")
+                secret_env_var = _create_secret_env_var_for_pipeline(
+                    name=env_var_name,
+                    value=value,
+                    secrets_store=secrets_store,
+                )
+                secret_name_to_secret_ref[env_var_name] = secret_env_var
+            env_vars[env_var_index] = _create_env_for_container(secret_env_var)
+    return env_vars
+
+
+def _create_env_for_container(env_var: V1EnvVar) -> V1EnvVar:
     if env_var.value_from is not None and env_var.value_from.secret_key_ref is not None:
         env_var = {
             "name": env_var.name,

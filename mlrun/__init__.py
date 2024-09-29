@@ -136,15 +136,16 @@ def set_environment(
     if not mlconf.dbpath:
         raise ValueError("DB/API path was not detected, please specify its address")
 
-    if mock_functions is not None:
-        mock_functions = "1" if mock_functions is True else mock_functions
-        mlconf.force_run_local = mock_functions
-        mlconf.mock_nuclio_deployment = mock_functions
-
     # check connectivity and load remote defaults
     get_run_db()
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
+    mlconf.reload()
+
+    if mock_functions is not None:
+        mock_functions = "1" if mock_functions is True else mock_functions
+        mlconf.force_run_local = mock_functions
+        mlconf.mock_nuclio_deployment = mock_functions
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError(
@@ -159,6 +160,7 @@ def set_environment(
                 "artifact_path must refer to an absolute path" " or a valid url"
             )
         mlconf.artifact_path = artifact_path
+
     return mlconf.default_project, mlconf.artifact_path
 
 

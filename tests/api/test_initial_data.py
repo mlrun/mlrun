@@ -95,6 +95,11 @@ def test_perform_data_migrations_from_first_version():
     )
     server.api.initial_data._perform_version_7_data_migrations = unittest.mock.Mock()
 
+    original_perform_version_8_data_migrations = (
+        server.api.initial_data._perform_version_8_data_migrations
+    )
+    server.api.initial_data._perform_version_8_data_migrations = unittest.mock.Mock()
+
     # perform migrations
     server.api.initial_data._perform_data_migrations(db_session)
 
@@ -107,6 +112,7 @@ def test_perform_data_migrations_from_first_version():
     server.api.initial_data._perform_version_5_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_6_data_migrations.assert_called_once()
     server.api.initial_data._perform_version_7_data_migrations.assert_called_once()
+    server.api.initial_data._perform_version_8_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         server.api.initial_data.latest_data_version
@@ -130,6 +136,9 @@ def test_perform_data_migrations_from_first_version():
     )
     server.api.initial_data._perform_version_7_data_migrations = (
         original_perform_version_7_data_migrations
+    )
+    server.api.initial_data._perform_version_8_data_migrations = (
+        original_perform_version_8_data_migrations
     )
 
 
@@ -226,6 +235,66 @@ def test_create_project_summaries():
     migrated_project_summary = db.get_project_summary(db_session, project.metadata.name)
 
     assert migrated_project_summary.name == project.metadata.name
+
+
+@pytest.mark.parametrize(
+    "scheduled_object_labels, schedule_labels, expected_labels",
+    [
+        (
+            {"label1": "value1"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value2"},
+        ),
+        ({"label1": "value1"}, {}, {"label1": "value1"}),
+        ({}, {"label2": "value2"}, {"label2": "value2"}),
+        (
+            {"label1": "value1", "label3": "value3"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value2", "label3": "value3"},
+        ),
+        (
+            {"label1": "value1", "label2": "value3"},
+            {"label2": "value2"},
+            {"label1": "value1", "label2": "value3"},
+        ),
+        (None, {"label2": "value2"}, {"label2": "value2"}),
+        ({"label1": "value1"}, None, {"label1": "value1"}),
+        (None, None, None),
+    ],
+)
+def test_align_schedule_labels(
+    scheduled_object_labels, schedule_labels, expected_labels
+):
+    db, db_session = _initialize_db_without_migrations()
+
+    # Create a schedule
+    db.create_schedule(
+        session=db_session,
+        project="project-name",
+        name="schedule-name",
+        kind=mlrun.common.schemas.ScheduleKinds.job,
+        cron_trigger=mlrun.common.schemas.ScheduleCronTrigger.from_crontab("* * * * 1"),
+        concurrency_limit=1,
+        scheduled_object={"task": {"metadata": {"labels": scheduled_object_labels}}},
+        labels=schedule_labels,
+    )
+
+    # Align schedule.labels and schedule.scheduled_object.task.metadata.labels
+    db.align_schedule_labels(db_session)
+
+    # Get updated schedules
+    migrated_schedules = db.list_schedules(db_session)
+
+    # Convert list[LabelRecord] to dict
+    migrated_schedules_dict = {
+        label.name: label.value for label in migrated_schedules[0].labels
+    }
+
+    assert (
+        migrated_schedules[0].scheduled_object["task"]["metadata"]["labels"]
+        or {} == migrated_schedules_dict
+        or {} == expected_labels
+    )
 
 
 def _initialize_db_without_migrations() -> (

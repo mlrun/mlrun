@@ -241,8 +241,7 @@ resp = fs.get_offline_features(
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
-First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.get_online_feature_service`. Then feed the `Entity` of the 
-feature vector to `get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
+First create an `Online Feature Service` using {py:meth}`~mlrun.feature_store.FeatureVector.get_online_feature_service` and receive the latest value of the feature vector. Note that the response contains only the features - 
 the timestamp (of the last event that updated the feature sets) is not part of the response. 
 
 To create the {py:class}`~mlrun.feature_store.OnlineVectorService` you only need to pass it the feature vector's store reference.
@@ -291,7 +290,7 @@ entity within each feature set.
 
 You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, 
 and the starting place. 
-See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
+See {py:meth}`mlrun.feature_store.FeatureVector.get_online_feature_service`.
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
 

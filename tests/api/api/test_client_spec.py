@@ -101,7 +101,7 @@ def test_client_spec(
     }
     server.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 
-    mlrun.mlconf.alerts.mode = "enabled"
+    mlrun.mlconf.alerts.mode = "disabled"
 
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
@@ -143,7 +143,7 @@ def test_client_spec(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
 
-    assert response_body["alerts_mode"] == "enabled"
+    assert response_body["alerts_mode"] == "disabled"
 
 
 def test_client_spec_response_based_on_client_version(

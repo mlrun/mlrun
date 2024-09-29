@@ -50,9 +50,19 @@ class NotificationKind(mlrun.common.types.StrEnum):
     **url** - The webhook url to which to send the notification.\n
     **method** - The http method to use when sending the notification (GET, POST, PUT, etc…).\n
     **headers** - (dict) The http headers to send with the notification.\n
-    **override_body** - (dict) The body to send with the notification.\n
+    **override_body** -
+     (dict) The body to send with the notification. If not specified, the
+     default body will be a dictionary containing `name`, `message`, `severity`, and a `runs` list of the
+     completed runs. You can also add the run's details.\n
+     Example::
+
+                "override_body": {"message":"Run Completed {{ runs }}"
+                # Results would look like:
+                "message": "Run Completed [{'project': 'my-project', 'name': 'my-function', 'host': <run-host>,
+                         'status': {'state': 'completed', 'results': <run-results>}}]"
     **verify_ssl** -
-     (bool) Whether SSL certificates are validated during HTTP requests or not, The default is set to True.
+     (bool) Whether SSL certificates are validated during HTTP requests or not.
+     The default is set to True.\n
     """
 
 

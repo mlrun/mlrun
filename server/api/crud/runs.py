@@ -125,7 +125,15 @@ class Runs(
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         run = server.api.utils.singletons.db.get_db().read_run(
-            db_session, uid, project, iter
+            db_session,
+            uid,
+            project,
+            iter,
+            with_notifications=format_
+            in [
+                mlrun.common.formatters.RunFormat.notifications,
+                mlrun.common.formatters.RunFormat.full,
+            ],
         )
 
         if format_ == mlrun.common.formatters.RunFormat.full:

@@ -68,7 +68,8 @@ COPY ./mlrun/utils/version/version.json ./mlrun/utils/version/version.json
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r dockerfiles/mlrun-api/requirements.txt  --no-cache-dir  --no-build-isolation && python -m pip install .[complete-api] --no-cache-dir --no-build-isolation &&\
+    -r dockerfiles/mlrun-api/requirements.txt  --no-cache-dir  --no-build-isolation && \
+    python -m pip install .[complete-api] --no-cache-dir --no-build-isolation && \
     pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --no-cache-dir --no-build-isolation &&\
     pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --no-cache-dir --no-build-isolation
 

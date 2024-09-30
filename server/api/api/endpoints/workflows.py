@@ -309,6 +309,13 @@ def _fill_workflow_missing_fields_from_project(
         # workflow while the provided workflow takes precedence over the existing workflow params
         workflow = copy.deepcopy(workflow)
         workflow = _update_dict(workflow, spec.dict())
+        # `_update_dict` ignore empty fields as `WorkflowSpec` sets unfilled fields to None on initialization,
+        # For `workflow_runner_node_selector`, empty values are crucial for removing selectors,
+        # so we preserve it if present.
+        if spec.workflow_runner_node_selector:
+            workflow["workflow_runner_node_selector"] = copy.deepcopy(
+                spec.workflow_runner_node_selector
+            )
 
     if "name" not in workflow:
         log_and_raise(

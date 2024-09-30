@@ -338,7 +338,7 @@ class SQLDB(DBInterface):
 
     def read_run(self, session, uid, project=None, iter=0, with_notifications=False):
         project = project or config.default_project
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(session, uid, project, iter, with_notifications=with_notifications)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run uid {uid} of project {project} not found"

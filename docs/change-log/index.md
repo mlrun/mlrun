@@ -138,7 +138,7 @@
 |ML-7367|Updated OS packages for MLRun UI.|
 |ML-7416|An error message is displayed upon workflow failure in the "Monitor workflows" tab.|
 |ML-7599|Fixed mlrun-api vulnerabilities.|
-|ML-7613||
+|ML-7613|The pipeline SDK output now displays the logs in addition to the graph animation, and it also raises a warning when a client uses notifications with `engine=kfp`.|
 |ML-7655|The "filter by label" in the Models pageis now case insensitive.|
 |ML-7673|Improved performance of `db.list_pipelines()` with project filter in environments with a large number of pipelines,|
 |ML-7706|Fixed the skip `sync_functions` when scheduling workflows or running remote workflows.|

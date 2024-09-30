@@ -25,7 +25,6 @@ import mlrun_pipelines.patcher
 import mlrun_pipelines.utils
 
 import mlrun
-import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.utils.notifications

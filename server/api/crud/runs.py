@@ -125,7 +125,7 @@ class Runs(
     ) -> dict:
         project = project or mlrun.mlconf.default_project
 
-        # TODO: 1.8 - add notification also when format is full.
+        # TODO: 1.8 - add notifications for full format as well.
         run = server.api.utils.singletons.db.get_db().read_run(
             db_session,
             uid,

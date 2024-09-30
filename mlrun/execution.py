@@ -930,10 +930,8 @@ class MLClientCtx:
     def get_notifications(self):
         """Get the list of notifications"""
 
-        run_db = mlrun.get_run_db()
-
         # Get the full notifications from the DB since the run context does not contain the params due to bloating
-        run = run_db.read_run(
+        run = self._rundb.read_run(
             self.uid, format_=mlrun.common.formatters.RunFormat.notifications
         )
         return [

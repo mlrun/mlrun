@@ -596,12 +596,12 @@ run-test-db:
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs
-	cd docs && make clean && cd ..
+	rm -f docs/external/*.md
+	make -C docs clean
 
 .PHONY: html-docs
 html-docs: clean-html-docs ## Build html docs
-	rm -f docs/external/*.md
-	cd docs && make html
+	make -C docs html
 
 .PHONY: html-docs-dockerized
 html-docs-dockerized: build-test ## Build html docs dockerized

@@ -436,6 +436,8 @@ class SQLDB(DBInterface):
         return runs
 
     def _fill_run_struct_with_notifications(self, notifications, run_struct):
+        if not notifications:
+            return
         run_struct.setdefault("spec", {})["notifications"] = []
         run_struct.setdefault("status", {})["notifications"] = {}
         for notification in notifications:
@@ -4531,7 +4533,7 @@ class SQLDB(DBInterface):
     ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
         if with_notifications:
-            query = query.join(Run.Notification)
+            query = query.outerjoin(Run.Notification)
         if with_for_update:
             query = query.populate_existing().with_for_update()
 

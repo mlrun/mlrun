@@ -24,6 +24,7 @@ from dateutil import parser
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -928,9 +929,16 @@ class MLClientCtx:
 
     def get_notifications(self):
         """Get the list of notifications"""
+
+        run_db = mlrun.get_run_db()
+
+        # Get the full notifications from the DB since the run context does not contain the params due to bloating
+        run = run_db.read_run(
+            self.uid, format_=mlrun.common.formatters.RunFormat.notifications
+        )
         return [
             mlrun.model.Notification.from_dict(notification)
-            for notification in self._notifications
+            for notification in run["spec"]["notifications"]
         ]
 
     def to_dict(self):

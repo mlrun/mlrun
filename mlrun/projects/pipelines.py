@@ -1075,18 +1075,10 @@ def load_and_run(
         return
 
     # extract "start" notification if exists
-    run_db = mlrun.get_run_db()
-
-    # Here we want to get the run object with the notifications because we want to also get the notifications params
-    # (the context.get_notifications() doesn't include notifications params,
-    # see https://github.com/mlrun/mlrun/pull/4334/files)
-    run = run_db.read_run(
-        context.uid, format_=mlrun.common.formatters.RunFormat.notifications
-    )
     start_notifications = [
-        mlrun.model.Notification.from_dict(notification)
-        for notification in run["spec"]["notifications"]
-        if "running" in notification["when"]
+        notification
+        for notification in context.get_notifications()
+        if "running" in notification.when
     ]
 
     workflow_log_message = workflow_name or workflow_path

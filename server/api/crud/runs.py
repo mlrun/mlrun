@@ -124,16 +124,15 @@ class Runs(
         format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
+
+        # TODO: 1.8 - add notification also when format is full.
         run = server.api.utils.singletons.db.get_db().read_run(
             db_session,
             uid,
             project,
             iter,
             with_notifications=format_
-            in [
-                mlrun.common.formatters.RunFormat.notifications,
-                mlrun.common.formatters.RunFormat.full,
-            ],
+            == mlrun.common.formatters.RunFormat.notifications,
         )
 
         if format_ == mlrun.common.formatters.RunFormat.full:

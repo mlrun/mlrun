@@ -22,7 +22,7 @@ class RunFormat(ObjectFormat, mlrun.common.types.StrEnum):
     # No enrichment, data is pulled as-is from the database.
     standard = "standard"
 
-    # Performs run enrichment, including the run's artifacts.
+    # Enrich run with full notifications since the notification params are subtracted from the run body.
     notifications = "notifications"
 
     # Performs run enrichment, including the run's artifacts. Only available for the `get` run API.

@@ -144,7 +144,7 @@ def gbq_to_pandas_dtype(gbq_type):
         "BOOL": "bool",
         "FLOAT": "float64",
         "INTEGER": pd.Int64Dtype(),
-        "TIMESTAMP": "datetime64[ns]",
+        "TIMESTAMP": "datetime64[ns, UTC]",
     }
     return type_map.get(gbq_type, "object")
 

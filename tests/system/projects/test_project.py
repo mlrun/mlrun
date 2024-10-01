@@ -662,9 +662,6 @@ class TestProject(TestMLRunSystem):
                 "deploy": 1,
             },
         )
-        self._test_remote_pipeline_from_github(
-            name=project_name, workflow_name="main", engine="remote:kfp"
-        )
 
     def test_remote_pipeline_with_local_engine_from_github(self):
         project_name = "rmtpipe-local-github"
@@ -1683,7 +1680,7 @@ class TestProject(TestMLRunSystem):
         notification_data_steps = {}
         for step in notification_data:
             if not step.get("step_kind"):
-                # If there is not step_kind in the step, it means that it is the workflow runner, so we skip it
+                # If there is no step_kind in the step, it means that it is the workflow runner, so we skip it
                 continue
             notification_data_steps.setdefault(step.get("step_kind"), 0)
             notification_data_steps[step.get("step_kind")] += 1

@@ -51,7 +51,7 @@ FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
 def test_build_status_pod_not_found(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
     function = {
@@ -476,13 +476,12 @@ def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    mocked_k8s_helper,
 ) -> None:
     """
     Validate that `.set_tracking()` configurations are applied to
     a serving function for model monitoring.
     """
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-
     config_map = unittest.mock.Mock()
     config_map.items = []
 
@@ -1003,7 +1002,7 @@ def test_start_function(
 
 
 def test_build_status_events_and_logs(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
     function = {
@@ -1057,7 +1056,7 @@ def test_build_status_events_and_logs(
                 "name": function["metadata"]["name"],
                 "tag": function["metadata"]["tag"],
             },
-            headers={mlrun.common.schemas.HeaderNames.client_version: "1.7.0"},
+            headers={mlrun.common.schemas.HeaderNames.client_version: "1.8.0"},
         )
         assert response.status_code == HTTPStatus.OK.value
         assert (

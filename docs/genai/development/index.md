@@ -14,6 +14,5 @@ fine-tuning-llms
 
 **See also**
 - {ref}`genai_01_basic_tutorial`
-- {ref}`genai-02-mm-llm`
 - {ref}`model-monitoring-overview`
 - {ref}`alerts-notifications`

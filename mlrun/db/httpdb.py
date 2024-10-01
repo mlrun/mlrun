@@ -1078,9 +1078,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_artifacts(
         self,
-        name=None,
-        project=None,
-        tag=None,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
@@ -1159,12 +1159,12 @@ class HTTPRunDB(RunDBInterface):
 
     def del_artifacts(
         self,
-        name=None,
-        project=None,
-        tag=None,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
         days_ago=0,
-        tree=None,
+        tree: Optional[str] = None,
     ):
         """Delete artifacts referenced by the parameters.
 
@@ -1177,6 +1177,7 @@ class HTTPRunDB(RunDBInterface):
             - A list of strings formatted as "label=value" to match specific label key-value pairs.
             - A list of strings formatted as "label" to match entities with the specified label key only.
         :param days_ago: This parameter is deprecated and not used.
+        :param tree: Delete artifacts that are contained within this tree.
         """
         project = project or config.default_project
         labels = self._validate_labels(labels)
@@ -2114,9 +2115,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_features(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         entities: list[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> list[dict]:
@@ -2155,9 +2156,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_features_v2(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         entities: list[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> dict[str, list[dict]]:
@@ -2194,9 +2195,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_entities(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> list[dict]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
@@ -2229,9 +2230,9 @@ class HTTPRunDB(RunDBInterface):
 
     def list_entities_v2(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
@@ -2283,12 +2284,12 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_sets(
         self,
-        project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
-        entities: list[str] = None,
-        features: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
+        entities: Optional[list[str]] = None,
+        features: Optional[list[str]] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
@@ -2514,10 +2515,10 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_vectors(
         self,
-        project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
         labels: Optional[Union[dict[str, str], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
@@ -2766,7 +2767,7 @@ class HTTPRunDB(RunDBInterface):
 
     def list_projects(
         self,
-        owner: str = None,
+        owner: Optional[str] = None,
         format_: Union[
             str, mlrun.common.formatters.ProjectFormat
         ] = mlrun.common.formatters.ProjectFormat.name_only,

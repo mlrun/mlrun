@@ -106,7 +106,7 @@ class RunDBInterface(ABC):
         name: str = "",
         project: str = "",
         labels: Optional[Union[dict[str, str], list[str]]] = None,
-        state="",
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         days_ago=0,
     ):
         pass

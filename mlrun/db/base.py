@@ -73,7 +73,7 @@ class RunDBInterface(ABC):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -101,7 +101,14 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
+    def del_runs(
+        self,
+        name: str = "",
+        project: str = "",
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        state="",
+        days_ago=0,
+    ):
         pass
 
     @abstractmethod
@@ -348,7 +355,7 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
@@ -359,7 +366,7 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
@@ -375,7 +382,7 @@ class RunDBInterface(ABC):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
@@ -385,7 +392,7 @@ class RunDBInterface(ABC):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
@@ -398,7 +405,7 @@ class RunDBInterface(ABC):
         state: str = None,
         entities: list[str] = None,
         features: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -465,7 +472,7 @@ class RunDBInterface(ABC):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: list[str] = None,
+        labels: Optional[Union[dict[str, str], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,

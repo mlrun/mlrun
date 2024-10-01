@@ -288,7 +288,7 @@ async def delete_runs(
     project: str = None,
     name: str = None,
     labels: list[str] = Query([], alias="label"),
-    state: str = None,
+    state: mlrun.common.runtimes.constants.RunStates = None,
     days_ago: int = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),

@@ -30,8 +30,8 @@ import semver
 from mlrun_pipelines.utils import compile_pipeline
 
 import mlrun
-import mlrun.common.formatters
 import mlrun.common.constants
+import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.types

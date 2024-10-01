@@ -31,8 +31,8 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-import mlrun.common.formatters
 import mlrun.common.constants
+import mlrun.common.formatters
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
@@ -595,7 +595,7 @@ def _handle_job_deploy_status(
         logs
         and normalized_pod_function_state == mlrun.common.schemas.FunctionState.pending
         and server.api.utils.helpers.validate_client_version(
-            client_version, "1.7.0-rc18"
+            client_version, "1.8.0-rc1"
         )
     ):
         response_headers["deploy_status_text_kind"] = (

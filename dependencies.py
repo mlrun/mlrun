@@ -76,7 +76,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "distributed~=2023.12.1",
         ],
         "alibaba-oss": ["ossfs==2023.12.0", "oss2==2.18.1"],
-        "tdengine": ["taos-ws-py~=0.3.3"],
+        "tdengine": ["taos-ws-py==0.3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
     }
 

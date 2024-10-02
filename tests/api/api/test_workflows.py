@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import server.api.api.endpoints.workflows
 import server.api.crud
 
 PROJECT_NAME = "my-proj1"
@@ -152,6 +153,29 @@ def test_schedule_not_enriched(db: Session, client: TestClient, k8s_secrets_mock
         assert response_data["schedule"] is None
 
 
+def test_fill_workflow_missing_fields_preserves_empty_node_selector(
+    db: Session, client: TestClient
+):
+    # Test to ensure that the `_fill_workflow_missing_fields_from_project` function, called as part of the `submit`
+    # workflow endpoint, preserves an empty value in the workflow runner node selector when passed within the workflow
+    # spec. Preserving empty values is important because they indicate that a specific node selector should be removed
+    # or cleared. Therefore, these empty values must remain in the resulting workflow spec after processing.
+    project = _create_proj_with_workflow(client)
+    workflow_runner_node_selector = {"test-ns": ""}
+    workflow_spec = mlrun.common.schemas.WorkflowSpec(
+        name=WORKFLOW_NAME, workflow_runner_node_selector=workflow_runner_node_selector
+    )
+    res_workflow = (
+        server.api.api.endpoints.workflows._fill_workflow_missing_fields_from_project(
+            project=project,
+            workflow_name=WORKFLOW_NAME,
+            spec=workflow_spec,
+            arguments={},
+        )
+    )
+    assert res_workflow.workflow_runner_node_selector == workflow_runner_node_selector
+
+
 def _create_proj_with_workflow(client: TestClient, **extra_workflow_spec):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT_NAME),
@@ -163,3 +187,4 @@ def _create_proj_with_workflow(client: TestClient, **extra_workflow_spec):
         ),
     )
     client.post("projects", json=project.dict())
+    return project

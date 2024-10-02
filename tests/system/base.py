@@ -31,6 +31,7 @@ logger = create_test_logger(name="test-system")
 
 class TestMLRunSystem:
     project_name = "system-test-project"
+    extra_env: typing.Optional[dict] = None
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
     results_path = root_path / "tests" / "test_results" / "system"
@@ -216,7 +217,10 @@ class TestMLRunSystem:
     @classmethod
     def _get_env_from_file(cls) -> dict:
         with cls.env_file_path.open() as f:
-            return yaml.safe_load(f)
+            env = yaml.safe_load(f)
+            if cls.extra_env:
+                env.update(cls.extra_env)
+            return env
 
     @classmethod
     def _setup_env(cls, env: dict):
@@ -340,7 +344,7 @@ class TestMLRunSystem:
         assert run_outputs["plotly"].startswith(str(output_path))
         assert (
             run_outputs["mydf"]
-            == f"store://artifacts/{project}/{name}_mydf:latest@{uid}"
+            == f"store://datasets/{project}/{name}_mydf:latest@{uid}"
         )
         assert (
             run_outputs["model"]

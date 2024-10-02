@@ -861,13 +861,23 @@ class MonitoringDeployment:
         )
         stream_paths = []
         for function_name in function_names:
+            label_selector = f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
+            if len(label_selector) > 63:
+                # k8s label character limit exceeded, skipping deletion of stream resources"
+                continue
             for i in range(10):
                 # waiting for the function pod to be deleted
                 # max 10 retries (5 sec sleep between each retry)
-
-                function_pod = server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
-                    selector=f"{mlrun_constants.MLRunInternalLabels.nuclio_function_name}={project}-{function_name}"
-                )
+                try:
+                    function_pod = (
+                        server.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+                            selector=label_selector
+                        )
+                    )
+                except Exception as exc:
+                    raise mlrun.errors.MLRunStreamConnectionFailureError(
+                        f"Failed to list pods for function {function_name}"
+                    ) from exc
                 if not function_pod:
                     logger.debug(
                         "No function pod found for project, deleting stream",

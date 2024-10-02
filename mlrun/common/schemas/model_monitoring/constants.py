@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import hashlib
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Optional
 
@@ -104,15 +105,8 @@ class ApplicationEvent:
     APPLICATION_NAME = "application_name"
     START_INFER_TIME = "start_infer_time"
     END_INFER_TIME = "end_infer_time"
-    LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
-    MLRUN_CONTEXT = "mlrun_context"
-
-    # Deprecated fields - TODO : delete in 1.9.0  (V1 app deprecation)
-    SAMPLE_PARQUET_PATH = "sample_parquet_path"
-    CURRENT_STATS = "current_stats"
-    FEATURE_STATS = "feature_stats"
 
 
 class WriterEvent(MonitoringStrEnum):
@@ -295,7 +289,7 @@ class EndpointUID:
     function_hash_key: str
     model: str
     model_version: str
-    uid: Optional[str] = None
+    uid: str = field(init=False)
 
     def __post_init__(self):
         function_ref = (
@@ -372,3 +366,23 @@ _RESERVED_FUNCTION_NAMES = MonitoringFunctionNames.list() + [SpecialApps.MLRUN_I
 
 
 V3IO_MODEL_MONITORING_DB = "v3io"
+
+
+class ModelEndpointMonitoringMetricType(StrEnum):
+    RESULT = "result"
+    METRIC = "metric"
+
+
+_FQN_PART_PATTERN = r"[a-zA-Z0-9_-]+"
+FQN_PATTERN = (
+    rf"^(?P<project>{_FQN_PART_PATTERN})\."
+    rf"(?P<app>{_FQN_PART_PATTERN})\."
+    rf"(?P<type>{ModelEndpointMonitoringMetricType.RESULT}|{ModelEndpointMonitoringMetricType.METRIC})\."
+    rf"(?P<name>{_FQN_PART_PATTERN})$"
+)
+FQN_REGEX = re.compile(FQN_PATTERN)
+
+# refer to `mlrun.utils.regex.project_name`
+PROJECT_PATTERN = r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
+
+MODEL_ENDPOINT_ID_PATTERN = r"^[a-zA-Z0-9_-]+$"

@@ -82,19 +82,19 @@
 ### Breaking changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-5741/3206|The new flag `allow_cross_project` gives you options to manage a situation where you call `get_or_create_project` or `load_project` and there is already a `project.yaml` with a different project name. In v1.7 and v1.8 `allow_cross_project` is set to None by default, meaning if there is a mismatch in the name, you get a warning (that the project name is different than the `project.yaml`) and then the flow continues. If `allow_cross_project` is False, an exception is raised. And if `allow_cross_project` is True, the flow continues. (Prior to v1.9 you should set `allow_cross_project` to either True or False; the None option will be deprecated.)|
+|ML-5741/3206|The new flag `allow_cross_project` ({py:meth}`mlrun.projects.get_or_create_project` and {py:meth}`mlrun.projects.load_project`) gives you options to manage a situation where you call `get_or_create_project` or `load_project` and there is already a `project.yaml` with a different project name. In v1.7 and v1.8 `allow_cross_project` is set to None by default, meaning if there is a mismatch in the name, you get a warning (that the project name is different than the `project.yaml`) and then the flow continues. If `allow_cross_project` is False, an exception is raised. And if `allow_cross_project` is True, the flow continues. (Prior to v1.9 you should set `allow_cross_project` to either True or False; the None option will be deprecated.)|
 
 
 ### Documentation
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-6052|New page: {ref}`log-artifacts`.|
+|ML-7480|New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
+|ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 |NA     |New tutorial: {ref}`genai-02-mm-llm`.|
 |NA     |Updated page: {ref}`model-monitoring-des`.|
-|NA    |New page: Writing an MM application.
-|ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
-|ML-7480|New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
-|NA|Updated {ref}`ecosystem`.|
+|NA     |New page: {ref}`mm-applications`.
+|NA     |Updated {ref}`ecosystem`.|
 
 
 
@@ -115,7 +115,7 @@
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed model serving with Kafka trigger.|
-|ML-6194||
+|ML-6194|When running remote workflows, the functions no longer are required to be in the project context.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
 |ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|

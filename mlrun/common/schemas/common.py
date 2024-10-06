@@ -77,17 +77,10 @@ class LabelsModel(pydantic.BaseModel):
             return labels
 
         if isinstance(labels, dict):
-            if not labels:
-                return []
-
-            result = []
-            for key, value in labels.items():
-                if value is not None:
-                    result.append(f"{key}={value}")
-                else:
-                    result.append(key)
-
-            return result
+            return [
+                f"{key}={value}" if value is not None else key
+                for key, value in labels.items()
+            ]
 
         raise mlrun.errors.MLRunValueError(
             "Invalid labels format. Must be a dictionary of strings or a list of strings."

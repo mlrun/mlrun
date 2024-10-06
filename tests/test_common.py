@@ -28,6 +28,7 @@ import mlrun.common.schemas.common
         (["label1"], ["label1"]),
         ({"label1": "value1", "label2": "value2"}, ["label1=value1", "label2=value2"]),
         (["label1=value1"], ["label1=value1"]),
+        ({"label1": "value1", "label2": None}, ["label1=value1", "label2"]),
     ],
 )
 def test_labels_validation(labels, expected):

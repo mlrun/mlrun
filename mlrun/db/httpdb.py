@@ -769,7 +769,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -856,7 +856,7 @@ class HTTPRunDB(RunDBInterface):
                 FutureWarning,
             )
 
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
 
         if (
             not name
@@ -914,7 +914,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         name: Optional[str] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         days_ago=0,
     ):
@@ -935,7 +935,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "project": project,
@@ -1081,7 +1081,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         iter: int = None,
@@ -1133,7 +1133,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
 
         params = {
             "name": name,
@@ -1162,7 +1162,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         days_ago=0,
         tree: Optional[str] = None,
     ):
@@ -1180,7 +1180,7 @@ class HTTPRunDB(RunDBInterface):
         :param tree: Delete artifacts that are contained within this tree.
         """
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
 
         params = {
             "name": name,
@@ -1282,7 +1282,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         project: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
     ):
@@ -1300,7 +1300,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2119,7 +2119,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         tag: Optional[str] = None,
         entities: list[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
     ) -> list[dict]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
@@ -2140,7 +2140,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2160,7 +2160,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         tag: Optional[str] = None,
         entities: list[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
@@ -2179,7 +2179,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2198,7 +2198,7 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
     ) -> list[dict]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
@@ -2215,7 +2215,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2233,7 +2233,7 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features_v2` function, and uses the same logic. However, the entities are matched
@@ -2250,7 +2250,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
@@ -2290,7 +2290,7 @@ class HTTPRunDB(RunDBInterface):
         state: Optional[str] = None,
         entities: Optional[list[str]] = None,
         features: Optional[list[str]] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2329,7 +2329,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "state": state,
@@ -2519,7 +2519,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         tag: Optional[str] = None,
         state: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2550,7 +2550,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "state": state,
@@ -2771,7 +2771,7 @@ class HTTPRunDB(RunDBInterface):
         format_: Union[
             str, mlrun.common.formatters.ProjectFormat
         ] = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
@@ -2789,7 +2789,7 @@ class HTTPRunDB(RunDBInterface):
             - A list of strings formatted as "label" to match entities with the specified label key only.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
 
         params = {
             "owner": owner,
@@ -3285,7 +3285,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
@@ -3325,7 +3325,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{project}/model-endpoints"
-        labels = self._validate_labels(labels)
+        labels = self._parse_labels(labels)
 
         response = self.api_call(
             method="GET",
@@ -4407,7 +4407,7 @@ class HTTPRunDB(RunDBInterface):
         return results
 
     @staticmethod
-    def _validate_labels(labels):
+    def _parse_labels(labels):
         try:
             return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
         except pydantic.error_wrappers.ValidationError as exc:

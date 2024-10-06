@@ -85,7 +85,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def read_run(self, session, uid, project="", iter=0):
+    def read_run(self, session, uid, project="", iter=0, with_notifications=False):
         pass
 
     @abstractmethod

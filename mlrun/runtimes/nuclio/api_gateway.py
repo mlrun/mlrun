@@ -203,7 +203,12 @@ class APIGatewaySpec(ModelObj):
         self.project = project
         self.ports = ports
 
+        self.enrich()
         self.validate(project=project, functions=functions, canary=canary, ports=ports)
+
+    def enrich(self):
+        if self.path and not self.path.startswith("/"):
+            self.path = f"/{self.path}"
 
     def validate(
         self,

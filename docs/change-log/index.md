@@ -115,7 +115,7 @@
 |ML-5774|UI: Improved speed of querying for pipelines of specific projects in the Pipelines page.|
 |ML-6020|UI: <b>Copy URI</b> in the Datasets main page now copies the same value as in the detailed Dataset page.|
 |ML-6065|Fixed model serving with Kafka trigger.|
-|ML-6194|When running remote workflows, the functions no longer are required to be in the project context.|
+|ML-6194|When running a remote workflow, the client side does not need to contain workflow local files.|
 |ML-6068|Feature-store Redis-target is now created by default with the project/feature-set in the path.|
 |ML-6249|Reduction in the time that feature sets with a large number of entities take to query (and no longer timeout).|
 |ML-6253|The `project.build_function()`now passes the `requirements_file parameter` when the  engine is not `kfp`.|

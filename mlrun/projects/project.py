@@ -3816,8 +3816,10 @@ class MlrunProject(ModelObj):
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+        :param labels: Return artifacts that have these labels. This can be provided as:
+            - A dictionary in the format {"label": "value"} to match specific label key-value pairs.
+            - A list of strings formatted as "label=value" to match specific label key-value pairs.
+            - A list of strings formatted as "label" to match entities with the specified label key only.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3869,8 +3871,10 @@ class MlrunProject(ModelObj):
             case-sensitive. This means that querying for ``~name`` may return artifacts named
             ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+        :param labels: Return artifacts that have these labels. This can be provided as:
+            - A dictionary in the format {"label": "value"} to match specific label key-value pairs.
+            - A list of strings formatted as "label=value" to match specific label key-value pairs.
+            - A list of strings formatted as "label" to match entities with the specified label key only.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3894,7 +3898,12 @@ class MlrunProject(ModelObj):
             tree=tree,
         ).to_objects()
 
-    def list_functions(self, name=None, tag=None, labels=None):
+    def list_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+    ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         example::
@@ -3904,7 +3913,10 @@ class MlrunProject(ModelObj):
 
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param labels: Return functions that have specific labels assigned to them. This can be provided as:
+            - A dictionary in the format {"label": "value"} to match specific label key-value pairs.
+            - A list of strings formatted as "label=value" to match specific label key-value pairs.
+            - A list of strings formatted as "label" to match entities with the specified label key only.
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3917,7 +3929,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
     ) -> Optional[list]:
         """
         Retrieve a list of all the model monitoring functions.
@@ -3927,7 +3939,10 @@ class MlrunProject(ModelObj):
 
         :param name:    Return only functions with a specific name.
         :param tag:     Return function versions with specific tags.
-        :param labels:  Return functions that have specific labels assigned to them.
+        :param labels:  Return functions that have specific labels assigned to them. This can be provided as:
+            - A dictionary in the format {"label": "value"} to match specific label key-value pairs.
+            - A list of strings formatted as "label=value" to match specific label key-value pairs.
+            - A list of strings formatted as "label" to match entities with the specified label key only.
 
         :returns: List of function objects.
         """
@@ -3945,7 +3960,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        labels: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -3980,9 +3995,10 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
-        :param labels:  A list of labels to filter by. Label filters work by either filtering a specific value
-                of a label (i.e. list("key=value")) or by looking for the existence of a given
-                key (i.e. "key").
+        :param labels:  A list of labels to filter by. This can be provided as:
+            - A dictionary in the format {"label": "value"} to match specific label key-value pairs.
+            - A list of strings formatted as "label=value" to match specific label key-value pairs.
+            - A list of strings formatted as "label" to match entities with the specified label key only.
         :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

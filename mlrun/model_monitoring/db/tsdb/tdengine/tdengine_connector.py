@@ -62,7 +62,7 @@ class TDEngineConnector(TSDBConnector):
             return fn(self.connection, **kwargs)
         except taosws.QueryError as err:
             logger.warn(f"TDEngine query error: {err}")
-            if "sending on a closed channel" in str(err):
+            if "Internal error:" in str(err):
                 logger.info("Retrying TDEngine query with a new connection")
                 try:
                     self._connection.close()

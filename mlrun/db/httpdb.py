@@ -4408,6 +4408,14 @@ class HTTPRunDB(RunDBInterface):
 
     @staticmethod
     def _parse_labels(labels):
+        """
+        Parse labels to support providing a dictionary from the SDK,
+        which may not be directly supported in the endpoints.
+
+        :param labels: The labels to parse, which can be either a dictionary or a list.
+        :return: A list of parsed labels in the format 'key=value' or 'key'.
+        :raises MLRunValueError: If the labels format is invalid.
+        """
         try:
             return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
         except pydantic.error_wrappers.ValidationError as exc:

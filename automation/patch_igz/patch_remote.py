@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import io
 import json
 import logging
@@ -34,97 +33,122 @@ logger = logging.getLogger("mlrun-patch")
 coloredlogs.install(level=log_level, logger=logger, fmt=fmt)
 
 
-class MLRunPatcher:
-    class Consts:
-        mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
-        api_container = "mlrun-api"
-        log_collector_container = "mlrun-log-collector"
+class Constants:
+    mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
+    api_container = "mlrun-api"
+    log_collector_container = "mlrun-log-collector"
+    api = "api"
+    mlrun = "mlrun"
+    log_collector = "log-collector"
+    targets_to_image_name = {
+        api: api_container,
+        mlrun: mlrun,
+        log_collector: log_collector,
+    }
 
-    def __init__(self, conf_file, patch_file, reset_db, tag, log_collector):
+
+class MLRunPatcher:
+    def __init__(
+        self,
+        conf_file: str,
+        patch_file: str,
+        reset_db: str,
+        image_tag: str,
+        patch_log_collector_image: bool,
+        patch_mlrun_image: bool,
+        skip_patch_api: bool,
+    ):
         self._config = yaml.safe_load(conf_file)
         patch_yaml_data = yaml.safe_load(patch_file)
         self._deploy_patch = json.dumps(patch_yaml_data)
         self._reset_db = reset_db
-        self._tag = tag
-        self._patch_log_collector = bool(log_collector)
+        self._image_tag = image_tag
+        self._patch_log_collector_image = bool(patch_log_collector_image)
         self._validate_config()
+        self._patch_mlrun_image = patch_mlrun_image
+        self._skip_patch_api = skip_patch_api
 
-        nodes = self._config["DATA_NODES"]
-        if not isinstance(nodes, list):
-            nodes = [nodes]
-        self._nodes = nodes
+        cluster_data_nodes = self._config["DATA_NODES"]
+        if not isinstance(cluster_data_nodes, list):
+            cluster_data_nodes = [cluster_data_nodes]
+        self._cluster_data_nodes = cluster_data_nodes
 
-    def patch_mlrun_api(self):
+    def patch(self):
+        version = self._get_current_version()
+        image_tag = self._get_image_tag(version)
+        targets = []
+        if not self._skip_patch_api:
+            targets.append(Constants.api)
+        if self._patch_mlrun_image:
+            targets.append(Constants.mlrun)
+        if self._patch_log_collector_image:
+            targets.append(Constants.log_collector)
+        if not targets:
+            raise ValueError("No targets to patch")
         self._docker_login_if_configured()
-        vers = self._get_current_version()
 
-        image_tag = self._get_image_tag(vers)
-        built_api_image = self._make_mlrun("api", image_tag, "mlrun-api")
-
-        built_images = [built_api_image]
-        built_log_collector_image = None
-        if self._patch_log_collector:
-            built_log_collector_image = self._make_mlrun(
-                "log-collector", image_tag, "log-collector"
-            )
-            built_images.append(built_log_collector_image)
-
-        built_images = self._tag_images_for_multi_node_registries(built_images)
+        target_to_built_images = self._make_targets(
+            targets=targets,
+            image_tag=image_tag,
+        )
+        # Build and push Docker images
+        built_images = self._tag_images_for_multi_node_registries(
+            target_to_built_images.values()
+        )
         self._push_docker_images(built_images)
 
-        node = self._nodes[0]
+        # Connect to the first node and start deployment patching process
+        node = self._cluster_data_nodes[0]
         self._connect_to_node(node)
-        try:
-            self._replace_deploy_policy()
-            self._replace_deployment_images(self.Consts.api_container, built_api_image)
-            if self._patch_log_collector:
-                # sanity
-                if not built_log_collector_image:
-                    raise RuntimeError("Log collector image not built")
+        if self._patch_log_collector_image:
+            self._replace_deployment_images(
+                Constants.log_collector_container,
+                target_to_built_images[Constants.log_collector],
+            )
+        if not self._skip_patch_api:
+            try:
+                # Replace deployment policies and images
+                self._patch_deployment_from_file()
                 self._replace_deployment_images(
-                    self.Consts.log_collector_container, built_log_collector_image
+                    Constants.api_container, target_to_built_images[Constants.api]
                 )
 
-            if self._reset_db:
-                self._reset_mlrun_db()
-            else:
-                self._rollout_deployment()
+                # Reset or rollout deployment as necessary
+                if self._reset_db:
+                    self._reset_mlrun_db()
+                else:
+                    self._rollout_deployment()
 
-            self._wait_deployment_ready()
+                self._wait_deployment_ready()
 
-        finally:
-            out = self._exec_remote(
-                [
-                    "kubectl",
-                    "-n",
-                    "default-tenant",
-                    "get",
-                    "pods",
-                ],
-            )
+            finally:
+                # Check status of pods after deployment
+                out = self._exec_remote(
+                    ["kubectl", "-n", "default-tenant", "get", "pods"]
+                )
+                for line in out.splitlines():
+                    if (
+                        Constants.api_container in line
+                        or Constants.log_collector_container in line
+                    ):
+                        logger.info(line)
 
-            for line in out.splitlines():
-                if self.Consts.api_container in line:
-                    logger.info(line)
-                elif self.Consts.log_collector_container in line:
-                    logger.info(line)
-
-            self._disconnect_from_node()
+                self._disconnect_from_node()
 
         logger.info(
-            "Deployed branch successfully! Yay! (Note this may not survive system restarts)"
+            "Deployed branch successfully! (Note: This may not survive system restarts)"
         )
 
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")
         registry_password = self._config.get("REGISTRY_PASSWORD")
-        registry_url = self._config.get("REGISTRY_URL")
+        docker_registry = self._config.get("DOCKER_REGISTRY")
         if not registry_username:
             return
         command = [
             "docker",
             "login",
-            registry_url or "",
+            docker_registry or "",
             "--username",
             registry_username,
             "--password-stdin",
@@ -138,7 +162,7 @@ class MLRunPatcher:
             )
 
     def _validate_config(self):
-        missing_fields = self.Consts.mandatory_fields - set(self._config.keys())
+        missing_fields = Constants.mandatory_fields - set(self._config.keys())
         if len(missing_fields) > 0:
             raise RuntimeError(f"Mandatory options not defined: {missing_fields}")
 
@@ -153,14 +177,20 @@ class MLRunPatcher:
             raise RuntimeError("Must define DB_USER if requesting DB reset")
 
     def _get_current_version(self) -> str:
-        if "unstable" in self._tag:
+        if "unstable" in self._image_tag:
             return "unstable"
-        return self._tag
+        return self._image_tag
 
-    def _make_mlrun(self, target, image_tag, image_name) -> str:
-        logger.info(f"Building mlrun docker image: {target}:{image_tag}")
+    def _make_targets(
+        self,
+        targets: list[str],
+        image_tag: str,
+    ) -> dict[str, str]:
+        for target in targets:
+            logger.info(f"Building mlrun docker images: {target}:{image_tag}")
+
         mlrun_docker_registry = self._config["DOCKER_REGISTRY"].rstrip("/")
-        mlrun_docker_repo = self._config.get("DOCKER_REPO", "")
+        mlrun_docker_repo = self._config.get("DOCKER_REPO")
 
         if mlrun_docker_repo:
             mlrun_docker_registry = (
@@ -171,9 +201,14 @@ class MLRunPatcher:
             "MLRUN_VERSION": image_tag,
             "MLRUN_DOCKER_REPO": mlrun_docker_registry,
         }
-        cmd = ["make", target]
+        cmd = ["make"]
+        cmd.extend(targets)
         self._exec_local(cmd, live=True, env=env)
-        return f"{mlrun_docker_registry}/{image_name}:{image_tag}"
+
+        return {
+            target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
+            for target in targets
+        }
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")
@@ -195,10 +230,10 @@ class MLRunPatcher:
 
         resolve_built_images = []
         for built_image in built_images:
-            for node in self._nodes:
+            for node in self._cluster_data_nodes:
                 if node in built_image:
                     resolve_built_images.append(built_image)
-                    for replacement_node in self._nodes:
+                    for replacement_node in self._cluster_data_nodes:
                         if replacement_node != node:
                             replaced_built_image = built_image.replace(
                                 node, replacement_node
@@ -222,10 +257,9 @@ class MLRunPatcher:
 
     def _push_docker_images(self, built_images):
         logger.info(f"Pushing mlrun docker images: {built_images}")
-
         for image in built_images:
             self._exec_local(
-                [
+                cmd=[
                     "docker",
                     "push",
                     image,
@@ -233,7 +267,7 @@ class MLRunPatcher:
                 live=True,
             )
 
-    def _replace_deploy_policy(self):
+    def _patch_deployment_from_file(self):
         logger.info("Patching mlrun-api-chief deployment")
         self._exec_remote(
             [
@@ -263,7 +297,7 @@ class MLRunPatcher:
         )
 
     def _replace_deployment_images(self, container, built_image):
-        logger.info("Replace mlrun-api-chief")
+        logger.info(f"Replace container {container} for  mlrun-api-chief")
         if self._config.get("OVERWRITE_IMAGE_REGISTRY"):
             docker_registry, overwrite_registry = self._resolve_overwrite_registry()
             built_image = built_image.replace(
@@ -283,7 +317,7 @@ class MLRunPatcher:
             ]
         )
 
-        logger.info("Replace mlrun-api-worker")
+        logger.info(f"Replace container {container} for  mlrun-api-worker")
         self._exec_remote(
             [
                 "kubectl",
@@ -590,13 +624,42 @@ class MLRunPatcher:
     "-lc",
     "--log-collector",
     is_flag=True,
-    help="Deploy the log collector as well",
+    help="Deploy the log collector",
 )
-def main(verbose, config, patch_file, reset_db, tag, log_collector):
+@click.option(
+    "-ml",
+    "--mlrun",
+    is_flag=True,
+    help="Deploy the mlrun image",
+)
+@click.option(
+    "-sa",
+    "--skip-api",
+    is_flag=True,
+    help="Deploy the mlrun API image",
+)
+def main(
+    verbose: bool,
+    config: bool,
+    patch_file: bool,
+    reset_db: bool,
+    tag: bool,
+    log_collector: bool,
+    mlrun: bool,
+    skip_api: bool,
+):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
 
-    MLRunPatcher(config, patch_file, reset_db, tag, log_collector).patch_mlrun_api()
+    MLRunPatcher(
+        conf_file=config,
+        patch_file=patch_file,
+        reset_db=reset_db,
+        image_tag=tag,
+        patch_log_collector_image=log_collector,
+        patch_mlrun_image=mlrun,
+        skip_patch_api=skip_api,
+    ).patch()
 
 
 if __name__ == "__main__":

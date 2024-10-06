@@ -16,4 +16,5 @@ guardrails-data
 
 **See also**
 - {ref}`genai_01_basic_tutorial`
+- {ref}`genai-02-mm-llm`
 - {ref}`alerts-notifications`

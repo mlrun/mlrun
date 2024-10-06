@@ -327,7 +327,7 @@ class V2ModelServer(StepToDict):
             setattr(event, "terminated", True)
             event_body = {
                 "name": self.name,
-                "version": self.version,
+                "version": self.version or "",
                 "inputs": [],
                 "outputs": [],
             }

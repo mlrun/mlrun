@@ -763,7 +763,7 @@ class ModelEndpoints:
         """
 
         # Convert into `ModelEndpoint` object
-        endpoint_obj = mlrun.common.schemas.ModelEndpoint().from_flat_dict(endpoint)
+        endpoint_obj = mlrun.common.schemas.ModelEndpoint.from_flat_dict(endpoint)
 
         # If feature analysis was applied, add feature stats and current stats to the model endpoint result
         if feature_analysis and endpoint_obj.spec.feature_names:

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.model_monitoring.applications.context as mm_context
@@ -23,7 +22,6 @@ from mlrun.common.schemas.model_monitoring.constants import (
 )
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationBaseV2,
     ModelMonitoringApplicationResult,
 )
 
@@ -34,50 +32,6 @@ EXPECTED_EVENTS_COUNT = (
 
 class DemoMonitoringApp(ModelMonitoringApplicationBase):
     NAME = "monitoring-test"
-    check_num_events = True
-
-    # noinspection PyMethodOverriding
-    def __init_subclass__(cls, **kwargs) -> None:
-        super().__init_subclass__()
-        assert (list(kwargs.keys())) == [
-            "check_num_events"
-        ], f"kwargs fields = {list(kwargs.keys())}"  # ml-6071
-        cls.check_num_events = kwargs["check_num_events"]
-
-    def do_tracking(
-        self,
-        application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
-        sample_df: pd.DataFrame,
-        start_infer_time: pd.Timestamp,
-        end_infer_time: pd.Timestamp,
-        latest_request: pd.Timestamp,
-        endpoint_id: str,
-        output_stream_uri: str,
-    ) -> list[ModelMonitoringApplicationResult]:
-        self.context.logger.info("Running demo app")
-        if self.check_num_events:
-            assert len(sample_df) == EXPECTED_EVENTS_COUNT
-        self.context.logger.info("Asserted sample_df length")
-        return [
-            ModelMonitoringApplicationResult(
-                name="data_drift_test",
-                value=2.15,
-                kind=ResultKindApp.data_drift,
-                status=ResultStatusApp.detected,
-            ),
-            ModelMonitoringApplicationResult(
-                name="model_perf",
-                value=80,
-                kind=ResultKindApp.model_performance,
-                status=ResultStatusApp.no_detection,
-            ),
-        ]
-
-
-class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
-    NAME = "monitoring-test-v2"
     check_num_events = True
 
     # noinspection PyMethodOverriding
@@ -115,10 +69,12 @@ class DemoMonitoringAppV2(ModelMonitoringApplicationBaseV2):
 
 
 class NoCheckDemoMonitoringApp(DemoMonitoringApp, check_num_events=False):
+    """Run DemoMonitoringApp without checking the number of events in the sample_df"""
+
     pass
 
 
-class ErrApp(ModelMonitoringApplicationBaseV2):
+class ErrApp(ModelMonitoringApplicationBase):
     NAME = "err-app"
 
     def do_tracking(

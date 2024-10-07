@@ -211,7 +211,7 @@ class TDEngineSchema:
                 if filter_query:
                     query.write(f"{filter_query} AND ")
                 if start:
-                    query.write(f"{timestamp_column} >= '{start}'" + " AND ")
+                    query.write(f"{timestamp_column} >= '{start}' AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             if interval:

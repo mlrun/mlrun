@@ -3,6 +3,11 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
+```{admonition} Note
+Alets are in Tech Preview state and disabled by default.
+To enable, add an environment variable to the override-env configmap: `MLRUN_ALERTS__MODE: "enabled"`.
+```
+
 **In this section**
 - [System configuration](#system-configuration)
 - [SDK](#sdk)
@@ -34,16 +39,16 @@ The SDK supports these alert operations:
 
 ## Predefined events (`EventKind`)
 The predefined event types are:
-- `data_drift_detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
-- `data_drift_suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
-- `concept_drift_detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- `concept_drift_suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- `model_performance_detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
-- `model_performance_suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
-- `model_serving_performance_detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- `model_serving_performance_suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- `mm_app_anomaly_detected` &mdash; An alert based on user-defined metrics/results.
-- `mm_app_anomaly_suspected` &mdash; An alert based on user-defined metrics/results.
+- `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
+- `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- `concept-drift-detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
+- `model-performance-suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
+- `model-serving-performance-detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `model-serving-performance-suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
+- `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
 - `failed` &mdash; The job failed.
 
 See {ref}`model-monitoring-overview` for more details on drift and performance.

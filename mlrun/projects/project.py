@@ -708,7 +708,7 @@ def _load_project_from_db(url, secrets, user_project=False):
 
 def _delete_project_from_db(project_name, secrets, deletion_strategy):
     db = mlrun.db.get_run_db(secrets=secrets)
-    return db.delete_project(project_name, deletion_strategy=deletion_strategy)
+    db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
 def _load_project_file(url, name="", secrets=None, allow_cross_project=None):
@@ -1552,7 +1552,7 @@ class MlrunProject(ModelObj):
             url = path.normpath(path.join(self.spec.get_code_path(), url))
 
         if (not in_context or check_path_in_context) and not path.isfile(url):
-            raise mlrun.errors.MLRunNotFoundError(f"{url} not found")
+            raise FileNotFoundError(f"{url} not found")
 
         return url, in_context
 
@@ -1950,7 +1950,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2018,7 +2017,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
         ] = None,
         name: str = None,
         image: str = None,
@@ -2076,7 +2074,6 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
-            mm_app.ModelMonitoringApplicationBaseV2,
             None,
         ] = None,
         name: typing.Optional[str] = None,
@@ -2165,7 +2162,8 @@ class MlrunProject(ModelObj):
 
         :param default_controller_image:          Deprecated.
         :param base_period:                       The time period in minutes in which the model monitoring controller
-                                                  function is triggered. By default, the base period is 10 minutes.
+                                                  function is triggered. By default, the base period is 10 minutes
+                                                  (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
                                                   functions. By default, the image is mlrun/mlrun.
@@ -2184,6 +2182,12 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
             image = default_controller_image
+        if base_period < 10:
+            logger.warn(
+                "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
+                project=self.name,
+            )
+
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -2900,6 +2904,16 @@ class MlrunProject(ModelObj):
                         continue
 
                     raise mlrun.errors.MLRunMissingDependencyError(message) from exc
+
+                except Exception as exc:
+                    if silent:
+                        logger.warn(
+                            "Failed to instantiate function",
+                            name=name,
+                            error=mlrun.utils.err_to_str(exc),
+                        )
+                        continue
+                    raise exc
             else:
                 message = f"Function {name} must be an object or dict."
                 if silent:

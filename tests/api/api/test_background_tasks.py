@@ -311,7 +311,7 @@ def test_get_internal_background_task_auth(
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
         server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
-        == 1
+        == 0
     )
 
     # Create another task without a project should skip authz
@@ -322,7 +322,7 @@ def test_get_internal_background_task_auth(
     assert response.status_code == http.HTTPStatus.OK.value
     assert (
         server.api.utils.auth.verifier.AuthVerifier().query_project_permissions.call_count
-        == 1
+        == 0
     )
 
 

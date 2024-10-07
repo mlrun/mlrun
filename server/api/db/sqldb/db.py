@@ -27,7 +27,7 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
+from sqlalchemy import MetaData, and_, case, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
@@ -41,6 +41,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
+import server.api.crud
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
@@ -341,17 +342,22 @@ class SQLDB(DBInterface):
         uid: str,
         project: str = None,
         iter: int = 0,
+        with_notifications: bool=False,
         populate_existing: bool = False,
     ):
         project = project or config.default_project
         run = self._get_run(
-            session, uid, project, iter, populate_existing=populate_existing
+            session, uid, project, iter, with_notifications=with_notifications, populate_existing=populate_existing
         )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run uid {uid} of project {project} not found"
             )
-        return run.struct
+
+        run_struct = run.struct
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        return run_struct
 
     def list_runs(
         self,
@@ -434,22 +440,25 @@ class SQLDB(DBInterface):
         for run in query:
             run_struct = run.struct
             if with_notifications:
-                run_struct.setdefault("spec", {}).setdefault("notifications", [])
-                run_struct.setdefault("status", {}).setdefault("notifications", {})
-                for notification in run.notifications:
-                    (
-                        notification_spec,
-                        notification_status,
-                    ) = self._transform_notification_record_to_spec_and_status(
-                        notification
-                    )
-                    run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][notification.name] = (
-                        notification_status
-                    )
+                self._fill_run_struct_with_notifications(run.notifications, run_struct)
             runs.append(run_struct)
 
         return runs
+
+    def _fill_run_struct_with_notifications(self, notifications, run_struct):
+        if not notifications:
+            return
+        run_struct.setdefault("spec", {})["notifications"] = []
+        run_struct.setdefault("status", {})["notifications"] = {}
+        for notification in notifications:
+            (
+                notification_spec,
+                notification_status,
+            ) = self._transform_notification_record_to_spec_and_status(notification)
+            run_struct["spec"]["notifications"].append(notification_spec)
+            run_struct["status"]["notifications"][notification.name] = (
+                notification_status
+            )
 
     def del_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
@@ -2866,7 +2875,42 @@ class SQLDB(DBInterface):
         next_day = datetime.now(timezone.utc) + timedelta(hours=24)
 
         schedules_pending_count_per_project = (
-            session.query(Schedule.project, Schedule.name, Schedule.Label)
+            session.query(
+                Schedule.project,
+                Schedule.name,
+                # The logic here is the following:
+                # If the schedule has a label with the name "workflow" then we take the value of that label
+                # name. Otherwise, we take the value of the label with the name "kind".
+                # The reason for that is that for schedule workflow we have both workflow label and kind label
+                # with job, and on schedule job we have only kind label with job and because of that we first
+                # want to check for workflow label and if it doesn't exist then we take the kind label.
+                func.coalesce(
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.workflow,
+                                    Schedule.Label.name,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.kind,
+                                    Schedule.Label.value,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                ).label("preferred_label_value"),
+            )
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
@@ -2878,6 +2922,7 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
+            .group_by(Schedule.project, Schedule.name)
             .all()
         )
 
@@ -2885,13 +2930,11 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if (
-                result[2].to_dict()["name"]
-                == mlrun_constants.MLRunInternalLabels.workflow
-            ):
-                project_to_schedule_pending_workflows_count[result[0]] += 1
-            elif result[2].to_dict()["value"] == "job":
-                project_to_schedule_pending_jobs_count[result[0]] += 1
+            project_name, schedule_name, kind = result
+            if kind == mlrun_constants.MLRunInternalLabels.workflow:
+                project_to_schedule_pending_workflows_count[project_name] += 1
+            elif kind == mlrun.common.schemas.ScheduleKinds.job:
+                project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (
             project_to_schedule_count,
@@ -4496,9 +4539,12 @@ class SQLDB(DBInterface):
         project,
         iteration,
         with_for_update=False,
+        with_notifications=False,
         populate_existing=False,
     ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
+        if with_notifications:
+            query = query.outerjoin(Run.Notification)
         if with_for_update:
             query = query.populate_existing().with_for_update()
         elif populate_existing:

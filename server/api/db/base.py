@@ -91,6 +91,7 @@ class DBInterface(ABC):
         uid: str,
         project: str = None,
         iter: int = 0,
+        with_notifications: bool =False,
         populate_existing: bool = False,
     ):
         pass

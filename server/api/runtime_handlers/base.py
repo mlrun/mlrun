@@ -1727,7 +1727,9 @@ class BaseRuntimeHandler(ABC):
             run = {}
         if not run and search_run:
             try:
-                run = db.read_run(db_session, uid, project)
+                # Session may be stale at this point since runs are being created in the background
+                # populate_existing ensures we get an up-to-date version of the run
+                run = db.read_run(db_session, uid, project, populate_existing=True)
             except mlrun.errors.MLRunNotFoundError:
                 run = {}
         if not run:

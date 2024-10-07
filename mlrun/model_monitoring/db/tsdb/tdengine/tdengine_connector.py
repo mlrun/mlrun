@@ -453,7 +453,8 @@ class TDEngineConnector(TSDBConnector):
             table=mm_schemas.TDEngineSuperTables.METRICS,
             start=start,
             end=end,
-            columns=[mm_schemas.WriterEvent.APPLICATION_NAME, mm_schemas.MetricData.METRIC_NAME, mm_schemas.SchedulingKeys.ENDPOINT_ID],# TODO: Roy decide if we want to create new constant
+            columns=[mm_schemas.MetricMetadata.APPLICATION_NAME, mm_schemas.MetricMetadata.METRIC_NAME,
+                     mm_schemas.MetricMetadata.ENDPOINT_ID],
             filter_query=f"endpoint_id='{endpoint_id}'",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             agg_funcs=["last"],
@@ -468,7 +469,17 @@ class TDEngineConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        pass
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.ResultMetadata.APPLICATION_NAME, mm_schemas.ResultMetadata.RESULT_NAME
+                ,mm_schemas.ResultMetadata.RESULT_KIND, mm_schemas.ResultMetadata.ENDPOINT_ID],
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            agg_funcs=["last"],
+            )
+        return df
 
     def get_error_count(
         self,

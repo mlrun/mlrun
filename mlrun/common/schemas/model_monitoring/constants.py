@@ -127,6 +127,11 @@ class MetricData(MonitoringStrEnum):
     METRIC_NAME = "metric_name"
     METRIC_VALUE = "metric_value"
 
+class MetricMetadata(MonitoringStrEnum):
+    METRIC_NAME = "metric_name"
+    APPLICATION_NAME = "application_name"
+    ENDPOINT_ID = "endpoint_id"
+
 
 class ResultData(MonitoringStrEnum):
     RESULT_NAME = "result_name"
@@ -135,6 +140,12 @@ class ResultData(MonitoringStrEnum):
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
     CURRENT_STATS = "current_stats"
+
+class ResultMetadata(MonitoringStrEnum):
+    APPLICATION_NAME = "application_name"
+    RESULT_NAME = "result_name"
+    RESULT_KIND = "result_kind"
+    ENDPOINT_ID = "endpoint_id"
 
 
 class EventLiveStats:

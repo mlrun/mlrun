@@ -505,7 +505,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels=self._resolve_secret_labels(username),
-            retry_on_conflict=True,
         )
         return secret_name, action
 
@@ -546,10 +545,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def store_secrets(
         self,
-        secret_name,
-        secrets,
-        namespace="",
-        type_=SecretTypes.opaque,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+        type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """

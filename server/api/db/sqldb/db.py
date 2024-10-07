@@ -342,12 +342,17 @@ class SQLDB(DBInterface):
         uid: str,
         project: str = None,
         iter: int = 0,
-        with_notifications: bool=False,
+        with_notifications: bool = False,
         populate_existing: bool = False,
     ):
         project = project or config.default_project
         run = self._get_run(
-            session, uid, project, iter, with_notifications=with_notifications, populate_existing=populate_existing
+            session,
+            uid,
+            project,
+            iter,
+            with_notifications=with_notifications,
+            populate_existing=populate_existing,
         )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(

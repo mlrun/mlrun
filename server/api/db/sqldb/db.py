@@ -335,9 +335,18 @@ class SQLDB(DBInterface):
         )
         session.commit()
 
-    def read_run(self, session, uid, project=None, iter=0):
+    def read_run(
+        self,
+        session: Session,
+        uid: str,
+        project: str = None,
+        iter: int = 0,
+        populate_existing: bool = False,
+    ):
         project = project or config.default_project
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(
+            session, uid, project, iter, populate_existing=populate_existing
+        )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run uid {uid} of project {project} not found"
@@ -4480,10 +4489,20 @@ class SQLDB(DBInterface):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
-    def _get_run(self, session, uid, project, iteration, with_for_update=False):
+    def _get_run(
+        self,
+        session,
+        uid,
+        project,
+        iteration,
+        with_for_update=False,
+        populate_existing=False,
+    ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
         if with_for_update:
             query = query.populate_existing().with_for_update()
+        elif populate_existing:
+            query = query.populate_existing()
 
         return query.one_or_none()
 

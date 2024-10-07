@@ -20,6 +20,7 @@ import typing
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+from kubernetes.dynamic.exceptions import ConflictError, NotFoundError
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -443,9 +444,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self, project, secrets, namespace=""
     ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         secret_name = self.get_project_secret_name(project)
-        action = self.store_secrets(
-            secret_name, secrets, namespace, retry_on_conflict=True
-        )
+        action = self.store_secrets(secret_name, secrets, namespace)
         return secret_name, action
 
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
@@ -506,19 +505,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels=self._resolve_secret_labels(username),
-            retry_on_conflict=True,
         )
         return secret_name, action
 
     @raise_for_status_code
     def store_secrets(
         self,
-        secret_name,
-        secrets,
-        namespace="",
-        type_=SecretTypes.opaque,
+        secret_name: str,
+        secrets: dict[str, str],
+        namespace: str = "",
+        type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
-        retry_on_conflict: bool = False,
+        retry_on_conflict_count: int = 5,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
         Store secrets in a kubernetes secret object
@@ -527,7 +525,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param namespace:   k8s namespace
         :param type_:       k8s secret type
         :param labels:      k8s labels for the secret
-        :param retry_on_conflict:   if True, will retry to create the secret for race conditions
+        :param retry_on_conflict_count:   The amount of times to retry creation of the secret if there is a conflict
         :return: returns the action if the secret was created or updated, None if nothing changed
         """
         if not secrets:
@@ -535,50 +533,59 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             return
 
         namespace = self.resolve_namespace(namespace)
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except ApiException as exc:
-            # If secret doesn't exist, we'll simply create it
-            if exc.status != 404:
+        for attempt_number in range(retry_on_conflict_count + 1):
+            try:
+                k8s_secret = self.v1api.read_namespaced_secret(
+                    name=secret_name,
+                    namespace=namespace,
+                )
+            except NotFoundError:  # If secret doesn't exist, we'll simply create it
+                k8s_secret = client.V1Secret(
+                    type=type_,
+                    metadata=client.V1ObjectMeta(
+                        name=secret_name,
+                        namespace=namespace,
+                        labels=labels,
+                    ),
+                    string_data=secrets,
+                )
+                try:
+                    self.v1api.create_namespaced_secret(
+                        namespace=namespace,
+                        body=k8s_secret,
+                    )
+                except (
+                    ConflictError
+                ) as exc:  # There was a conflict while we tried to create the secret.
+                    logger.warning(
+                        "Secret was created while we tried to create it, retrying...",
+                        secret_name=k8s_secret.metadata.name,
+                        exc=mlrun.errors.err_to_str(exc),
+                        attempt=attempt_number + 1,
+                        max_attempts=retry_on_conflict_count + 1,
+                    )
+                    if attempt_number == retry_on_conflict_count:
+                        # Raise exception after all retries are exhausted
+                        raise exc
+                    else:
+                        continue
+                return mlrun.common.schemas.SecretEventActions.created
+            except ApiException as exc:
                 logger.error(
                     "Failed to retrieve k8s secret",
                     secret_name=secret_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
-            k8s_secret = client.V1Secret(type=type_)
-            k8s_secret.metadata = client.V1ObjectMeta(
-                name=secret_name, namespace=namespace, labels=labels
-            )
-            k8s_secret.string_data = secrets
-            try:
-                self.v1api.create_namespaced_secret(namespace, k8s_secret)
-                return mlrun.common.schemas.SecretEventActions.created
-            except ApiException as exc:
-                if exc.status == 409 and retry_on_conflict:
-                    logger.warning(
-                        "Secret was created while we tried to create it, retrying...",
-                        secret_name=secret_name,
-                        exc=mlrun.errors.err_to_str(exc),
-                    )
-                    return self.store_secrets(
-                        secret_name,
-                        secrets,
-                        namespace,
-                        type_,
-                        labels,
-                        retry_on_conflict=False,
-                    )
-                raise exc
+            else:  # Secret exists and we are updating it.
+                secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
 
-        secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
+                for key, value in secrets.items():
+                    secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
 
-        for key, value in secrets.items():
-            secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
-
-        k8s_secret.data = secret_data
-        self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
-        return mlrun.common.schemas.SecretEventActions.updated
+                k8s_secret.data = secret_data
+                self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+                return mlrun.common.schemas.SecretEventActions.updated
 
     def load_secret(self, secret_name, namespace=""):
         namespace = namespace or self.resolve_namespace(namespace)

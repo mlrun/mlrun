@@ -3790,7 +3790,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -3855,7 +3855,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -3908,7 +3908,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -3938,7 +3938,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         tag: Optional[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> Optional[list]:
         """
         Retrieve a list of all the model monitoring functions.
@@ -3971,7 +3971,7 @@ class MlrunProject(ModelObj):
         self,
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility

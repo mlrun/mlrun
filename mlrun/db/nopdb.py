@@ -104,7 +104,7 @@ class NopDB(RunDBInterface):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -134,7 +134,7 @@ class NopDB(RunDBInterface):
         self,
         name: str = "",
         project: str = "",
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
         days_ago=0,
     ):
@@ -162,7 +162,7 @@ class NopDB(RunDBInterface):
         name="",
         project="",
         tag="",
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -195,7 +195,7 @@ class NopDB(RunDBInterface):
         name="",
         project="",
         tag="",
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ):
         pass
 
@@ -213,7 +213,7 @@ class NopDB(RunDBInterface):
         name=None,
         project="",
         tag="",
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
     ):
@@ -270,7 +270,7 @@ class NopDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
@@ -304,7 +304,7 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
@@ -314,7 +314,7 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
@@ -323,7 +323,7 @@ class NopDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
@@ -332,7 +332,7 @@ class NopDB(RunDBInterface):
         project: str,
         name: str = None,
         tag: str = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
@@ -344,7 +344,7 @@ class NopDB(RunDBInterface):
         state: str = None,
         entities: list[str] = None,
         features: list[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -405,7 +405,7 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -537,7 +537,7 @@ class NopDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: Optional[Union[dict[str, Optional[str]], list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,

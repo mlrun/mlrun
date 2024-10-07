@@ -85,6 +85,7 @@ class TDEngineConnector(TSDBConnector):
             mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
                 self.database
             ),
+            # TODO: Roy should tables should be added here and steps only use existing tables?
         }
 
     def create_tables(self):
@@ -448,7 +449,18 @@ class TDEngineConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        pass
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.METRICS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.WriterEvent.APPLICATION_NAME, mm_schemas.MetricData.METRIC_NAME, mm_schemas.SchedulingKeys.ENDPOINT_ID],# TODO: Roy decide if we want to create new constant
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            agg_funcs=["last"],
+        )
+        # TODO: Roy do we need indices? do we need to check the input?
+        return df
+
 
     def get_results_metadata(
         self,

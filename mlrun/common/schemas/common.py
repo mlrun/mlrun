@@ -47,27 +47,33 @@ class ImageBuilder(pydantic.BaseModel):
 
 class LabelsModel(pydantic.BaseModel):
     """
-    A model for handling labels.
-
-    This class accepts either a dictionary or a list for filtering by labels.
+    This class accepts either a dictionary, a list, or a string for filtering by labels.
 
     :param labels:
-            - If a dictionary is provided, it should be in the format
-              {'label_name': 'value'}. This will be converted to a list of strings
-              in the format 'label_name=value'.
-            - If a list is provided, all items must be strings. Each string can either
-              be a simple label name (e.g., 'label1') or a key-value pair in the format
-              'label=value'.
-            - If no labels are specified, the default is an empty list.
+        - If a dictionary is provided, it should be in the format
+          {'label_name': 'value'}. This will be converted to a list of strings
+          in the format 'label_name=value'.
+        - If a list is provided, all items must be strings. Each string can either
+          be a simple label name (e.g., 'label1') or a key-value pair in the format
+          'label=value'.
+        - If a string is provided, it should be a comma-separated list of labels
+          (e.g., 'label1,label2').
+        - If no labels are specified, the default is an empty list.
     """
 
-    labels: typing.Optional[typing.Union[dict[str, typing.Optional[str]], list[str]]]
+    labels: typing.Optional[
+        typing.Union[str, dict[str, typing.Optional[str]], list[str]]
+    ]
 
     @pydantic.validator("labels")
     @classmethod
     def validate(cls, labels) -> list[str]:
         if labels is None:
             return []
+
+        # If labels is a string, split it by commas
+        if isinstance(labels, str):
+            return [label.strip() for label in labels.split(",") if label.strip()]
 
         if isinstance(labels, list):
             if not all(isinstance(item, str) for item in labels):
@@ -83,5 +89,5 @@ class LabelsModel(pydantic.BaseModel):
             ]
 
         raise mlrun.errors.MLRunValueError(
-            "Invalid labels format. Must be a dictionary of strings or a list of strings."
+            "Invalid labels format. Must be a string, dictionary of strings, or a list of strings."
         )

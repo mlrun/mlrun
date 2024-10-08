@@ -24,6 +24,7 @@ import kfp
 import kfp_server_api.models
 import pytest
 import sqlalchemy.orm
+from httpx import BasicAuth
 from mlrun_pipelines.models import PipelineRun
 
 import mlrun.common.formatters
@@ -31,6 +32,7 @@ import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
 import tests.conftest
+from mlrun.api.schemas import AuthInfo
 
 
 def test_list_pipelines_not_exploding_on_no_k8s(
@@ -280,10 +282,15 @@ def test_list_pipelines_specific_project(
     importlib.reload(server.api.crud)
 
 
+def mock_authenticate_request():
+    return AuthInfo(username="test_user", token="mock_token")
+
+
 def test_create_pipeline(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     project = "getting-started-tutorial-iguazio"
     pipeline_file_path = (
@@ -296,13 +303,18 @@ def test_create_pipeline(
     with open(str(pipeline_file_path)) as file:
         contents = file.read()
     _mock_pipelines_creation(kfp_client_mock)
+
     response = client.post(
         f"projects/{project}/pipelines",
         data=contents,
         headers={"content-type": "application/yaml"},
+        auth=BasicAuth(username="admin", password="mock_token"),
     )
     response_body = response.json()
     assert response_body["id"] == "some-run-id"
+    assert k8s_secrets_mock.auth_secrets_map[
+        "secret-ref-V3IO_ACCESS_KEY-some-session"
+    ] == {"accessKey": "some-session", "username": "V3IO_ACCESS_KEY"}
 
 
 def _generate_get_run_mock() -> kfp_server_api.models.api_run_detail.ApiRunDetail:

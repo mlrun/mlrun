@@ -810,11 +810,11 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the runs belongs to.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
@@ -931,11 +931,11 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project to which the runs belong.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param state: Filter only runs which are in this state.
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
@@ -1119,11 +1119,11 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -1183,11 +1183,11 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Choose artifacts who are assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param days_ago: This parameter is deprecated and not used.
         :param tree: Delete artifacts that are contained within this tree.
         """
@@ -1305,11 +1305,11 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
@@ -2147,11 +2147,11 @@ class HTTPRunDB(RunDBInterface):
         :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
         :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: A list of mapping from feature to a digest of the feature-set, which contains the feature-set
             meta-data. Multiple entries may be returned for any specific feature due to multiple tags or versions
             of the feature-set.
@@ -2191,11 +2191,11 @@ class HTTPRunDB(RunDBInterface):
         :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
         :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: A list of features, and a list of their corresponding feature sets.
         """
 
@@ -2230,11 +2230,11 @@ class HTTPRunDB(RunDBInterface):
         :param tag: The tag of the specific entity version to retrieve.
         :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: A list of entities.
         """
 
@@ -2268,11 +2268,11 @@ class HTTPRunDB(RunDBInterface):
         :param tag: The tag of the specific entity version to retrieve.
         :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: A list of entities.
         """
 
@@ -2340,11 +2340,11 @@ class HTTPRunDB(RunDBInterface):
         :param features: Match feature-sets which contain features whose name is in this list.
         :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2567,11 +2567,11 @@ class HTTPRunDB(RunDBInterface):
         :param state: Match feature-vectors with a specific state.
         :param labels: Filter feature-vectors by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2818,11 +2818,11 @@ class HTTPRunDB(RunDBInterface):
 
         :param labels: Filter projects by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
         labels = self._parse_labels(labels)
@@ -3347,11 +3347,11 @@ class HTTPRunDB(RunDBInterface):
         :param function: The name of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
                       Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where

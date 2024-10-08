@@ -3818,11 +3818,11 @@ class MlrunProject(ModelObj):
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3876,11 +3876,11 @@ class MlrunProject(ModelObj):
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter model artifacts by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3921,11 +3921,11 @@ class MlrunProject(ModelObj):
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: List of function objects.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -3950,11 +3950,11 @@ class MlrunProject(ModelObj):
         :param tag:     Return function versions with specific tags.
         :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :returns: List of function objects.
         """
 
@@ -4008,11 +4008,11 @@ class MlrunProject(ModelObj):
         :param uid: Unique ID of the run.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-              or `{"label": None}` to check for key existence.
+            or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-              or just `"label"` for key existence.
+            or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-              the specified key-value pairs or key existence.
+            the specified key-value pairs or key existence.
         :param state: Deprecated - List only runs whose state is specified.
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be

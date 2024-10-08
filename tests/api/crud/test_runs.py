@@ -84,6 +84,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 ],
             ),
             unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+            unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
             ) as delete_logs_mock,
         ):
@@ -131,6 +135,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                 return_value=k8s_client.V1PodList(
                     items=[], metadata=k8s_client.V1ListMeta()
                 ),
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
@@ -182,6 +190,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
                     Exception("Boom!"),
                     k8s_client.V1PodList(items=[], metadata=k8s_client.V1ListMeta()),
                 ],
+            ),
+            unittest.mock.patch.object(
+                server.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
             ),
             unittest.mock.patch.object(
                 server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"

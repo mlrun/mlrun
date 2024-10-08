@@ -35,6 +35,7 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
+import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.common.runtimes.constants import PodPhases, RunStates, ThresholdStates
@@ -42,6 +43,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.utils import logger, now_date
+from server.api.constants import LogSources
 from server.api.db.base import DBInterface
 
 
@@ -242,7 +244,7 @@ class BaseRuntimeHandler(ABC):
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
-        if label_selector and default_label_selector not in label_selector:
+        if label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
         else:
             label_selector = default_label_selector
@@ -1204,6 +1206,7 @@ class BaseRuntimeHandler(ABC):
             run_state,
             runtime_resource=runtime_resource,
         )
+        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1358,6 +1361,9 @@ class BaseRuntimeHandler(ABC):
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
+
+        if updated_run_state in RunStates.terminal_states():
+            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1630,6 +1636,23 @@ class BaseRuntimeHandler(ABC):
             f"{mlrun_constants.MLRunInternalLabels.project}={project},"
             f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
         )
+
+    @staticmethod
+    def _ensure_run_logs_collected(
+        db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
+    ):
+        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
+        if not log_file_exists:
+            # this stays for now for backwards compatibility in case we would not use the log collector but rather
+            # the legacy method to pull logs
+            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
+                db_session, project, uid, source=LogSources.K8S, run=run
+            )
+            if logs_from_k8s:
+                logger.info("Storing run logs", project=project, uid=uid)
+                server.api.crud.Logs().store_log(
+                    logs_from_k8s, project, uid, append=False
+                )
 
     def _ensure_run_state(
         self,

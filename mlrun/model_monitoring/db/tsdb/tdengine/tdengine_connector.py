@@ -268,7 +268,8 @@ class TDEngineConnector(TSDBConnector):
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: str = None
+        group_by: str = None,
+        preform_agg_func_columns: typing.Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -313,6 +314,7 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=timestamp_column,
             database=self.database,
             group_by=group_by,
+            preform_agg_func_columns=preform_agg_func_columns
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:

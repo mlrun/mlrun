@@ -173,8 +173,10 @@ class TDEngineSchema:
         sliding_window_step: Optional[str] = None,
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
-        group_by: str = None
+        group_by: str = None,
+        preform_agg_func_columns: list[str] = None,
     ) -> str:
+        # TODO: roy add input saying what columns to preform the agg_func
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`columns_to_filter` must be provided when using aggregate functions"
@@ -198,7 +200,7 @@ class TDEngineSchema:
             if agg_funcs:
                 query.write(
                     ", ".join(
-                        [f"{a}({col})" for a in agg_funcs for col in columns_to_filter]
+                        [f"{a}({col})" if col in preform_agg_func_columns else {col} for a in agg_funcs for col in columns_to_filter]
                     )
                 )
             elif columns_to_filter:

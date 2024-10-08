@@ -103,7 +103,6 @@ class TDEngineConnector(TSDBConnector):
             mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
                 self.database
             ),
-            # TODO: Roy should tables should be added here and steps only use existing tables?
         }
 
     def create_tables(self):
@@ -268,8 +267,8 @@ class TDEngineConnector(TSDBConnector):
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
-        group_by: str = None,
-        preform_agg_func_columns: typing.Optional[list] = None,
+        group_by: typing.Optional[Union[list[str], str]] = None,
+        preform_agg_columns: typing.Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -289,6 +288,12 @@ class TDEngineConnector(TSDBConnector):
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
         :param timestamp_column:      The column name that holds the timestamp index.
+        :param group_by:              The column name to group by. Note that if `group_by` is provided, aggregation
+                                      functions must bg provided
+        :param preform_agg_columns:   The columns to preform aggregation on.
+                                      notice that all aggregation functions provided will preform on those columns.
+                                      If not provided The default behavior is to preform on all columns in columns,
+                                      if an empty list was provided The aggregation won't be performed.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.
@@ -314,7 +319,7 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=timestamp_column,
             database=self.database,
             group_by=group_by,
-            preform_agg_func_columns=preform_agg_func_columns
+            preform_agg_funcs_columns=preform_agg_columns
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
@@ -478,7 +483,29 @@ class TDEngineConnector(TSDBConnector):
         start: Union[datetime, str] = "now-24h",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        pass
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.ResultData.RESULT_STATUS, mm_schemas.SchedulingKeys.ENDPOINT_ID],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            agg_funcs=["max"],
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.ResultData.RESULT_STATUS]
+        )
+        if df.empty:
+            df.dropna(inplace=True)
+            df.rename(
+                columns={
+                    f"max({mm_schemas.ResultData.RESULT_STATUS})": mm_schemas.ResultData.RESULT_STATUS
+                },
+                inplace=True,
+            )
+        return df
 
     def get_metrics_metadata(
         self,
@@ -490,14 +517,23 @@ class TDEngineConnector(TSDBConnector):
             table=mm_schemas.TDEngineSuperTables.METRICS,
             start=start,
             end=end,
-            columns=[mm_schemas.MetricMetadata.APPLICATION_NAME, mm_schemas.MetricMetadata.METRIC_NAME,
-                     mm_schemas.MetricMetadata.ENDPOINT_ID],
+            columns=[mm_schemas.ApplicationEvent.APPLICATION_NAME, mm_schemas.MetricData.METRIC_NAME,
+                     mm_schemas.SchedulingKeys.ENDPOINT_ID],
             filter_query=f"endpoint_id='{endpoint_id}'",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[mm_schemas.WriterEvent.APPLICATION_NAME, mm_schemas.MetricData.METRIC_NAME],
             agg_funcs=["last"],
         )
         if not df.empty:
             df.dropna(inplace=True)
+            df.rename(
+                columns={
+                    f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                    f"last({mm_schemas.MetricData.METRIC_NAME})": mm_schemas.MetricData.METRIC_NAME,
+                    f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID
+                },
+                inplace=True,
+            )
         return df
 
 
@@ -511,14 +547,24 @@ class TDEngineConnector(TSDBConnector):
             table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
             start=start,
             end=end,
-            columns=[mm_schemas.ResultMetadata.APPLICATION_NAME, mm_schemas.ResultMetadata.RESULT_NAME
-                ,mm_schemas.ResultMetadata.RESULT_KIND, mm_schemas.ResultMetadata.ENDPOINT_ID],
+            columns=[mm_schemas.ApplicationEvent.APPLICATION_NAME, mm_schemas.ResultData.RESULT_NAME
+                ,mm_schemas.ResultData.RESULT_KIND, mm_schemas.SchedulingKeys.ENDPOINT_ID],
             filter_query=f"endpoint_id='{endpoint_id}'",
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[mm_schemas.WriterEvent.APPLICATION_NAME, mm_schemas.ResultData.RESULT_NAME],
             agg_funcs=["last"],
             )
         if not df.empty:
             df.dropna(inplace=True)
+            df.rename(
+                columns={
+                    f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                    f"last({mm_schemas.ResultData.RESULT_NAME})": mm_schemas.ResultData.RESULT_NAME,
+                    f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND,
+                    f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID
+                },
+                inplace=True,
+            )
         return df
 
     def get_error_count(
@@ -543,11 +589,19 @@ class TDEngineConnector(TSDBConnector):
             start=start,
             end=end,
             columns=[mm_schemas.EventFieldType.LATENCY, mm_schemas.SchedulingKeys.ENDPOINT_ID],
+            agg_funcs=["avg"],
             filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.EventFieldType.LATENCY]
         )
         if not df.empty:
             df.dropna(inplace=True)
-            df = df.groupby(mm_schemas.SchedulingKeys.ENDPOINT_ID).mean()
+            df.rename(
+                columns={
+                    f"avg({mm_schemas.EventFieldType.LATENCY})": "avg_latency"
+                },
+                inplace=True,
+            )
         return df
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.

@@ -173,10 +173,9 @@ class TDEngineSchema:
         sliding_window_step: Optional[str] = None,
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
-        group_by: str = None,
-        preform_agg_func_columns: list[str] = None,
+        group_by: Optional[Union[list[str], str]] = None,
+        preform_agg_funcs_columns: list[str] = None,
     ) -> str:
-        # TODO: roy add input saying what columns to preform the agg_func
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`columns_to_filter` must be provided when using aggregate functions"
@@ -192,24 +191,23 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "`interval` must be provided when using sliding window"
             )
+        if group_by and not agg_funcs:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "aggregate functions must be provided when using group by"
+            )
 
         with StringIO() as query:
             query.write("SELECT ")
             if interval:
                 query.write("_wstart, _wend, ")
             if agg_funcs:
-                if preform_agg_func_columns:
-                    query.write(
-                        ", ".join(
-                            [f"{a}({col})" if col in preform_agg_func_columns else f"{col}" for a in agg_funcs for col in columns_to_filter]
-                        )
+                preform_agg_funcs_columns = columns_to_filter if preform_agg_funcs_columns is None else preform_agg_funcs_columns
+                query.write(
+                    ", ".join(
+                        [f"{a}({col})" if col in preform_agg_funcs_columns else f"{col}" for a in agg_funcs for col
+                         in columns_to_filter]
                     )
-                else:
-                    query.write(
-                        ", ".join(
-                            [f"{a}({col})" for a in agg_funcs for col in columns_to_filter]
-                        )
-                    )
+                )
             elif columns_to_filter:
                 query.write(", ".join(columns_to_filter))
             else:
@@ -225,6 +223,8 @@ class TDEngineSchema:
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             if group_by:
+                if isinstance(group_by, list):
+                    group_by = ", ".join(group_by)
                 query.write(f" GROUP BY {group_by}")
             if interval:
                 query.write(f" INTERVAL({interval})")

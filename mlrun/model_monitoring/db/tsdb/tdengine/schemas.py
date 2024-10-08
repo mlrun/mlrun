@@ -173,6 +173,7 @@ class TDEngineSchema:
         sliding_window_step: Optional[str] = None,
         timestamp_column: str = "time",
         database: str = _MODEL_MONITORING_DATABASE,
+        group_by: str = None
     ) -> str:
         if agg_funcs and not columns_to_filter:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -214,6 +215,8 @@ class TDEngineSchema:
                     query.write(f"{timestamp_column} >= '{start}' AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
+            if group_by:
+                query.write(f"GROUP BY {group_by}")
             if interval:
                 query.write(f" INTERVAL({interval})")
             if sliding_window_step:

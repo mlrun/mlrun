@@ -237,6 +237,7 @@ class TDEngineConnector(TSDBConnector):
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
+        group_by: str = None
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -280,6 +281,7 @@ class TDEngineConnector(TSDBConnector):
             sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
+            group_by=group_by,
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
@@ -459,7 +461,8 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             agg_funcs=["last"],
         )
-        # TODO: Roy do we need indices? do we need to check the input?
+        if not df.empty:
+            df.dropna(inplace=True)
         return df
 
 
@@ -479,6 +482,8 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
             agg_funcs=["last"],
             )
+        if not df.empty:
+            df.dropna(inplace=True)
         return df
 
     def get_error_count(
@@ -495,7 +500,20 @@ class TDEngineConnector(TSDBConnector):
         start: Union[datetime, str] = "0",
         end: Union[datetime, str] = "now",
     ) -> pd.DataFrame:
-        pass
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=[mm_schemas.EventFieldType.LATENCY, mm_schemas.SchedulingKeys.ENDPOINT_ID],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+            df = df.groupby(mm_schemas.SchedulingKeys.ENDPOINT_ID).mean()
+        return df
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

@@ -127,7 +127,7 @@ class MetricData(MonitoringStrEnum):
     METRIC_NAME = "metric_name"
     METRIC_VALUE = "metric_value"
 
-class MetricMetadata(MonitoringStrEnum):
+class MetricMetadata(MonitoringStrEnum): # TODO: roy create a new tsdb schema
     METRIC_NAME = "metric_name"
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"

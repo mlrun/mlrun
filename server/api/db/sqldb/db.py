@@ -41,6 +41,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
+import server.api.crud
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
@@ -341,17 +342,27 @@ class SQLDB(DBInterface):
         uid: str,
         project: str = None,
         iter: int = 0,
+        with_notifications: bool = False,
         populate_existing: bool = False,
     ):
         project = project or config.default_project
         run = self._get_run(
-            session, uid, project, iter, populate_existing=populate_existing
+            session,
+            uid,
+            project,
+            iter,
+            with_notifications=with_notifications,
+            populate_existing=populate_existing,
         )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run uid {uid} of project {project} not found"
             )
-        return run.struct
+
+        run_struct = run.struct
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        return run_struct
 
     def list_runs(
         self,
@@ -434,22 +445,25 @@ class SQLDB(DBInterface):
         for run in query:
             run_struct = run.struct
             if with_notifications:
-                run_struct.setdefault("spec", {}).setdefault("notifications", [])
-                run_struct.setdefault("status", {}).setdefault("notifications", {})
-                for notification in run.notifications:
-                    (
-                        notification_spec,
-                        notification_status,
-                    ) = self._transform_notification_record_to_spec_and_status(
-                        notification
-                    )
-                    run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][notification.name] = (
-                        notification_status
-                    )
+                self._fill_run_struct_with_notifications(run.notifications, run_struct)
             runs.append(run_struct)
 
         return runs
+
+    def _fill_run_struct_with_notifications(self, notifications, run_struct):
+        if not notifications:
+            return
+        run_struct.setdefault("spec", {})["notifications"] = []
+        run_struct.setdefault("status", {})["notifications"] = {}
+        for notification in notifications:
+            (
+                notification_spec,
+                notification_status,
+            ) = self._transform_notification_record_to_spec_and_status(notification)
+            run_struct["spec"]["notifications"].append(notification_spec)
+            run_struct["status"]["notifications"][notification.name] = (
+                notification_status
+            )
 
     def del_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
@@ -4555,9 +4569,12 @@ class SQLDB(DBInterface):
         project,
         iteration,
         with_for_update=False,
+        with_notifications=False,
         populate_existing=False,
     ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
+        if with_notifications:
+            query = query.outerjoin(Run.Notification)
         if with_for_update:
             query = query.populate_existing().with_for_update()
         elif populate_existing:

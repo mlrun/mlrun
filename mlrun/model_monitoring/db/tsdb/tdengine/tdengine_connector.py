@@ -312,17 +312,23 @@ class TDEngineConnector(TSDBConnector):
             database=self.database,
         )
         logger.debug("Querying TDEngine", query=full_query)
+
+        def query(conn):
+            query_result = conn.query(full_query)
+            # query result is lazy, so we need to force it, so that retry can happen if necessary
+            return query_result.fields, list(query_result)
+
         try:
-            query_result = self.with_retry_on_closed_connection(
-                lambda conn: conn.query(full_query)
+            query_fields, query_result_data = self.with_retry_on_closed_connection(
+                query
             )
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
             )
 
-        df_columns = [field.name() for field in query_result.fields]
-        return pd.DataFrame(query_result, columns=df_columns)
+        df_columns = [field.name() for field in query_fields]
+        return pd.DataFrame(query_result_data, columns=df_columns)
 
     def read_metrics_data(
         self,

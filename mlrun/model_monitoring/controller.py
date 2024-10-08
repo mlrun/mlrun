@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 from collections.abc import Iterator
-from typing import Any, NamedTuple, NewType, Optional, cast
+from typing import NamedTuple, NewType, Optional, cast
 
 import nuclio
 from botocore.exceptions import ClientError as BotoClientError
@@ -25,7 +25,6 @@ from botocore.exceptions import ClientError as BotoClientError
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
-from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import DataItem, get_stream_pusher, store_manager
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (

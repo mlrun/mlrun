@@ -60,8 +60,8 @@ class TDEngineConnector(TSDBConnector):
     def with_retry_on_closed_connection(self, fn, **kwargs):
         try:
             return fn(self.connection, **kwargs)
-        except (taosws.QueryError, taosws.FetchError) as err:
-            logger.warn(f"TDEngine error: {err}")
+        except taosws.QueryError as err:
+            logger.warn(f"TDEngine query error: {err}")
             if "Internal error:" in str(err):
                 logger.info("Retrying TDEngine query with a new connection")
                 try:

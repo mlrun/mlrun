@@ -115,7 +115,6 @@ def test_requirement_specifiers_convention():
         "storey": {"~=1.7.27"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # protobuf is limited just for docs
         "sphinx-book-theme": {"~=1.0.1"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},

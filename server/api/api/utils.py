@@ -240,7 +240,9 @@ def mask_notification_params_on_task(
             ],
             action,
         )
-        task.setdefault("spec", {})["notifications"] = [notification.to_dict() for notification in notifications_objects]
+        task.setdefault("spec", {})["notifications"] = [
+            notification.to_dict() for notification in notifications_objects
+        ]
 
 
 def mask_notification_params_on_task_object(

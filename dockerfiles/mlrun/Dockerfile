@@ -44,7 +44,7 @@ RUN chmod 777 /mlrun
 
 # Install MiniConda:
 ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.11.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     /opt/conda/bin/conda update --all --use-local --yes && \
@@ -63,7 +63,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # Install Python:
-ARG MLRUN_PIP_VERSION=24.0
+ARG MLRUN_PIP_VERSION=24.2
 RUN conda config --add channels conda-forge && \
     conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

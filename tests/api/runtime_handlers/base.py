@@ -593,9 +593,19 @@ class TestRuntimeHandlerBase:
         uid: str,
         expected_state: str,
         expected_status_attrs: dict = None,
+        requested_logs: bool = None,
     ):
         expected_status_attrs = expected_status_attrs or {}
-        run = get_db().read_run(db, uid, project)
+
+        if requested_logs is not None:
+            runs = get_db().list_runs(
+                db, uid=uid, project=project, requested_logs=requested_logs
+            )
+            assert len(runs) == 1
+            run = runs[0]
+        else:
+            run = get_db().read_run(db, uid, project)
+
         assert run["status"]["state"] == expected_state
 
         for key, val in expected_status_attrs.items():

@@ -244,10 +244,10 @@ class BaseRuntimeHandler(ABC):
     ) -> str:
         default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
-        if label_selector:
-            label_selector = ",".join([default_label_selector, label_selector])
-        else:
+        if not label_selector:
             label_selector = default_label_selector
+        elif default_label_selector not in label_selector:
+            label_selector = ",".join([default_label_selector, label_selector])
 
         if project and project != "*":
             label_selector = ",".join(

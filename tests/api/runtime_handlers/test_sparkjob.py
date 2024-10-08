@@ -266,6 +266,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler,
             len(list_namespaced_pods_calls),
             self.pod_label_selector,
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running

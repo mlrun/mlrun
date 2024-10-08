@@ -361,7 +361,7 @@ class WorkflowRunners(
                 handler="mlrun.projects.load_and_run",
                 notifications=notifications,
             ),
-            metadata=RunMetadata(name=run_name),
+            metadata=RunMetadata(name=run_name, project=project.metadata.name),
         )
 
         if is_context:

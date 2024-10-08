@@ -216,7 +216,7 @@ class TDEngineSchema:
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             if group_by:
-                query.write(f"GROUP BY {group_by}")
+                query.write(f" GROUP BY {group_by}")
             if interval:
                 query.write(f" INTERVAL({interval})")
             if sliding_window_step:

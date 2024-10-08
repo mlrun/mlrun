@@ -194,6 +194,7 @@ jobs:
 
     - name: Run system tests
       timeout-minutes: 180
+      env: SYSTEM_TEST_KUBECONFIG ${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \

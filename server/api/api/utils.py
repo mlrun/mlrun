@@ -231,7 +231,7 @@ def mask_notification_params_on_task(
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
     if notifications:
-        task.setdefault("spec", {})["notifications"] = _mask_notifications_params(
+        notifications_objects = _mask_notifications_params(
             run_uid,
             project,
             [
@@ -240,6 +240,7 @@ def mask_notification_params_on_task(
             ],
             action,
         )
+        task.setdefault("spec", {})["notifications"] = [notification.to_dict() for notification in notifications_objects]
 
 
 def mask_notification_params_on_task_object(

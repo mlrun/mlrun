@@ -510,8 +510,6 @@ class SQLStoreBase(StoreBase):
                 endpoint_id=endpoint_id,
                 project=self.project,
             )
-            # Delete last analyzed records
-            self._delete_last_analyzed(endpoint_id=endpoint_id)
 
             # Delete application results and metrics records
             self._delete_application_result(endpoint_id=endpoint_id)

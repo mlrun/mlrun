@@ -16,7 +16,7 @@ import datetime
 import json
 import os
 from collections.abc import Iterator
-from typing import Any, NamedTuple, NewType, Optional, cast
+from typing import NamedTuple, NewType, Optional, cast
 
 import nuclio
 from botocore.exceptions import ClientError as BotoClientError

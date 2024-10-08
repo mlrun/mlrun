@@ -36,7 +36,6 @@ from .constants import (
     ResultData,
     ResultKindApp,
     ResultStatusApp,
-    SchedulingKeys,
     SpecialApps,
     TDEngineSuperTables,
     TSDBTarget,

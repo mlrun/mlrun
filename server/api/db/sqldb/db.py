@@ -336,10 +336,19 @@ class SQLDB(DBInterface):
         )
         session.commit()
 
-    def read_run(self, session, uid, project=None, iter=0, with_notifications=False):
+
+    def read_run(
+        self,
+        session: Session,
+        uid: str,
+        project: str = None,
+        iter: int = 0,
+        with_notifications=False
+        populate_existing: bool = False,
+    ):
         project = project or config.default_project
         run = self._get_run(
-            session, uid, project, iter, with_notifications=with_notifications
+            session, uid, project, iter, with_notifications=with_notifications, populate_existing=populate_existing
         )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
@@ -4557,12 +4566,15 @@ class SQLDB(DBInterface):
         iteration,
         with_for_update=False,
         with_notifications=False,
+        populate_existing=False,
     ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
         if with_notifications:
             query = query.outerjoin(Run.Notification)
         if with_for_update:
             query = query.populate_existing().with_for_update()
+        elif populate_existing:
+            query = query.populate_existing()
 
         return query.one_or_none()
 

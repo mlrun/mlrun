@@ -161,7 +161,13 @@ class _ApplicationErrorHandler(StepToDict):
         :param event: Application event.
         """
 
-        logger.error(f"Error in application step: {event}")
+        error_data = {
+            "Endpoint ID": event.body.endpoint_id,
+            "Application Class": event.body.application_name,
+            "Error": event.error,
+            "Timestamp": event.timestamp,
+        }
+        logger.error("Error in application step", **error_data)
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,
@@ -170,12 +176,7 @@ class _ApplicationErrorHandler(StepToDict):
                 project=self.project,
                 ids=[f"{self.project}_{event.body.application_name}"],
             ),
-            value_dict={
-                "Error": event.error,
-                "Timestamp": event.timestamp,
-                "Application Class": event.body.application_name,
-                "Endpoint ID": event.body.endpoint_id,
-            },
+            value_dict=error_data,
         )
 
         mlrun.get_run_db().generate_event(

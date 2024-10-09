@@ -89,6 +89,9 @@ class TDEngineConnection:
         overall_retries = retries
         while retries >= 0:
             q = mp.Queue()
+            print(
+                f"111 Starting process: mp.Process(target={self._run}, args=[{q}, {statements}, {query}])"
+            )
             process = mp.Process(target=self._run, args=[q, statements, query])
             try:
                 process.start()

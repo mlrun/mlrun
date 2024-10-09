@@ -1,5 +1,4 @@
 import multiprocessing
-import traceback
 from _queue import Empty
 
 import taosws

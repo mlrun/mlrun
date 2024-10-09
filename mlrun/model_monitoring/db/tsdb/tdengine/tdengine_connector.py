@@ -497,7 +497,7 @@ class TDEngineConnector(TSDBConnector):
             group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
             preform_agg_columns=[mm_schemas.ResultData.RESULT_STATUS]
         )
-        if df.empty:
+        if not df.empty:
             df.dropna(inplace=True)
             df.rename(
                 columns={

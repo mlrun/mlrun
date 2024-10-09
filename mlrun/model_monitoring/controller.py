@@ -29,6 +29,7 @@ from mlrun.datastore import DataItem, get_stream_pusher, store_manager
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
+    _get_monitoring_schedules_file_path,
     batch_dict2timedelta,
     get_stream_path,
 )
@@ -45,19 +46,6 @@ _Schedules = NewType("_Schedules", dict[str, int])
 class _Interval(NamedTuple):
     start: datetime.datetime
     end: datetime.datetime
-
-
-def _get_monitoring_schedules_file_path(*, project: str, endpoint: str) -> str:
-    return os.path.join(
-        cast(
-            str,
-            mlrun.mlconf.get_model_monitoring_file_target_path(
-                project=project,
-                kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES,
-            ),
-        ),
-        f"{endpoint}.json",
-    )
 
 
 class _BatchWindow:

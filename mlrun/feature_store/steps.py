@@ -32,7 +32,7 @@ def get_engine(first_event):
         first_event = first_event.body
     if isinstance(first_event, pd.DataFrame):
         return "pandas"
-    if hasattr(first_event, "rdd"):
+    if "rdd" in dir(first_event):
         return "spark"
     return "storey"
 

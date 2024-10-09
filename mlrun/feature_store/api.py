@@ -1063,7 +1063,11 @@ def _ingest_with_spark(
         elif isinstance(source, pyspark.sql.DataFrame):
             df = source
         else:
-            df = source.to_spark_df(spark, time_field=timestamp_key)
+            df = source.to_spark_df(
+                spark,
+                time_field=timestamp_key,
+                streaming=bool(featureset.spec.checkpoint_path),
+            )
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 
@@ -1071,6 +1075,26 @@ def _ingest_with_spark(
             raise mlrun.errors.err_for_status_code(
                 df.status_code, df.body.split(": ")[1]
             )
+
+        if df.isStreaming:
+
+            class MyBatchProcessor:
+                def __init__(self):
+                    self.df = None
+
+                def __call__(self, df, epoch_id):
+                    self.df = df
+
+            batch_processor = MyBatchProcessor()
+
+            query = (
+                df.writeStream.outputMode("update")
+                .trigger(once=True)
+                .foreachBatch(batch_processor)
+                .start()
+            )
+            query.awaitTermination()
+            df = batch_processor.df
 
         df.persist()
 

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import warnings
 from datetime import datetime
 from typing import Optional, Union
@@ -87,6 +88,7 @@ class FeatureSetSpec(ModelObj):
         engine=None,
         output_path=None,
         passthrough=None,
+        checkpoint_path=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -133,6 +135,7 @@ class FeatureSetSpec(ModelObj):
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
         self.passthrough = passthrough
+        self.checkpoint_path = checkpoint_path
         self.with_default_targets = True
 
     @property
@@ -331,6 +334,7 @@ class FeatureSet(ModelObj):
         label_column: str = None,
         relations: dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
+        checkpoint_path: str = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -361,6 +365,10 @@ class FeatureSet(ModelObj):
         self._api_client = None
         self._run_db = None
 
+        import tempfile
+
+        checkpoint_path = tempfile.TemporaryDirectory().name
+
         self.spec = FeatureSetSpec(
             description=description,
             entities=entities,
@@ -369,6 +377,7 @@ class FeatureSet(ModelObj):
             label_column=label_column,
             relations=relations,
             passthrough=passthrough,
+            checkpoint_path=checkpoint_path,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -827,6 +836,13 @@ class FeatureSet(ModelObj):
                 key_columns = []
                 if emit_policy:
                     class_args["emit_policy"] = emit_policy_to_dict(emit_policy)
+                if self.spec.checkpoint_path:
+                    checkpoint_path = (
+                        self.spec.checkpoint_path
+                        if self.spec.checkpoint_path.endswith("/")
+                        else self.spec.checkpoint_path + "/"
+                    )
+                    class_args["checkpoint_path"] = checkpoint_path + self.fullname
                 for entity in self.spec.entities:
                     key_columns.append(entity.name)
                 step = graph.add_step(
@@ -1213,11 +1229,13 @@ class SparkAggregateByKey(StepToDict):
         key_columns: list[str],
         time_column: str,
         aggregates: list[dict],
+        checkpoint_path: str = None,
         emit_policy: Union[EmitPolicy, dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
         self.aggregates = aggregates
+        self.checkpoint_path = checkpoint_path
         self.emit_policy_mode = None
         if emit_policy:
             if isinstance(emit_policy, EmitPolicy):
@@ -1276,8 +1294,11 @@ class SparkAggregateByKey(StepToDict):
             return func(column)
 
     def do(self, event):
+        import uuid
+
         import pyspark.sql.functions as funcs
         from pyspark.sql import Window
+        from pyspark.sql.functions import udf
 
         time_column = self.time_column or "time"
         input_df = event
@@ -1302,18 +1323,76 @@ class SparkAggregateByKey(StepToDict):
                 for window in windows:
                     spark_window = self._duration_to_spark_format(window)
                     aggs = last_value_aggs
+                    all_aggs_names = ""
                     for operation in operations:
                         agg = self._get_aggr(operation, column)
                         agg_name = f"{name if name else column}_{operation}_{window}"
                         agg = agg.alias(agg_name)
                         aggs.append(agg)
+                        all_aggs_names = all_aggs_names + agg_name
                     window_column = funcs.window(
                         time_column, spark_window, spark_period
                     )
-                    df = input_df.groupBy(
-                        *self.key_columns,
-                        window_column.end.alias(time_column),
-                    ).agg(*aggs)
+                    if input_df.isStreaming:
+
+                        class MyBatchProcessor:
+                            def __init__(self):
+                                self.df = None
+
+                            def __call__(self, df, epoch_id):
+                                self.df = df
+
+                        batch_processor = MyBatchProcessor()
+
+                        df = (
+                            input_df.withWatermark(time_column, spark_window)
+                            .groupBy(
+                                *self.key_columns,
+                                window_column.alias(time_column),
+                            )
+                            .agg(*aggs)
+                        )
+
+                        if self.checkpoint_path:
+                            checkpoint_path = (
+                                self.checkpoint_path
+                                if self.checkpoint_path.endswith("/")
+                                else self.checkpoint_path + "/"
+                            )
+                            local_dir = (
+                                time_column
+                                + spark_window
+                                + spark_period
+                                + all_aggs_names
+                            )
+                            local_dir = re.sub(r"[^a-zA-Z0-9]", "", local_dir)
+                            checkpoint_path = checkpoint_path + local_dir
+                            store, path, url = mlrun.store_manager.get_or_create_store(
+                                checkpoint_path
+                            )
+                            store.filesystem.makedirs(path, exist_ok=True)
+
+                            query = (
+                                df.writeStream.outputMode("update")
+                                .trigger(once=True)
+                                .foreachBatch(batch_processor)
+                                .option("checkpointLocation", checkpoint_path)
+                                .start()
+                            )
+                            query.awaitTermination()
+                            df = batch_processor.df.withColumn(
+                                time_column, funcs.col(f"{time_column}.end")
+                            )
+                        else:
+                            raise mlrun.errors.MLRunInvalidArgumentError(
+                                "checkpoint_path is required for streaming data"
+                            )
+                    else:
+                        df = input_df.groupBy(
+                            *self.key_columns,
+                            window_column.end.alias(time_column),
+                        ).agg(*aggs)
+
                     df = df.withColumn(f"{time_column}_window", funcs.lit(window))
                     dfs.append(df)
 
@@ -1328,7 +1407,11 @@ class SparkAggregateByKey(StepToDict):
             # We'll use this column to identify our original row and group-by across the various windows
             # (either sliding windows or multiple windows provided). See below comment for more details.
             rowid_col = "__mlrun_rowid"
-            df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
+            if input_df.isStreaming:
+                uuid_udf = udf(lambda: str(uuid.uuid4()))
+                df = input_df.withColumn(rowid_col, uuid_udf())
+            else:
+                df = input_df.withColumn(rowid_col, funcs.monotonically_increasing_id())
 
             drop_columns = [rowid_col]
             window_rank_cols = []

@@ -467,8 +467,12 @@ class TaskStep(BaseStep):
             try:
                 self._object = self._class_object(**extracted_class_args)
             except TypeError as exc:
+                import inspect
+
+                init_signature = inspect.signature(self._class_object.__init__)
                 raise TypeError(
-                    f"failed to init step {self.name}\n args={self.class_args}"
+                    f"failed to init step {self.class_name}::{self.name}\n args={self.class_args}\n,"
+                    f"extracted_class_args={extracted_class_args}\n init::{init_signature}\n"
                 ) from exc
 
             # determine the right class handler to use

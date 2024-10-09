@@ -69,10 +69,24 @@ class SparkFeatureMerger(BaseMerger):
                 :param featureset_timstamp:
         """
 
-        from pyspark.sql import Window
-        from pyspark.sql.functions import col, monotonically_increasing_id, row_number
+        import uuid
 
-        entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
+        from pyspark.sql import Window
+        from pyspark.sql.functions import (
+            col,
+            monotonically_increasing_id,
+            row_number,
+            udf,
+        )
+
+        if entity_df.isStreaming:
+            uuid_udf = udf(lambda: str(uuid.uuid4()))
+            entity_with_id = entity_df.withColumn("_row_nr", uuid_udf())
+        else:
+            entity_with_id = entity_df.withColumn(
+                "_row_nr", monotonically_increasing_id()
+            )
+
         rename_right_keys = {}
         for key in right_keys + [featureset_timstamp]:
             if key in entity_df.columns:
@@ -288,6 +302,6 @@ class SparkFeatureMerger(BaseMerger):
         )
 
     def _convert_entity_rows_to_engine_df(self, entity_rows):
-        if entity_rows is not None and not hasattr(entity_rows, "rdd"):
+        if entity_rows is not None and "rdd" not in dir(entity_rows):
             return self.spark.createDataFrame(entity_rows)
         return entity_rows

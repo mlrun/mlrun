@@ -30,7 +30,7 @@ class BaseDataInfer:
 
 
 def get_infer_interface(df) -> BaseDataInfer:
-    if hasattr(df, "rdd"):
+    if "rdd" in dir(df):
         from .spark import SparkDataInfer
 
         return SparkDataInfer

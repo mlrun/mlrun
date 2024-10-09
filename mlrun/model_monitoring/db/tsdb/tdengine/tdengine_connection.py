@@ -18,7 +18,6 @@ from _queue import Empty
 import taosws
 
 import mlrun.errors
-from mlrun.utils import logger
 
 
 class QueryResult:
@@ -103,7 +102,7 @@ class TDEngineConnection:
                     return result
                 except Empty:
                     query_msg_part = f" and query '{query}'" if query else ""
-                    logger.warn(
+                    print(
                         f"TDEngine statements {statements}{query_msg_part} timed out after {timeout} seconds. "
                         f"{retries} retries left."
                     )

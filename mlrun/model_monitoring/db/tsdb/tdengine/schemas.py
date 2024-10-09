@@ -109,14 +109,13 @@ class TDEngineSchema:
 
     def _insert_subtable_stmt(
         self,
-        connection: taosws.Connection,
+        statement,
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> taosws.TaosStmt:
-        stmt = connection.statement()
         question_marks = ", ".join("?" * len(self.columns))
-        stmt.prepare(f"INSERT INTO ? VALUES ({question_marks});")
-        stmt.set_tbname(subtable)
+        statement.prepare(f"INSERT INTO ? VALUES ({question_marks});")
+        statement.set_tbname(subtable)
 
         bind_params = []
 
@@ -124,8 +123,9 @@ class TDEngineSchema:
             val = values[col_name]
             bind_params.append(values_to_column([val], col_type))
 
-        stmt.bind_param(bind_params)
-        return stmt
+        statement.bind_param(bind_params)
+        statement.add_batch()
+        return statement
 
     def _delete_subtable_query(
         self,

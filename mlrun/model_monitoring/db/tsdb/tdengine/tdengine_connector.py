@@ -23,6 +23,10 @@ import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
+    Statement,
+    TDEngineConnection,
+)
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
@@ -52,26 +56,17 @@ class TDEngineConnector(TSDBConnector):
         self._init_super_tables()
 
     @property
-    def connection(self) -> taosws.Connection:
+    def connection(self):
         if not self._connection:
             self._connection = self._create_connection()
         return self._connection
 
-    def _create_connection(self) -> taosws.Connection:
+    def _create_connection(self):
         """Establish a connection to the TSDB server."""
         logger.debug("Creating a new connection to TDEngine", project=self.project)
-        conn = taosws.connect(self._tdengine_connection_string)
-        try:
-            conn.execute(f"CREATE DATABASE {self.database}")
-        except taosws.QueryError:
-            # Database already exists
-            pass
-        try:
-            conn.execute(f"USE {self.database}")
-        except taosws.QueryError as e:
-            raise mlrun.errors.MLRunTSDBConnectionFailureError(
-                f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
-            )
+        conn = TDEngineConnection(self._tdengine_connection_string)
+        conn.run(statements=f"CREATE DATABASE IF NOT EXISTS {self.database}")
+        conn.prefix_statements = [f"USE {self.database}"]
         logger.debug("Connected to TDEngine", project=self.project)
         return conn
 
@@ -93,7 +88,11 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.execute(create_table_query)
+            self.connection.run(statements=create_table_query)
+
+    @staticmethod
+    def create_subtable_sql(statement, table, table_name, event):
+        return table._insert_subtable_stmt(statement, subtable=table_name, values=event)
 
     def write_application_event(
         self,
@@ -139,13 +138,17 @@ class TDEngineConnector(TSDBConnector):
         )
 
         create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
-        self.connection.execute(create_table_sql)
 
-        insert_statement = table._insert_subtable_stmt(
-            self.connection, subtable=table_name, values=event
+        insert_statement = Statement(
+            table._insert_subtable_stmt, dict(subtable=table_name, values=event)
         )
-        insert_statement.add_batch()
-        insert_statement.execute()
+
+        self.connection.run(
+            statements=[
+                create_table_sql,
+                insert_statement,
+            ]
+        )
 
     @staticmethod
     def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
@@ -210,12 +213,13 @@ class TDEngineConnector(TSDBConnector):
             get_subtable_names_query = self.tables[table]._get_subtables_query(
                 values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
-            subtables = self.connection.query(get_subtable_names_query)
+            subtables = self.connection.run(query=get_subtable_names_query).data
+            drop_statements = []
             for subtable in subtables:
-                drop_query = self.tables[table]._drop_subtable_query(
-                    subtable=subtable[0]
+                drop_statements.append(
+                    self.tables[table]._drop_subtable_query(subtable=subtable[0])
                 )
-                self.connection.execute(drop_query)
+            self.connection.run(statements=[drop_statements])
         logger.debug(
             "Deleted all project resources using the TDEngine connector",
             project=self.project,
@@ -289,14 +293,14 @@ class TDEngineConnector(TSDBConnector):
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
-            query_result = self.connection.query(full_query)
+            query_result = self.connection.run(query=full_query)
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
             )
 
-        df_columns = [field.name() for field in query_result.fields]
-        return pd.DataFrame(query_result, columns=df_columns)
+        df_columns = [field.name for field in query_result.fields]
+        return pd.DataFrame(query_result.data, columns=df_columns)
 
     def read_metrics_data(
         self,

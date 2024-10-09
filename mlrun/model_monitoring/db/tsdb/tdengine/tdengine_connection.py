@@ -17,8 +17,6 @@ from _queue import Empty
 
 import taosws
 
-import mlrun.errors
-
 
 class QueryResult:
     def __init__(self, data, fields):
@@ -107,7 +105,7 @@ class TDEngineConnection:
                         f"{retries} retries left."
                     )
                     if retries == 0:
-                        raise mlrun.errors.MLRunTimeoutError(
+                        raise TimeoutError(
                             f"TDEngine statements {statements}{query_msg_part} timed out after {timeout} seconds "
                             f"and {overall_retries} retries"
                         )

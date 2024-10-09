@@ -18,7 +18,7 @@ from typing import Callable, Union
 import mlrun
 from mlrun.artifacts import get_model
 
-from .._common import CommonTypes, ModelHandler
+from .._common import CommonTypes, MLRunInterface, ModelHandler
 
 
 def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
@@ -251,6 +251,54 @@ def framework_to_apply_mlrun(framework: str) -> Callable[..., ModelHandler]:
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"The framework {framework} is not supported yet by AutoMLRun. "
         f"Please use the ModelHandler class of the framework from mlrun.frameworks.{framework}"
+    )
+
+
+def framework_to_model_interface(framework: str) -> Type[MLRunInterface]:
+    """
+    Get the MLRunInterface class of the given framework's name.
+
+    :param framework: The framework's name.
+
+    :return: The framework's MLRunInterface class.
+
+    :raise MLRunInvalidArgumentError: If the given framework is not supported by AutoMLRun.
+    """
+    # Match the framework:
+    if framework == "tensorflow.keras":
+        from mlrun.frameworks.tf_keras import TFKerasMLRunInterface
+
+        return TFKerasMLRunInterface
+
+    # TODO: uncomment when PytorchMLRunInterface inherit from MLRunInterface class
+    # if framework == "torch":
+    #     from mlrun.frameworks.pytorch import PyTorchMLRunInterface
+    #
+    #     return PyTorchMLRunInterface
+
+    if framework == "sklearn":
+        from mlrun.frameworks.sklearn import SKLearnMLRunInterface
+
+        return SKLearnMLRunInterface
+    if framework == "xgboost":
+        from mlrun.frameworks.xgboost import XGBModelMLRunInterface
+
+        return XGBModelMLRunInterface
+    if framework == "lightgbm":
+        from mlrun.frameworks.lgbm import LGBMModelMLRunInterface
+
+        return LGBMModelMLRunInterface
+
+    # TODO: uncomment when ONNXMLRunInterface inherit from MLRunInterface class
+    # if framework == "onnx":
+    #     from mlrun.frameworks.onnx.mlrun_interface import ONNXMLRunInterface
+    #
+    #     return ONNXMLRunInterface
+
+    # Framework was not recognized:
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"The framework {framework} is not supported yet by AutoMLRun. "
+        f"Please use the MLRunInterface class of the framework from mlrun.frameworks.{framework}"
     )
 
 
@@ -514,3 +562,17 @@ class AutoMLRun:
             model_handler_kwargs=collected_model_file_and_artifact,
             **kwargs,
         )
+
+    @staticmethod
+    def get_interface(model: CommonTypes.ModelType = None) -> Type[MLRunInterface]:
+        """
+        Get the framework's mlrun interface from the model provided.
+
+        :param model:      The model instance to get its mlrun interface.
+
+        :return: A MLRunInterface object
+        :raise MLRunInvalidArgumentError: If the framework is not recognized / supported.
+        """
+
+        framework, _ = AutoMLRun._get_framework(model, None)
+        return framework_to_model_interface(framework)

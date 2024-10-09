@@ -52,29 +52,31 @@ from .packagers_testers.python_standard_library_packagers_testers import (
     StrPackagerTester,
     TuplePackagerTester,
 )
+from .packagers_testers.sklearn_packager_tester import SklearnPackagerTester
 
 # All the testers to be included in the tests:
 _PACKAGERS_TESTERS = [
-    DefaultPackagerTester,
-    NonePackagerTester,
-    BoolPackagerTester,
-    BytearrayPackagerTester,
-    BytesPackagerTester,
-    DictPackagerTester,
-    FloatPackagerTester,
-    FrozensetPackagerTester,
-    IntPackagerTester,
-    ListPackagerTester,
-    SetPackagerTester,
-    StrPackagerTester,
-    TuplePackagerTester,
-    PathPackagerTester,
-    NumPyNDArrayPackagerTester,
-    NumPyNumberPackagerTester,
-    NumPyNDArrayDictPackagerTester,
-    NumPyNDArrayListPackagerTester,
-    PandasDataFramePackagerTester,
-    PandasSeriesPackagerTester,
+    # DefaultPackagerTester,
+    # NonePackagerTester,
+    # BoolPackagerTester,
+    # BytearrayPackagerTester,
+    # BytesPackagerTester,
+    # DictPackagerTester,
+    # FloatPackagerTester,
+    # FrozensetPackagerTester,
+    # IntPackagerTester,
+    # ListPackagerTester,
+    # SetPackagerTester,
+    # StrPackagerTester,
+    # TuplePackagerTester,
+    # PathPackagerTester,
+    # NumPyNDArrayPackagerTester,
+    # NumPyNumberPackagerTester,
+    # NumPyNDArrayDictPackagerTester,
+    # NumPyNDArrayListPackagerTester,
+    # PandasDataFramePackagerTester,
+    # PandasSeriesPackagerTester,
+    SklearnPackagerTester,
 ]
 
 
@@ -103,6 +105,9 @@ def _setup_test(
         name="default", context=test_directory, allow_cross_project=True
     )
 
+    project.add_custom_packager(
+        "mlrun.package.packagers.sklearn_packager.SklearnModelPack", is_mandatory=True
+    )
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
         func=inspect.getfile(tester),

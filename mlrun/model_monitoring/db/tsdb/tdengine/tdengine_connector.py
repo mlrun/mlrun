@@ -57,8 +57,25 @@ class TDEngineConnector(TSDBConnector):
             self._connection = self._create_connection()
         return self._connection
 
+    def with_retry_on_closed_connection(self, fn, **kwargs):
+        try:
+            return fn(self.connection, **kwargs)
+        except (taosws.QueryError, taosws.FetchError) as err:
+            logger.warn(f"TDEngine error: {err}")
+            if "Internal error:" in str(err):
+                logger.info("Retrying TDEngine query with a new connection")
+                try:
+                    self._connection.close()
+                except Exception:
+                    pass
+                self._connection = None
+                return fn(self.connection, **kwargs)
+            else:
+                raise err
+
     def _create_connection(self) -> taosws.Connection:
         """Establish a connection to the TSDB server."""
+        logger.debug("Creating a new connection to TDEngine", project=self.project)
         conn = taosws.connect(self._tdengine_connection_string)
         try:
             conn.execute(f"CREATE DATABASE {self.database}")
@@ -71,6 +88,7 @@ class TDEngineConnector(TSDBConnector):
             raise mlrun.errors.MLRunTSDBConnectionFailureError(
                 f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
             )
+        logger.debug("Connected to TDEngine", project=self.project)
         return conn
 
     def _init_super_tables(self):
@@ -91,7 +109,9 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self.connection.execute(create_table_query)
+            self.with_retry_on_closed_connection(
+                lambda conn: conn.execute(create_table_query)
+            )
 
     def write_application_event(
         self,
@@ -137,10 +157,14 @@ class TDEngineConnector(TSDBConnector):
         )
 
         create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
-        self.connection.execute(create_table_sql)
+        self.with_retry_on_closed_connection(
+            lambda conn: conn.execute(create_table_sql)
+        )
 
-        insert_statement = table._insert_subtable_stmt(
-            self.connection, subtable=table_name, values=event
+        insert_statement = self.with_retry_on_closed_connection(
+            lambda conn: table._insert_subtable_stmt(
+                conn, subtable=table_name, values=event
+            )
         )
         insert_statement.add_batch()
         insert_statement.execute()
@@ -200,18 +224,25 @@ class TDEngineConnector(TSDBConnector):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
         """
+        logger.debug(
+            "Deleting all project resources using the TDEngine connector",
+            project=self.project,
+        )
         for table in self.tables:
             get_subtable_names_query = self.tables[table]._get_subtables_query(
                 values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
-            subtables = self.connection.query(get_subtable_names_query)
+            subtables = self.with_retry_on_closed_connection(
+                lambda conn: conn.query(get_subtable_names_query)
+            )
             for subtable in subtables:
                 drop_query = self.tables[table]._drop_subtable_query(
                     subtable=subtable[0]
                 )
                 self.connection.execute(drop_query)
-        logger.info(
-            f"Deleted all project resources in the TSDB connector for project {self.project}"
+        logger.debug(
+            "Deleted all project resources using the TDEngine connector",
+            project=self.project,
         )
 
     def get_model_endpoint_real_time_metrics(
@@ -282,7 +313,9 @@ class TDEngineConnector(TSDBConnector):
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
-            query_result = self.connection.query(full_query)
+            query_result = self.with_retry_on_closed_connection(
+                lambda conn: conn.query(full_query)
+            )
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"

@@ -417,16 +417,18 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         ) - datetime.timedelta(
             seconds=int(config.runtime_resources_deletion_grace_period)
         )
+
+        # aborted means the pods were deleted and logs were already fetched
+        run_states = mlrun.common.runtimes.constants.RunStates.terminal_states()
+        run_states.remove(mlrun.common.runtimes.constants.RunStates.aborted)
         runs_uids.extend(
             await fastapi.concurrency.run_in_threadpool(
                 get_db().list_distinct_runs_uids,
                 db_session,
                 requested_logs_modes=[False],
-                # get only uids as there might be many runs which reached terminal state while the API was down, the
-                # run objects will be fetched in the next step
                 only_uids=True,
                 last_update_time_from=last_update_time,
-                states=mlrun.common.runtimes.constants.RunStates.terminal_states(),
+                states=run_states,
             )
         )
         if runs_uids:

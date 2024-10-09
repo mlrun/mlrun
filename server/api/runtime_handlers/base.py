@@ -1653,8 +1653,11 @@ class BaseRuntimeHandler(ABC):
                 server.api.crud.Logs().store_log(
                     logs_from_k8s, project, uid, append=False
                 )
-                # Tell the periodic log collection to not request logs (this assumes the run is in terminal state)
-                db.update_runs_requested_logs(db_session, [uid], requested_logs=True)
+                if run.get("status", {}).get("state") in RunStates.terminal_states():
+                    # Tell the periodic log collection to not request logs
+                    db.update_runs_requested_logs(
+                        db_session, [uid], requested_logs=True
+                    )
 
     def _ensure_run_state(
         self,

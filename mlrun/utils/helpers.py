@@ -273,7 +273,8 @@ def validate_artifact_key_name(
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+        log_message="The artifact key must start and end with an alphanumeric character and may only contain letters, "
+        "numbers, hyphens, underscores, and dots.",
     )
 
 

@@ -321,11 +321,19 @@ def test_validate_tag_name(tag_name, expected):
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         ("", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        (
+            "artifact-name#",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("artifact@name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact#name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact-name#", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact:name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         # Valid names
         ("artifact-name2.0", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifact-name3", does_not_raise()),
+        ("artifact_name", does_not_raise()),
+        ("artifact.name", does_not_raise()),
         ("artifactNAME", does_not_raise()),
     ],
 )

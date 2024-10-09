@@ -102,13 +102,14 @@ class TDEngineConnection:
                         raise result
                     return result
                 except Empty:
+                    query_msg_part = f" and query '{query}'" if query else ""
                     logger.warn(
-                        f"TDEngine statements {statements} and query '{query}' timed out after {timeout} seconds."
+                        f"TDEngine statements {statements}{query_msg_part} timed out after {timeout} seconds. "
                         f"{retries} retries left."
                     )
                     if retries == 0:
                         raise mlrun.errors.MLRunTimeoutError(
-                            f"TDEngine statements {statements} and query '{query}' timed out after {timeout} seconds "
+                            f"TDEngine statements {statements}{query_msg_part} timed out after {timeout} seconds "
                             f"and {overall_retries} retries"
                         )
                     retries -= 1

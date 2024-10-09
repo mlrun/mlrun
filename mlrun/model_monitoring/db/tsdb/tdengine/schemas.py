@@ -107,19 +107,20 @@ class TDEngineSchema:
             )
         return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({tags});"
 
+    @staticmethod
     def _insert_subtable_stmt(
-        self,
         statement,
+        columns,
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> taosws.TaosStmt:
-        question_marks = ", ".join("?" * len(self.columns))
+        question_marks = ", ".join("?" * len(columns))
         statement.prepare(f"INSERT INTO ? VALUES ({question_marks});")
         statement.set_tbname(subtable)
 
         bind_params = []
 
-        for col_name, col_type in self.columns.items():
+        for col_name, col_type in columns.items():
             val = values[col_name]
             bind_params.append(values_to_column([val], col_type))
 

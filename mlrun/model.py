@@ -774,6 +774,22 @@ class Notification(ModelObj):
 
         notification_class.validate_params(secret_params | params)
 
+    def fill_params_from_secret_params(self):
+        """
+        Fill the notification params from the secret_params.
+        """
+        if "secret" in self.secret_params:
+            secret = self.secret_params["secret"]
+            secret_value = mlrun.get_secret_or_env(secret)
+            if secret_value:
+                try:
+                    self.params.update(json.loads(secret_value))
+                except ValueError:
+                    logger.warning(
+                        "Failed to load secret value to params",
+                        secret_value=secret_value,
+                    )
+
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):
         """Validate that all notifications in the list are unique by name"""

@@ -934,10 +934,20 @@ class MLClientCtx:
         run = self._rundb.read_run(
             self.uid, format_=mlrun.common.formatters.RunFormat.notifications
         )
-        return [
-            mlrun.model.Notification.from_dict(notification)
-            for notification in run["spec"]["notifications"]
-        ]
+
+        notifications = []
+        for notification in run["spec"]["notifications"]:
+            notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(
+                notification
+            )
+            # We fill the params from the secret params to allow the notification to get the project secret
+            # TODO: This is a workaround to allow the notification to get the secret params from project instead of
+            #       getting them from from the k8s secret. We should mount the internal project secret that was created
+            #       to the workflow-runner and get the secret from there.
+            notification.fill_params_from_secret_params()
+            notifications.append(notification)
+
+        return notifications
 
     def to_dict(self):
         """Convert the run context to a dictionary"""

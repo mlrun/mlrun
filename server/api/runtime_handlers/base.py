@@ -1641,23 +1641,26 @@ class BaseRuntimeHandler(ABC):
     def _ensure_run_logs_collected(
         db: DBInterface, db_session: Session, project: str, uid: str, run: dict = None
     ):
+        # We use this method as a fallback in case the periodic collect job malfunctions,
+        # and also for backwards compatibility in case we would not use the log collector but rather
+        # the legacy method to pull logs.
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
-        if not log_file_exists:
-            # This stays for now for backwards compatibility in case we would not use the log collector but rather
-            # the legacy method to pull logs. It is also a fallback in case the periodic collect job malfunctions.
-            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S, run=run
-            )
-            if logs_from_k8s:
-                logger.info("Storing run logs", project=project, uid=uid)
-                server.api.crud.Logs().store_log(
-                    logs_from_k8s, project, uid, append=False
-                )
-                if run.get("status", {}).get("state") in RunStates.terminal_states():
-                    # Tell the periodic log collection to not request logs
-                    db.update_runs_requested_logs(
-                        db_session, [uid], requested_logs=True
-                    )
+        if log_file_exists:
+            # nothing to ensure
+            return
+
+        logs_from_k8s = crud.Logs()._get_logs_legacy_method(
+            db_session, project, uid, source=LogSources.K8S, run=run
+        )
+        if not logs_from_k8s:
+            # no log to store
+            return
+
+        logger.info("Storing run logs", project=project, uid=uid)
+        server.api.crud.Logs().store_log(logs_from_k8s, project, uid, append=False)
+        if run.get("status", {}).get("state") in RunStates.terminal_states():
+            # Tell the periodic log collection to not request logs
+            db.update_runs_requested_logs(db_session, [uid], requested_logs=True)
 
     def _ensure_run_state(
         self,

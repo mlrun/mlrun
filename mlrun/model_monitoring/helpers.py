@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import os
 import typing
 
 import numpy as np
@@ -28,6 +29,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.model_monitoring
+import mlrun.utils.helpers
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     _compose_full_name,
@@ -349,4 +351,16 @@ def enrich_model_endpoint_with_model_uri(
     )
     model_endpoint.spec.model_uri = mlrun.datastore.get_store_uri(
         kind=mlrun.utils.helpers.StorePrefix.Model, uri=model_artifact_uri
+    )
+
+
+def _get_monitoring_schedules_file_path(*, project: str, endpoint: str) -> str:
+    return os.path.join(
+        typing.cast(
+            str,
+            mlrun.mlconf.get_model_monitoring_file_target_path(
+                project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
+            ),
+        ),
+        f"{endpoint}.json",
     )

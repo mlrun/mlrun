@@ -13,11 +13,18 @@
 # limitations under the License.
 #
 from contextlib import nullcontext as does_not_raise
+from unittest import mock
+from unittest.mock import create_autospec
 
+import kubernetes.client.rest as k8s_client_rest
+import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
+from kubernetes.client import CoreV1Api, CustomObjectsApi, V1Secret
 
 import mlrun.errors
 import mlrun.k8s_utils
+from mlrun.common.schemas import SecretEventActions
+from server.api.utils.singletons.k8s import K8sHelper
 
 
 @pytest.mark.parametrize(
@@ -142,3 +149,93 @@ def test_verify_label_key(label_key, exception):
 def test_validate_node_selectors(node_selectors, expected):
     with expected:
         mlrun.k8s_utils.validate_node_selectors(node_selectors)
+
+
+@pytest.fixture
+def k8s_helper():
+    k8s_helper = K8sHelper()
+    k8s_helper.v1api = create_autospec(CoreV1Api, instance=True, spec_set=True)
+    k8s_helper.crdapi = create_autospec(CustomObjectsApi, instance=True, spec_set=True)
+    k8s_helper._create_secret = mock.MagicMock()
+    k8s_helper._update_secret = mock.MagicMock()
+    k8s_helper._read_secret = mock.MagicMock()
+    return k8s_helper
+
+
+def test_create_new_secret(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
+    )
+    result = k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets={"key1": "value1"},
+        namespace="default",
+    )
+
+    k8s_helper._create_secret.assert_called_once()
+    assert result == SecretEventActions.created
+
+
+def test_conflict_during_create_secret(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
+    )
+    k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=409)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._create_secret.assert_called_once()
+
+
+def test_update_existing_secret(k8s_helper):
+    k8s_helper._read_secret.return_value = V1Secret()
+    k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=409)
+    )
+
+    result = k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets={"key1": "value1"},
+        namespace="default",
+    )
+
+    k8s_helper._update_secret.assert_called_once()
+    assert result == SecretEventActions.updated
+
+
+def test_update_failure(k8s_helper):
+    k8s_helper._read_secret.return_value = V1Secret()
+    k8s_helper._update_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=500)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInternalServerError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._update_secret.assert_called_once()
+
+
+def test_read_secret_failure(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=403)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._read_secret.assert_called_once()

@@ -599,7 +599,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
     ):
-        logger.info("Creating secret", secret_name=secret_name)
+        logger.debug("Creating secret", secret_name=secret_name)
         k8s_secret = client.V1Secret(
             type=type_,
             metadata=client.V1ObjectMeta(
@@ -618,7 +618,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             # There was a conflict while we tried to create the secret.
             if isinstance(exc, k8s_dynamic_exceptions.ConflictError):
                 logger.warning(
-                    "Secret was created while we tried to create it,",
+                    "Failed to create secret, Secret might have been created while we tried to create it",
                     secret_name=k8s_secret.metadata.name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
@@ -631,7 +631,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
     ):
-        logger.info("Updating secret", secret_name=secret_name)
+        logger.debug("Updating secret", secret_name=secret_name)
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
         for key, value in secrets.items():
             secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
@@ -646,7 +646,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secret_name: str,
         namespace: str = "",
     ) -> client.V1Secret:
-        logger.info("Reading secret", secret_name=secret_name)
+        logger.debug("Reading secret", secret_name=secret_name)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(
                 name=secret_name,

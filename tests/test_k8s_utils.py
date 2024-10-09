@@ -153,13 +153,25 @@ def test_validate_node_selectors(node_selectors, expected):
 
 @pytest.fixture
 def k8s_helper():
-    k8s_helper = K8sHelper()
-    k8s_helper.v1api = create_autospec(CoreV1Api, instance=True, spec_set=True)
-    k8s_helper.crdapi = create_autospec(CustomObjectsApi, instance=True, spec_set=True)
-    k8s_helper._create_secret = mock.MagicMock()
-    k8s_helper._update_secret = mock.MagicMock()
-    k8s_helper._read_secret = mock.MagicMock()
-    return k8s_helper
+    with mock.patch(
+        "server.api.utils.singletons.k8s.K8sHelper._init_k8s_config",
+        return_value=None,
+    ):
+        k8s_helper = K8sHelper()
+        k8s_helper.v1api = create_autospec(
+            CoreV1Api,
+            instance=True,
+            spec_set=True,
+        )
+        k8s_helper.crdapi = create_autospec(
+            CustomObjectsApi,
+            instance=True,
+            spec_set=True,
+        )
+        k8s_helper._create_secret = mock.MagicMock()
+        k8s_helper._update_secret = mock.MagicMock()
+        k8s_helper._read_secret = mock.MagicMock()
+        return k8s_helper
 
 
 def test_create_new_secret(k8s_helper):

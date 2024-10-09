@@ -942,8 +942,9 @@ class MLClientCtx:
             )
             # We fill the params from the secret params to allow the notification to get the project secret
             # TODO: This is a workaround to allow the notification to get the secret params from project instead of
-            #       getting them from from the k8s secret. We should mount the internal project secret that was created
-            #       to the workflow-runner and get the secret from there.
+            #       getting them from the internal project secret that should be mounted.
+            #       We should mount the internal project secret that was created to the workflow-runner
+            #       and get the secret from there.
             notification.fill_params_from_secret_params()
             notifications.append(notification)
 

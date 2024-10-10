@@ -94,40 +94,24 @@ class _BatchWindow:
         )
 
     def _get_schedules_and_last_analyzed(self) -> tuple[_Schedules, int]:
+        content = self._db.get(encoding=_UTF_8)
         try:
-            content = self._db.get(encoding=_UTF_8)
-            try:
-                schedules = json.loads(content)
-                if self._application in schedules:
-                    return _Schedules(schedules), schedules[self._application]
-                else:
-                    last_analyzed = self._init_last_analyzed()
-                    schedules.update(_Schedules({self._application: last_analyzed}))
-            except json.JSONDecodeError:
-                # Using the earliest safe time to avoid TSDB misorders
-                last_analyzed = self._stop
-                schedules = _Schedules({self._application: last_analyzed})
-                logger.warning(
-                    "The monitoring schedules file is corrupted, resetting it "
-                    "with the last request as last_analyzed",
-                    path=self._db.url,
-                    content=content,
-                    last_analyzed=last_analyzed,
-                )
-        except (
-            mlrun.errors.MLRunNotFoundError,  # V3ioStore, InMemoryStore
-            FileNotFoundError,  # FileStore
-            BotoClientError,  # S3Store
-        ) as err:
-            if isinstance(err, BotoClientError):
-                # accept only "NoSuchKey" errors codes - equivalent to `FileNotFoundError`
-                if err.response["Error"]["Code"] != "NoSuchKey":
-                    raise
-            last_analyzed = self._init_last_analyzed()
+            schedules = json.loads(content)
+            if self._application in schedules:
+                return _Schedules(schedules), schedules[self._application]
+            else:
+                last_analyzed = self._init_last_analyzed()
+                schedules.update(_Schedules({self._application: last_analyzed}))
+        except json.JSONDecodeError:
+            # Using the earliest safe time to avoid TSDB misorders
+            last_analyzed = self._stop
             schedules = _Schedules({self._application: last_analyzed})
-            logger.info(
-                "The monitoring schedules file does not exist for this endpoint, creating it",
+            logger.warning(
+                "The monitoring schedules file is corrupted, resetting it "
+                "with the last request as last_analyzed",
                 path=self._db.url,
+                content=content,
+                last_analyzed=last_analyzed,
             )
 
         # Updating the DB to avoid reoccurrence of missing keys, corrupted data, or a missing file
@@ -230,7 +214,7 @@ class _BatchWindowGenerator:
         return _BatchWindow(
             endpoint_app_schedules=store_manager.object(
                 url=_get_monitoring_schedules_file_path(
-                    project=project, endpoint=endpoint
+                    project=project, endpoint_id=endpoint
                 )
             ),
             application=application,

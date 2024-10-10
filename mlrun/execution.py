@@ -940,8 +940,8 @@ class MLClientCtx:
             notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(
                 notification
             )
-            # We fill the secret params from the project secret params to allow the  get what it need for sending
-            # the notification(the webhook for example).
+            # Fill the secret params from the project secret. We cannot use the server side internal secret mechanism
+            # here as it is the client side.
             # TODO: This is a workaround to allow the notification to get the secret params from project secret
             #       instead of getting them from the internal project secret that should be mounted.
             #       We should mount the internal project secret that was created to the workflow-runner

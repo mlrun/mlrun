@@ -784,7 +784,10 @@ class Notification(ModelObj):
         if secret:
             secret_value = mlrun.get_secret_or_env(secret)
             if secret_value:
-                self.secret_params = json.loads(secret_value)
+                try:
+                    self.secret_params = json.loads(secret_value)
+                except ValueError:
+                    raise mlrun.errors.MLRunValueError("Failed to parse secret value")
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):

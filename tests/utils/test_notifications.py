@@ -986,12 +986,12 @@ def test_fill_secret_params_from_project_secret(
             kind=mlrun.common.schemas.notification.NotificationKind.slack,
             secret_params=secret_params,
         )
-        try:
+        if should_raise:
+            with pytest.raises(mlrun.errors.MLRunValueError):
+                notification.fill_secret_params_from_project_secret()
+        else:
             notification.fill_secret_params_from_project_secret()
-        except Exception:
-            assert should_raise
-            return
-        assert notification.secret_params == expected_params
+            assert notification.secret_params == expected_params
 
 
 def _mock_async_response(monkeypatch, method, result):

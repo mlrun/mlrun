@@ -623,7 +623,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     secret_name=k8s_secret.metadata.name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-            raise
+            raise exc
 
     def _update_secret(
         self,

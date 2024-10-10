@@ -778,8 +778,8 @@ class Notification(ModelObj):
         """
         Fill the notification params from the secret_params.
         """
-        if "secret" in self.secret_params:
-            secret = self.secret_params["secret"]
+        secret = self.secret_params.get("secret")
+        if secret:
             secret_value = mlrun.get_secret_or_env(secret)
             if secret_value:
                 try:

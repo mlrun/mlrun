@@ -946,8 +946,15 @@ class MLClientCtx:
             #       instead of getting them from the internal project secret that should be mounted.
             #       We should mount the internal project secret that was created to the workflow-runner
             #       and get the secret from there.
-            notification.fill_secret_params_from_project_secret()
-            notifications.append(notification)
+            try:
+                notification.fill_secret_params_from_project_secret()
+                notifications.append(notification)
+            except Exception:
+                logger.warning(
+                    "Failed to fill secret params from project secret for notification."
+                    "Skip this notification.",
+                    notification=notification.name,
+                )
 
         return notifications
 

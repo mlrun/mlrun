@@ -964,27 +964,20 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
 
 
 @pytest.mark.parametrize(
-    "secret_params, get_secret_or_env_return_value, expected_params",
+    "secret_params, get_secret_or_env_return_value, expected_params, should_raise",
     [
         (
             {"web": "secret-web"},
             "check",
             {"web": "secret-web"},
+            False,
         ),
-        (
-            {"secret": "Hello"},
-            "Hello",
-            {"secret": "Hello"},
-        ),
-        (
-            {"secret": "Hello"},
-            '{"webhook": "Hello"}',
-            {"webhook": "Hello"},
-        ),
+        ({"secret": "Hello"}, "Hello", {}, True),
+        ({"secret": "Hello"}, '{"webhook": "Hello"}', {"webhook": "Hello"}, False),
     ],
 )
 def test_fill_secret_params_from_project_secret(
-    secret_params, get_secret_or_env_return_value, expected_params
+    secret_params, get_secret_or_env_return_value, expected_params, should_raise
 ):
     with unittest.mock.patch(
         "mlrun.get_secret_or_env", return_value=get_secret_or_env_return_value
@@ -993,7 +986,11 @@ def test_fill_secret_params_from_project_secret(
             kind=mlrun.common.schemas.notification.NotificationKind.slack,
             secret_params=secret_params,
         )
-        notification.fill_secret_params_from_project_secret()
+        try:
+            notification.fill_secret_params_from_project_secret()
+        except Exception:
+            assert should_raise
+            return
         assert notification.secret_params == expected_params
 
 

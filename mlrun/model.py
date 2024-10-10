@@ -784,13 +784,7 @@ class Notification(ModelObj):
         if secret:
             secret_value = mlrun.get_secret_or_env(secret)
             if secret_value:
-                try:
-                    self.secret_params = json.loads(secret_value)
-                except ValueError:
-                    logger.warning(
-                        "Failed to load secret",
-                        secret=secret,
-                    )
+                self.secret_params = json.loads(secret_value)
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):

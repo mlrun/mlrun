@@ -116,6 +116,6 @@ class TDEngineConnection:
             finally:
                 try:
                     process.terminate()
+                    process.close()
                 except Exception:
                     pass
-                process.close()

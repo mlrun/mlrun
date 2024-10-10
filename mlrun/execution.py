@@ -927,8 +927,13 @@ class MLClientCtx:
                 updates, self._uid, self.project, iter=self._iteration
             )
 
-    def get_notifications(self):
-        """Get the list of notifications"""
+    def get_notifications(self, unmask_secret_params=False):
+        """
+        Get the list of notifications
+
+        :param unmask_secret_params: Used as a workaround for sending notification from workflow-runner.
+                                     When used, if the notification will be saved again a new secret will be created.
+        """
 
         # Get the full notifications from the DB since the run context does not contain the params due to bloating
         run = self._rundb.read_run(
@@ -943,18 +948,19 @@ class MLClientCtx:
             # Fill the secret params from the project secret. We cannot use the server side internal secret mechanism
             # here as it is the client side.
             # TODO: This is a workaround to allow the notification to get the secret params from project secret
-            #       instead of getting them from the intmernal project secret that should be mounted.
+            #       instead of getting them from the internal project secret that should be mounted.
             #       We should mount the internal project secret that was created to the workflow-runner
             #       and get the secret from there.
-            try:
-                notification.fill_secret_params_from_project_secret()
-                notifications.append(notification)
-            except mlrun.errors.MLRunValueError:
-                logger.warning(
-                    "Failed to fill secret params from project secret for notification."
-                    "Skip this notification.",
-                    notification=notification.name,
-                )
+            if unmask_secret_params:
+                try:
+                    notification.enrich_unmasked_secret_params_from_project_secret()
+                    notifications.append(notification)
+                except mlrun.errors.MLRunValueError:
+                    logger.warning(
+                        "Failed to fill secret params from project secret for notification."
+                        "Skip this notification.",
+                        notification=notification.name,
+                    )
 
         return notifications
 

@@ -976,7 +976,7 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
         ({"secret": "Hello"}, '{"webhook": "Hello"}', {"webhook": "Hello"}, False),
     ],
 )
-def test_fill_secret_params_from_project_secret(
+def test_enrich_unmasked_secret_params_from_project_secret(
     secret_params, get_secret_or_env_return_value, expected_params, should_raise
 ):
     with unittest.mock.patch(
@@ -988,9 +988,9 @@ def test_fill_secret_params_from_project_secret(
         )
         if should_raise:
             with pytest.raises(mlrun.errors.MLRunValueError):
-                notification.fill_secret_params_from_project_secret()
+                notification.enrich_unmasked_secret_params_from_project_secret()
         else:
-            notification.fill_secret_params_from_project_secret()
+            notification.enrich_unmasked_secret_params_from_project_secret()
             assert notification.secret_params == expected_params
 
 

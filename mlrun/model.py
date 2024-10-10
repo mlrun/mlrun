@@ -774,7 +774,7 @@ class Notification(ModelObj):
 
         notification_class.validate_params(secret_params | params)
 
-    def fill_secret_params_from_project_secret(self):
+    def enrich_unmasked_secret_params_from_project_secret(self):
         """
         Fill the notification secret params from the project secret.
         We are using this function instead of unmask_secret_params_from_project_secret when we run inside the
@@ -786,8 +786,10 @@ class Notification(ModelObj):
             if secret_value:
                 try:
                     self.secret_params = json.loads(secret_value)
-                except ValueError:
-                    raise mlrun.errors.MLRunValueError("Failed to parse secret value")
+                except ValueError as exc:
+                    raise mlrun.errors.MLRunValueError(
+                        "Failed to parse secret value"
+                    ) from exc
 
     @staticmethod
     def validate_notification_uniqueness(notifications: list["Notification"]):

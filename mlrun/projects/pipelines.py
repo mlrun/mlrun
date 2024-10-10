@@ -1081,7 +1081,7 @@ def load_and_run(
     # extract "start" notification if exists
     start_notifications = [
         notification
-        for notification in context.get_notifications()
+        for notification in context.get_notifications(unmask_secret_params=True)
         if "running" in notification.when
     ]
 

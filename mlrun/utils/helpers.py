@@ -268,13 +268,17 @@ def validate_tag_name(
 def validate_artifact_key_name(
     artifact_key: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:
+    if field_name == "artifact.key":
+        type = "key"
+    else:
+        type = "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="The artifact key must start and end with an alphanumeric character and may only contain letters, "
-        "numbers, hyphens, underscores, and dots.",
+        log_message=f"The artifact {type} must start and end with an alphanumeric character and may only contain "
+        "letters, numbers, hyphens, underscores, and dots.",
     )
 
 

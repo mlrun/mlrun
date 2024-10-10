@@ -358,6 +358,37 @@ def test_log_artifact_with_target_path_and_upload_options(target_path, upload_op
 
 
 @pytest.mark.parametrize(
+    "artifact_key,expected",
+    [
+        ("artifact@key", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact#key", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact!key", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact_key!", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact/key", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact_key123", does_not_raise()),
+        ("artifact-key", does_not_raise()),
+        ("artifact.key", does_not_raise()),
+    ],
+)
+def test_log_artifact_with_invalid_key(artifact_key, expected):
+    project = mlrun.new_project("test-project")
+    target_path = "s3://some/path"
+    artifact = mlrun.artifacts.Artifact(
+        key=artifact_key, body="123", target_path=target_path
+    )
+    with expected:
+        project.log_artifact(artifact)
+
+    # now test log_artifact with db_key that is different than the artifact's key
+    artifact = mlrun.artifacts.Artifact(
+        key="some-key", body="123", target_path=target_path
+    )
+    artifact.spec.db_key = artifact_key
+    with expected:
+        project.log_artifact(artifact)
+
+
+@pytest.mark.parametrize(
     "local_path, fail",
     [
         ("s3://path/file.txt", False),

@@ -556,6 +556,46 @@ class TestArtifacts:
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.read_artifact(db_session, artifact_key)
 
+    def test_store_artifact_with_invalid_key(
+        self, db: DBInterface, db_session: Session
+    ):
+        # test storing artifact with invalid key & invalid db_key
+        # special character is not allowed in the key
+        artifact_invalid_key = "artifact@key"
+        artifact_valid_key = "artifact_key"
+        artifact_body = self._generate_artifact(artifact_invalid_key)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            db.store_artifact(
+                db_session,
+                artifact_invalid_key,
+                artifact_body,
+            )
+
+        # store the artifact with invalid db_key
+        artifact_invalid_db_key = "artifact#!key"
+        artifact_body["spec"]["db_key"] = artifact_invalid_db_key
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            db.store_artifact(
+                db_session,
+                artifact_valid_key,
+                artifact_body,
+            )
+
+        # store the artifact with valid db_key which is different than the artifact key
+        artifact_body = self._generate_artifact(artifact_valid_key)
+        artifact_valid_db_key = "artifact_db_key"
+        artifact_body["spec"]["db_key"] = artifact_valid_db_key
+        db.store_artifact(
+            db_session,
+            artifact_valid_key,
+            artifact_body,
+        )
+        artifact = db.read_artifact(db_session, artifact_valid_key)
+        assert artifact
+        assert artifact["metadata"]["key"] == artifact_valid_key
+        assert artifact["spec"]["db_key"] == artifact_valid_db_key
+
     def test_read_artifact_tag_resolution(self, db: DBInterface, db_session: Session):
         """
         We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of

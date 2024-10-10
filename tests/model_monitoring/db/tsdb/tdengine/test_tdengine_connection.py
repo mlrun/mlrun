@@ -17,7 +17,7 @@ import os
 import pytest
 import taosws
 
-from mlrun.model_monitoring.db.tsdb.tdengine.tdengine_connection import (
+from mlrun.model_monitoring.db.tsdb.tdengine.connection import (
     Field,
     QueryResult,
     TDEngineConnection,

@@ -18,15 +18,15 @@ from typing import Union
 
 import pandas as pd
 import taosws
+from taoswswrap.tdengine_connection import (
+    Statement,
+    TDEngineConnection,
+)
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
-from mlrun.model_monitoring.db.tsdb.tdengine.connection import (
-    Statement,
-    TDEngineConnection,
-)
 from mlrun.model_monitoring.db.tsdb.tdengine.schemas import TDEngineSchema
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger

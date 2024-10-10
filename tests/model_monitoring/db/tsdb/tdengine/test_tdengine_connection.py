@@ -16,8 +16,7 @@ import os
 
 import pytest
 import taosws
-
-from mlrun.model_monitoring.db.tsdb.tdengine.connection import (
+from taoswswrap.tdengine_connection import (
     Field,
     QueryResult,
     TDEngineConnection,
@@ -59,6 +58,7 @@ def test_tdengine_connection_error_propagation():
         conn.run(statements="USE idontexist")
 
 
+@pytest.mark.skipif(not is_tdengine_defined(), reason="TDEngine is not defined")
 def test_tdengine_connection_create_db():
     conn = TDEngineConnection(connection_string)
 

@@ -91,10 +91,6 @@ class TDEngineConnector(TSDBConnector):
             create_table_query = self.tables[table]._create_super_table_query()
             self.connection.run(statements=create_table_query)
 
-    @staticmethod
-    def create_subtable_sql(statement, table, table_name, event):
-        return table._insert_subtable_stmt(statement, subtable=table_name, values=event)
-
     def write_application_event(
         self,
         event: dict,

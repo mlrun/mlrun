@@ -109,8 +109,8 @@ class TDEngineSchema:
 
     @staticmethod
     def _insert_subtable_stmt(
-        statement,
-        columns,
+        statement: taosws.TaosStmt,
+        columns: dict[str, _TDEngineColumn],
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> taosws.TaosStmt:

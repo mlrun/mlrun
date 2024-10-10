@@ -615,6 +615,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 body=k8s_secret,
             )
         except k8s_client_rest.ApiException as exc:
+            exc = k8s_dynamic_exceptions.api_exception(exc)
             # There was a conflict while we tried to create the secret.
             if isinstance(exc, k8s_dynamic_exceptions.ConflictError):
                 logger.warning(
@@ -622,7 +623,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     secret_name=k8s_secret.metadata.name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-            raise k8s_dynamic_exceptions.api_exception(exc)
+            raise
 
     def _update_secret(
         self,

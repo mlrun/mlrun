@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import typing
 
 import sqlalchemy.orm
@@ -21,6 +22,7 @@ import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -30,6 +32,34 @@ import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
 from mlrun.utils import logger
+
+
+class _ModelMonitoringSchedulesFile:
+    EMPTY_CONTENT = json.dumps({})
+
+    def __init__(self, project: str, endpoint_id: str) -> None:
+        self._item = mlrun.datastore.store_manager.object(
+            url=mlrun.model_monitoring.helpers._get_monitoring_schedules_file_path(
+                project=project, endpoint_id=endpoint_id
+            )
+        )
+
+    @classmethod
+    def from_model_endpoint(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ) -> "_ModelMonitoringSchedulesFile":
+        return cls(
+            project=model_endpoint.metadata.project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+
+    def create(self) -> None:
+        logger.debug("Creating model monitoring schedules file", path=self._item.url)
+        self._item.put(self.EMPTY_CONTENT)
+
+    def delete(self) -> None:
+        logger.debug("Deleting model monitoring schedules file", path=self._item.url)
+        self._item.delete()
 
 
 class ModelEndpoints:
@@ -147,6 +177,9 @@ class ModelEndpoints:
             )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
+
+        # Create model monitoring schedules file in any case
+        _ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -325,6 +358,8 @@ class ModelEndpoints:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+
+        _ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
     def get_model_endpoint(
         self,
@@ -586,6 +621,7 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,

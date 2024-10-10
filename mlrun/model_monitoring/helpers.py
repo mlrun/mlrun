@@ -354,7 +354,7 @@ def enrich_model_endpoint_with_model_uri(
     )
 
 
-def _get_monitoring_schedules_file_path(*, project: str, endpoint: str) -> str:
+def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
     return os.path.join(
         typing.cast(
             str,
@@ -362,5 +362,5 @@ def _get_monitoring_schedules_file_path(*, project: str, endpoint: str) -> str:
                 project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
             ),
         ),
-        f"{endpoint}.json",
+        f"{endpoint_id}.json",
     )

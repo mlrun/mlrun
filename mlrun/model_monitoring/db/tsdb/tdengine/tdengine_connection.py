@@ -114,4 +114,8 @@ class TDEngineConnection:
                         )
                     retries -= 1
             finally:
+                try:
+                    process.terminate()
+                except Exception:
+                    pass
                 process.close()

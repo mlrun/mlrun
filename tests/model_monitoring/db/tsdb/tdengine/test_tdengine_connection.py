@@ -57,3 +57,10 @@ def test_tdengine_connection_error_propagation():
 
     with pytest.raises(taosws.QueryError, match="Internal error: `Database not exist`"):
         conn.run(statements="USE idontexist")
+
+
+def test_tdengine_connection_create_db():
+    conn = TDEngineConnection(connection_string)
+
+    res = conn.run(statements="CREATE DATABASE IF NOT EXISTS mydb")
+    assert res is None

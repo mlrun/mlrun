@@ -774,20 +774,22 @@ class Notification(ModelObj):
 
         notification_class.validate_params(secret_params | params)
 
-    def fill_params_from_secret_params(self):
+    def fill_secret_params_from_project_secret(self):
         """
-        Fill the notification params from the secret_params.
+        Fill the notification secret params from the project secret.
+        We are using this function instead of unmask_secret_params_from_project_secret when we run inside the
+        workflow runner pod that doesn't have access to the k8s secrets (but have access to the project secret)
         """
         secret = self.secret_params.get("secret")
         if secret:
             secret_value = mlrun.get_secret_or_env(secret)
             if secret_value:
                 try:
-                    self.params.update(json.loads(secret_value))
+                    self.secret_params = json.loads(secret_value)
                 except ValueError:
                     logger.warning(
-                        "Failed to load secret value to params",
-                        secret_value=secret_value,
+                        "Failed to load secret",
+                        secret=secret,
                     )
 
     @staticmethod

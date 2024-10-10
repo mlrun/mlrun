@@ -597,9 +597,9 @@ class _KFPRunner(_PipelineRunner):
             )
             # for start message, fallback to old notification behavior
             for notification in notifications or []:
-                project.notifiers.add_notification(
-                    notification.kind, notification.params
-                )
+                params = notification.params
+                params.update(notification.secret_params)
+                project.notifiers.add_notification(notification.kind, params)
 
         run_id = _run_pipeline(
             workflow_handler,

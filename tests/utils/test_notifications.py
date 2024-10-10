@@ -969,21 +969,21 @@ def test_validate_notification_params(monkeypatch, notification_kwargs, expectat
         (
             {"web": "secret-web"},
             "check",
-            {"a": "b"},
+            {"web": "secret-web"},
         ),
         (
             {"secret": "Hello"},
             "Hello",
-            {"a": "b"},
+            {"secret": "Hello"},
         ),
         (
             {"secret": "Hello"},
             '{"webhook": "Hello"}',
-            {"a": "b", "webhook": "Hello"},
+            {"webhook": "Hello"},
         ),
     ],
 )
-def test_fill_params_from_secret_params(
+def test_fill_secret_params_from_project_secret(
     secret_params, get_secret_or_env_return_value, expected_params
 ):
     with unittest.mock.patch(
@@ -991,11 +991,10 @@ def test_fill_params_from_secret_params(
     ):
         notification = mlrun.model.Notification(
             kind=mlrun.common.schemas.notification.NotificationKind.slack,
-            params={"a": "b"},
             secret_params=secret_params,
         )
-        notification.fill_params_from_secret_params()
-        assert notification.params == expected_params
+        notification.fill_secret_params_from_project_secret()
+        assert notification.secret_params == expected_params
 
 
 def _mock_async_response(monkeypatch, method, result):

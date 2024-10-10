@@ -48,5 +48,5 @@ sqlalchemy~=1.4
 dask~=2023.12.1
 distributed~=2023.12.1
 taos-ws-py==0.3.2
-git+https://github.com/gtopper/taos-ws-py-wrapper.git
+taoswswrap~=0.1.0
 snowflake-connector-python~=3.7

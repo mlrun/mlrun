@@ -136,7 +136,7 @@ class NopDB(RunDBInterface):
         project: str = "",
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
-        days_ago=0,
+        days_ago: int = 0,
     ):
         pass
 

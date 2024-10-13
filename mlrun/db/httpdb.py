@@ -919,7 +919,7 @@ class HTTPRunDB(RunDBInterface):
         project: Optional[str] = None,
         labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
-        days_ago=0,
+        days_ago: int = 0,
     ):
         """Delete a group of runs identified by the parameters of the function.
 
@@ -1189,7 +1189,7 @@ class HTTPRunDB(RunDBInterface):
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
             the specified key-value pairs or key existence.
         :param days_ago: This parameter is deprecated and not used.
-        :param tree: Delete artifacts that are contained within this tree.
+        :param tree: Delete artifacts filtered by tree.
         """
         project = project or config.default_project
         labels = self._parse_labels(labels)

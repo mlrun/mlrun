@@ -50,9 +50,9 @@ class LabelsModel(pydantic.BaseModel):
     This class accepts either a dictionary, a list, or a string for filtering by labels.
 
     :param labels:
-        - If a dictionary is provided, it should be in the format
-          {'label_name': 'value'}. This will be converted to a list of strings
-          in the format 'label_name=value'.
+        - If a dictionary is provided, it should be in the format {'label_name': 'value'}.
+          The values can also be `None`, which will result in the format 'label_name' (without a value).
+          This will be converted to a list of strings in the format 'label_name=value'.
         - If a list is provided, all items must be strings. Each string can either
           be a simple label name (e.g., 'label1') or a key-value pair in the format
           'label=value'.

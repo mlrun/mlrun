@@ -910,7 +910,6 @@ class HTTPRunDB(RunDBInterface):
         """Delete a group of runs identified by the parameters of the function.
 
         Example::
-
             db.del_runs(state="completed")
 
         :param name: Name of the task which the runs belong to.

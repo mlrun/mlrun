@@ -25,15 +25,19 @@ on:
 jobs:
   vale:
     name: Review docs with Vale
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          venv="$HOME/.local/share/venv"
+          python3 -m venv "$venv"
+          echo "$venv/bin" >> $GITHUB_PATH
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-check
   lint:
     name: Lint docs
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up python ${{ matrix.python-version }}

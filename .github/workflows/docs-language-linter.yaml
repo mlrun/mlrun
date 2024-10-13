@@ -26,10 +26,6 @@ jobs:
   vale:
     name: Review docs with Vale
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # 3.9 is the current >= 1.3.0 python version
-        python-version: [ 3.9 ]
     steps:
       - uses: actions/checkout@v4
       - uses: errata-ai/vale-action@reviewdog

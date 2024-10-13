@@ -12,26 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
+import base64
 import collections
 import os
 import time
+from tempfile import NamedTemporaryFile
+from typing import Self
 
 import humanfriendly
+import kubernetes.client as k8s_client
 import pytest
 import requests
-from _pytest.config import ExitCode
-from _pytest.main import Session
-from _pytest.python import Function
-from _pytest.reports import TestReport
-from _pytest.runner import CallInfo
 from _pytest.terminal import TerminalReporter
+from kubernetes import config
+from pytest import CallInfo, ExitCode, Function, TestReport
+
+from mlrun.utils import create_test_logger
+
+logger = create_test_logger(name="test-system")
 
 
-def pytest_sessionstart(session):
+def pytest_sessionstart(
+    session: pytest.Session,
+):
+    setup_k8s_client(
+        session=session,
+    )  # Setup K8S client for use in system tests.
+
     # caching test results
     session.results = collections.defaultdict(TestReport)
+
+
+def setup_k8s_client(
+    session: pytest.Session,
+):
+    kubeconfig_content = None
+    try:
+        base64_kubeconfig_content = os.environ["SYSTEM_TEST_KUBECONFIG"]
+        kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+    except (ValueError, KeyError) as exc:
+        logger.warning("Kubeconfig was empty or invalid.", exc_info=exc)
+        session.kube_client = property(missing_kubeclient)
+    if kubeconfig_content:
+        with NamedTemporaryFile() as tempfile:
+            tempfile.write(kubeconfig_content)
+            tempfile.flush()
+            try:
+                config.load_kube_config(
+                    config_file=tempfile.name,
+                )
+                session.kube_client = k8s_client.CoreV1Api()
+            except config.config_exception.ConfigException:
+                logger.warning(
+                    "Failed to load kubeconfig, kube_client will be unavailable."
+                )
+                session.kube_client = property(missing_kubeclient)
+    else:
+        session.kube_client = property(missing_kubeclient)
+
+
+def missing_kubeclient(self: Self):
+    raise AttributeError("Kubeclient was not setup and is unavailable")
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -52,7 +93,7 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     #     print(f"Failed to post test report to slack: {exc}")
 
 
-def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
+def pytest_sessionfinish(session: pytest.Session, exitstatus: ExitCode):
     slack_url = os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
     if slack_url:
         post_report_session_finish_to_slack(
@@ -63,7 +104,7 @@ def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
 
 
 def post_report_session_finish_to_slack(
-    session: Session, exitstatus: ExitCode, slack_webhook_url
+    session: pytest.Session, exitstatus: ExitCode, slack_webhook_url
 ):
     reporter: TerminalReporter = session.config.pluginmanager.get_plugin(
         "terminalreporter"

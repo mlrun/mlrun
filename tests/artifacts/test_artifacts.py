@@ -387,6 +387,14 @@ def test_log_artifact_with_invalid_key(artifact_key, expected):
     with expected:
         project.log_artifact(artifact)
 
+    # when storing an artifact with producer.kind="run", the value of db_key is modified to: producer.name + "_" + key
+    # and in this case since key="some-key", the db_key will always be valid
+    context = mlrun.get_or_create_ctx("test")
+    try:
+        context.log_artifact(item=artifact)
+    except Exception as e:
+        pytest.fail(f"Unexpected exception raised: {e}")
+
 
 @pytest.mark.parametrize(
     "local_path, fail",

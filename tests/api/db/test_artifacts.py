@@ -574,6 +574,7 @@ class TestArtifacts:
 
         # store the artifact with invalid db_key
         artifact_invalid_db_key = "artifact#!key"
+        artifact_body = self._generate_artifact(artifact_valid_key)
         artifact_body["spec"]["db_key"] = artifact_invalid_db_key
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             db.store_artifact(

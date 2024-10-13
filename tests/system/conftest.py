@@ -27,20 +27,34 @@ from kubernetes import config
 from pytest import CallInfo, ExitCode, Function, TestReport
 
 
+def missing_kubeclient(self):
+    raise AttributeError("Kubeclient was not setup and is unavailable")
+
+
 def pytest_sessionstart(
     session: pytest.Session,
 ):
+    kubeconfig_content = None
     # Setup K8S client for use in system tests.
-    base64_kubeconfig_content = os.environ.get("SYSTEM_TEST_KUBECONFIG")
-    if not base64_kubeconfig_content:
-        raise ValueError("The Kubeconfig for the system test session was not provided.")
-    kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
-    with NamedTemporaryFile() as tempfile:
-        tempfile.write(kubeconfig_content)
-        config.load_kube_config(
-            config_file=tempfile.name,
-        )
-        session.kube_client = k8s_client.CoreV1Api()
+    try:
+        base64_kubeconfig_content = os.environ["SYSTEM_TEST_KUBECONFIG"]
+        kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+    except (ValueError, KeyError):
+        print("Kubeconfig was empty or invalid.")
+        session.kube_client = property(missing_kubeclient)
+    if kubeconfig_content:
+        with NamedTemporaryFile() as tempfile:
+            tempfile.write(kubeconfig_content)
+            tempfile.flush()
+            try:
+                config.load_kube_config(
+                    config_file=tempfile.name,
+                )
+                session.kube_client = k8s_client.CoreV1Api()
+            except config.config_exception.ConfigException:
+                print("Failed to load kubeconfig, kube_client will be unavailable.")
+                session.kube_client = property(missing_kubeclient)
+
     # caching test results
     session.results = collections.defaultdict(TestReport)
 

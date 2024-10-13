@@ -33,10 +33,13 @@ Model monitoring is currently in Tech Preview status. Migrating from 1.7.0 to la
 ```{toctree}
 :maxdepth: 1
 ../model-monitoring/applications
+<<<<<<< HEAD
 ../model-monitoring/monitoring-models
 ../model-monitoring/monitoring-models-grafana
 ../model-monitoring/index
 ../concepts/alerts
+=======
+>>>>>>> cdbcc9ce6 ([Docs] Fix links (#6482))
 ```
 
 **See also**

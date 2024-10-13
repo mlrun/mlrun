@@ -420,7 +420,7 @@ class MonitoringApplicationController:
                         end_time=end_infer_time,
                         time_column=mm_constants.EventFieldType.TIMESTAMP,
                     )
-                    if df.empty():
+                    if len(df) == 0:
                         logger.info(
                             "No data found for the given interval",
                             start=start_infer_time,

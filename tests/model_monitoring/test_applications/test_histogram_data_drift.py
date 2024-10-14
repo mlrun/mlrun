@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import inspect
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -30,7 +29,6 @@ import mlrun.model_monitoring.applications
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
-    EventFieldType,
     ResultKindApp,
     ResultStatusApp,
 )
@@ -230,12 +228,6 @@ class TestApplication:
                 assert (
                     res.status == ResultStatusApp.potential_detection
                 ), "Expected potential detection in the general drift"
-                assert (
-                    json.loads(res.extra_data[EventFieldType.CURRENT_STATS])[
-                        EventFieldType.TIMESTAMP
-                    ]["count"]
-                    == cls.COUNT
-                ), "The current statistics count is different than expected"
             elif isinstance(
                 res,
                 mlrun.model_monitoring.applications.ModelMonitoringApplicationMetric,

@@ -61,6 +61,16 @@ class DBInterface(ABC):
     ):
         pass
 
+    def create_or_get_run(
+        self,
+        session,
+        run_data: dict,
+        uid: str,
+        project: str = "",
+        iter: int = 0,
+    ):
+        pass
+
     @abstractmethod
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         pass

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import concurrent.futures
 import datetime
 import json
@@ -27,6 +26,7 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.model_monitoring.db.stores
+from mlrun.config import config as mlconf
 from mlrun.datastore import get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
@@ -288,9 +288,7 @@ class MonitoringApplicationController:
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.storage_options = None
-        if not mlrun.mlconf.is_ce_mode():
-            self._initialize_v3io_configurations()
-        elif os.environ.get("MLRUN_ARTIFACT_PATH").startswith("s3://"):
+        if mlconf.artifact_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     @staticmethod
@@ -300,12 +298,6 @@ class MonitoringApplicationController:
         if access_key is None:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
-
-    def _initialize_v3io_configurations(self) -> None:
-        self.storage_options = dict(
-            v3io_access_key=self.model_monitoring_access_key,
-            v3io_api=mlrun.mlconf.v3io_api,
-        )
 
     def run(self) -> None:
         """

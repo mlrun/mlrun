@@ -18,7 +18,7 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
-from pandas import Timedelta, Timestamp
+from pandas import DataFrame, Timedelta, Timestamp
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -1121,3 +1121,28 @@ def test_validate_single_def_handler_valid_handler(code):
         pytest.fail(
             "validate_single_def_handler raised MLRunInvalidArgumentError unexpectedly."
         )
+
+
+@pytest.mark.parametrize(
+    "body,is_large_body,exception",
+    [
+        (None, False, does_not_raise()),
+        ("valid string", False, does_not_raise()),
+        (b"valid bytes", False, does_not_raise()),
+        (DataFrame({"A": [1, 2, 3]}), False, does_not_raise()),
+        ("x", True, pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        (b"x", True, pytest.raises(mlrun.errors.MLRunBadRequestError)),
+        (
+            DataFrame(
+                {"A": [1] * (mlrun.utils.helpers.MYSQL_MEDIUMBLOB_SIZE_BYTES + 1)}
+            ),
+            False,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+        ),
+    ],
+)
+def test_validate_artifact_body_size(body, is_large_body, exception):
+    if is_large_body:
+        body = body * (mlrun.utils.helpers.MYSQL_MEDIUMBLOB_SIZE_BYTES + 1)
+    with exception:
+        mlrun.utils.helpers.validate_artifact_body_size(body, is_inline=False)

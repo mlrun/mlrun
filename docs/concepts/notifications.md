@@ -144,7 +144,6 @@ project.run(..., notifications=[notification])
 MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
 `when=running`. The `pipeline started` notification uses its own parameters, for
 example the webhook, credentials, etc., for the notification message.
-
 You can set only the webhook; the message is the default message.
 
 If the webhook is stored in the secret_params, you should first set the project secret and then use this project secret
@@ -162,7 +161,6 @@ slack_notification = mlrun.model.Notification(
     secret_params={"secret": "SLACK_SECRET1"},
 )
 ```
-
 
 ### Remote pipeline notifications
 In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.

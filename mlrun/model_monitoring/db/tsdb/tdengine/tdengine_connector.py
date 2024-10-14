@@ -217,7 +217,7 @@ class TDEngineConnector(TSDBConnector):
                 drop_statements.append(
                     self.tables[table]._drop_subtable_query(subtable=subtable[0])
                 )
-            self.connection.run(statements=[drop_statements])
+            self.connection.run(statements=drop_statements)
         logger.debug(
             "Deleted all project resources using the TDEngine connector",
             project=self.project,

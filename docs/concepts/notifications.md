@@ -140,12 +140,15 @@ notification = mlrun.model.Notification(
 project.run(..., notifications=[notification])
 ```
 
+### Running notifications
 MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
 `when=running`. The `pipeline started` notification uses its own parameters, for
 example the webhook, credentials, etc., for the notification message.
 
-If the webhook for the running notification is stored in the secret_params, you should first set the project secret
-and then use this project secret in the notification. For example:
+You can set only the webhook; the message is the default message.
+
+If the webhook is stored in the secret_params, you should first set the project secret and then use this project secret
+in the notification. For example:
 ```python
 import mlrun
 
@@ -155,13 +158,10 @@ slack_notification = mlrun.model.Notification(
     kind="slack",
     when=["running"],
     name="name",
-    message="message",
     condition="",
-    severity="verbose",
     secret_params={"secret": "SLACK_SECRET1"},
 )
 ```
-> ℹ️ **Info:** On running notification you can set only the webhook, and the message will be the default message.
 
 
 ### Remote pipeline notifications

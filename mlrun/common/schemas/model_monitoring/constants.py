@@ -209,7 +209,7 @@ class FileTargetKind:
     ERRORS = "errors"
 
 
-class ModelMonitoringMode(str, Enum):
+class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 

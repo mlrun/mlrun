@@ -354,13 +354,16 @@ def enrich_model_endpoint_with_model_uri(
     )
 
 
+def _get_monitoring_schedules_folder_path(project: str) -> str:
+    return typing.cast(
+        str,
+        mlrun.mlconf.get_model_monitoring_file_target_path(
+            project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
+        ),
+    )
+
+
 def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
     return os.path.join(
-        typing.cast(
-            str,
-            mlrun.mlconf.get_model_monitoring_file_target_path(
-                project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
-            ),
-        ),
-        f"{endpoint_id}.json",
+        _get_monitoring_schedules_folder_path(project), f"{endpoint_id}.json"
     )

@@ -17,7 +17,6 @@ import collections
 import os
 import time
 from tempfile import NamedTemporaryFile
-from typing import Self
 
 import humanfriendly
 import kubernetes.client as k8s_client
@@ -71,7 +70,7 @@ def setup_k8s_client(
         session.kube_client = property(missing_kubeclient)
 
 
-def missing_kubeclient(self: Self):
+def missing_kubeclient(self):
     raise AttributeError("Kubeclient was not setup and is unavailable")
 
 

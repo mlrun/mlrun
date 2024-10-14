@@ -377,7 +377,7 @@ How to Investigate:
 that was ultimately defined for the run after combining the function, project, and service settings.
 3. Check Pod Errors in the UI: Go to **Projects > Jobs and Workflows > Monitor Job > Pods**, where you can see the pod details. If no nodes are found 
 that match the specified node selector, the error is displayed here.
-> For Nuclio functions (Nuclio, Serving and Application runtimes) the final resolved node selector is displayed in the Nuclio UI and will not be visible on MLRun function spec as it may be further enriched by Nuclio (See {ref}`node-selector-runtimes` section for more information).
+> For Nuclio functions (Nuclio, serving, and application runtimes) the final resolved node selector is displayed in the Nuclio UI. It is not visible on MLRun function spec since it may be further enriched by Nuclio (See {ref}node-selector-runtimes section for more information).
 
 Resolving Conflicts:</br>
 If the node selectors from the function, project, or service levels, conflict or result in an impossible combination, you can resolve 

@@ -287,9 +287,11 @@ class MonitoringApplicationController:
         )
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
-        self.tsdb_connector = mlrun.model_monitoring.get_tsdb_connector(
-            project=self.project
-        )
+        self.storage_options = None
+        if not mlrun.mlconf.is_ce_mode():
+            self._initialize_v3io_configurations()
+        elif os.environ.get("MLRUN_ARTIFACT_PATH").startswith("s3://"):
+            self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     @staticmethod
     def _get_model_monitoring_access_key() -> Optional[str]:
@@ -298,6 +300,12 @@ class MonitoringApplicationController:
         if access_key is None:
             access_key = mlrun.mlconf.get_v3io_access_key()
         return access_key
+
+    def _initialize_v3io_configurations(self) -> None:
+        self.storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key,
+            v3io_api=mlrun.mlconf.v3io_api,
+        )
 
     def run(self) -> None:
         """
@@ -376,6 +384,7 @@ class MonitoringApplicationController:
                         batch_window_generator=self._batch_window_generator,
                         project=self.project,
                         model_monitoring_access_key=self.model_monitoring_access_key,
+                        storage_options=self.storage_options,
                     )
 
     @classmethod
@@ -386,6 +395,7 @@ class MonitoringApplicationController:
         batch_window_generator: _BatchWindowGenerator,
         project: str,
         model_monitoring_access_key: str,
+        storage_options: Optional[dict] = None,
     ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
@@ -397,6 +407,7 @@ class MonitoringApplicationController:
         :param batch_window_generator:      (_BatchWindowGenerator) An object that generates _BatchWindow objects.
         :param project:                     (str) Project name.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
+        :param storage_options:             (dict) Storage options for reading the infer parquet files.
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         has_stream = endpoint[mm_constants.EventFieldType.STREAM_PATH] != ""
@@ -419,6 +430,7 @@ class MonitoringApplicationController:
                         start_time=start_infer_time,
                         end_time=end_infer_time,
                         time_column=mm_constants.EventFieldType.TIMESTAMP,
+                        storage_options=storage_options,
                     )
                     if len(df) == 0:
                         logger.info(

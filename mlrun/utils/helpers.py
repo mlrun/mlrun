@@ -37,6 +37,7 @@ import inflection
 import numpy as np
 import packaging.version
 import pandas
+import pandas as pd
 import semver
 import yaml
 from dateutil import parser
@@ -278,17 +279,24 @@ def validate_artifact_key_name(
 
 
 def validate_artifact_body_size(
-    body: typing.Union[str, bytes, None], is_inline: bool
+    body: typing.Union[str, bytes, pd.DataFrame, None], is_inline: bool
 ) -> None:
     """
     Validates the size of the artifact body.
 
-    :param body: The artifact body, which can be a string, bytes, or None.
+    :param body: The artifact body, which can be a string, bytes, DataFrame, or None.
     :param is_inline: A flag indicating whether the artifact body is inline.
 
     :raises mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
     """
-    if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
+    body_size = 0
+
+    if isinstance(body, pd.DataFrame):
+        body_size = body.memory_usage(deep=True).sum()
+    elif isinstance(body, (str, bytes)):
+        body_size = len(body)
+
+    if body_size > MYSQL_MEDIUMBLOB_SIZE_BYTES:
         error_message = "The body of the artifact exceeds the maximum allowed size. "
         if is_inline:
             error_message += (

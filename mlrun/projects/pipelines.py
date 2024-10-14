@@ -593,7 +593,7 @@ class _KFPRunner(_PipelineRunner):
             logger.warning(
                 "Setting notifications on kfp pipeline runner uses old notification behavior. "
                 "Notifications will only be sent if you wait for pipeline completion. "
-                "To use the new notification behavior, use the remote pipeline runner."
+                "Some of the features (like setting message or severity level)."
             )
             # for start message, fallback to old notification behavior
             for notification in notifications or []:

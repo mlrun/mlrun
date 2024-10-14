@@ -161,6 +161,8 @@ slack_notification = mlrun.model.Notification(
     secret_params={"secret": "SLACK_SECRET1"},
 )
 ```
+> ℹ️ **Info:** On running notification you can set only the webhook, and the message will be the default message.
+
 
 ### Remote pipeline notifications
 In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.

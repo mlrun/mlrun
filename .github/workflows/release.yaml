@@ -283,7 +283,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: install prerequisits
+      - name: Install Python venv
+        run: |
+          venv="$HOME/.local/share/venv"
+          python3 -m venv "$venv"
+          echo "$venv/bin" >> $GITHUB_PATH
+      - name: Install prerequisites
         run: |
           pip install gitpython
       - name: Create mlrun demos tar

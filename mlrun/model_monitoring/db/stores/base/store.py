@@ -131,37 +131,6 @@ class StoreBase(ABC):
         """
 
     @abstractmethod
-    def get_last_analyzed(self, endpoint_id: str, application_name: str) -> int:
-        """
-        Get the last analyzed time for the provided model endpoint and application.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param application_name: Registered application name.
-
-        :return: Timestamp as a Unix time.
-        :raise:  MLRunNotFoundError if last analyzed value is not found.
-        """
-        pass
-
-    @abstractmethod
-    def update_last_analyzed(
-        self,
-        endpoint_id: str,
-        application_name: str,
-        last_analyzed: int,
-    ):
-        """
-        Update the last analyzed time for the provided model endpoint and application.
-
-        :param endpoint_id:      The unique id of the model endpoint.
-        :param application_name: Registered application name.
-        :param last_analyzed:    Timestamp as a Unix time that represents the last analyzed time of a certain
-                                 application and model endpoint.
-
-        """
-        pass
-
-    @abstractmethod
     def get_model_endpoint_metrics(
         self, endpoint_id: str, type: mm_schemas.ModelEndpointMonitoringMetricType
     ) -> list[mm_schemas.ModelEndpointMonitoringMetric]:

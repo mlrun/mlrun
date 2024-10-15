@@ -162,7 +162,10 @@ class _ApplicationErrorHandler(StepToDict):
         :param event: Application event.
         """
 
-        logger.error(f"Error in application step: {traceback.format_exc(event.error)}")
+        exception_with_trace = "".join(
+            traceback.format_exception(None, event.error, event.error.__traceback__)
+        )
+        logger.error(f"Error in application step: {exception_with_trace}")
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,

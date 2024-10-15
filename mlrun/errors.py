@@ -145,7 +145,7 @@ def err_to_str(err):
     # in case the error string is longer than 32k, we truncate it
     # the truncation takes the first 16k, then the last 16k characters
     if len(err_msg) > 32_000:
-        err_msg = err_msg[:16_000] + "...truncated..." + err_msg[-16_000]
+        err_msg = err_msg[:16_000] + "...truncated..." + err_msg[-16_000:]
     return err_msg
 
 

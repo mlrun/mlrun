@@ -15,6 +15,7 @@
 import os
 import shutil
 import tarfile
+import traceback
 
 import requests
 from git import Repo
@@ -79,6 +80,7 @@ for demo, files in demos_files.items():
         except Exception as e:
             print(f"could not download {url}")
             print(e)
+            traceback.print_exc()
 
 # Create a tar archive of the temporary directory
 with tarfile.open("mlrun-demos.tar", "w") as tar:

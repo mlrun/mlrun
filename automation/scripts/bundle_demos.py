@@ -66,7 +66,7 @@ for repo_info in repos:
 shutil.copy2("automation/scripts/update_demos.sh", "demos/update_demos.sh")
 
 for demo, files in demos_files.items():
-    print(f"Downloading {len(files)} files for demo : {demo}.")
+    print(f"Downloading {len(files)} files for demo {demo}...")
     for url in files:
         file_name = os.path.join(temp_dir, "data", demo, url.split("/")[-1])
         os.makedirs(os.path.join(temp_dir, "data", demo), exist_ok=True)

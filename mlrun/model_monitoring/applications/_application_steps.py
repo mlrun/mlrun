@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import traceback
 from typing import Any, Optional, Union
 
 import mlrun.common.schemas.alert as alert_objects
@@ -164,7 +165,9 @@ class _ApplicationErrorHandler(StepToDict):
         error_data = {
             "Endpoint ID": event.body.endpoint_id,
             "Application Class": event.body.application_name,
-            "Error": event.error,
+            "Error": "".join(
+                traceback.format_exception(None, event.error, event.error.__traceback__)
+            ),
             "Timestamp": event.timestamp,
         }
         logger.error("Error in application step", **error_data)

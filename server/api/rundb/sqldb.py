@@ -1102,6 +1102,7 @@ class SQLRunDB(RunDBInterface):
         self,
         func: "mlrun.runtimes.BaseRuntime",
         offset: int = 0,
+        events_offset: int = 0,
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,

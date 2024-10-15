@@ -77,7 +77,7 @@ for demo, files in demos_files.items():
             response = requests.get(url)
             with open(file_name, "wb") as f:
                 f.write(response.content)
-        except Exception as e:
+        except Exception:
             print(f"could not download {url}")
             traceback.print_exc()
 

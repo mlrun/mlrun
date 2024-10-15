@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PACKAGES ?= mlrun-pipelines-kfp-common mlrun-pipelines-kfp-v1-8 mlrun-pipelines-kfp-v2
+PACKAGES ?= mlrun-pipelines-kfp-common mlrun-pipelines-kfp-v1-8 mlrun-pipelines-kfp-v2 mlrun-pipelines-kfp-nop
 
 TWINE_USERNAME ?= __token__
 TWINE_PASSWORD ?= "replace with your token"

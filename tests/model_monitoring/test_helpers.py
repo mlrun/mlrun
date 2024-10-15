@@ -288,6 +288,13 @@ class TestBatchInterval:
         ), "The last interval should be after last_updated"
 
     @staticmethod
+    @pytest.fixture
+    def endpoint_app_schedules() -> DataItem:
+        item = DataItem(key="", store=InMemoryStore(), subpath="ep.json")
+        item.put("{}")
+        return item
+
+    @staticmethod
     @pytest.mark.parametrize(
         (
             "timedelta_seconds",
@@ -306,12 +313,11 @@ class TestBatchInterval:
         last_updated: int,
         first_request: int,
         expected_last_analyzed: int,
+        endpoint_app_schedules: DataItem,
     ) -> None:
         assert (
             _BatchWindow(
-                endpoint_app_schedules=DataItem(
-                    key="", store=InMemoryStore(), subpath="ep.json"
-                ),
+                endpoint_app_schedules=endpoint_app_schedules,
                 application="special-app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,

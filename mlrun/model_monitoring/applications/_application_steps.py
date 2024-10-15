@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import traceback
 from typing import Any, Optional, Union
 
 import mlrun.common.schemas.alert as alert_objects
@@ -161,7 +162,7 @@ class _ApplicationErrorHandler(StepToDict):
         :param event: Application event.
         """
 
-        logger.error(f"Error in application step: {event}")
+        logger.error(f"Error in application step: {traceback.format_exc(event.error)}")
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,

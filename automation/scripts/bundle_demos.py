@@ -79,7 +79,6 @@ for demo, files in demos_files.items():
                 f.write(response.content)
         except Exception as e:
             print(f"could not download {url}")
-            print(e)
             traceback.print_exc()
 
 # Create a tar archive of the temporary directory

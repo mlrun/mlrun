@@ -20,7 +20,6 @@ from collections.abc import Iterator
 from typing import NamedTuple, NewType, Optional, cast
 
 import nuclio
-from botocore.exceptions import ClientError as BotoClientError
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants

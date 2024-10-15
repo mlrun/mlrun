@@ -15,6 +15,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
@@ -102,8 +103,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             PodPhases.running,
         )
 
-        self.run_uid_label_selector = self._generate_run_pod_label_selector(
-            self.run_uid
+        self.pod_label_selector = self._generate_get_logger_pods_label_selector(
+            self.runtime_handler
         )
 
     def test_list_resources(self, db: Session, client: TestClient):
@@ -142,7 +143,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 group_by=group_by,
             )
 
-    def test_delete_resources_succeeded_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_succeeded_crd(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_crds_calls = [
             [self.succeeded_crd_dict],
             # 2 additional time for wait for pods deletion
@@ -151,6 +155,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
+            # for the get_logger_pods
+            [self.launcher_pod, self.worker_pod],
             # additional time for wait for pods deletion - simulate pods not removed yet
             [self.launcher_pod, self.worker_pod],
             # additional time for wait for pods deletion - simulate pods gone
@@ -158,6 +164,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=0)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -168,10 +175,20 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, len(list_namespaced_pods_calls), paginated=False
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
+        )
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.launcher_pod.metadata.name,
         )
 
     def test_delete_resources_running_crd(self, db: Session, client: TestClient):
@@ -213,7 +230,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
 
-    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
             # additional time for wait for pods deletion
@@ -221,11 +239,14 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         list_namespaced_pods_calls = [
-            # for wait for pods deletion - simulate pods gone
+            # for the get_logger_pods
+            [self.launcher_pod, self.worker_pod],
+            # additional time for wait for pods deletion - simulate pods gone
             [],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_delete_namespaced_custom_objects()
+        log = self._mock_read_namespaced_pod_log()
         self.runtime_handler.delete_resources(get_db(), db, grace_period=10, force=True)
         self._assert_delete_namespaced_custom_objects(
             self.runtime_handler,
@@ -236,24 +257,38 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, len(list_namespaced_crds_calls), paginated=False
         )
         self._assert_list_namespaced_pods_calls(
-            self.runtime_handler, len(list_namespaced_pods_calls), paginated=False
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+            paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.launcher_pod.metadata.name,
+        )
 
-    def test_monitor_run_succeeded_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_succeeded_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
             [self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
         list_namespaced_pods_calls = [
-            # 1 call per threshold state verification
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
             [],
+            [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )
@@ -265,27 +300,38 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            # 1 call per threshold state verification
-            1,
-            self.run_uid_label_selector,
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            2,
+            self.pod_label_selector,
             paginated=False,
         )
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.launcher_pod.metadata.name,
+        )
 
-    def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.active_crd_dict],
             [self.failed_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        # for the get_logger_pods
         list_namespaced_pods_calls = [
-            # 1 call per threshold state verification
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
             [],
+            [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        log = self._mock_read_namespaced_pod_log()
         expected_monitor_cycles_to_reach_expected_state = (
             expected_number_of_list_crds_calls
         )
@@ -298,7 +344,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             len(list_namespaced_pods_calls),
-            self.run_uid_label_selector,
+            self.pod_label_selector,
             paginated=False,
         )
         self._assert_run_reached_state(
@@ -310,6 +356,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 "reason": "Some reason",
                 "status_text": "Some message",
             },
+        )
+        await self._assert_run_logs(
+            db,
+            self.project,
+            self.run_uid,
+            log,
+            self.launcher_pod.metadata.name,
         )
 
     def test_state_thresholds(self, db: Session, client: TestClient):
@@ -455,6 +508,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             list_namespaced_pods_calls.append([launcher_pod, worker_pod])
 
         # mock succeeded pods
+        list_namespaced_pods_calls.append([])
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_read_namespaced_pod_log()
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -472,9 +526,9 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            # 1 call per threshold state verification
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
             len(list_namespaced_pods_calls),
-            self._generate_run_pod_label_selector(image_pull_backoff_job_uid),
+            self.pod_label_selector,
             paginated=False,
         )
         assert len(stale_runs) == 2
@@ -620,6 +674,12 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             [[self.launcher_pod, self.worker_pod]]
         )
         return mocked_responses[0].items
+
+    def _generate_get_logger_pods_label_selector(self, runtime_handler):
+        logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
+            runtime_handler
+        )
+        return f"{logger_pods_label_selector},{mlrun_constants.MLRunInternalLabels.mpi_job_role}=launcher"
 
     @staticmethod
     def _generate_mpijob_crd(project, uid, status=None):

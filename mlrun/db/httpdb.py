@@ -25,6 +25,7 @@ from os import path, remove
 from typing import Optional, Union
 from urllib.parse import urlparse
 
+import pydantic
 import requests
 import semver
 from mlrun_pipelines.utils import compile_pipeline
@@ -768,7 +769,7 @@ class HTTPRunDB(RunDBInterface):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -807,9 +808,13 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value
-            of a label (i.e. list("key=value")) or by looking for the existence of a given
-            key (i.e. "key").
+        :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param state: Deprecated - List only runs whose state is specified (will be removed in 1.9.0)
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
@@ -854,6 +859,8 @@ class HTTPRunDB(RunDBInterface):
                 FutureWarning,
             )
 
+        labels = self._parse_labels(labels)
+
         if (
             not name
             and not uid
@@ -877,7 +884,7 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "uid": uid,
-            "label": labels or [],
+            "label": labels,
             "state": mlrun.utils.helpers.as_list(state)
             if state is not None
             else states or None,
@@ -906,7 +913,14 @@ class HTTPRunDB(RunDBInterface):
         responses = self.paginated_api_call("GET", _path, error, params=params)
         return RunList(self.process_paginated_responses(responses, "runs"))
 
-    def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
+    def del_runs(
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        days_ago: int = 0,
+    ):
         """Delete a group of runs identified by the parameters of the function.
 
         Example::
@@ -915,16 +929,23 @@ class HTTPRunDB(RunDBInterface):
 
         :param name: Name of the task which the runs belong to.
         :param project: Project to which the runs belong.
-        :param labels: Filter runs that are labeled using these specific label values.
+        :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param state: Filter only runs which are in this state.
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
 
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "project": project,
-            "label": labels or [],
+            "label": labels,
             "state": state,
             "days_ago": str(days_ago),
         }
@@ -1063,10 +1084,10 @@ class HTTPRunDB(RunDBInterface):
 
     def list_artifacts(
         self,
-        name=None,
-        project=None,
-        tag=None,
-        labels: Optional[Union[dict[str, str], list[str]]] = None,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         iter: int = None,
@@ -1096,8 +1117,13 @@ class HTTPRunDB(RunDBInterface):
             ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
-            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -1116,10 +1142,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-
-        labels = labels or []
-        if isinstance(labels, dict):
-            labels = [f"{key}={value}" for key, value in labels.items()]
+        labels = self._parse_labels(labels)
 
         params = {
             "name": name,
@@ -1144,7 +1167,13 @@ class HTTPRunDB(RunDBInterface):
         return values
 
     def del_artifacts(
-        self, name=None, project=None, tag=None, labels=None, days_ago=0, tree=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        days_ago=0,
+        tree: Optional[str] = None,
     ):
         """Delete artifacts referenced by the parameters.
 
@@ -1152,15 +1181,24 @@ class HTTPRunDB(RunDBInterface):
             :py:func:`~list_artifacts` for more details.
         :param project: Project that artifacts belong to.
         :param tag: Choose artifacts who are assigned this tag.
-        :param labels: Choose artifacts which are labeled.
+        :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param days_ago: This parameter is deprecated and not used.
+        :param tree: Delete artifacts filtered by tree.
         """
         project = project or config.default_project
+        labels = self._parse_labels(labels)
+
         params = {
             "name": name,
             "tag": tag,
             "tree": tree,
-            "label": labels or [],
+            "label": labels,
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
@@ -1252,23 +1290,36 @@ class HTTPRunDB(RunDBInterface):
                 )
 
     def list_functions(
-        self, name=None, project=None, tag=None, labels=None, since=None, until=None
+        self,
+        name: Optional[str] = None,
+        project: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
         :param name: Return only functions with a specific name.
         :param project: Return functions belonging to this project. If not specified, the default project is used.
         :param tag: Return function versions with specific tags. To return only tagged functions, set tag to ``"*"``.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param labels: Filter functions by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param since: Return functions updated after this date (as datetime object).
         :param until: Return functions updated before this date (as datetime object).
         :returns: List of function objects (as dictionary).
         """
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "since": datetime_to_iso(since),
             "until": datetime_to_iso(until),
         }
@@ -2079,11 +2130,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_features(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> list[dict]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
@@ -2094,18 +2145,25 @@ class HTTPRunDB(RunDBInterface):
             example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
         :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
         :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
-        :param labels: Return only feature-sets which are labeled as requested.
+        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :returns: A list of mapping from feature to a digest of the feature-set, which contains the feature-set
             meta-data. Multiple entries may be returned for any specific feature due to multiple tags or versions
             of the feature-set.
         """
 
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
             "entity": entities or [],
-            "label": labels or [],
+            "label": labels,
         }
 
         path = f"projects/{project}/features"
@@ -2116,11 +2174,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_features_v2(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """List feature-sets which contain specific features. This function may return multiple versions of the same
         feature-set if a specific tag is not requested. Note that the various filters of this function actually
@@ -2131,16 +2189,23 @@ class HTTPRunDB(RunDBInterface):
             example, looking for ``feat`` will return features which are named ``MyFeature`` as well as ``defeat``.
         :param tag: Return feature-sets which contain the features looked for, and are tagged with the specific tag.
         :param entities: Return only feature-sets which contain an entity whose name is contained in this list.
-        :param labels: Return only feature-sets which are labeled as requested.
+        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :returns: A list of features, and a list of their corresponding feature sets.
         """
 
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
             "entity": entities or [],
-            "label": labels or [],
+            "label": labels,
         }
 
         path = f"projects/{project}/features"
@@ -2151,21 +2216,34 @@ class HTTPRunDB(RunDBInterface):
 
     def list_entities(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
-        labels: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> list[dict]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features` function, and uses the same logic. However, the entities are matched
         against the name rather than the features.
+
+        :param project: The project containing the entities.
+        :param name: The name of the entities to retrieve.
+        :param tag: The tag of the specific entity version to retrieve.
+        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
+        :returns: A list of entities.
         """
 
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
         }
 
         path = f"projects/{project}/entities"
@@ -2176,21 +2254,34 @@ class HTTPRunDB(RunDBInterface):
 
     def list_entities_v2(
         self,
-        project: str,
-        name: str = None,
-        tag: str = None,
-        labels: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> dict[str, list[dict]]:
         """Retrieve a list of entities and their mapping to the containing feature-sets. This function is similar
         to the :py:func:`~list_features_v2` function, and uses the same logic. However, the entities are matched
         against the name rather than the features.
+
+        :param project: The project containing the entities.
+        :param name: The name of the entities to retrieve.
+        :param tag: The tag of the specific entity version to retrieve.
+        :param labels: Filter entities by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
+        :returns: A list of entities.
         """
 
         project = project or config.default_project
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
         }
 
         path = f"projects/{project}/entities"
@@ -2220,13 +2311,13 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_sets(
         self,
-        project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
-        entities: list[str] = None,
-        features: list[str] = None,
-        labels: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
+        entities: Optional[list[str]] = None,
+        features: Optional[list[str]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2247,7 +2338,13 @@ class HTTPRunDB(RunDBInterface):
         :param state: Match feature-sets with a specific state.
         :param entities: Match feature-sets which contain entities whose name is in this list.
         :param features: Match feature-sets which contain features whose name is in this list.
-        :param labels: Match feature-sets which have these labels.
+        :param labels: Filter feature-sets by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2262,14 +2359,14 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "state": state,
             "tag": tag,
             "entity": entities or [],
             "feature": features or [],
-            "label": labels or [],
+            "label": labels,
             "format": format_,
         }
         if partition_by:
@@ -2448,11 +2545,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_feature_vectors(
         self,
-        project: str = "",
-        name: str = None,
-        tag: str = None,
-        state: str = None,
-        labels: list[str] = None,
+        project: Optional[str] = None,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        state: Optional[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -2468,7 +2565,13 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of feature-vector to match. This is a like query, and is case-insensitive.
         :param tag: Match feature-vectors with specific tag.
         :param state: Match feature-vectors with a specific state.
-        :param labels: Match feature-vectors which have these labels.
+        :param labels: Filter feature-vectors by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -2480,12 +2583,12 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
-
+        labels = self._parse_labels(labels)
         params = {
             "name": name,
             "state": state,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
         }
         if partition_by:
             params.update(
@@ -2697,11 +2800,11 @@ class HTTPRunDB(RunDBInterface):
 
     def list_projects(
         self,
-        owner: str = None,
+        owner: Optional[str] = None,
         format_: Union[
             str, mlrun.common.formatters.ProjectFormat
         ] = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> list[Union[mlrun.projects.MlrunProject, str]]:
         """Return a list of the existing projects, potentially filtered by specific criteria.
@@ -2713,15 +2816,22 @@ class HTTPRunDB(RunDBInterface):
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
             - ``full``  - Return full project objects.
 
-        :param labels: Filter by labels attached to the project.
+        :param labels: Filter projects by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
+        labels = self._parse_labels(labels)
 
         params = {
             "owner": owner,
             "state": state,
             "format": format_,
-            "label": labels or [],
+            "label": labels,
         }
 
         error_message = f"Failed listing projects, query: {params}"
@@ -3211,7 +3321,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
@@ -3235,8 +3345,13 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
-         label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
+            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+            or `{"label": None}` to check for key existence.
+            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+            or just `"label"` for key existence.
+            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+            the specified key-value pairs or key existence.
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339 time, a
                       Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
@@ -3249,9 +3364,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{project}/model-endpoints"
-
-        if labels and isinstance(labels, dict):
-            labels = [f"{key}={value}" for key, value in labels.items()]
+        labels = self._parse_labels(labels)
 
         response = self.api_call(
             method="GET",
@@ -3259,7 +3372,7 @@ class HTTPRunDB(RunDBInterface):
             params={
                 "model": model,
                 "function": function,
-                "label": labels or [],
+                "label": labels,
                 "start": start,
                 "end": end,
                 "metric": metrics or [],
@@ -4331,6 +4444,28 @@ class HTTPRunDB(RunDBInterface):
         for item in response:
             results.append(mlrun.common.schemas.AlertTemplate(**item))
         return results
+
+    @staticmethod
+    def _parse_labels(
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]],
+    ):
+        """
+        Parse labels to support providing a dictionary from the SDK,
+        which may not be directly supported in the endpoints.
+
+        :param labels: The labels to parse, which can be a dictionary, a list of strings,
+                       or a comma-separated string. This function converts them into a list
+                       of labels in the format 'key=value' or 'key'.
+        :return: A list of parsed labels in the format 'key=value' or 'key'.
+        :raises MLRunValueError: If the labels format is invalid.
+        """
+        try:
+            return mlrun.common.schemas.common.LabelsModel(labels=labels).labels
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunValueError(
+                "Invalid labels format. Must be a dictionary of strings, a list of strings, "
+                "or a comma-separated string."
+            ) from exc
 
 
 def _as_json(obj):

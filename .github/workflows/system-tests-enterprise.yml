@@ -242,7 +242,6 @@ jobs:
           --mlrun-ui-version "${{ steps.computed_params.outputs.mlrun_ui_version }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}"
-          --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
@@ -257,6 +256,7 @@ jobs:
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           --save-to-path "$GITHUB_WORKSPACE/env.yml"
+          --kubeconfig-content "${{ secrets.LATEST_SYSTEM_TEST_KUBECONFIG }}"
 
     - name: Encrypt file
       id: encrypt_file

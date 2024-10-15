@@ -172,6 +172,8 @@ class _ApplicationErrorHandler(StepToDict):
         }
         logger.error("Error in application step", **error_data)
 
+        error_data["Error"] = event.error
+
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,
             entity=alert_objects.EventEntities(

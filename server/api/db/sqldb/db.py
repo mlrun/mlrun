@@ -1298,6 +1298,8 @@ class SQLDB(DBInterface):
         db_key = artifact_dict.get("spec", {}).get("db_key")
         if not db_key:
             artifact_dict.setdefault("spec", {})["db_key"] = key
+        else:
+            validate_artifact_key_name(db_key, "artifact.db_key")
 
         # remove the tag from the metadata, as it is stored in a separate table
         artifact_dict["metadata"].pop("tag", None)

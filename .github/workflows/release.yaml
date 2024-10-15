@@ -285,7 +285,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: install prerequisits
         run: |
-          pip install gitpython
+          pip install gitpython requests
       - name: Create mlrun demos tar
         run: |
           python automation/scripts/bundle_demos.py

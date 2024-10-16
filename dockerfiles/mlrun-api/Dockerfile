@@ -51,14 +51,29 @@ RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
-COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt dockerfiles/mlrun-api/requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
+COPY ./dockerfiles ./dockerfiles
+COPY ./pipeline-adapters ./pipeline-adapters
+COPY ./requirements.txt  .
+COPY ./dev-requirements.txt  .
+COPY ./conda-arm64-requirements.txt  .
+COPY ./packages.py .
+COPY ./dependencies.py  .
+COPY ./setup.py .
+COPY ./README.md .
+COPY ./mlrun/utils/version/version.json ./mlrun/utils/version/version.json
 
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-api-requirements.txt
+    -r dockerfiles/mlrun-api/requirements.txt  --no-cache-dir  --no-build-isolation && \
+    python -m pip install .[complete-api] --no-cache-dir --no-build-isolation && \
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common --no-cache-dir --no-build-isolation &&\
+    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8 --no-cache-dir --no-build-isolation
+
+
 
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
@@ -73,10 +88,6 @@ ENV UVICORN_PORT=${MLRUN_HTTPDB__PORT}
 ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIVE}
 
 COPY . .
-
-RUN python -m pip install .[complete-api] &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
 
 VOLUME /mlrun/db
 

@@ -234,10 +234,8 @@ class TDEngineConnector(TSDBConnector):
                 drop_statements.append(
                     self.tables[table]._drop_subtable_query(subtable=subtable[0])
                 )
-            # deleting many tables may take longer
-            timeout = max(self._timeout, self._timeout / 2 * len(subtables))
             self.connection.run(
-                statements=drop_statements, timeout=timeout, retries=self._retries
+                statements=drop_statements, timeout=self._timeout, retries=self._retries
             )
         logger.debug(
             "Deleted all project resources using the TDEngine connector",

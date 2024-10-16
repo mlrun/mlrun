@@ -556,6 +556,10 @@ default_config = {
         "tsdb_connection": "",
         # See mlrun.common.schemas.model_monitoring.constants.StreamKind for available options
         "stream_connection": "",
+        "tdengine": {
+            "timeout": 10,
+            "retries": 1,
+        },
     },
     "secret_stores": {
         # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory

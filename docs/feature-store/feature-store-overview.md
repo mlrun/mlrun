@@ -81,7 +81,7 @@ The training job automatically generates a set of results and versioned artifact
 
 After you validate the feature vector, use the **online** feature service, based on the 
 NoSQL target defined in the feature set, for real-time serving. For serving, you define a serving class derived from 
-`mlrun.serving.V2ModelServer`. In the class `load` method, call the {py:meth}`~mlrun.feature_store.get_online_feature_service` function with the vector name, which returns 
+`mlrun.serving.V2ModelServer`. In the class `load` method, call the {py:meth}`~mlrun.feature_store.FeatureVector.get_online_feature_service` function with the vector name, which returns 
 a feature service object. In the class `preprocess` method, call the feature service `get` method to get the values of those features.
 
 This feature store centric process, using one computation graph definition for a feature set, gives you an automatic online and 

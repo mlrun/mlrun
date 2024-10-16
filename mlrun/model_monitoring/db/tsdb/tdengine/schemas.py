@@ -107,25 +107,26 @@ class TDEngineSchema:
             )
         return f"CREATE TABLE if NOT EXISTS {self.database}.{subtable} USING {self.super_table} TAGS ({tags});"
 
+    @staticmethod
     def _insert_subtable_stmt(
-        self,
-        connection: taosws.Connection,
+        statement: taosws.TaosStmt,
+        columns: dict[str, _TDEngineColumn],
         subtable: str,
         values: dict[str, Union[str, int, float, datetime.datetime]],
     ) -> taosws.TaosStmt:
-        stmt = connection.statement()
-        question_marks = ", ".join("?" * len(self.columns))
-        stmt.prepare(f"INSERT INTO ? VALUES ({question_marks});")
-        stmt.set_tbname(subtable)
+        question_marks = ", ".join("?" * len(columns))
+        statement.prepare(f"INSERT INTO ? VALUES ({question_marks});")
+        statement.set_tbname(subtable)
 
         bind_params = []
 
-        for col_name, col_type in self.columns.items():
+        for col_name, col_type in columns.items():
             val = values[col_name]
             bind_params.append(values_to_column([val], col_type))
 
-        stmt.bind_param(bind_params)
-        return stmt
+        statement.bind_param(bind_params)
+        statement.add_batch()
+        return statement
 
     def _delete_subtable_query(
         self,
@@ -211,7 +212,7 @@ class TDEngineSchema:
                 if filter_query:
                     query.write(f"{filter_query} AND ")
                 if start:
-                    query.write(f"{timestamp_column} >= '{start}'" + " AND ")
+                    query.write(f"{timestamp_column} >= '{start}' AND ")
                 if end:
                     query.write(f"{timestamp_column} <= '{end}'")
             if interval:

@@ -26,6 +26,7 @@ import mlrun_pipelines.common.models
 import pandas as pd
 import pytest
 from kfp import dsl
+from kubernetes.client import V1Secret
 
 import mlrun
 import mlrun.common.runtimes.constants
@@ -35,6 +36,7 @@ import tests.system.common.helpers.notifications as notification_helpers
 from mlrun.artifacts import Artifact
 from mlrun.common.runtimes.constants import RunStates
 from mlrun.model import EntrypointParam
+from mlrun.projects import MlrunProject
 from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
@@ -93,7 +95,9 @@ class TestProject(TestMLRunSystem):
             / "assets"
         )
 
-    def _create_project(self, project_name, with_repo=False, overwrite=False):
+    def _create_project(
+        self, project_name, with_repo=False, overwrite=False
+    ) -> MlrunProject:
         self.custom_project_names_to_delete.append(project_name)
         self._logger.debug(
             "Creating new project",
@@ -525,6 +529,12 @@ class TestProject(TestMLRunSystem):
         fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
+        for secret_name, env_var_name in project._secrets.get_k8s_secrets().items():
+            k8s_secret: V1Secret = pytest.Session.kube_client.read_namespaced_secret(
+                name=secret_name,
+                namespace="default-tenant",
+            )
+            assert k8s_secret.data.get("accessKey") == os.environ.get(env_var_name)
 
     def test_local_pipeline(self):
         self._test_new_pipeline("lclpipe", engine="local")
@@ -617,6 +627,7 @@ class TestProject(TestMLRunSystem):
         )
         runner_run_result = project.list_runs(name=workflow_runner_name)[0]
         assert runner_run_result["spec"]["node_selector"] == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project_default_function_node_selector,
             **runner_node_selector,
         }
@@ -640,6 +651,7 @@ class TestProject(TestMLRunSystem):
         mlrun.get_run_db().invoke_schedule(project=project_name, name=workflow_name)
         runner_run_result = project.list_runs(labels="job-type=workflow-runner")[0]
         assert runner_run_result["spec"]["node_selector"] == {
+            **mlrun.mlconf.get_default_function_node_selector(),
             **project_default_function_node_selector,
             **runner_node_selector,
         }
@@ -661,9 +673,6 @@ class TestProject(TestMLRunSystem):
                 # serving step
                 "deploy": 1,
             },
-        )
-        self._test_remote_pipeline_from_github(
-            name=project_name, workflow_name="main", engine="remote:kfp"
         )
 
     def test_remote_pipeline_with_local_engine_from_github(self):
@@ -1683,7 +1692,7 @@ class TestProject(TestMLRunSystem):
         notification_data_steps = {}
         for step in notification_data:
             if not step.get("step_kind"):
-                # If there is not step_kind in the step, it means that it is the workflow runner, so we skip it
+                # If there is no step_kind in the step, it means that it is the workflow runner, so we skip it
                 continue
             notification_data_steps.setdefault(step.get("step_kind"), 0)
             notification_data_steps[step.get("step_kind")] += 1

@@ -734,7 +734,7 @@ default_config = {
     "grafana_url": "",
     "alerts": {
         # supported modes: "enabled", "disabled".
-        "mode": "disabled",
+        "mode": "enabled",
         # maximum number of alerts we allow to be configured.
         # user will get an error when exceeding this
         "max_allowed": 10000,

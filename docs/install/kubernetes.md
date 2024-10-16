@@ -2,7 +2,7 @@
 # Install MLRun on Kubernetes
 
 ```{admonition} Note
-These instructions install the community edition, which currently includes MLRun {{ ceversion }}. See the {{ '[release documentation](https://{})'.format(releasedocumentation) }}.
+These instructions install the community edition, which currently includes MLRun {{ ceversion }}. 
 ```
 
 **In this section**
@@ -99,10 +99,11 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-password <your-password> \
     --docker-email <your-email>
 ```
-> **Note:**
-> If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
-> creating a user with login to configure in the secret.
 
+```{admonition} Note
+If using docker hub, the registry server is `https://registry.hub.docker.com/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
+creating a user with login to configure in the secret.
+```
 Where:
 
 - `<your-registry-server>` is your Private Docker Registry FQDN. (https://registry.hub.docker.com/ for Docker Hub).
@@ -125,24 +126,26 @@ helm --namespace mlrun \
     --wait \
     --timeout 960s \
     --set global.registry.url=<registry-url> \
-    --set global.registry.secretName=registry-credentials \
+    --set global.registry.secretName=<registry-credentials> \
     --set global.externalHostAddress=<host-machine-address> \
+    --set nuclio.dashboard.externalIPAddresses=<list of IP addresses> \
     mlrun-ce/mlrun-ce
 ```
 
 Where:
- - `<registry-url>` is the registry URL that can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
+ - `<registry-url>` is the registry URL that can be authenticated by the `<registry-credentials>` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
  - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
 
 When the installation is complete, the helm command prints the URLs and ports of all the MLRun CE services.
 
-> **Note:**
-> There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
-> MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
-> `--set pipelines.enabled=false`.
+```{admonition} Note
+There is currently a known issue with installing the chart on Macs using Apple silicon (M1/M2). The current pipelines
+MySQL database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the
+`--set pipelines.enabled=false`.
+```
 
 ## Configuring the online feature store
-The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
+The MLRun Community Edition supports the online feature store. To enable it, you need to first deploy a Redis service that is accessible to your MLRun CE cluster.
 To deploy a Redis service, refer to the [Redis documentation](https://redis.io/docs/getting-started/).
 
 When you have a Redis service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
@@ -260,7 +263,7 @@ Upon uninstalling, any hanging / terminating pods hold the PVCs and PVs respecti
 Since pods that are stuck in terminating state seem to be a never-ending plague in Kubernetes, note this,
 and remember to clean the remaining PVs and PVCs.
 
-### Handing stuck-at-terminating pods:
+### Handing stuck-at-terminating pods
 ```bash
 kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 ```
@@ -303,21 +306,21 @@ Then try to upgrade the chart:
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
 ```
 
-If it fails, you should reinstall the chart:
+If it fails, reinstall the chart:
 
-1. remove current mlrun-ce
+1. Remove the current mlrun-ce:
 ```bash
 mkdir ~/tmp
 helm get values -n mlrun mlrun-ce > ~/tmp/mlrun-ce-values.yaml
 helm uninstall mlrun-ce
 ```
-2.  reinstall mlrun-ce, reuse values
+2.  Reinstall the mlrun-ce, reusing the values:
 ```bash
 helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlrun-ce --devel
 ```
 
 ```{admonition} Note
-If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in
+If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
 ```
 
 ## Storing artifacts in AWS S3 storage

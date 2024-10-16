@@ -27,7 +27,7 @@ from typing import Any
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import MetaData, and_, delete, distinct, func, or_, select, text
+from sqlalchemy import MetaData, and_, case, delete, distinct, func, or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, aliased
@@ -41,6 +41,7 @@ import mlrun.common.types
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.model
+import server.api.crud
 import server.api.db.session
 import server.api.utils.helpers
 from mlrun.artifacts.base import fill_artifact_object_hash
@@ -226,20 +227,47 @@ class SQLDB(DBInterface):
                 start_time=run_start_time(run_data) or now,
                 requested_logs=False,
             )
-        self._ensure_run_name_on_update(run, run_data)
-        labels = run_labels(run_data)
-        self._update_run_state(run, run_data)
-        update_labels(run, labels)
-        # Note that this code basically allowing anyone to override the run's start time after it was already set
-        # This is done to enable the context initialization to set the start time to when the user's code actually
-        # started running, and not when the run record was initially created (happening when triggering the job)
-        # In the future we might want to limit who can actually do that
-        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
-        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
-        run.start_time = start_time
-        self._update_run_updated_time(run, run_data, now=now)
-        run.struct = run_data
+        self._enrich_run_model(now, run, run_data)
         self._upsert(session, [run], ignore=True)
+
+    def create_or_get_run(
+        self,
+        session: Session,
+        run_data: dict,
+        uid: str,
+        project: str = "",
+        iter: int = 0,
+    ):
+        """
+        This method is used to ensure a specific run is in the DB.
+        Due to isolation levels, it is possible that a certain session is unable to read a run from the DB since it
+        has an outdated snapshot. Here, we try to create a run, if we get a conflict, the session was rollbacked, and
+        we can now read the run from the DB.
+        """
+        logger.debug(
+            "Creating or getting run in DB",
+            project=project,
+            uid=uid,
+            iter=iter,
+            run_name=run_data["metadata"]["name"],
+        )
+        now = datetime.now(timezone.utc)
+        run = Run(
+            name=run_data["metadata"]["name"],
+            uid=uid,
+            project=project,
+            iteration=iter,
+            state=run_state(run_data),
+            start_time=run_start_time(run_data) or now,
+            requested_logs=False,
+        )
+        self._enrich_run_model(now, run, run_data)
+        try:
+            self._upsert(session, [run], silent=True)
+        except mlrun.errors.MLRunConflictError:
+            # Session was rollbacked and we now get a new snapshot
+            return self.read_run(session, uid=uid, project=project, iter=iter)
+        return run_data
 
     def update_run(self, session, updates: dict, uid, project="", iter=0):
         project = project or config.default_project
@@ -335,14 +363,33 @@ class SQLDB(DBInterface):
         )
         session.commit()
 
-    def read_run(self, session, uid, project=None, iter=0):
+    def read_run(
+        self,
+        session: Session,
+        uid: str,
+        project: str = None,
+        iter: int = 0,
+        with_notifications: bool = False,
+        populate_existing: bool = False,
+    ):
         project = project or config.default_project
-        run = self._get_run(session, uid, project, iter)
+        run = self._get_run(
+            session,
+            uid,
+            project,
+            iter,
+            with_notifications=with_notifications,
+            populate_existing=populate_existing,
+        )
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Run uid {uid} of project {project} not found"
             )
-        return run.struct
+
+        run_struct = run.struct
+        if with_notifications:
+            self._fill_run_struct_with_notifications(run.notifications, run_struct)
+        return run_struct
 
     def list_runs(
         self,
@@ -425,19 +472,7 @@ class SQLDB(DBInterface):
         for run in query:
             run_struct = run.struct
             if with_notifications:
-                run_struct.setdefault("spec", {}).setdefault("notifications", [])
-                run_struct.setdefault("status", {}).setdefault("notifications", {})
-                for notification in run.notifications:
-                    (
-                        notification_spec,
-                        notification_status,
-                    ) = self._transform_notification_record_to_spec_and_status(
-                        notification
-                    )
-                    run_struct["spec"]["notifications"].append(notification_spec)
-                    run_struct["status"]["notifications"][notification.name] = (
-                        notification_status
-                    )
+                self._fill_run_struct_with_notifications(run.notifications, run_struct)
             runs.append(run_struct)
 
         return runs
@@ -462,6 +497,36 @@ class SQLDB(DBInterface):
         for run in query:  # Can not use query.delete with join
             session.delete(run)
         session.commit()
+
+    def _fill_run_struct_with_notifications(self, notifications, run_struct):
+        if not notifications:
+            return
+        run_struct.setdefault("spec", {})["notifications"] = []
+        run_struct.setdefault("status", {})["notifications"] = {}
+        for notification in notifications:
+            (
+                notification_spec,
+                notification_status,
+            ) = self._transform_notification_record_to_spec_and_status(notification)
+            run_struct["spec"]["notifications"].append(notification_spec)
+            run_struct["status"]["notifications"][notification.name] = (
+                notification_status
+            )
+
+    def _enrich_run_model(self, now: datetime, run: Run, run_data: dict):
+        self._ensure_run_name_on_update(run, run_data)
+        labels = run_labels(run_data)
+        self._update_run_state(run, run_data)
+        update_labels(run, labels)
+        # Note that this code basically allowing anyone to override the run's start time after it was already set
+        # This is done to enable the context initialization to set the start time to when the user's code actually
+        # started running, and not when the run record was initially created (happening when triggering the job)
+        # In the future we might want to limit who can actually do that
+        start_time = run_start_time(run_data) or SQLDB._add_utc_timezone(run.start_time)
+        run_data.setdefault("status", {})["start_time"] = start_time.isoformat()
+        run.start_time = start_time
+        self._update_run_updated_time(run, run_data, now=now)
+        run.struct = run_data
 
     def _add_run_name_query(self, query, name):
         exact_name = self._escape_characters_for_like_query(name)
@@ -773,19 +838,30 @@ class SQLDB(DBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
-
-        computed_tag = tag or "latest"
         enrich_tag = False
 
-        if tag and not uid:
-            enrich_tag = True
-            # If a tag is given, we can join and filter on the tag
-            query = query.join(ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id)
-            query = query.filter(ArtifactV2.Tag.name == computed_tag)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        if tag == "latest" and uid:
+            # Make a best-effort attempt to find the "latest" tag. It will be present in the response if the
+            # latest tag exists, otherwise, it will not be included.
+            # This is due to 'latest' being a special case and is enriched in the client side
+            latest_query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == "latest")
+            if latest_query.one_or_none():
+                enrich_tag = True
+        elif tag:
+            # If a specific tag is provided, handle all cases where UID may or may not be included.
+            # The case for UID with the "latest" tag is already covered above.
+            # Here, we join with the tags table to check for a match with the specified tag.
+            enrich_tag = True
+            query = query.join(
+                ArtifactV2.Tag, ArtifactV2.Tag.obj_id == ArtifactV2.id
+            ).filter(ArtifactV2.Tag.name == tag)
 
         # keep the query without the iteration filter for later error handling
         query_without_iter = query
@@ -819,7 +895,7 @@ class SQLDB(DBInterface):
 
         # If connected to a tag add it to metadata
         if enrich_tag:
-            self._set_tag_in_artifact_struct(artifact, computed_tag)
+            self._set_tag_in_artifact_struct(artifact, tag)
 
         return mlrun.common.formatters.ArtifactFormat.format_obj(artifact, format_)
 
@@ -1222,6 +1298,8 @@ class SQLDB(DBInterface):
         db_key = artifact_dict.get("spec", {}).get("db_key")
         if not db_key:
             artifact_dict.setdefault("spec", {})["db_key"] = key
+        else:
+            validate_artifact_key_name(db_key, "artifact.db_key")
 
         # remove the tag from the metadata, as it is stored in a separate table
         artifact_dict["metadata"].pop("tag", None)
@@ -2278,6 +2356,7 @@ class SQLDB(DBInterface):
         name: str = None,
         labels: list[str] = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
+        as_records: bool = False,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
         query = self._query(session, Schedule, kind=kind)
@@ -2287,6 +2366,9 @@ class SQLDB(DBInterface):
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)
         query = self._add_labels_filter(session, query, Schedule, labels)
+
+        if as_records:
+            return query
 
         schedules = [
             self._transform_schedule_record_to_scheme(db_schedule)
@@ -2336,6 +2418,27 @@ class SQLDB(DBInterface):
             main_table_identifier=Schedule.name,
             main_table_identifier_values=names,
         )
+
+    def align_schedule_labels(self, session: Session):
+        schedules_update = []
+        for db_schedule in self.list_schedules(session=session, as_records=True):
+            schedule_record = self._transform_schedule_record_to_scheme(db_schedule)
+            db_schedule_labels = {
+                label.name: label.value for label in db_schedule.labels
+            }
+            merged_labels = (
+                server.api.utils.helpers.merge_schedule_and_schedule_object_labels(
+                    labels=db_schedule_labels,
+                    scheduled_object=schedule_record.scheduled_object,
+                )
+            )
+            self._update_schedule_body(
+                schedule=db_schedule,
+                scheduled_object=schedule_record.scheduled_object,
+                labels=merged_labels,
+            )
+            schedules_update.append(db_schedule)
+        self._upsert(session, schedules_update)
 
     @staticmethod
     def _delete_multi_objects(
@@ -2846,7 +2949,42 @@ class SQLDB(DBInterface):
         next_day = datetime.now(timezone.utc) + timedelta(hours=24)
 
         schedules_pending_count_per_project = (
-            session.query(Schedule.project, Schedule.name, Schedule.Label)
+            session.query(
+                Schedule.project,
+                Schedule.name,
+                # The logic here is the following:
+                # If the schedule has a label with the name "workflow" then we take the value of that label
+                # name. Otherwise, we take the value of the label with the name "kind".
+                # The reason for that is that for schedule workflow we have both workflow label and kind label
+                # with job, and on schedule job we have only kind label with job and because of that we first
+                # want to check for workflow label and if it doesn't exist then we take the kind label.
+                func.coalesce(
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.workflow,
+                                    Schedule.Label.name,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                    func.max(
+                        case(
+                            [
+                                (
+                                    Schedule.Label.name
+                                    == mlrun_constants.MLRunInternalLabels.kind,
+                                    Schedule.Label.value,
+                                )
+                            ],
+                            else_=None,
+                        )
+                    ),
+                ).label("preferred_label_value"),
+            )
             .join(Schedule.Label, Schedule.Label.parent == Schedule.id)
             .filter(Schedule.next_run_time < next_day)
             .filter(Schedule.next_run_time >= datetime.now(timezone.utc))
@@ -2858,6 +2996,7 @@ class SQLDB(DBInterface):
                     ]
                 )
             )
+            .group_by(Schedule.project, Schedule.name)
             .all()
         )
 
@@ -2865,13 +3004,11 @@ class SQLDB(DBInterface):
         project_to_schedule_pending_workflows_count = collections.defaultdict(int)
 
         for result in schedules_pending_count_per_project:
-            if (
-                result[2].to_dict()["name"]
-                == mlrun_constants.MLRunInternalLabels.workflow
-            ):
-                project_to_schedule_pending_workflows_count[result[0]] += 1
-            elif result[2].to_dict()["value"] == "job":
-                project_to_schedule_pending_jobs_count[result[0]] += 1
+            project_name, schedule_name, kind = result
+            if kind == mlrun_constants.MLRunInternalLabels.workflow:
+                project_to_schedule_pending_workflows_count[project_name] += 1
+            elif kind == mlrun.common.schemas.ScheduleKinds.job:
+                project_to_schedule_pending_jobs_count[project_name] += 1
 
         return (
             project_to_schedule_count,
@@ -4469,10 +4606,23 @@ class SQLDB(DBInterface):
         query = self._query(session, cls, name=name, project=project, uid=uid)
         return query.one_or_none()
 
-    def _get_run(self, session, uid, project, iteration, with_for_update=False):
+    def _get_run(
+        self,
+        session,
+        uid,
+        project,
+        iteration,
+        with_for_update=False,
+        with_notifications=False,
+        populate_existing=False,
+    ):
         query = self._query(session, Run, uid=uid, project=project, iteration=iteration)
+        if with_notifications:
+            query = query.outerjoin(Run.Notification)
         if with_for_update:
             query = query.populate_existing().with_for_update()
+        elif populate_existing:
+            query = query.populate_existing()
 
         return query.one_or_none()
 
@@ -4480,15 +4630,15 @@ class SQLDB(DBInterface):
         session.query(cls).filter(cls.parent == NULL).delete()
         session.commit()
 
-    def _upsert(self, session, objects, ignore=False):
+    def _upsert(self, session, objects, ignore=False, silent=False):
         if not objects:
             return
         for object_ in objects:
             session.add(object_)
-        self._commit(session, objects, ignore)
+        self._commit(session, objects, ignore, silent)
 
     @staticmethod
-    def _commit(session, objects, ignore=False):
+    def _commit(session, objects, ignore=False, silent=False):
         def _try_commit_obj():
             try:
                 session.commit()
@@ -4509,11 +4659,12 @@ class SQLDB(DBInterface):
 
                 # the error is not retryable, so we try to identify weather there was a conflict or not
                 # either way - we wrap the error with a fatal error so the retry mechanism will stop
-                logger.warning(
-                    "Failed committing changes to DB",
-                    classes=classes,
-                    err=err_to_str(sql_err),
-                )
+                if not silent:
+                    logger.warning(
+                        "Failed committing changes to DB",
+                        classes=classes,
+                        err=err_to_str(sql_err),
+                    )
                 if not ignore:
                     # get the identifiers of the objects that failed to commit, for logging purposes
                     identifiers = ",".join(

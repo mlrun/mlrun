@@ -290,7 +290,7 @@ jobs:
           echo "$venv/bin" >> $GITHUB_PATH
       - name: Install prerequisites
         run: |
-          pip install gitpython
+          pip install gitpython requests
       - name: Create mlrun demos tar
         run: |
           python automation/scripts/bundle_demos.py

@@ -186,7 +186,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         except Exception as exc:
             err_str = mlrun.errors.err_to_str(exc)
             logger.warning(
-                "Background task execution failed",
+                "Internal background task execution failed",
                 function_name=function.__name__,
                 exc=err_str,
                 tb=traceback.format_exc(),

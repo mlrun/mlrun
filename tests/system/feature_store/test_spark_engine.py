@@ -25,6 +25,14 @@ import pytest
 import requests
 import v3iofs
 from pandas._testing import assert_frame_equal
+from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 from storey import EmitEveryEvent
 
 import mlrun
@@ -876,6 +884,241 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp = fstore.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
+
+    def test_stream_aggregation(self):
+        name = f"measurements_{uuid.uuid4()}"
+        test_base_time = datetime.fromisoformat("2020-07-21T21:40:00+00:00")
+
+        schema = StructType(
+            [
+                StructField("time", TimestampType(), True),
+                StructField("first_name", StringType(), True),
+                StructField("last_name", StringType(), True),
+                StructField("bid", IntegerType(), True),
+                StructField("mood", StringType(), True),
+            ]
+        )
+
+        data = (
+            {
+                "time": [
+                    test_base_time,
+                    test_base_time + pd.Timedelta(minutes=7),
+                    test_base_time + pd.Timedelta(minutes=14),
+                    test_base_time + pd.Timedelta(minutes=21),
+                    test_base_time + pd.Timedelta(minutes=28),
+                ],
+                "first_name": ["moshe", "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 16],
+                "mood": ["bad", "good", "bad", "good", "good"],
+            },
+            {
+                "time": [
+                    test_base_time + pd.Timedelta(minutes=35),
+                    test_base_time + pd.Timedelta(minutes=42),
+                ],
+                "first_name": ["moshe", "yosi"],
+                "last_name": ["cohen", "levi"],
+                "bid": [20, 40],
+                "mood": ["bad", "good"],
+            },
+        )
+
+        checkpoint_path = "/tmp/checkpoints/"
+        path = f"{self.output_dir(url=False)}/test_aggregations_parquet/"
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
+        try:
+            fsys.rm(checkpoint_path, recursive=True)
+        except FileNotFoundError:
+            pass
+
+        name_spark = f"{name}_spark"
+
+        for i in range(2):
+            # Cleanup parquet directory
+            try:
+                fsys.rm(path, recursive=True)
+            except FileNotFoundError:
+                pass
+            fsys.makedirs(path)
+
+            # Create Spark DataFrame
+            # Convert the dictionary to a list of rows
+            rows = list(
+                zip(
+                    data[i]["time"],
+                    data[i]["first_name"],
+                    data[i]["last_name"],
+                    data[i]["bid"],
+                    data[i]["mood"],
+                )
+            )
+            spark = SparkSession.builder.appName("test").getOrCreate()
+            spark_df = spark.createDataFrame(rows, schema)
+
+            # write the spark dataframe to parquet
+            spark_df.write.mode("append").parquet(path)
+
+            source = ParquetSource("myparquet", path=path)
+
+            data_set = fstore.FeatureSet(
+                name_spark,
+                entities=[Entity("first_name"), Entity("last_name")],
+                engine="spark",
+                checkpoint_path=checkpoint_path,
+            )
+
+            data_set.add_aggregation(
+                column="bid",
+                operations=["sum", "max", "sqr", "stdvar"],
+                windows="1h",
+                period="10m",
+            )
+            self.set_targets(data_set)
+            data_set.ingest(
+                source,
+                spark_context=self.spark_service,
+                run_config=fstore.RunConfig(local=self.run_local),
+            )
+
+        features = [
+            f"{name_spark}.*",
+        ]
+
+        vector = fstore.FeatureVector("my-vec", features)
+        resp = fstore.get_offline_features(vector, with_indexes=True)
+
+        df = resp.to_dataframe()
+        df = df.fillna("NaN-was-here")
+        # We can't count on the order when reading the results back
+        result_records = df.sort_values(["first_name", "last_name", "time"]).to_dict(
+            "records"
+        )
+        assert result_records == [
+            {
+                "bid_sum_1h": 2032,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000544,
+                "bid_stdvar_1h": 1312101.3333333335,
+                "time": pd.Timestamp("2020-07-21 22:20:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 2032,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000544,
+                "bid_stdvar_1h": 1312101.3333333335,
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 2032,
+                "bid_max_1h": 2000,
+                "bid_sqr_1h": 4000544,
+                "bid_stdvar_1h": 1312101.3333333335,
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 32,
+                "bid_max_1h": 20,
+                "bid_sqr_1h": 544,
+                "bid_stdvar_1h": 32.0,
+                "time": pd.Timestamp("2020-07-21 22:50:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 32,
+                "bid_max_1h": 20,
+                "bid_sqr_1h": 544,
+                "bid_stdvar_1h": 32.0,
+                "time": pd.Timestamp("2020-07-21 23:00:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 20,
+                "bid_max_1h": 20,
+                "bid_sqr_1h": 400,
+                "bid_stdvar_1h": "NaN-was-here",
+                "time": pd.Timestamp("2020-07-21 23:10:00"),
+                "bid": 20,
+                "mood": "bad",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 77,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 2077,
+                "bid_stdvar_1h": 198.24999999999997,
+                "time": pd.Timestamp("2020-07-21 22:30:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 77,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 2077,
+                "bid_stdvar_1h": 198.24999999999997,
+                "time": pd.Timestamp("2020-07-21 22:40:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 67,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 1977,
+                "bid_stdvar_1h": 240.33333333333334,
+                "time": pd.Timestamp("2020-07-21 22:50:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 56,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 1856,
+                "bid_stdvar_1h": 288.0,
+                "time": pd.Timestamp("2020-07-21 23:00:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 40,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 1600,
+                "bid_stdvar_1h": "NaN-was-here",
+                "time": pd.Timestamp("2020-07-21 23:10:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+            {
+                "bid_sum_1h": 40,
+                "bid_max_1h": 40,
+                "bid_sqr_1h": 1600,
+                "bid_stdvar_1h": "NaN-was-here",
+                "time": pd.Timestamp("2020-07-21 23:20:00"),
+                "bid": 40,
+                "mood": "good",
+                "time_window": "1h",
+            },
+        ]
 
     def test_aggregations(self):
         name = f"measurements_{uuid.uuid4()}"

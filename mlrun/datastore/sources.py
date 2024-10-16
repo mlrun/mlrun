@@ -46,14 +46,43 @@ from .utils import (
 )
 
 
-def load_spark_dataframe_with_options(session, spark_options, format=None):
+def load_spark_dataframe_with_options(
+    session, spark_options, format=None, streaming=None
+):
     non_hadoop_spark_options = spark_session_update_hadoop_options(
         session, spark_options
     )
-    if format:
-        df = session.read.format(format).load(**non_hadoop_spark_options)
+    if streaming:
+        # There are tons of messages like this one which are OK and we don't want to see them in the logs:
+        # WARN HDFSBackedStateStoreProvider: The state for version 1 doesn't exist in loadedMaps.
+        #       Reading snapshot file and delta files if needed...
+        #       Note that this is normal for the first batch of starting query.
+        # We'll suppress them by setting the log level to ERROR for the relevant logger.
+        # ToDo: we might consider disabling only this message by making a special .jar file
+        log4j = session._jvm.org.apache.log4j
+        logger = log4j.LogManager.getLogger(
+            "org.apache.spark.sql.execution.streaming.state.HDFSBackedStateStoreProvider"
+        )
+        logger.setLevel(log4j.Level.ERROR)
+
+        reader = session.read
+        if format:
+            reader = reader.format(format)
+        # if 'schema_infer_limit' in streaming:
+        #     df = reader.load(**non_hadoop_spark_options).limit(int(streaming['schema_infer_limit']))
+        # else:
+        df = reader.load(**non_hadoop_spark_options)
+        schema = df.schema
+        reader = session.readStream.schema(schema)
+        if format:
+            df = reader.format(format).load(**non_hadoop_spark_options)
+        else:
+            df = reader.load(**non_hadoop_spark_options)
     else:
-        df = session.read.load(**non_hadoop_spark_options)
+        if format:
+            df = session.read.format(format).load(**non_hadoop_spark_options)
+        else:
+            df = session.read.load(**non_hadoop_spark_options)
     return df
 
 
@@ -120,12 +149,14 @@ class BaseSourceDriver(DataSource):
             time_column=time_field or self.time_field,
         )
 
-    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+    def to_spark_df(
+        self, session, named_view=False, time_field=None, columns=None, streaming=False
+    ):
         if self.support_spark:
             spark_options = self.get_spark_options()
             spark_format = spark_options.pop("format", None)
             df = load_spark_dataframe_with_options(
-                session, spark_options, format=spark_format
+                session, spark_options, format=spark_format, streaming=streaming
             )
             if named_view:
                 df.createOrReplaceTempView(self.name)
@@ -229,10 +260,14 @@ class CSVSource(BaseSourceDriver):
         )
         return spark_options
 
-    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+    def to_spark_df(
+        self, session, named_view=False, time_field=None, columns=None, streaming=None
+    ):
         import pyspark.sql.functions as funcs
 
-        df = load_spark_dataframe_with_options(session, self.get_spark_options())
+        df = load_spark_dataframe_with_options(
+            session, self.get_spark_options(), streaming=streaming
+        )
 
         parse_dates = self._parse_dates or []
         if time_field and time_field not in parse_dates:
@@ -701,7 +736,9 @@ class BigQuerySource(BaseSourceDriver):
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
 
-    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+    def to_spark_df(
+        self, session, named_view=False, time_field=None, columns=None, streaming=None
+    ):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:
@@ -728,7 +765,9 @@ class BigQuerySource(BaseSourceDriver):
         elif table:
             options["path"] = table
 
-        df = load_spark_dataframe_with_options(session, options, "bigquery")
+        df = load_spark_dataframe_with_options(
+            session, options, "bigquery", streaming=streaming
+        )
         if named_view:
             df.createOrReplaceTempView(self.name)
         return self._filter_spark_df(df, time_field, columns)
@@ -1158,7 +1197,9 @@ class KafkaSource(OnlineSource):
 
         return function
 
-    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
+    def to_spark_df(
+        self, session, named_view=False, time_field=None, columns=None, streaming=None
+    ):
         raise NotImplementedError(
             "Conversion of a source of type 'KafkaSource' "
             "to a Spark dataframe is not possible, as this operation is not supported by Spark"

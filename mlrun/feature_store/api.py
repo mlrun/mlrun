@@ -1063,7 +1063,11 @@ def _ingest_with_spark(
         elif isinstance(source, pyspark.sql.DataFrame):
             df = source
         else:
-            df = source.to_spark_df(spark, time_field=timestamp_key)
+            df = source.to_spark_df(
+                spark,
+                time_field=timestamp_key,
+                streaming=bool(featureset.spec.checkpoint_path),
+            )
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
 

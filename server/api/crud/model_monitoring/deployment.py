@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import os
 import time
 import typing
 import uuid
@@ -47,6 +46,7 @@ import server.api.utils.singletons.k8s
 from mlrun import feature_store as fstore
 from mlrun.config import config
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
+from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
 _STREAM_PROCESSING_FUNCTION_PATH = mlrun.model_monitoring.stream_processing.__file__
@@ -266,7 +266,10 @@ class MonitoringDeployment:
             )
 
     def apply_and_create_stream_trigger(
-        self, function: mlrun.runtimes.ServingRuntime, function_name: str
+        self,
+        function: mlrun.runtimes.ServingRuntime,
+        function_name: str,
+        stream_args,
     ) -> mlrun.runtimes.ServingRuntime:
         """
         Add stream source for the nuclio serving function. The function's stream trigger can be
@@ -279,6 +282,7 @@ class MonitoringDeployment:
 
         :param function:      The serving function object that will be applied with the stream trigger.
         :param function_name: The name of the function that be applied with the stream trigger.
+        :param stream_args:   Stream args from the config.
 
         :return: `ServingRuntime` object with stream trigger.
         """
@@ -287,34 +291,34 @@ class MonitoringDeployment:
         stream_path = server.api.crud.model_monitoring.get_stream_path(
             project=self.project, function_name=function_name
         )
-        # set all MM app and infra to have only 1 replica
-        function.spec.max_replicas = 1
         if stream_path.startswith("kafka://"):
             topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
             # Generate Kafka stream source
             stream_source = mlrun.datastore.sources.KafkaSource(
                 brokers=brokers,
                 topics=[topic],
+                attributes={"max_workers": stream_args.kafka.num_workers},
             )
-            stream_source.create_topics(num_partitions=1, replication_factor=1)
+            stream_source.create_topics(
+                num_partitions=stream_args.kafka.partition_count,
+                replication_factor=stream_args.kafka.replication_factor,
+            )
             function = stream_source.add_nuclio_trigger(function)
+            function.spec.min_replicas = stream_args.kafka.min_replicas
+            function.spec.max_replicas = stream_args.kafka.max_replicas
         elif stream_path.startswith("v3io://"):
-            if "projects" in stream_path:
-                stream_args = config.model_endpoint_monitoring.application_stream_args
-                access_key = self.model_monitoring_access_key
-                kwargs = {"access_key": self.model_monitoring_access_key}
-            else:
-                stream_args = config.model_endpoint_monitoring.serving_stream_args
-                access_key = os.getenv("V3IO_ACCESS_KEY")
-                kwargs = {}
+            access_key = self.model_monitoring_access_key
+            kwargs = {"access_key": self.model_monitoring_access_key}
             if mlrun.mlconf.is_explicit_ack_enabled():
                 kwargs["explicit_ack_mode"] = "explicitOnly"
                 kwargs["worker_allocation_mode"] = "static"
+            kwargs["max_workers"] = stream_args.v3io.num_workers
             server.api.api.endpoints.nuclio.create_model_monitoring_stream(
                 project=self.project,
                 stream_path=stream_path,
+                shard_count=stream_args.v3io.shard_count,
+                retention_period_hours=stream_args.v3io.retention_period_hours,
                 access_key=access_key,
-                stream_args=stream_args,
             )
             # Generate V3IO stream trigger
             function.add_v3io_stream_trigger(
@@ -322,11 +326,14 @@ class MonitoringDeployment:
                 name=f"monitoring_{function_name}_trigger",
                 **kwargs,
             )
+            function.spec.min_replicas = stream_args.v3io.min_replicas
+            function.spec.max_replicas = stream_args.v3io.max_replicas
         else:
             server.api.api.utils.log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
                 reason="Unexpected stream path schema",
             )
+
         if not mlrun.mlconf.is_ce_mode():
             function = self._apply_access_key_and_mount_function(
                 function=function, function_name=function_name
@@ -402,7 +409,9 @@ class MonitoringDeployment:
 
         # Add stream triggers
         function = self.apply_and_create_stream_trigger(
-            function=function, function_name=mm_constants.MonitoringFunctionNames.STREAM
+            function=function,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            stream_args=config.model_endpoint_monitoring.serving_stream,
         )
 
         # Apply feature store run configurations on the serving function
@@ -525,7 +534,9 @@ class MonitoringDeployment:
 
         # Add stream triggers
         function = self.apply_and_create_stream_trigger(
-            function=function, function_name=mm_constants.MonitoringFunctionNames.WRITER
+            function=function,
+            function_name=mm_constants.MonitoringFunctionNames.WRITER,
+            stream_args=config.model_endpoint_monitoring.writer_stream_args,
         )
 
         # Apply feature store run configurations on the serving function
@@ -1198,11 +1209,11 @@ class MonitoringDeployment:
             )
         )
 
-        self._create_stream_output(
-            stream_path=secrets_dict.get(
+        if not mlrun.mlconf.is_ce_mode():
+            stream_path = secrets_dict.get(
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             )
-        )
+            self._verify_v3io_access(stream_path)
 
         server.api.crud.Secrets().store_project_secrets(
             project=self.project,
@@ -1210,6 +1221,23 @@ class MonitoringDeployment:
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                 secrets=secrets_dict,
             ),
+        )
+
+    def _verify_v3io_access(self, stream_path: str):
+        import v3io.dataplane
+
+        stream_path = server.api.crud.model_monitoring.get_stream_path(
+            project=self.project, stream_uri=stream_path
+        )
+        v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)
+        container, path = split_path(stream_path)
+        print(f"111 stream_path={stream_path}, container={container}, path={path}")
+        # We don't expect the stream to exist. The purpose is to make sure we have access.
+        v3io_client.stream.describe(
+            container,
+            path,
+            access_key=self.model_monitoring_access_key,
+            raise_for_status=[200, 404],
         )
 
     def _is_the_same_cred(
@@ -1250,23 +1278,6 @@ class MonitoringDeployment:
             )
             return False
         return True
-
-    def _create_stream_output(self, stream_path: str = None, access_key: str = None):
-        stream_path = server.api.crud.model_monitoring.get_stream_path(
-            project=self.project, stream_uri=stream_path
-        )
-        if not mlrun.mlconf.is_ce_mode():
-            access_key = access_key or self.model_monitoring_access_key
-        else:
-            access_key = None
-
-        output_stream = mlrun.datastore.get_stream_pusher(
-            stream_path=stream_path,
-            endpoint=mlrun.mlconf.v3io_api,
-            access_key=access_key,
-        )
-        if hasattr(output_stream, "_lazy_init"):
-            output_stream._lazy_init()
 
 
 def get_endpoint_features(

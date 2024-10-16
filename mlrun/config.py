@@ -49,6 +49,7 @@ _load_lock = Lock()
 _none_type = type(None)
 default_env_file = os.getenv("MLRUN_DEFAULT_ENV_FILE", "~/.mlrun.env")
 
+
 default_config = {
     "namespace": "",  # default kubernetes namespace
     "kubernetes": {
@@ -532,8 +533,54 @@ default_config = {
         },
     },
     "model_endpoint_monitoring": {
-        "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "serving_stream": {
+            "v3io": {
+                "shard_count": 2,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 2,
+                "max_replicas": 2,
+            },
+            "kafka": {
+                "partition_count": 8,
+                "replication_factor": 1,
+                "num_workers": 2,
+                "min_replicas": 1,
+                "max_replicas": 4,
+            },
+        },
+        "application_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
+        "writer_stream_args": {
+            "v3io": {
+                "shard_count": 1,
+                "retention_period_hours": 24,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+            "kafka": {
+                "partition_count": 1,
+                "replication_factor": 1,
+                "num_workers": 1,
+                "min_replicas": 1,
+                "max_replicas": 1,
+            },
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -746,7 +793,6 @@ default_config = {
         "request_timeout": 5,
     },
 }
-
 _is_running_as_api = None
 
 

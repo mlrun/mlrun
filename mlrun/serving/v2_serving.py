@@ -39,6 +39,7 @@ class V2ModelServer(StepToDict):
         protocol=None,
         input_path: str = None,
         result_path: str = None,
+        shard_by_endpoint: Optional[bool] = None,
         **kwargs,
     ):
         """base model serving class (v2), using similar API to KFServing v2 and Triton
@@ -91,6 +92,8 @@ class V2ModelServer(StepToDict):
                               this require that the event body will behave like a dict, example:
                               event: {"x": 5} , result_path="resp" means the returned response will be written
                               to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param shard_by_endpoint: whether to use the endpoint as the partition/sharding key when writing to model
+                                  monitoring stream. Defaults to True.
         :param kwargs:     extra arguments (can be accessed using self.get_param(key))
         """
         self.name = name
@@ -119,7 +122,9 @@ class V2ModelServer(StepToDict):
         if model:
             self.model = model
             self.ready = True
+        self._versioned_model_name = None
         self.model_endpoint_uid = None
+        self.shard_by_endpoint = shard_by_endpoint
 
     def _load_and_update_state(self):
         try:
@@ -225,6 +230,23 @@ class V2ModelServer(StepToDict):
         request = self.preprocess(event_body, op)
         return self.validate(request, op)
 
+    @property
+    def versioned_model_name(self):
+        if self._versioned_model_name:
+            return self._versioned_model_name
+
+        # Generating version model value based on the model name and model version
+        if self.model_path and self.model_path.startswith("store://"):
+            # Enrich the model server with the model artifact metadata
+            self.get_model()
+            if not self.version:
+                # Enrich the model version with the model artifact tag
+                self.version = self.model_spec.tag
+            self.labels = self.model_spec.labels
+        version = self.version or "latest"
+        self._versioned_model_name = f"{self.name}:{version}"
+        return self._versioned_model_name
+
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
@@ -232,6 +254,17 @@ class V2ModelServer(StepToDict):
         event_body = _extract_input_data(self._input_path, event.body)
         event_id = event.id
         op = event.path.strip("/")
+
+        # Generating model endpoint ID based on function uri and model version
+        model_endpoint_uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
+            function_uri=self.context.server.function_uri,
+            versioned_model=self.versioned_model_name,
+        ).uid
+
+        partition_key = (
+            model_endpoint_uid if self.shard_by_endpoint is not False else None
+        )
+
         if event_body and isinstance(event_body, dict):
             op = op or event_body.get("operation")
             event_id = event_body.get("id", event_id)
@@ -251,7 +284,13 @@ class V2ModelServer(StepToDict):
             except Exception as exc:
                 request["id"] = event_id
                 if self._model_logger:
-                    self._model_logger.push(start, request, op=op, error=exc)
+                    self._model_logger.push(
+                        start,
+                        request,
+                        op=op,
+                        error=exc,
+                        partition_key=partition_key,
+                    )
                 raise exc
 
             response = {
@@ -288,7 +327,7 @@ class V2ModelServer(StepToDict):
             setattr(event, "terminated", True)
             event_body = {
                 "name": self.name,
-                "version": self.version,
+                "version": self.version or "",
                 "inputs": [],
                 "outputs": [],
             }
@@ -308,7 +347,13 @@ class V2ModelServer(StepToDict):
             except Exception as exc:
                 request["id"] = event_id
                 if self._model_logger:
-                    self._model_logger.push(start, request, op=op, error=exc)
+                    self._model_logger.push(
+                        start,
+                        request,
+                        op=op,
+                        error=exc,
+                        partition_key=partition_key,
+                    )
                 raise exc
 
             response = {
@@ -332,12 +377,20 @@ class V2ModelServer(StepToDict):
         if self._model_logger:
             inputs, outputs = self.logged_results(request, response, op)
             if inputs is None and outputs is None:
-                self._model_logger.push(start, request, response, op)
+                self._model_logger.push(
+                    start, request, response, op, partition_key=partition_key
+                )
             else:
                 track_request = {"id": event_id, "inputs": inputs or []}
                 track_response = {"outputs": outputs or []}
                 # TODO : check dict/list
-                self._model_logger.push(start, track_request, track_response, op)
+                self._model_logger.push(
+                    start,
+                    track_request,
+                    track_response,
+                    op,
+                    partition_key=partition_key,
+                )
         event.body = _update_result_body(self._result_path, original_body, response)
         return event
 
@@ -454,7 +507,7 @@ class _ModelLogPusher:
             base_data["labels"] = self.model.labels
         return base_data
 
-    def push(self, start, request, resp=None, op=None, error=None):
+    def push(self, start, request, resp=None, op=None, error=None, partition_key=None):
         start_str = start.isoformat(sep=" ", timespec="microseconds")
         if error:
             data = self.base_data()
@@ -465,7 +518,7 @@ class _ModelLogPusher:
             if self.verbose:
                 message = f"{message}\n{traceback.format_exc()}"
             data["error"] = message
-            self.output_stream.push([data])
+            self.output_stream.push([data], partition_key=partition_key)
             return
 
         self._sample_iter = (self._sample_iter + 1) % self.stream_sample
@@ -491,7 +544,7 @@ class _ModelLogPusher:
                         "metrics",
                     ]
                     data["values"] = self._batch
-                    self.output_stream.push([data])
+                    self.output_stream.push([data], partition_key=partition_key)
             else:
                 data = self.base_data()
                 data["request"] = request
@@ -501,7 +554,7 @@ class _ModelLogPusher:
                 data["microsec"] = microsec
                 if getattr(self.model, "metrics", None):
                     data["metrics"] = self.model.metrics
-                self.output_stream.push([data])
+                self.output_stream.push([data], partition_key=partition_key)
 
 
 def _init_endpoint_record(
@@ -531,21 +584,10 @@ def _init_endpoint_record(
         logger.error("Failed to parse function URI", exc=err_to_str(e))
         return None
 
-    # Generating version model value based on the model name and model version
-    if model.model_path and model.model_path.startswith("store://"):
-        # Enrich the model server with the model artifact metadata
-        model.get_model()
-        if not model.version:
-            # Enrich the model version with the model artifact tag
-            model.version = model.model_spec.tag
-        model.labels = model.model_spec.labels
-        versioned_model_name = f"{model.name}:{model.version}"
-    else:
-        versioned_model_name = f"{model.name}:latest"
-
     # Generating model endpoint ID based on function uri and model version
     uid = mlrun.common.model_monitoring.create_model_endpoint_uid(
-        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+        function_uri=graph_server.function_uri,
+        versioned_model=model.versioned_model_name,
     ).uid
 
     try:
@@ -568,7 +610,7 @@ def _init_endpoint_record(
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(
                 function_uri=graph_server.function_uri,
-                model=versioned_model_name,
+                model=model.versioned_model_name,
                 model_class=model.__class__.__name__,
                 model_uri=model.model_path,
                 stream_path=model.context.stream.stream_uri,

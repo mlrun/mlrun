@@ -34,6 +34,7 @@ import server.api.utils.clients.async_nuclio
 import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.config import config
 from mlrun.utils import logger
 from mlrun.utils.helpers import generate_object_uri
 from server.api import MINIMUM_CLIENT_VERSION_FOR_MM
@@ -407,19 +408,20 @@ def process_model_monitoring_secret(
 def create_model_monitoring_stream(
     project: str,
     stream_path: str,
+    shard_count: int,
+    retention_period_hours: int,
     access_key: str = None,
-    stream_args: dict = None,
 ):
     if stream_path.startswith("v3io://"):
         import v3io.dataplane
 
         _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
-        # TODO: How should we configure sharding here?
         logger.info(
             "Creating stream",
             project=project,
             stream_path=stream_path,
+            shard_count=shard_count,
             container=container,
             endpoint=mlrun.mlconf.v3io_api,
         )
@@ -431,8 +433,8 @@ def create_model_monitoring_stream(
         response = v3io_client.stream.create(
             container=container,
             stream_path=stream_path,
-            shard_count=stream_args.shard_count,
-            retention_period_hours=stream_args.retention_period_hours,
+            shard_count=shard_count,
+            retention_period_hours=retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
             access_key=access_key,
         )
@@ -542,7 +544,9 @@ def _deploy_nuclio_runtime(
             )
         if monitoring_application:
             fn = monitoring_deployment.apply_and_create_stream_trigger(
-                function=fn, function_name=fn.metadata.name
+                function=fn,
+                function_name=fn.metadata.name,
+                stream_args=config.model_endpoint_monitoring.application_stream_args,
             )
 
         if serving_to_monitor:

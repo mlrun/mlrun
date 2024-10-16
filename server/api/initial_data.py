@@ -139,7 +139,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 7
+latest_data_version = 8
 
 
 def update_default_configuration_data():

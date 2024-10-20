@@ -47,7 +47,7 @@ def setup_k8s_client(
 ):
     kubeconfig_content = None
     try:
-        base64_kubeconfig_content = os.environ["SYSTEM_TEST_KUBECONFIG"]
+        base64_kubeconfig_content = os.environ["MLRUN_SYSTEM_TEST_KUBECONFIG"]
         kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
     except (ValueError, KeyError) as exc:
         logger.warning("Kubeconfig was empty or invalid.", exc_info=exc)

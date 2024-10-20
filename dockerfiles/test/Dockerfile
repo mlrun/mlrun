@@ -45,7 +45,7 @@ RUN git config --global user.email "test@mlrun.org" \
      && git config --global user.name "MLRun Test" \
      && git config --global init.defaultBranch "main"
 
-ARG MLRUN_PIP_VERSION=24.0
+ARG MLRUN_PIP_VERSION=24.2
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun

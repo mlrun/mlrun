@@ -321,11 +321,20 @@ def test_validate_tag_name(tag_name, expected):
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         ("", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        (
+            "artifact-name#",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("artifact@name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact#name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact-name#", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact:name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact_name$", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         # Valid names
         ("artifact-name2.0", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifact-name3", does_not_raise()),
+        ("artifact_name", does_not_raise()),
+        ("artifact.name", does_not_raise()),
         ("artifactNAME", does_not_raise()),
     ],
 )
@@ -334,6 +343,11 @@ def test_validate_artifact_name(artifact_name, expected):
         validate_artifact_key_name(
             artifact_name,
             field_name="artifact.key",
+        )
+    with expected:
+        validate_artifact_key_name(
+            artifact_name,
+            field_name="artifact.db_key",
         )
 
 

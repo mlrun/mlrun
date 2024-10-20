@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.1-cudnn8-devel-ubuntu20.04
+ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
 

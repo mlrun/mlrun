@@ -35,6 +35,7 @@ import server.api.db.sqldb.models
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
 import server.api.utils.db.mysql
+import server.api.utils.scheduler
 from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import MLRunPreconditionFailedError, err_to_str
@@ -245,6 +246,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_6_data_migrations(db, db_session)
             if current_data_version < 7:
                 _perform_version_7_data_migrations(db, db_session)
+            if current_data_version < 8:
+                _perform_version_8_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -875,6 +878,12 @@ def _perform_version_7_data_migrations(
     db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _create_project_summaries(db, db_session)
+
+
+def _perform_version_8_data_migrations(
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    db.align_schedule_labels(session=db_session)
 
 
 def _create_project_summaries(db, db_session):

@@ -223,16 +223,22 @@ class TestBatchInterval:
 
     @staticmethod
     @pytest.fixture
+    def endpoint_app_schedules() -> DataItem:
+        item = DataItem(key="", store=InMemoryStore(), subpath="ep.json")
+        item.put("{}")
+        return item
+
+    @staticmethod
+    @pytest.fixture
     def intervals(
+        endpoint_app_schedules: DataItem,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
         return list(
             _BatchWindow(
-                endpoint_app_schedules=DataItem(
-                    key="", store=InMemoryStore(), subpath="ep.json"
-                ),
+                endpoint_app_schedules=endpoint_app_schedules,
                 application="app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,
@@ -286,13 +292,6 @@ class TestBatchInterval:
         assert (
             intervals[-1][1].timestamp() <= last_updated
         ), "The last interval should be after last_updated"
-
-    @staticmethod
-    @pytest.fixture
-    def endpoint_app_schedules() -> DataItem:
-        item = DataItem(key="", store=InMemoryStore(), subpath="ep.json")
-        item.put("{}")
-        return item
 
     @staticmethod
     @pytest.mark.parametrize(

@@ -377,6 +377,7 @@ How to Investigate:
 that was ultimately defined for the run after combining the function, project, and service settings.
 3. Check Pod Errors in the UI: Go to **Projects > Jobs and Workflows > Monitor Job > Pods**, where you can see the pod details. If no nodes are found 
 that match the specified node selector, the error is displayed here.
+> For Nuclio functions (Nuclio, serving, and application runtimes) the final resolved node selector is displayed in the Nuclio UI. It is not visible on MLRun function spec since it may be further enriched by Nuclio (See {ref}node-selector-runtimes section for more information).
 
 Resolving Conflicts:</br>
 If the node selectors from the function, project, or service levels, conflict or result in an impossible combination, you can resolve 
@@ -384,12 +385,13 @@ the issue by specifying the conflicting node selector key with an empty string v
 and consult your project admin before making changes to ensure it won’t cause other issues.
 
 
+(node-selector-runtimes)=
 ### Runtimes
 Each runtime type is handled individually, with specific behaviors defined for Nuclio and Spark. These special behaviors ensure 
 that each runtime type is handled according to its unique requirements.
 
 - Nuclio: For all runtime types, the node selector is applied to the run object that was created as a result of the execution.
-Since Nuclio doesn't have a runtime object in the same way as other runtimes, the final merged node selector (derived 
+Since Nuclio doesn't have a run object in the same way as other runtimes, the final merged node selector (derived 
 from the MLRun config level, project level, and function level) is passed directly to the Nuclio config.
 This merged node selector becomes the function configuration for Nuclio, and Nuclio itself performs a similar operation, 
 merging it with the Nuclio service level config.

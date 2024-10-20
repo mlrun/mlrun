@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -21,7 +22,10 @@ from v3io.dataplane.response import HttpResponseError
 
 import mlrun.common.schemas
 from mlrun.artifacts import ModelArtifact
-from server.api.crud.model_monitoring.model_endpoints import ModelEndpoints
+from server.api.crud.model_monitoring.model_endpoints import (
+    ModelEndpoints,
+    _ModelMonitoringSchedulesFile,
+)
 
 
 @pytest.fixture
@@ -85,3 +89,35 @@ def test_create_with_empty_feature_stats(
     ModelEndpoints.create_model_endpoint(
         db_session=db_session, model_endpoint=model_endpoint
     )
+
+
+class TestModelMonitoringSchedulesFile:
+    @staticmethod
+    @pytest.fixture(autouse=True)
+    def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT",
+            f"file://{tmpdir}/users/pipelines/{{project}}/model-endpoints/{{kind}}",
+        )
+        mlrun.mlconf.reload()
+
+    @staticmethod
+    def test_create() -> None:
+        file = _ModelMonitoringSchedulesFile(project="abc", endpoint_id="reoko1220a")
+        file.create()
+        assert (
+            file._item.get().decode() == "{}"
+        ), "The newly created schedules file is different than expected"
+
+    @staticmethod
+    def test_delete_non_existent() -> None:
+        _ModelMonitoringSchedulesFile(
+            project="p0", endpoint_id="ep-1-without-file"
+        ).delete()
+
+    @staticmethod
+    def test_delete() -> None:
+        file = _ModelMonitoringSchedulesFile(project="p1", endpoint_id="ep-1-with-file")
+        file.create()
+        file.delete()
+        assert not file._fs.exists(file._path), "The schedules file wasn't deleted"

@@ -24,12 +24,13 @@ import nuclio
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
-from mlrun.datastore import DataItem, get_stream_pusher, store_manager
+import mlrun.model_monitoring.db
+from mlrun.datastore import DataItem, get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
-    _get_monitoring_schedules_file_path,
     batch_dict2timedelta,
+    get_monitoring_schedules_data,
     get_stream_path,
 )
 from mlrun.utils import datetime_now, logger
@@ -211,10 +212,8 @@ class _BatchWindowGenerator:
         """
 
         return _BatchWindow(
-            endpoint_app_schedules=store_manager.object(
-                url=_get_monitoring_schedules_file_path(
-                    project=project, endpoint_id=endpoint
-                )
+            endpoint_app_schedules=get_monitoring_schedules_data(
+                project=project, endpoint_id=endpoint
             ),
             application=application,
             timedelta_seconds=self._timedelta,

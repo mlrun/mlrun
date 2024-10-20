@@ -530,7 +530,7 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
         for secret_name, env_var_name in project._secrets.get_k8s_secrets().items():
-            k8s_secret: V1Secret = pytest.Session.kube_client.read_namespaced_secret(
+            k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
                 name=secret_name,
                 namespace="default-tenant",
             )
@@ -540,6 +540,10 @@ class TestProject(TestMLRunSystem):
         self._test_new_pipeline("lclpipe", engine="local")
 
     def test_kfp_pipeline(self):
+        k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
+            name="asda",
+            namespace="default-tenant",
+        )
         self._test_new_pipeline("kfppipe", engine="kfp")
 
     def test_kfp_runs_getting_deleted_on_project_deletion(self):

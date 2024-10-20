@@ -540,10 +540,6 @@ class TestProject(TestMLRunSystem):
         self._test_new_pipeline("lclpipe", engine="local")
 
     def test_kfp_pipeline(self):
-        k8s_secret: V1Secret = self.kube_client.read_namespaced_secret(
-            name="asda",
-            namespace="default-tenant",
-        )
         self._test_new_pipeline("kfppipe", engine="kfp")
 
     def test_kfp_runs_getting_deleted_on_project_deletion(self):

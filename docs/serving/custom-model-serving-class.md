@@ -194,4 +194,4 @@ set the credentials for the project:
 project.set_model_monitoring_credentials(...)
 ```
 
-See [model monitoring](../monitoring/model-monitoring.html) for the full details.
+See {ref}`model-monitoring-overview` for the full details.

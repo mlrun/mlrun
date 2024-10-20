@@ -112,10 +112,9 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "aiobotocore": {">=2.5.0,<2.16"},
-        "storey": {"~=1.7.27"},
+        "storey": {"~=1.8.0"},
         "nuclio-sdk": {">=0.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        # protobuf is limited just for docs
         "sphinx-book-theme": {"~=1.0.1"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},

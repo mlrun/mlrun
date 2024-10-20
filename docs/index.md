@@ -263,7 +263,7 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 ### Monitor and alert
 
 Observability is built into the different MLRun objects (data, functions, jobs, models, pipelines, etc.), eliminating the need for complex integrations and code instrumentation. With MLRun, you can observe the application/model resource usage and model behavior (drift, performance, etc.), define custom app metrics, and trigger alerts or retraining jobs.
-{bdg-link-primary-line}`more... <./monitoring/index.html>`
+{bdg-link-primary-line}`more... <./model-monitoring/index.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**

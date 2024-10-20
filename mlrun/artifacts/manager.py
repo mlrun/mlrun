@@ -246,6 +246,8 @@ class ArtifactManager:
                 # otherwise, we do not want to override it.
                 # this is mainly relevant for imported artifacts that have an explicit db_key value already set
                 db_key = item.db_key or key
+        if db_key != key:
+            validate_artifact_key_name(db_key, "artifact.db_key")
         item.db_key = db_key or ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag

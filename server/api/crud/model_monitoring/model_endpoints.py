@@ -39,10 +39,10 @@ class _ModelMonitoringSchedulesFile:
     INITIAL_CONTENT = json.dumps({})
 
     def __init__(self, project: str, endpoint_id: str) -> None:
-        self._path = mlrun.model_monitoring.helpers._get_monitoring_schedules_file_path(
+        self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
             project=project, endpoint_id=endpoint_id
         )
-        self._item = mlrun.datastore.store_manager.object(self._path)
+        self._path = self._item.url
         self._fs = typing.cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
 
     @classmethod

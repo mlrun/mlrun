@@ -28,6 +28,7 @@ import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
+import mlrun.datastore
 import mlrun.model_monitoring
 import mlrun.utils.helpers
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -366,4 +367,15 @@ def _get_monitoring_schedules_folder_path(project: str) -> str:
 def _get_monitoring_schedules_file_path(*, project: str, endpoint_id: str) -> str:
     return os.path.join(
         _get_monitoring_schedules_folder_path(project), f"{endpoint_id}.json"
+    )
+
+
+def get_monitoring_schedules_data(
+    *, project: str, endpoint_id: str
+) -> mlrun.datastore.DataItem:
+    """
+    Get the model monitoring schedules' data item of the project's model endpoint.
+    """
+    return mlrun.datastore.store_manager.object(
+        _get_monitoring_schedules_file_path(project=project, endpoint_id=endpoint_id)
     )

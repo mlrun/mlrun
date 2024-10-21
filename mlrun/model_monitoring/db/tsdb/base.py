@@ -446,8 +446,14 @@ class TSDBConnector(ABC):
             )
 
         return metrics_values
+
     @staticmethod
-    def _get_start_end(start: Union[str, datetime], end: Union[str, datetime], delta_start: int = 0, delta_end: int = 0) -> tuple[datetime, datetime]:
+    def _get_start_end(
+        start: Union[str, datetime],
+        end: Union[str, datetime],
+        delta_start: int = 0,
+        delta_end: int = 0,
+    ) -> tuple[datetime, datetime]:
         """
         static utils function for tsdb start end format
         :param start:       Either '0', 'now', None or datetime, None is handled as datetime.min
@@ -457,7 +463,7 @@ class TSDBConnector(ABC):
         :return:            start datetime, end datetime
         """
         if not isinstance(start, datetime):
-            start = datetime.min if start in ["0",None] else mlrun.utils.datetime_now()
+            start = datetime.min if start in ["0", None] else mlrun.utils.datetime_now()
             start = start + timedelta(hours=delta_start)
         if not isinstance(start, datetime):
             end = datetime.min if end in ["0"] else mlrun.utils.datetime_now()

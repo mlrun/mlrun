@@ -15,7 +15,7 @@ import contextlib
 import io
 import pathlib
 import sys
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -86,7 +86,8 @@ def test_failed_schedule_not_creating_run():
     function.set_db_connection(db)
     db.submit_job.side_effect = RuntimeError("Explode!")
     function.store_run = Mock()
-    function.run(handler=my_func, schedule="* * * * *")
+    with patch("re.findall", return_value=[]):
+        function.run(handler=my_func, schedule="* * * * *")
     assert 0 == function.store_run.call_count
 
 

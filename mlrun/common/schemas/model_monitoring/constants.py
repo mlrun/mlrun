@@ -244,6 +244,7 @@ class TDEngineSuperTables(MonitoringStrEnum):
     APP_RESULTS = "app_results"
     METRICS = "metrics"
     PREDICTIONS = "predictions"
+    ERRORS = "errors"
 
 
 @dataclass

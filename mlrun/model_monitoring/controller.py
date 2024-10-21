@@ -16,24 +16,31 @@ import concurrent.futures
 import datetime
 import json
 import os
-import re
 from collections.abc import Iterator
-from typing import NamedTuple, Optional, Union, cast
+from typing import NamedTuple, NewType, Optional, cast
 
 import nuclio
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
-import mlrun.model_monitoring.db.stores
-from mlrun.datastore import get_stream_pusher
+import mlrun.model_monitoring.db
+from mlrun.datastore import DataItem, get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
     _BatchDict,
     batch_dict2timedelta,
+    get_monitoring_schedules_data,
     get_stream_path,
 )
 from mlrun.utils import datetime_now, logger
+
+_UTF_8 = "utf-8"
+_SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
+
+
+# `Schedules` is a dictionary of registered application name as key and Unix timestamp as value
+_Schedules = NewType("_Schedules", dict[str, int])
 
 
 class _Interval(NamedTuple):
@@ -44,12 +51,12 @@ class _Interval(NamedTuple):
 class _BatchWindow:
     def __init__(
         self,
-        project: str,
-        endpoint: str,
+        *,
+        endpoint_app_schedules: DataItem,
         application: str,
         timedelta_seconds: int,
-        last_updated: Optional[int],
-        first_request: Optional[int],
+        last_updated: int,
+        first_request: int,
     ) -> None:
         """
         Initialize a batch window object that handles the batch interval time range
@@ -57,135 +64,104 @@ class _BatchWindow:
         All the time values are in seconds.
         The start and stop time are in seconds since the epoch.
         """
-        self.project = project
-        self._endpoint = endpoint
         self._application = application
         self._first_request = first_request
         self._stop = last_updated
         self._step = timedelta_seconds
-        self._db = mlrun.model_monitoring.get_store_object(project=self.project)
-        self._start = self._get_last_analyzed()
+        # `db` is the persistent version of the monitoring schedules.
+        self._db = endpoint_app_schedules
+        # `schedules` is an in-memory copy of the DB for all the applications for
+        # the same model endpoint.
+        self._schedules, self._start = self._get_schedules_and_last_analyzed()
 
-    def _get_last_analyzed(self) -> Optional[int]:
-        try:
-            last_analyzed = self._db.get_last_analyzed(
-                endpoint_id=self._endpoint,
-                application_name=self._application,
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            logger.info(
-                "No last analyzed time was found for this endpoint and "
-                "application, as this is probably the first time this "
-                "application is running. Using the latest between first "
-                "request time or last update time minus one day instead",
-                endpoint=self._endpoint,
-                application=self._application,
-                first_request=self._first_request,
-                last_updated=self._stop,
-            )
+    def _update_db(self, schedules: _Schedules) -> None:
+        self._db.put(json.dumps(schedules))
 
-            if self._first_request and self._stop:
-                # TODO : Change the timedelta according to the policy.
-                first_period_in_seconds = max(
-                    int(datetime.timedelta(days=1).total_seconds()), self._step
-                )  # max between one day and the base period
-                return max(
-                    self._first_request,
-                    self._stop - first_period_in_seconds,
-                )
-            return self._first_request
-
+    def _init_last_analyzed(self) -> int:
         logger.info(
-            "Got the last analyzed time for this endpoint and application",
-            endpoint=self._endpoint,
+            "No last analyzed time was found for this endpoint and application, as this is "
+            "probably the first time this application is running. Initializing last analyzed "
+            "to the latest between first request time or last update time minus one day",
             application=self._application,
-            last_analyzed=last_analyzed,
+            first_request=self._first_request,
+            last_updated=self._stop,
         )
-        return last_analyzed
+        # max between one day and the base period
+        first_period_in_seconds = max(_SECONDS_IN_DAY, self._step)
+        return max(
+            self._first_request,
+            self._stop - first_period_in_seconds,
+        )
+
+    def _get_schedules_and_last_analyzed(self) -> tuple[_Schedules, int]:
+        content = self._db.get(encoding=_UTF_8)
+        try:
+            schedules = json.loads(content)
+            if self._application in schedules:
+                return _Schedules(schedules), schedules[self._application]
+            else:
+                last_analyzed = self._init_last_analyzed()
+                schedules.update(_Schedules({self._application: last_analyzed}))
+        except json.JSONDecodeError:
+            # Using the earliest safe time to avoid TSDB misorders
+            last_analyzed = self._stop
+            schedules = _Schedules({self._application: last_analyzed})
+            logger.warning(
+                "The monitoring schedules file is corrupted, resetting it "
+                "with the last request as last_analyzed",
+                path=self._db.url,
+                content=content,
+                last_analyzed=last_analyzed,
+            )
+
+        # Updating the DB to avoid reoccurrence of missing keys, corrupted data, or a missing file
+        self._update_db(schedules)
+        return schedules, last_analyzed
 
     def _update_last_analyzed(self, last_analyzed: int) -> None:
-        logger.info(
+        logger.debug(
             "Updating the last analyzed time for this endpoint and application",
-            endpoint=self._endpoint,
             application=self._application,
             last_analyzed=last_analyzed,
         )
+        self._schedules.update(_Schedules({self._application: last_analyzed}))
+        self._update_db(self._schedules)
 
-        self._db.update_last_analyzed(
-            endpoint_id=self._endpoint,
-            application_name=self._application,
-            last_analyzed=last_analyzed,
-        )
-
-    def get_intervals(
-        self,
-    ) -> Iterator[_Interval]:
+    def get_intervals(self) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
-        if self._start is not None and self._stop is not None:
-            entered = False
-            # Iterate timestamp from start until timestamp <= stop - step
-            # so that the last interval will end at (timestamp + step) <= stop.
-            # Add 1 to stop - step to get <= and not <.
-            for timestamp in range(
-                self._start, self._stop - self._step + 1, self._step
-            ):
-                entered = True
-                start_time = datetime.datetime.fromtimestamp(
-                    timestamp, tz=datetime.timezone.utc
-                )
-                end_time = datetime.datetime.fromtimestamp(
-                    timestamp + self._step, tz=datetime.timezone.utc
-                )
-                yield _Interval(start_time, end_time)
-                self._update_last_analyzed(timestamp + self._step)
-            if not entered:
-                logger.info(
-                    "All the data is set, but no complete intervals were found. "
-                    "Wait for last_updated to be updated",
-                    endpoint=self._endpoint,
-                    application=self._application,
-                    start=self._start,
-                    stop=self._stop,
-                    step=self._step,
-                )
-        else:
-            logger.warn(
-                "The first request time is not found for this endpoint. "
-                "No intervals will be generated",
-                endpoint=self._endpoint,
+        entered = False
+        # Iterate timestamp from start until timestamp <= stop - step
+        # so that the last interval will end at (timestamp + step) <= stop.
+        # Add 1 to stop - step to get <= and not <.
+        for timestamp in range(self._start, self._stop - self._step + 1, self._step):
+            entered = True
+            start_time = datetime.datetime.fromtimestamp(
+                timestamp, tz=datetime.timezone.utc
+            )
+            end_time = datetime.datetime.fromtimestamp(
+                timestamp + self._step, tz=datetime.timezone.utc
+            )
+            yield _Interval(start_time, end_time)
+            self._update_last_analyzed(timestamp + self._step)
+        if not entered:
+            logger.debug(
+                "All the data is set, but no complete intervals were found. "
+                "Wait for last_updated to be updated",
                 application=self._application,
                 start=self._start,
                 stop=self._stop,
+                step=self._step,
             )
 
 
 class _BatchWindowGenerator:
-    def __init__(self, batch_dict: Union[dict, str]) -> None:
+    def __init__(self, batch_dict: dict[str, int]) -> None:
         """
         Initialize a batch window generator object that generates batch window objects
         for the monitoring functions.
         """
         self._batch_dict = batch_dict
-        self._norm_batch_dict()
         self._timedelta = self._get_timedelta()
-
-    def _norm_batch_dict(self) -> None:
-        # TODO: This will be removed once the job params can be parsed with different types
-        # Convert batch dict string into a dictionary
-        if isinstance(self._batch_dict, str):
-            self._parse_batch_dict_str()
-
-    def _parse_batch_dict_str(self) -> None:
-        """Convert batch dictionary string into a valid dictionary"""
-        characters_to_remove = "{} "
-        pattern = "[" + characters_to_remove + "]"
-        # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", self._batch_dict).split(",")
-        # Initialize the dictionary of batch interval ranges
-        self._batch_dict = {}
-        for pair in batch_list:
-            pair_list = pair.split(":")
-            self._batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _get_timedelta(self) -> int:
         """Get the timedelta in seconds from the batch dictionary"""
@@ -194,14 +170,10 @@ class _BatchWindowGenerator:
         )
 
     @classmethod
-    def _get_last_updated_time(
-        cls, last_request: Optional[str], has_stream: bool
-    ) -> Optional[int]:
+    def _get_last_updated_time(cls, last_request: str, has_stream: bool) -> int:
         """
         Get the last updated time of a model endpoint.
         """
-        if not last_request:
-            return None
         last_updated = int(
             cls._date_string2timestamp(last_request)
             - cast(
@@ -220,30 +192,18 @@ class _BatchWindowGenerator:
             )
         return last_updated
 
-    @classmethod
-    def _normalize_first_request(
-        cls, first_request: Optional[str], endpoint: str
-    ) -> Optional[int]:
-        if not first_request:
-            logger.debug(
-                "There is no first request time for this endpoint.",
-                endpoint=endpoint,
-                first_request=first_request,
-            )
-            return None
-        return cls._date_string2timestamp(first_request)
-
     @staticmethod
     def _date_string2timestamp(date_string: str) -> int:
         return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(
         self,
+        *,
         project: str,
         endpoint: str,
         application: str,
-        first_request: Optional[str],
-        last_request: Optional[str],
+        first_request: str,
+        last_request: str,
         has_stream: bool,
     ) -> _BatchWindow:
         """
@@ -252,12 +212,13 @@ class _BatchWindowGenerator:
         """
 
         return _BatchWindow(
-            project=project,
-            endpoint=endpoint,
+            endpoint_app_schedules=get_monitoring_schedules_data(
+                project=project, endpoint_id=endpoint
+            ),
             application=application,
             timedelta_seconds=self._timedelta,
             last_updated=self._get_last_updated_time(last_request, has_stream),
-            first_request=self._normalize_first_request(first_request, endpoint),
+            first_request=self._date_string2timestamp(first_request),
         )
 
 
@@ -279,9 +240,7 @@ class MonitoringApplicationController:
 
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=json.loads(
-                mlrun.get_secret_or_env(
-                    mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-                )
+                cast(str, os.getenv(mm_constants.EventFieldType.BATCH_INTERVALS_DICT))
             )
         )
 
@@ -486,7 +445,10 @@ class MonitoringApplicationController:
             stream_uri = get_stream_path(project=project, function_name=app_name)
 
             logger.info(
-                f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
+                "Pushing data to application stream",
+                endpoint_id=endpoint_id,
+                app_name=app_name,
+                stream_uri=stream_uri,
             )
             get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
                 [data]

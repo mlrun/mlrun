@@ -13,16 +13,13 @@
 # limitations under the License.
 
 import datetime
-import http
-from collections.abc import Iterator
-from typing import NamedTuple, Optional
-from unittest.mock import Mock, patch
+from typing import NamedTuple
+from unittest.mock import patch
 
 import nuclio
 import numpy as np
 import pandas as pd
 import pytest
-from v3io.dataplane.response import HttpResponseError
 
 import mlrun
 from mlrun.common.model_monitoring.helpers import (
@@ -33,6 +30,8 @@ from mlrun.common.model_monitoring.helpers import (
     pad_hist,
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
+from mlrun.datastore import DataItem
+from mlrun.datastore.inmem import InMemoryStore
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
     _BatchWindow,
@@ -40,14 +39,14 @@ from mlrun.model_monitoring.controller import (
     _Interval,
 )
 from mlrun.model_monitoring.helpers import (
+    _BatchDict,
     _get_monitoring_time_window_from_controller_run,
+    batch_dict2timedelta,
     get_invocations_fqn,
     update_model_endpoint_last_request,
 )
 from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 from mlrun.utils import datetime_now
-
-TEST_PROJECT = "my-project"
 
 
 class _HistLen(NamedTuple):
@@ -188,13 +187,6 @@ def test_calculate_input_statistics(
 
 class TestBatchInterval:
     @staticmethod
-    @pytest.fixture(autouse=True)
-    def set_mlconf():
-        mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection = "v3io"
-        mlrun.mlconf.model_endpoint_monitoring.tsdb_connection = "v3io"
-        yield
-
-    @staticmethod
     @pytest.fixture
     def timedelta_seconds(request: pytest.FixtureRequest) -> int:
         if marker := request.node.get_closest_marker(
@@ -230,35 +222,23 @@ class TestBatchInterval:
         )
 
     @staticmethod
-    @pytest.fixture(autouse=True)
-    def mock_kv() -> Iterator[None]:
-        mock = Mock(spec=["kv"])
-        mock.kv.get = Mock(
-            side_effect=HttpResponseError(status_code=http.HTTPStatus.NOT_FOUND)
-        )
-        with patch(
-            "mlrun.utils.v3io_clients.get_v3io_client",
-            return_value=mock,
-        ):
-            with patch(
-                "mlrun.model_monitoring.get_store_object",
-                return_value=mlrun.model_monitoring.get_store_object(
-                    store_connection_string="v3io", project=TEST_PROJECT
-                ),
-            ):
-                yield
+    @pytest.fixture
+    def endpoint_app_schedules() -> DataItem:
+        item = DataItem(key="", store=InMemoryStore(), subpath="ep.json")
+        item.put("{}")
+        return item
 
     @staticmethod
     @pytest.fixture
     def intervals(
+        endpoint_app_schedules: DataItem,
         timedelta_seconds: int,
         first_request: int,
         last_updated: int,
     ) -> list[_Interval]:
         return list(
             _BatchWindow(
-                project="project",
-                endpoint="ep",
+                endpoint_app_schedules=endpoint_app_schedules,
                 application="app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,
@@ -325,24 +305,23 @@ class TestBatchInterval:
             (60, 100, 300, 100),
             (60, 100, 110, 100),
             (60, 0, 0, 0),
-            (60, None, None, None),
         ],
     )
     def test_get_last_analyzed(
         timedelta_seconds: int,
-        last_updated: Optional[int],
-        first_request: Optional[int],
-        expected_last_analyzed: Optional[int],
+        last_updated: int,
+        first_request: int,
+        expected_last_analyzed: int,
+        endpoint_app_schedules: DataItem,
     ) -> None:
         assert (
             _BatchWindow(
-                project=TEST_PROJECT,
-                endpoint="some-endpoint",
+                endpoint_app_schedules=endpoint_app_schedules,
                 application="special-app",
                 timedelta_seconds=timedelta_seconds,
                 first_request=first_request,
                 last_updated=last_updated,
-            )._get_last_analyzed()
+            )._get_schedules_and_last_analyzed()[1]
             == expected_last_analyzed
         ), "The last analyzed time is not as expected"
 
@@ -377,17 +356,10 @@ class TestBatchWindowGenerator:
     @staticmethod
     @pytest.mark.parametrize(
         ("first_request", "expected"),
-        [("", None), (None, None), ("2023-11-09 09:25:59.554971+00:00", 1699521959)],
+        [("2023-11-09 09:25:59.554971+00:00", 1699521959)],
     )
-    def test_normalize_first_request(
-        first_request: Optional[str], expected: Optional[int]
-    ) -> None:
-        assert (
-            _BatchWindowGenerator._normalize_first_request(
-                first_request=first_request, endpoint=""
-            )
-            == expected
-        )
+    def test_normalize_first_request(first_request: str, expected: int) -> None:
+        assert _BatchWindowGenerator._date_string2timestamp(first_request) == expected
 
     @staticmethod
     def test_last_updated_is_in_the_past() -> None:
@@ -512,3 +484,9 @@ class TestBumpModelEndpointLastRequest:
 
 def test_get_invocations_fqn() -> None:
     assert get_invocations_fqn("project") == "project.mlrun-infra.metric.invocations"
+
+
+def test_batch_dict2timedelta() -> None:
+    assert batch_dict2timedelta(
+        _BatchDict(minutes=32, hours=0, days=4)
+    ) == datetime.timedelta(minutes=32, days=4), "Different timedelta than expected"

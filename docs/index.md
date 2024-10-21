@@ -134,9 +134,10 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
-{bdg-link-primary}`Model monitoring using LLM <./tutorials/genai-02-monitoring-llm.html>`
+{bdg-link-primary}`Model monitoring <./tutorials/genai-02-monitoring.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
+{bdg-link-primary}`Model Monitoring using an LLM <https://github.com/mlrun/demo-monitoring-and-feedback-loop/blob/main/notebook.ipynb>`
 `````
 
 ## MLOps tasks
@@ -263,7 +264,7 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 ### Monitor and alert
 
 Observability is built into the different MLRun objects (data, functions, jobs, models, pipelines, etc.), eliminating the need for complex integrations and code instrumentation. With MLRun, you can observe the application/model resource usage and model behavior (drift, performance, etc.), define custom app metrics, and trigger alerts or retraining jobs.
-{bdg-link-primary-line}`more... <./monitoring/index.html>`
+{bdg-link-primary-line}`more... <./concepts/model-monitoring.html>`
 
 `````{div} full-width
 {octicon}`mortar-board` **Docs:**
@@ -288,25 +289,25 @@ MLRun includes the following major components:
 ```
 
 ```{grid-item-card} Serverless functions
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./runtimes/functions.html
 ```
 
 ```{grid-item-card} Data & artifacts
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./concepts/data.html
 ```
 
 ```{grid-item-card} Batch runs & workflows 
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./concepts/runs-workflows.html
 ```
 
 ```{grid-item-card} Real-time pipelines
-:columns: 1 1 2 3
+:columns: 1 1 2 4
 :text-align: center
 :link: ./serving/serving-graph.html
 ```
@@ -324,12 +325,6 @@ MLRun includes the following major components:
 :link: ./concepts/alerts-notifications.html
 ```
 
-```{grid-item-card} Feature store
-:columns: 1 1 2 4
-:text-align: center
-:link: ./feature-store/feature-store.html
-```
-
 ````
 
 **{ref}`Project management <projects>`:** A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.  
@@ -345,8 +340,6 @@ MLRun includes the following major components:
 **{ref}`Real-time monitoring <model-monitoring-overview>`:** Monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
 **{ref}`Alerts and notifications <alerts-notifications>`:** Use alerts to identify and inform you of possible problem situations. Use notifications to report status on runs and pipelines.
-
-**{ref}`Feature store <feature-store>`:** Automatically collects, prepares, catalogs, and serves production data features for development (offline) and real-time (online) deployment using minimal engineering effort.
 
 ```{toctree}
 :maxdepth: 1

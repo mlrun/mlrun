@@ -3,17 +3,7 @@
 
 These end-to-end demos demonstrate how to use the Iguazio AI platform, MLRun, and related tools, to address data science requirements for different industries and implementations.
 
-```{admonition} For Iguazio AI Platform users
-For the demos that are in the [MLRun demos repository](https://github.com/mlrun/demos), use the provided 
-[update demos script](https://github.com/mlrun/demos/blob/v1.6.x/update_demos.sh)
-to get the updated demos from this repository.
-By default, the script retrieves the files from the latest release that matches the version of the installed `mlrun` package.
-The files are copied to the **/v3io/users/&lt;username&gt;/demos** directory, where `<username>` is the name of the running user (`$V3IO_USERNAME`) unless you set the `-u|--user` flag to another username.
-Before running the script, close any open files in the **demos** directory.
 
-To get additional demos, run: ```!/User/demos/update-demos.sh```
-For full usage instructions, run the script with the `-h` or `--help` flag: ```!/User/demos/update-demos.sh --help```
-```
 
 
 ## Gen AI Demos
@@ -26,6 +16,19 @@ For full usage instructions, run the script with the `-h` or `--help` flag: ```!
 
 
 ## ML Demos
+
+If your IDE supports Jupyter notebook (for example, PyCharm and VSCode), download the tutorials, and use the [update demos script](https://github.com/mlrun/demos/blob/1.7.x/update_demos.sh) to download the latest demos. 
+Demos download to ```$HOME``` directory, unless you specify the ```--path```:
+```
+  --path      -  demos folder download path e.g. --path=./demos.
+                 Default: HOME/demos directory"
+```
+By default, the script retrieves the files from the latest release that matches the version of the installed `mlrun` package. 
+Before running the script, close any open files in the **demos** directory.</br>
+For full usage instructions, run the script with the `-h` or `--help` flag: ```!/User/demos/update-demos.sh --help```
+
+(For Iguazio AI Platform Jupyter service users: You can view the tutorial notebooks and demos from within the service. When downloading the demos, the files are copied to the **/v3io/users/&lt;username&gt;/demos** 
+directory, where `<username>` is the name of the running user (`$V3IO_USERNAME`) unless you set the `-u|--user` flag to another username.)
 
 |Demo|Description|
 |-----------------------------------|---------------------------------------------------------------------------------------------|

@@ -187,7 +187,7 @@ redirects = {
     "monitoring/legacy-model-monitoring": "../model-monitoring/legacy-model-monitoring.html",
     "concepts/monitoring": "model-monitoring.html",
     "monitoring/index": "../model-monitoring/index.html",
-    "monitoring/model-monitoring": "monitoring/model-monitoring-flow.html",
+    "monitoring/model-monitoring": "model-monitoring/index.html",
 }
 
 smartquotes = False

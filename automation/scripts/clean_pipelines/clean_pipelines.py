@@ -17,7 +17,6 @@ import typing
 from time import sleep
 
 import mlrun_pipelines
-import pandas as pd
 import pytz
 from dateutil import parser
 from kfp import Client

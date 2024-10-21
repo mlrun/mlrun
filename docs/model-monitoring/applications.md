@@ -1,6 +1,11 @@
 (mm-applications)=
 # Writing a model monitoring application
 
+**In this section**
+- [Basics](#basics)
+- [Using the application context](#using-the-application-context)
+- [Evidently-based application](#evidently-based-application)
+
 ## Basics
 
 First, create a Python module and import the API objects:
@@ -113,3 +118,5 @@ It is recommended to specify the exact version of the `evidently` package for re
 `"evidently==<x.y.z>"`. Get the supported version through
 `mlrun.model_monitoring.evidently_application.SUPPORTED_EVIDENTLY_VERSION`.
 ```
+
+See a full example in [Realtime monitoring and drift detection](../tutorials/05-model-monitoring.html#evidently-app).

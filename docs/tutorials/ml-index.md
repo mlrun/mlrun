@@ -35,7 +35,7 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 - {ref}`serving-ml-dl-models`
 - {ref}`projects-auto-ml-pipe`
 - {ref}`realtime-monitor-drift-tutor`
-- {ref}`batch-infor-draft-tutor`
+- {ref}`batch-infer-drift-tutor`
 - {ref}`add-mlops-to-code`
 - {ref}`mlflow-tracker`
 - {ref}`basic-demo` 

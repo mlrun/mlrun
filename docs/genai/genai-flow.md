@@ -31,6 +31,6 @@ and assets that are optimized and tested to simplify and accelerate the move to 
 
 **See also**
 - {ref}`genai_01_basic_tutorial`
-- {ref}`genai-02-mm-llm`
+- {ref}`realtime-monitor-drift-tutor`
 - {ref}`model-monitoring-overview`
 - {ref}`alerts-notifications`

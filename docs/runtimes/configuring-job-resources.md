@@ -523,3 +523,9 @@ You can set the log level for individual functions.
 - To set the log level outside the function, using an environment variable: `func.set_env(name="MLRUN_LOG_LEVEL",value="WARN")`
 - To set the log level for a Nuclio function (Remote, Serving or Application runtime): `func.set_config(key="spec.loggerSinks", value=[{"level":"warning"}])`
 
+Valid values:
+- error 
+- warn
+- info
+- debug
+

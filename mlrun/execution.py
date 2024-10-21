@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import uuid
 import warnings
@@ -24,6 +25,8 @@ from dateutil import parser
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
+from mlrun.artifacts import ModelArtifact
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -168,6 +171,8 @@ class MLClientCtx:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level, e.g. 'debug', 'info', 'error'"""
+        level = logging.getLevelName(value.upper())
+        self._logger.set_logger_level(level)
         self._log_level = value
 
     @property
@@ -340,7 +345,7 @@ class MLClientCtx:
             "name": self.name,
             "kind": "run",
             "uri": uri,
-            "owner": get_in(self._labels, "owner"),
+            "owner": get_in(self._labels, mlrun_constants.MLRunInternalLabels.owner),
         }
         if mlrun_constants.MLRunInternalLabels.workflow in self._labels:
             resp[mlrun_constants.MLRunInternalLabels.workflow] = self._labels[
@@ -639,7 +644,9 @@ class MLClientCtx:
         :param viewer:        Kubeflow viewer type
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param src_path:      Deprecated, use local_path
-        :param upload:        Upload to datastore (default is True)
+        :param upload:        Whether to upload the artifact to the datastore. If not provided, and the `local_path`
+                              is not a directory, upload occurs by default. Directories are uploaded only when this
+                              flag is explicitly set to `True`.
         :param labels:        A set of key/value labels to tag the artifact with
         :param format:        Optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key
@@ -936,6 +943,43 @@ class MLClientCtx:
             self._rundb.update_run(
                 updates, self._uid, self.project, iter=self._iteration
             )
+
+    def get_notifications(self, unmask_secret_params=False):
+        """
+        Get the list of notifications
+
+        :param unmask_secret_params: Used as a workaround for sending notification from workflow-runner.
+                                     When used, if the notification will be saved again a new secret will be created.
+        """
+
+        # Get the full notifications from the DB since the run context does not contain the params due to bloating
+        run = self._rundb.read_run(
+            self.uid, format_=mlrun.common.formatters.RunFormat.notifications
+        )
+
+        notifications = []
+        for notification in run["spec"]["notifications"]:
+            notification: mlrun.model.Notification = mlrun.model.Notification.from_dict(
+                notification
+            )
+            # Fill the secret params from the project secret. We cannot use the server side internal secret mechanism
+            # here as it is the client side.
+            # TODO: This is a workaround to allow the notification to get the secret params from project secret
+            #       instead of getting them from the internal project secret that should be mounted.
+            #       We should mount the internal project secret that was created to the workflow-runner
+            #       and get the secret from there.
+            if unmask_secret_params:
+                try:
+                    notification.enrich_unmasked_secret_params_from_project_secret()
+                    notifications.append(notification)
+                except mlrun.errors.MLRunValueError:
+                    logger.warning(
+                        "Failed to fill secret params from project secret for notification."
+                        "Skip this notification.",
+                        notification=notification.name,
+                    )
+
+        return notifications
 
     def to_dict(self):
         """Convert the run context to a dictionary"""

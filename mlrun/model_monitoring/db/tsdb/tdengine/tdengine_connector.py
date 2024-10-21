@@ -18,11 +18,16 @@ from typing import Union
 
 import pandas as pd
 import taosws
+from taoswswrap.tdengine_connection import (
+    Statement,
+    TDEngineConnection,
+)
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.schemas as tdengine_schemas
 import mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps
 from mlrun.model_monitoring.db import TSDBConnector
+from mlrun.model_monitoring.db.tsdb.tdengine.schemas import TDEngineSchema
 from mlrun.model_monitoring.helpers import get_invocations_fqn
 from mlrun.utils import logger
 
@@ -47,23 +52,23 @@ class TDEngineConnector(TSDBConnector):
             )
         self._tdengine_connection_string = kwargs.get("connection_string")
         self.database = database
-        self._connection = self._create_connection()
+
+        self._connection = None
         self._init_super_tables()
 
-    def _create_connection(self):
+    @property
+    def connection(self) -> TDEngineConnection:
+        if not self._connection:
+            self._connection = self._create_connection()
+        return self._connection
+
+    def _create_connection(self) -> TDEngineConnection:
         """Establish a connection to the TSDB server."""
-        conn = taosws.connect(self._tdengine_connection_string)
-        try:
-            conn.execute(f"CREATE DATABASE {self.database}")
-        except taosws.QueryError:
-            # Database already exists
-            pass
-        try:
-            conn.execute(f"USE {self.database}")
-        except taosws.QueryError as e:
-            raise mlrun.errors.MLRunTSDBConnectionFailure(
-                f"Failed to use TDEngine database {self.database}, {mlrun.errors.err_to_str(e)}"
-            )
+        logger.debug("Creating a new connection to TDEngine", project=self.project)
+        conn = TDEngineConnection(self._tdengine_connection_string)
+        conn.run(statements=f"CREATE DATABASE IF NOT EXISTS {self.database}")
+        conn.prefix_statements = [f"USE {self.database}"]
+        logger.debug("Connected to TDEngine", project=self.project)
         return conn
 
     def _init_super_tables(self):
@@ -84,13 +89,13 @@ class TDEngineConnector(TSDBConnector):
         """Create TDEngine supertables."""
         for table in self.tables:
             create_table_query = self.tables[table]._create_super_table_query()
-            self._connection.execute(create_table_query)
+            self.connection.run(statements=create_table_query)
 
     def write_application_event(
         self,
         event: dict,
         kind: mm_schemas.WriterEventKind = mm_schemas.WriterEventKind.RESULT,
-    ):
+    ) -> None:
         """
         Write a single result or metric to TSDB.
         """
@@ -106,28 +111,46 @@ class TDEngineConnector(TSDBConnector):
             # Write a new result
             table = self.tables[mm_schemas.TDEngineSuperTables.APP_RESULTS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.ResultData.RESULT_NAME]}"
+                f"{table_name}_{event[mm_schemas.ResultData.RESULT_NAME]}"
             ).replace("-", "_")
+            event.pop(mm_schemas.ResultData.CURRENT_STATS, None)
 
         else:
             # Write a new metric
             table = self.tables[mm_schemas.TDEngineSuperTables.METRICS]
             table_name = (
-                f"{table_name}_" f"{event[mm_schemas.MetricData.METRIC_NAME]}"
+                f"{table_name}_{event[mm_schemas.MetricData.METRIC_NAME]}"
             ).replace("-", "_")
 
-        create_table_query = table._create_subtable_query(
-            subtable=table_name, values=event
-        )
-        self._connection.execute(create_table_query)
+        # Escape the table name for case-sensitivity (ML-7908)
+        # https://github.com/taosdata/taos-connector-python/issues/260
+        table_name = f"`{table_name}`"
 
-        insert_statement = table._insert_subtable_query(
-            self._connection,
-            subtable=table_name,
-            values=event,
+        # Convert the datetime strings to datetime objects
+        event[mm_schemas.WriterEvent.END_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.END_INFER_TIME]
         )
-        insert_statement.add_batch()
-        insert_statement.execute()
+        event[mm_schemas.WriterEvent.START_INFER_TIME] = self._convert_to_datetime(
+            val=event[mm_schemas.WriterEvent.START_INFER_TIME]
+        )
+
+        create_table_sql = table._create_subtable_sql(subtable=table_name, values=event)
+
+        insert_statement = Statement(
+            TDEngineSchema._insert_subtable_stmt,
+            dict(columns=table.columns, subtable=table_name, values=event),
+        )
+
+        self.connection.run(
+            statements=[
+                create_table_sql,
+                insert_statement,
+            ]
+        )
+
+    @staticmethod
+    def _convert_to_datetime(val: typing.Union[str, datetime]) -> datetime:
+        return datetime.fromisoformat(val) if isinstance(val, str) else val
 
     def apply_monitoring_stream_steps(self, graph):
         """
@@ -163,7 +186,8 @@ class TDEngineConnector(TSDBConnector):
                     mm_schemas.EventFieldType.PROJECT,
                     mm_schemas.EventFieldType.ENDPOINT_ID,
                 ],
-                max_events=10,
+                max_events=1000,
+                flush_after_seconds=30,
             )
 
         apply_process_before_tsdb()
@@ -179,18 +203,24 @@ class TDEngineConnector(TSDBConnector):
         """
         Delete all project resources in the TSDB connector, such as model endpoints data and drift results.
         """
+        logger.debug(
+            "Deleting all project resources using the TDEngine connector",
+            project=self.project,
+        )
         for table in self.tables:
             get_subtable_names_query = self.tables[table]._get_subtables_query(
                 values={mm_schemas.EventFieldType.PROJECT: self.project}
             )
-            subtables = self._connection.query(get_subtable_names_query)
+            subtables = self.connection.run(query=get_subtable_names_query).data
+            drop_statements = []
             for subtable in subtables:
-                drop_query = self.tables[table]._drop_subtable_query(
-                    subtable=subtable[0]
+                drop_statements.append(
+                    self.tables[table]._drop_subtable_query(subtable=subtable[0])
                 )
-                self._connection.execute(drop_query)
-        logger.info(
-            f"Deleted all project resources in the TSDB connector for project {self.project}"
+            self.connection.run(statements=drop_statements)
+        logger.debug(
+            "Deleted all project resources using the TDEngine connector",
+            project=self.project,
         )
 
     def get_model_endpoint_real_time_metrics(
@@ -241,7 +271,7 @@ class TDEngineConnector(TSDBConnector):
 
         project_condition = f"project = '{self.project}'"
         filter_query = (
-            f"{filter_query} AND {project_condition}"
+            f"({filter_query}) AND ({project_condition})"
             if filter_query
             else project_condition
         )
@@ -259,15 +289,16 @@ class TDEngineConnector(TSDBConnector):
             timestamp_column=timestamp_column,
             database=self.database,
         )
+        logger.debug("Querying TDEngine", query=full_query)
         try:
-            query_result = self._connection.query(full_query)
+            query_result = self.connection.run(query=full_query)
         except taosws.QueryError as e:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Failed to query table {table} in database {self.database}, {str(e)}"
             )
 
-        df_columns = [field.name() for field in query_result.fields]
-        return pd.DataFrame(query_result, columns=df_columns)
+        df_columns = [field.name for field in query_result.fields]
+        return pd.DataFrame(query_result.data, columns=df_columns)
 
     def read_metrics_data(
         self,
@@ -315,11 +346,11 @@ class TDEngineConnector(TSDBConnector):
 
         metrics_condition = " OR ".join(
             [
-                f"({mm_schemas.WriterEvent.APPLICATION_NAME} = '{metric.app}' AND {name} = '{metric.name}')"
+                f"({mm_schemas.WriterEvent.APPLICATION_NAME}='{metric.app}' AND {name}='{metric.name}')"
                 for metric in metrics
             ]
         )
-        filter_query = f"endpoint_id='{endpoint_id}' AND ({metrics_condition})"
+        filter_query = f"(endpoint_id='{endpoint_id}') AND ({metrics_condition})"
 
         df = self._get_records(
             table=table,

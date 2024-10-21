@@ -72,7 +72,12 @@ class ArtifactProducer:
         self.inputs = {}
 
     def get_meta(self) -> dict:
-        return {"kind": self.kind, "name": self.name, "tag": self.tag}
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "tag": self.tag,
+            "owner": self.owner,
+        }
 
     @property
     def uid(self):
@@ -193,7 +198,9 @@ class ArtifactManager:
         :param artifact_path: The path to store the artifact.
          If not provided, the artifact will be stored in the default artifact path.
         :param format: The format of the artifact. (e.g. csv, json, html, etc.)
-        :param upload: Whether to upload the artifact or not.
+        :param upload: Whether to upload the artifact to the datastore. If not provided, and the
+        `local_path` is not a directory, upload occurs by default. Directories are uploaded only when this
+        flag is explicitly set to `True`.
         :param labels: Labels to add to the artifact.
         :param db_key: The key to use when logging the artifact to the DB.
         If not provided, will generate a key based on the producer name and the artifact key.
@@ -237,6 +244,8 @@ class ArtifactManager:
                 # otherwise, we do not want to override it.
                 # this is mainly relevant for imported artifacts that have an explicit db_key value already set
                 db_key = item.db_key or key
+        if db_key != key:
+            validate_artifact_key_name(db_key, "artifact.db_key")
         item.db_key = db_key or ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag

@@ -32,7 +32,6 @@ import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointMonitoringMetric,
     ModelEndpointMonitoringMetricNoData,
-    ModelEndpointMonitoringMetricType,
     ModelEndpointMonitoringResultValues,
     _MetricPoint,
 )
@@ -72,14 +71,14 @@ def store(
                 ModelEndpointMonitoringMetric(
                     project="default",
                     app="some-app-name",
-                    type=ModelEndpointMonitoringMetricType.RESULT,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                     name="some-metric-name1",
                     full_name="default.some-app-name.result.some-metric-name1",
                 ),
                 ModelEndpointMonitoringMetric(
                     project="default",
                     app="some-app-name",
-                    type=ModelEndpointMonitoringMetricType.RESULT,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                     name="some-metric-name2",
                     full_name="default.some-app-name.result.some-metric-name2",
                 ),
@@ -97,7 +96,7 @@ def store(
                 ModelEndpointMonitoringMetric(
                     project="project-1",
                     app="app1",
-                    type=ModelEndpointMonitoringMetricType.RESULT,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
                     name="drift-res",
                     full_name="project-1.app1.result.drift-res",
                 )
@@ -150,21 +149,21 @@ def test_extract_results_from_items(
                 ModelEndpointMonitoringMetric(
                     project="default",
                     app="histogram-data-drift",
-                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                     name="tvd_mean",
                     full_name="default.histogram-data-drift.metric.tvd_mean",
                 ),
                 ModelEndpointMonitoringMetric(
                     project="default",
                     app="histogram-data-drift",
-                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                     name="kld_mean",
                     full_name="default.histogram-data-drift.metric.kld_mean",
                 ),
                 ModelEndpointMonitoringMetric(
                     project="default",
                     app="histogram-data-drift",
-                    type=ModelEndpointMonitoringMetricType.METRIC,
+                    type=mm_constants.ModelEndpointMonitoringMetricType.METRIC,
                     name="hellinger_mean",
                     full_name="default.histogram-data-drift.metric.hellinger_mean",
                 ),
@@ -271,14 +270,14 @@ class TestGetModelEndpointMetrics:
         ModelEndpointMonitoringMetric(
             project=PROJECT,
             app="perf-app",
-            type=ModelEndpointMonitoringMetricType.RESULT,
+            type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             name="latency-sec",
             full_name="demo-proj.perf-app.result.latency-sec",
         ),
         ModelEndpointMonitoringMetric(
             project=PROJECT,
             app="model-as-a-judge-app",
-            type=ModelEndpointMonitoringMetricType.RESULT,
+            type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             name="distance",
             full_name="demo-proj.model-as-a-judge-app.result.distance",
         ),
@@ -351,7 +350,7 @@ class TestGetModelEndpointMetrics:
     ) -> None:
         assert (
             store.get_model_endpoint_metrics(
-                endpoint_id, type=ModelEndpointMonitoringMetricType.RESULT
+                endpoint_id, type=mm_constants.ModelEndpointMonitoringMetricType.RESULT
             )
             == expected_metrics
         )
@@ -361,7 +360,7 @@ class TestGetModelEndpointMetrics:
         """Test that non 404 errors are not silenced"""
         with pytest.raises(v3io.dataplane.response.HttpResponseError):
             store_with_err.get_model_endpoint_metrics(
-                cls.ENDPOINT, type=ModelEndpointMonitoringMetricType.RESULT
+                cls.ENDPOINT, type=mm_constants.ModelEndpointMonitoringMetricType.RESULT
             )
 
 
@@ -511,7 +510,8 @@ def _mock_frames_client_predictions(predictions_df: pd.DataFrame) -> Iterator[No
 
 @pytest.mark.usefixtures("_mock_frames_client")
 def test_read_results_data() -> None:
-    data = V3IOTSDBConnector(project="fictitious-one").read_metrics_data(
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
+    data = tsdb_connector.read_metrics_data(
         endpoint_id="70450e1ef7cc9506d42369aeeb056eaaaa0bb8bd",
         start=datetime(2024, 4, 2, 18, 0, 0, tzinfo=timezone.utc),
         end=datetime(2024, 4, 3, 18, 0, 0, tzinfo=timezone.utc),
@@ -521,21 +521,21 @@ def test_read_results_data() -> None:
                 app="histogram-data-drift",
                 name="kld_mean",
                 full_name="fictitious-one.histogram-data-drift.result.kld_mean",
-                type=ModelEndpointMonitoringMetricType.RESULT,
+                type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             ),
             ModelEndpointMonitoringMetric(
                 project="fictitious-one",
                 app="histogram-data-drift",
                 name="general_drift",
                 full_name="fictitious-one.histogram-data-drift.result.general_drift",
-                type=ModelEndpointMonitoringMetricType.RESULT,
+                type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             ),
             ModelEndpointMonitoringMetric(
                 project="fictitious-one",
                 app="late-app",
                 name="notfound",
                 full_name="fictitious-one.late-app.result.notfound",
-                type=ModelEndpointMonitoringMetricType.RESULT,
+                type=mm_constants.ModelEndpointMonitoringMetricType.RESULT,
             ),
         ],
     )
@@ -554,16 +554,15 @@ def test_read_predictions() -> None:
         "aggregation_window": "1m",
     }
 
+    tsdb_connector = V3IOTSDBConnector(project="fictitious-one")
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as err:
-        V3IOTSDBConnector(project="fictitious-one").read_predictions(**predictions_args)
+        tsdb_connector.read_predictions(**predictions_args)
         assert (
             str(err.value)
             == "both or neither of `aggregation_window` and `agg_funcs` must be provided"
         )
     predictions_args["agg_funcs"] = ["count"]
-    result = V3IOTSDBConnector(project="fictitious-one").read_predictions(
-        **predictions_args
-    )
+    result = tsdb_connector.read_predictions(**predictions_args)
     assert result.full_name == "fictitious-one.mlrun-infra.metric.invocations"
     assert result.values == [
         _MetricPoint(

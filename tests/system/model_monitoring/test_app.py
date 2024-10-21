@@ -30,6 +30,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 
 import mlrun
+import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.types
 import mlrun.db.httpdb
@@ -39,33 +40,29 @@ import mlrun.model_monitoring
 import mlrun.model_monitoring.api
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.applications import (
+    SUPPORTED_EVIDENTLY_VERSION,
     ModelMonitoringApplicationBase,
-    ModelMonitoringApplicationBaseV2,
 )
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     HistogramDataDriftApplication,
 )
-from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
 from .assets.application import (
     EXPECTED_EVENTS_COUNT,
     DemoMonitoringApp,
-    DemoMonitoringAppV2,
+    ErrApp,
     NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import (
     CustomEvidentlyMonitoringApp,
-    CustomEvidentlyMonitoringAppV2,
 )
 
 
 @dataclass
 class _AppData:
-    class_: type[
-        typing.Union[ModelMonitoringApplicationBase, ModelMonitoringApplicationBaseV2]
-    ]
+    class_: type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
@@ -128,6 +125,8 @@ class _V3IORecordsChecker:
     @classmethod
     def _test_results_kv_record(cls, ep_id: str) -> None:
         for app_data in cls.apps_data:
+            if not app_data.results:
+                continue
             app_name = app_data.class_.NAME
             cls._logger.debug(
                 "Checking the results KV record of app", app_name=app_name
@@ -191,7 +190,7 @@ class _V3IORecordsChecker:
         ).all(), "The endpoint IDs are different than expected"
 
         assert set(df.application_name) == {
-            app_data.class_.NAME for app_data in cls.apps_data
+            app_data.class_.NAME for app_data in cls.apps_data if app_data.results
         }, "The application names are different than expected"
 
         tsdb_metrics = df.groupby("application_name").result_name.unique()
@@ -254,13 +253,13 @@ class _V3IORecordsChecker:
             ).all(), "The endpoint IDs are different than expected"
 
     @classmethod
-    def _test_apps_parquet(
+    def _test_parquet(
         cls, ep_id: str, inputs: set[str], outputs: set[str]
     ) -> None:  # TODO : delete in 1.9.0  (V1 app deprecation)
         parquet_apps_directory = (
             mlrun.model_monitoring.helpers.get_monitoring_parquet_path(
                 mlrun.get_or_create_project(cls.project_name, allow_cross_project=True),
-                kind=mm_constants.FileTargetKind.APPS_PARQUET,
+                kind=mm_constants.FileTargetKind.PARQUET,
             )
         )
         df = ParquetTarget(
@@ -285,7 +284,7 @@ class _V3IORecordsChecker:
         last_request: datetime = None,
         error_count: float = None,
     ) -> None:
-        cls._test_apps_parquet(ep_id, inputs, outputs)
+        cls._test_parquet(ep_id, inputs, outputs)
         cls._test_results_kv_record(ep_id)
         cls._test_metrics_kv_record(ep_id)
         cls._test_tsdb_record(ep_id, last_request=last_request, error_count=error_count)
@@ -380,7 +379,7 @@ class _V3IORecordsChecker:
 @pytest.mark.enterprise
 @pytest.mark.model_monitoring
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-app-flow-v2"
+    project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
     error_count = 10
@@ -411,12 +410,12 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.apps_data: list[_AppData] = [
             _DefaultDataDriftAppData,
             _AppData(
-                class_=DemoMonitoringAppV2,
+                class_=DemoMonitoringApp,
                 rel_path="assets/application.py",
                 results={"data_drift_test", "model_perf"},
             ),
             _AppData(
-                class_=CustomEvidentlyMonitoringAppV2,
+                class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
@@ -426,12 +425,17 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                 results={"data_drift_test"},
                 artifacts={"evidently_report", "evidently_suite", "dashboard"},
             ),
+            _AppData(
+                class_=ErrApp,
+                rel_path="assets/application.py",
+            ),
         ]
 
         cls.run_db = mlrun.get_run_db()
 
     def custom_setup(self) -> None:
-        _V3IORecordsChecker.custom_setup(project_name=self.project_name)
+        # skips TestMLRunSystem, calls custom_setup() of _V3IORecordsChecker
+        super(TestMLRunSystem, self).custom_setup(project_name=self.project_name)
 
     def custom_teardown(self) -> None:
         # validate that stream resources were deleted as expected
@@ -532,6 +536,41 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 
         return inputs, outputs
 
+    def _add_error_alert(self) -> None:
+        self._logger.debug("Create an error alert")
+        entity_kind = alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
+
+        dummy_notification = mlrun.common.schemas.Notification(
+            kind="webhook",
+            name=mlrun.common.schemas.alert.EventKind.MM_APP_FAILED,
+            condition="",
+            params={"url": "some-url"},
+            severity="debug",
+            message="mm app failed!",
+        )
+
+        alert_config = mlrun.alerts.alert.AlertConfig(
+            project=self.project_name,
+            name=mlrun.common.schemas.alert.EventKind.MM_APP_FAILED,
+            summary="An invalid event has been detected in the model monitoring application",
+            severity=alert_objects.AlertSeverity.HIGH,
+            entities=alert_objects.EventEntities(
+                kind=entity_kind,
+                project=self.project_name,
+                ids=[f"{self.project_name}_err-app"],
+            ),
+            trigger=alert_objects.AlertTrigger(
+                events=[mlrun.common.schemas.alert.EventKind.MM_APP_FAILED]
+            ),
+            criteria=alert_objects.AlertCriteria(count=1, period="10m"),
+            notifications=[
+                alert_objects.AlertNotification(notification=dummy_notification)
+            ],
+            reset_policy=mlrun.common.schemas.alert.ResetPolicy.AUTO,
+        )
+
+        self.project.store_alert_config(alert_config)
+
     @classmethod
     def _deploy_model_serving(
         cls, with_training_set: bool
@@ -601,16 +640,24 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The model endpoint stream path is different than expected"
         return endpoint.metadata.uid
 
-    def _test_artifacts(self) -> None:
+    def _test_artifacts(self, ep_id: str) -> None:
         for app_data in self.apps_data:
             if app_data.artifacts:
                 app_name = app_data.class_.NAME
                 self._logger.debug("Checking app artifacts", app_name=app_name)
-                for name in app_data.artifacts:
-                    key = f"{app_name}-logger_{name}"
-                    self._logger.debug("Checking artifact", key=key)
-                    # Test that the artifact can be fetched from the store
-                    self.project.get_artifact(key).to_dataitem().get()
+                for key in app_data.artifacts:
+                    self._logger.debug("Checking artifact existence", key=key)
+                    artifact = self.project.get_artifact(key)
+                    self._logger.debug("Checking artifact labels", key=key)
+                    assert {
+                        "mlrun/producer-type": "model-monitoring-app",
+                        "mlrun/app-name": app_name,
+                        "mlrun/endpoint-id": ep_id,
+                    }.items() <= artifact.labels.items()
+                    self._logger.debug(
+                        "Test the artifact can be fetched from the store", key=key
+                    )
+                    artifact.to_dataitem().get()
 
     @classmethod
     def _test_model_endpoint_stats(cls, ep_id: str) -> None:
@@ -621,13 +668,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         ), "The endpoint's feature stats keys are not the same as the feature names"
         assert set(ep.status.current_stats.keys()) == set(
             ep.status.feature_stats.keys()
-        ) | {
-            "timestamp",
-            "latency",
-            "error_count",
-            "metrics",
-            "p0",
-        }, "The endpoint's current stats is different than expected"
+        ), "The endpoint's current stats is different than expected"
         assert ep.status.drift_status, "The general drift status is empty"
         assert ep.status.drift_measures, "The drift measures are empty"
 
@@ -649,6 +690,27 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         assert (
             ep.status.current_stats["sepal_length_cm"]["count"] == cls.num_events
         ), "Different number of events than expected"
+
+    @classmethod
+    def _test_error_alert(cls) -> None:
+        cls._logger.debug("Checking the error alert")
+        alerts = cls.run_db.list_alerts_configs(cls.project_name)
+        assert len(alerts) == 1, "Expects a single alert"
+
+        # Validate alert configuration
+        alert = alerts[0]
+        assert alert.name == mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
+        assert alert.trigger["events"] == [
+            mlrun.common.schemas.alert.EventKind.MM_APP_FAILED
+        ]
+        assert (
+            alert.entities["kind"]
+            == alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION
+        )
+        assert alert.entities["ids"] == [f"{cls.project_name}_err-app"]
+
+        # Validate alert notification
+        assert alert.count == 1
 
     @pytest.mark.parametrize("with_training_set", [True, False])
     def test_app_flow(self, with_training_set: bool) -> None:
@@ -672,6 +734,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             future = executor.submit(self._deploy_model_serving, with_training_set)
 
         serving_fn = future.result()
+        self._add_error_alert()
 
         time.sleep(5)
         self._infer(
@@ -693,6 +756,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(1.2 * self.app_interval_seconds)
 
         ep_id = self._get_model_endpoint_id()
+
         self._test_v3io_records(
             ep_id=ep_id,
             inputs=inputs,
@@ -702,47 +766,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         )
         self._test_predictions_table(ep_id)
 
-        self._test_artifacts()
+        self._test_artifacts(ep_id=ep_id)
         self._test_api(ep_id=ep_id)
         if _DefaultDataDriftAppData in self.apps_data:
             self._test_model_endpoint_stats(ep_id=ep_id)
-
-
-@TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
-@pytest.mark.model_monitoring
-class TestMonitoringAppFlowV1(TestMonitoringAppFlow):
-    # TODO : delete in 1.9.0 (V1 app deprecation)
-    project_name = "test-app-flow-v1"
-    # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
-
-    @classmethod
-    def custom_setup_class(cls) -> None:
-        super().custom_setup_class()
-        cls.apps_data: list[_AppData] = [
-            _AppData(
-                class_=DemoMonitoringApp,
-                rel_path="assets/application.py",
-                results={"data_drift_test", "model_perf"},
-            ),
-            _AppData(
-                class_=CustomEvidentlyMonitoringApp,
-                rel_path="assets/custom_evidently_app.py",
-                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
-                kwargs={
-                    "evidently_workspace_path": cls.evidently_workspace_path,
-                    "evidently_project_id": cls.evidently_project_id,
-                    "with_training_set": True,
-                },
-                results={"data_drift_test"},
-                artifacts={"evidently_report", "evidently_suite", "dashboard"},
-            ),
-        ]
-
-    @pytest.mark.parametrize("with_training_set", [True, False])
-    def test_app_flow(self, with_training_set) -> None:
-        super().test_app_flow(with_training_set)
+        self._test_error_alert()
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -777,7 +805,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
 
         # model monitoring app
         cls.app_data = _AppData(
-            class_=NoCheckDemoMonitoringApp, rel_path="assets/application.py"
+            class_=NoCheckDemoMonitoringApp,
+            rel_path="assets/application.py",
+            results={"data_drift_test", "model_perf"},
         )
 
         # model monitoring infra

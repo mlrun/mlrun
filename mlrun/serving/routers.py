@@ -615,7 +615,7 @@ class VotingEnsemble(ParallelRun):
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        if not self.context.is_mock or self.context.server.track_models:
+        if not self.context.is_mock or self.context.monitoring_mock:
             self.model_endpoint_uid = _init_endpoint_record(server, self)
 
         self._update_weights(self.weights)

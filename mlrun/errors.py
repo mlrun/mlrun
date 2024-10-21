@@ -29,9 +29,12 @@ class MLRunBaseError(Exception):
     pass
 
 
-class MLRunTaskNotReady(MLRunBaseError):
+class MLRunTaskNotReadyError(MLRunBaseError):
     """indicate we are trying to read a value which is not ready
     or need to come from a job which is in progress"""
+
+
+MLRunTaskNotReady = MLRunTaskNotReadyError  # kept for BC only
 
 
 class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
@@ -137,7 +140,13 @@ def err_to_str(err):
         error_strings.append(err_msg)
         err = err.__cause__
 
-    return ", caused by: ".join(error_strings)
+    err_msg = ", caused by: ".join(error_strings)
+
+    # in case the error string is longer than 32k, we truncate it
+    # the truncation takes the first 16k, then the last 16k characters
+    if len(err_msg) > 32_000:
+        err_msg = err_msg[:16_000] + "...truncated..." + err_msg[-16_000:]
+    return err_msg
 
 
 # Specific Errors
@@ -205,15 +214,15 @@ class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
-class MLRunInvalidMMStoreType(MLRunHTTPStatusError, ValueError):
+class MLRunInvalidMMStoreTypeError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class MLRunStreamConnectionFailure(MLRunHTTPStatusError, ValueError):
+class MLRunStreamConnectionFailureError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 
-class MLRunTSDBConnectionFailure(MLRunHTTPStatusError, ValueError):
+class MLRunTSDBConnectionFailureError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 
 

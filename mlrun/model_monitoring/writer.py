@@ -160,7 +160,9 @@ class ModelMonitoringWriter(StepToDict):
             event_kind = f"{event_kind}_detected"
         else:
             event_kind = f"{event_kind}_suspected"
-        return alert_objects.EventKind(value=event_kind)
+        return alert_objects.EventKind(
+            value=mlrun.utils.helpers.normalize_name(event_kind)
+        )
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> tuple[_AppResultEvent, WriterEventKind]:
@@ -258,9 +260,13 @@ class ModelMonitoringWriter(StepToDict):
                 "data drift app",
                 endpoint_id=endpoint_id,
             )
+            attributes = json.loads(event[ResultData.RESULT_EXTRA_DATA])
+            attributes[EventFieldType.DRIFT_STATUS] = str(
+                attributes[EventFieldType.DRIFT_STATUS]
+            )
             self._app_result_store.update_model_endpoint(
                 endpoint_id=endpoint_id,
-                attributes=json.loads(event[ResultData.RESULT_EXTRA_DATA]),
+                attributes=attributes,
             )
 
         logger.info("Model monitoring writer finished handling event")

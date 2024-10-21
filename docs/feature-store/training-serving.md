@@ -42,6 +42,7 @@ As example of a scikit-learn based model server:
 from cloudpickle import load
 import numpy as np
 import mlrun
+import mlrun.feature_store as fstore
 import os
 
 
@@ -52,9 +53,9 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         self.model = load(open(model_file, "rb"))
 
         # Setup FS Online service
-        self.feature_service = mlrun.feature_store.get_online_feature_service(
-            "patient-deterioration"
-        )
+        self.feature_service = fstore.get_feature_vector(
+            "store://patient-deterioration"
+        ).get_online_feature_service()
 
         # Get feature vector statistics for imputing
         self.feature_stats = self.feature_service.vector.get_stats_table()
@@ -93,8 +94,9 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 Which you can deploy with:
 
 ```python
+project = mlrun.get_or_create_project("prediction")
 # Create the serving function from the code above
-fn = mlrun.code_to_function("<function_name>", kind="serving")
+fn = project.set_function(name="<function_name>", kind="serving")
 
 # Add a specific model to the serving function
 fn.add_model(

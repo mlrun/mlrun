@@ -44,7 +44,10 @@ from mlrun.utils.helpers import (
     verify_list_items_type,
 )
 
-STORE_PREFIX = "store://artifacts/dummy-project/dummy-db-key"
+STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
+ARTIFACT_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Artifact)
+DATASET_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Dataset)
+MODEL_STORE_PREFIX = STORE_PREFIX.format(kind=StorePrefix.Model)
 
 
 def test_retry_until_successful_fatal_failure():
@@ -318,11 +321,20 @@ def test_validate_tag_name(tag_name, expected):
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         ("", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        (
+            "artifact-name#",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("artifact@name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact#name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact-name#", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact:name", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("artifact_name$", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         # Valid names
         ("artifact-name2.0", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name", does_not_raise()),
-        ("artifact-name_chars@#$", does_not_raise()),
+        ("artifact-name3", does_not_raise()),
+        ("artifact_name", does_not_raise()),
+        ("artifact.name", does_not_raise()),
         ("artifactNAME", does_not_raise()),
     ],
 )
@@ -331,6 +343,11 @@ def test_validate_artifact_name(artifact_name, expected):
         validate_artifact_key_name(
             artifact_name,
             field_name="artifact.key",
+        )
+    with expected:
+        validate_artifact_key_name(
+            artifact_name,
+            field_name="artifact.db_key",
         )
 
 
@@ -1010,20 +1027,45 @@ def test_is_safe_path(basedir, path, is_symlink, is_valid):
 @pytest.mark.parametrize(
     "kind, tag, target_path, expected",
     [
-        ("artifact", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("artifact", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "artifact",
+            "v1",
+            "/path/to/artifact",
+            f"{ARTIFACT_STORE_PREFIX}:v1@dummy-tree",
+        ),
+        (
+            "artifact",
+            None,
+            "/path/to/artifact",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
+        ),
         (
             "artifact",
             "latest",
             "/path/to/artifact",
-            f"{STORE_PREFIX}:latest@dummy-tree",
+            f"{ARTIFACT_STORE_PREFIX}:latest@dummy-tree",
         ),
-        ("dataset", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("dataset", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("dataset", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("model", "v1", "/path/to/artifact", f"{STORE_PREFIX}:v1@dummy-tree"),
-        ("model", None, "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
-        ("model", "latest", "/path/to/artifact", f"{STORE_PREFIX}:latest@dummy-tree"),
+        ("dataset", "v1", "/path/to/artifact", f"{DATASET_STORE_PREFIX}:v1@dummy-tree"),
+        (
+            "dataset",
+            None,
+            "/path/to/artifact",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        (
+            "dataset",
+            "latest",
+            "/path/to/artifact",
+            f"{DATASET_STORE_PREFIX}:latest@dummy-tree",
+        ),
+        ("model", "v1", "/path/to/artifact", f"{MODEL_STORE_PREFIX}:v1@dummy-tree"),
+        ("model", None, "/path/to/artifact", f"{MODEL_STORE_PREFIX}:latest@dummy-tree"),
+        (
+            "model",
+            "latest",
+            "/path/to/artifact",
+            f"{MODEL_STORE_PREFIX}:latest@dummy-tree",
+        ),
         ("dir", "v1", "/path/to/artifact", "/path/to/artifact"),
         ("table", "v1", "/path/to/artifact", "/path/to/artifact"),
         ("plot", "v1", "/path/to/artifact", "/path/to/artifact"),

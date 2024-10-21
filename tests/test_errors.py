@@ -31,6 +31,15 @@ def test_error_none():
     assert err_to_str(None) == ""
 
 
+def test_long_error_message_truncated():
+    err_msg = "a" * 16_000
+    err_msg += "deleteme"
+    err_msg += "b" * 16_000
+    truncated_err_msg = err_to_str(Exception(err_msg))
+    assert len(truncated_err_msg) == 32_000 + len("...truncated...")
+    assert "deleteme" not in truncated_err_msg
+
+
 def test_error_is_already_string():
     assert err_to_str("this is already a string") == "this is already a string"
 
@@ -101,7 +110,7 @@ def test_raise_for_aiohttp_client_response_status():
     ), "should have aiohttp client response in exception"
 
 
-class TestErrToStatusCode(Exception):
+class TestErrToStatusCodeError(Exception):
     def __init__(self, status_code, message):
         self.status_code = status_code
         self.message = message
@@ -119,8 +128,8 @@ class TestErrToStatusCode(Exception):
 def test_err_to_status_code(status_code, exc, message):
     with pytest.raises(exc) as _exc:
         try:
-            raise TestErrToStatusCode(status_code, message)
-        except TestErrToStatusCode as test_exc:
+            raise TestErrToStatusCodeError(status_code, message)
+        except TestErrToStatusCodeError as test_exc:
             raise err_for_status_code(
                 test_exc.status_code, test_exc.message
             ) from test_exc

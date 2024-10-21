@@ -178,7 +178,7 @@ class StoreManager:
         # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
         if not target and not allow_empty_resources:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"resource {url} does not have a valid/persistent offline target"
+                f"Resource {url} does not have a valid/persistent offline target"
             )
         return resource, target or ""
 

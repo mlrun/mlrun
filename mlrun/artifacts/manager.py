@@ -317,7 +317,7 @@ class ArtifactManager:
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
-            f"log artifact {key} at {item.target_path}, size: {size}, db: {db_str}"
+            f"Log artifact {key} at {item.target_path}, size: {size}, db: {db_str}"
         )
         return item
 

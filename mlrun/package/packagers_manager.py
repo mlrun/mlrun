@@ -732,7 +732,7 @@ class PackagersManager:
         """
         artifact_uris = artifact_uris or {}
         for _key, uri in artifact_uris.items():
-            if key == key:
+            if key == _key:
                 return uri
 
         # Look in the artifacts:

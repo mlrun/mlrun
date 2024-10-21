@@ -267,11 +267,11 @@ class RunDBMock:
     def store_artifact(
         self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
     ):
-        self._artifacts[key] = artifact
+        self._artifacts[(key, iter)] = artifact
         return artifact
 
     def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
-        return self._artifacts.get(key, None)
+        return self._artifacts.get((key, iter), None)
 
     def list_artifacts(
         self,

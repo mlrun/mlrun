@@ -26,7 +26,6 @@ from dateutil import parser
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
-from mlrun.artifacts import ModelArtifact
 from mlrun.artifacts import Artifact, DatasetArtifact, ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
@@ -432,9 +431,9 @@ class MLClientCtx:
             for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
                 self._artifacts_manager.artifact_uris[artifact_obj.key] = (
-                    artifact_obj.key
+                    artifact_obj.uri
                 )
-            for key, uri in status.get("artifact_uris", {}):
+            for key, uri in status.get("artifact_uris", {}).items():
                 self._artifacts_manager.artifact_uris[key] = uri
             self._state = status.get("state", self._state)
 
@@ -582,22 +581,24 @@ class MLClientCtx:
         """Reserved for internal use"""
 
         if best:
+            best_context = MLClientCtx.from_dict(
+                task, store_run=False, include_status=True
+            )
             self._results["best_iteration"] = best
-            for k, v in get_in(task, ["status", "results"], {}).items():
-                self._results[k] = v
-            for artifact in get_in(task, ["status", RunKeys.artifacts], []):
-                self._artifacts_manager.artifacts[artifact["metadata"]["key"]] = (
-                    artifact
-                )
+            for key, result in best_context.results.items():
+                self._results[key] = result
+            for key, artifact_uri in best_context.artifact_uris.items():
+                self._artifacts_manager.artifact_uris[key] = artifact_uri
+                artifact = best_context.get_artifact(key)
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    artifact["metadata"]["key"],
+                    key,
                     self.iteration,
-                    artifact["spec"]["target_path"],
+                    artifact.target_path,
+                    db_key=artifact.db_key,
                     link_iteration=best,
-                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:
@@ -862,7 +863,7 @@ class MLClientCtx:
     def get_cached_artifact(self, key):
         """Return a logged artifact from cache (for potential updates)"""
         warnings.warn(
-            "get_cached_artifact is deprecated in 1.7.0 and will be removed in 1.9.0. Use get_artifact instead.",
+            "get_cached_artifact is deprecated in 1.8.0 and will be removed in 1.10.0. Use get_artifact instead.",
             FutureWarning,
         )
         return self.get_artifact(key)

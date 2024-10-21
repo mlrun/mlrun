@@ -1645,7 +1645,7 @@ class RunObject(RunTemplate):
 
         return outputs
 
-    def artifact(self, key: str) -> "mlrun.DataItem":
+    def artifact(self, key: str) -> typing.Optional["mlrun.DataItem"]:
         """Return artifact DataItem by key.
 
         This method waits for the outputs to complete, searches for the artifact matching the given key,
@@ -1688,7 +1688,7 @@ class RunObject(RunTemplate):
         :param key: The key of the artifact to retrieve.
         :return: The last artifact DataItem with the given key, or None if no such artifact is found.
         """
-        if not self.status.artifacts:
+        if not self.status.artifacts and not self.status.artifact_uris:
             return None
 
         # Collect artifacts that match the key
@@ -1699,7 +1699,12 @@ class RunObject(RunTemplate):
         ]
 
         if not matching_artifacts:
-            return None
+            if key not in self.status.artifact_uris:
+                return None
+
+            # Get artifact by store URI
+            artifact_uri = self.status.artifact_uris[key]
+            matching_artifacts = mlrun.datastore.get_store_resource(artifact_uri)
 
         # Sort matching artifacts by creation date in ascending order.
         # The last element in the list will be the one created most recently.

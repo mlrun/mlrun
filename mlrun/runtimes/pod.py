@@ -1416,7 +1416,10 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
         events_offset = 0
         try:
             text, _, deploy_status_text_kind = db.get_builder_status(
-                self, 0, 0, logs=logs
+                self,
+                offset=0,
+                logs=logs,
+                events_offset=0,
             )
         except mlrun.db.RunDBError:
             raise ValueError("Function or build process not found")
@@ -1444,15 +1447,21 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 time.sleep(2)
                 if show_on_failure:
                     text = ""
-                    db.get_builder_status(self, 0, 0, logs=False)
+                    db.get_builder_status(self, offset=0, logs=False, events_offset=0)
                     if self.status.state == mlrun.common.schemas.FunctionState.error:
                         # re-read the full log on failure
                         text, _, deploy_status_text_kind = db.get_builder_status(
-                            self, offset, events_offset, logs=logs
+                            self,
+                            offset=offset,
+                            logs=logs,
+                            events_offset=events_offset,
                         )
                 else:
                     text, _, deploy_status_text_kind = db.get_builder_status(
-                        self, offset, events_offset, logs=logs
+                        self,
+                        offset=offset,
+                        logs=logs,
+                        events_offset=events_offset,
                     )
                 print_log(text)
                 if (

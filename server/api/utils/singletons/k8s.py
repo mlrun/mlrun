@@ -943,7 +943,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=name, namespace=self.resolve_namespace(namespace)
             )
             return api_response
-        except ApiException as exc:
+        except k8s_client_rest.ApiException as exc:
             if exc.status != 404:
                 logger.error(
                     "Failed to get pod status",

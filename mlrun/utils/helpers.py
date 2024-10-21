@@ -1756,7 +1756,7 @@ def validate_component_version_compatibility(
 
         if parsed_current_version >= parsed_min_version:
             return True
-    return assume_compatible
+    return False
 
 
 def format_alert_summary(

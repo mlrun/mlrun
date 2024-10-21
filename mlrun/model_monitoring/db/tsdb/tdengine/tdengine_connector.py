@@ -300,14 +300,6 @@ class TDEngineConnector(TSDBConnector):
                                       `sliding_window_step` is provided, interval must be provided as well. Provided
                                       as a string in the format of '1m', '1h', etc.
         :param timestamp_column:      The column name that holds the timestamp index.
-        :param group_by:              The column name to group by. Note that if `group_by` is provided, aggregation
-                                      functions must bg provided
-        :param preform_agg_columns:   The columns to preform aggregation on.
-                                      notice that all aggregation functions provided will preform on those columns.
-                                      If not provided The default behavior is to preform on all columns in columns,
-                                      if an empty list was provided The aggregation won't be performed.
-        :param order_by:              The column or alias to preform ordering on the query.
-        :param desc:                  Whether to sort the results in descending order.
 
         :return: DataFrame with the provided attributes from the data collection.
         :raise:  MLRunInvalidArgumentError if query the provided table failed.

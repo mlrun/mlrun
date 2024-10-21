@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from typing import Literal, Optional, Union
 
@@ -700,8 +700,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -734,8 +734,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "now-24h",
-        end: Union[datetime, str] = "now",
+        start: datetime = mlrun.utils.datetime_now() - timedelta(hours=24),
+        end: datetime = mlrun.utils.datetime_now(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -758,8 +758,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.METRICS,
@@ -778,8 +778,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
@@ -803,8 +803,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
@@ -830,8 +830,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]

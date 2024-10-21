@@ -486,14 +486,12 @@ class TDEngineConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = datetime.min if start == "0" else start
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
             start=start,
@@ -530,19 +528,12 @@ class TDEngineConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "now-24h",
-        end: Union[datetime, str] = "now",
+        start: datetime = mlrun.utils.datetime_now() - timedelta(hours=24),
+        end: datetime = mlrun.utils.datetime_now(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = datetime.min if start == "0" else start
-        start = (
-            mlrun.utils.datetime_now() - timedelta(hours=24)
-            if start == "now-24h"
-            else start
-        )
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
             start=start,
@@ -570,11 +561,9 @@ class TDEngineConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
-        start = datetime.min if start == "0" else start
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.METRICS,
             start=start,
@@ -607,11 +596,9 @@ class TDEngineConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
-        start = datetime.min if start == "0" else start
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
             start=start,
@@ -646,14 +633,12 @@ class TDEngineConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = datetime.min if start == "0" else start
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.ERRORS,
             start=start,
@@ -678,14 +663,12 @@ class TDEngineConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = datetime.min,
+        end: datetime = mlrun.utils.now_date(),
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
-        start = datetime.min if start == "0" else start
-        end = mlrun.utils.now_date() if end == "now" else end
         df = self._get_records(
             table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
             start=start,

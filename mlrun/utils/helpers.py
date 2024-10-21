@@ -268,12 +268,14 @@ def validate_tag_name(
 def validate_artifact_key_name(
     artifact_key: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:
+    field_type = "key" if field_name == "artifact.key" else "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+        log_message=f"Artifact {field_type} must start and end with an alphanumeric character, and may only contain "
+        "letters, numbers, hyphens, underscores, and dots.",
     )
 
 
@@ -1782,3 +1784,43 @@ def _reload(module, max_recursion_depth):
         attribute = getattr(module, attribute_name)
         if type(attribute) is ModuleType:
             _reload(attribute, max_recursion_depth - 1)
+
+
+def run_with_retry(
+    retry_count: int,
+    func: typing.Callable,
+    retry_on_exceptions: typing.Union[
+        type[Exception],
+        tuple[type[Exception]],
+    ] = None,
+    *args,
+    **kwargs,
+):
+    """
+    Executes a function with retry logic upon encountering specified exceptions.
+
+    :param retry_count: The number of times to retry the function execution.
+    :param func: The function to execute.
+    :param retry_on_exceptions: Exception(s) that trigger a retry. Can be a single exception or a tuple of exceptions.
+    :param args: Positional arguments to pass to the function.
+    :param kwargs: Keyword arguments to pass to the function.
+    :return: The result of the function execution if successful.
+    :raises Exception: Re-raises the last exception encountered after all retries are exhausted.
+    """
+    if retry_on_exceptions is None:
+        retry_on_exceptions = (Exception,)
+    elif isinstance(retry_on_exceptions, list):
+        retry_on_exceptions = tuple(retry_on_exceptions)
+
+    last_exception = None
+    for attempt in range(retry_count + 1):
+        try:
+            return func(*args, **kwargs)
+        except retry_on_exceptions as exc:
+            last_exception = exc
+            logger.warning(
+                f"Attempt {{{attempt}/ {retry_count}}} failed with exception: {exc}",
+            )
+            if attempt == retry_count:
+                raise
+    raise last_exception

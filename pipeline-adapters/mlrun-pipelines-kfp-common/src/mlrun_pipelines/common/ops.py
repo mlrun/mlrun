@@ -947,6 +947,7 @@ def _replace_env_vars_with_secrets(
                 value = env_var.get("value")
                 if value is None:
                     logger.warning("Skipping empty secret value")
+                    continue
                 secret_env_var = _create_secret_env_var_for_pipeline(
                     name=env_var_name,
                     value=value,

@@ -37,6 +37,7 @@ import inflection
 import numpy as np
 import packaging.version
 import pandas
+import pandas as pd
 import semver
 import yaml
 from dateutil import parser
@@ -279,15 +280,36 @@ def validate_artifact_key_name(
     )
 
 
-def validate_inline_artifact_body_size(body: typing.Union[str, bytes, None]) -> None:
-    if body and len(body) > MYSQL_MEDIUMBLOB_SIZE_BYTES:
-        raise mlrun.errors.MLRunBadRequestError(
-            "The body of the artifact exceeds the maximum allowed size. "
-            "Avoid embedding the artifact body. "
-            "This increases the size of the project yaml file and could affect the project during loading and saving. "
-            "More information is available at"
-            "https://docs.mlrun.org/en/latest/projects/automate-project-git-source.html#setting-and-registering-the-project-artifacts"
-        )
+def validate_artifact_body_size(
+    body: typing.Union[str, bytes, pd.DataFrame, None], is_inline: bool
+) -> None:
+    """
+    Validates the size of the artifact body.
+
+    :param body: The artifact body, which can be a string, bytes, DataFrame, or None.
+    :param is_inline: A flag indicating whether the artifact body is inline.
+
+    :raises mlrun.errors.MLRunBadRequestError: If the body exceeds the maximum allowed size.
+    """
+    body_size = 0
+
+    if isinstance(body, pd.DataFrame):
+        body_size = body.memory_usage(deep=True).sum()
+    elif isinstance(body, (str, bytes)):
+        body_size = len(body)
+
+    if body_size > MYSQL_MEDIUMBLOB_SIZE_BYTES:
+        error_message = "The body of the artifact exceeds the maximum allowed size. "
+        if is_inline:
+            error_message += (
+                "Avoid embedding the artifact body. This increases the size of the project yaml file and could "
+                "affect the project during loading and saving. "
+            )
+        else:
+            error_message += (
+                "For larger artifacts, consider logging them through files instead."
+            )
+        raise mlrun.errors.MLRunBadRequestError(error_message)
 
 
 def validate_v3io_stream_consumer_group(

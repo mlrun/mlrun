@@ -429,19 +429,26 @@ def test_ensure_artifact_source_file_exists(local_path, fail):
 
 
 @pytest.mark.parametrize(
-    "body_size,expectation",
+    "body_size,is_inline,expectation",
     [
         (
             MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            True,
             pytest.raises(mlrun.errors.MLRunBadRequestError),
         ),
-        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, does_not_raise()),
+        (
+            MYSQL_MEDIUMBLOB_SIZE_BYTES + 1,
+            False,
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+        ),
+        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, True, does_not_raise()),
+        (MYSQL_MEDIUMBLOB_SIZE_BYTES - 1, False, does_not_raise()),
     ],
 )
-def test_ensure_fail_on_oversized_artifact(body_size, expectation):
+def test_ensure_fail_on_oversized_artifact(body_size, is_inline, expectation):
     artifact = mlrun.artifacts.Artifact(
         "artifact-name",
-        is_inline=True,
+        is_inline=is_inline,
         body="a" * body_size,
     )
     context = mlrun.get_or_create_ctx("test")

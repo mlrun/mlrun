@@ -741,6 +741,7 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start = start or 'now'
         start, end = self._get_start_end(start, end, delta_start=-24)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,

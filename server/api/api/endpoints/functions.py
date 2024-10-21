@@ -622,6 +622,7 @@ Event: {event.metadata.name}
 Type: {event.type}
 Reason: {event.reason}
 Message: {event.message}
+Timestamp: {event.first_timestamp}
 """
         out = resp[events_offset:].encode()
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -264,3 +264,25 @@ def test_list_paginated_crds_retry(
         result = list(k8s_helper.list_crds_paginated("group", "v1", "objects", "my-ns"))
         if expected_result is not None:
             assert result == expected_result
+
+
+def test_list_pod_events(k8s_helper):
+    event = k8s_client.CoreV1Event(
+        metadata=k8s_client.V1ObjectMeta(name="pod-event"),
+        type="event-type",
+        reason="event-reason",
+        message="event-message",
+        involved_object="my-pod",
+        first_timestamp=datetime.datetime.now(),
+    )
+    with unittest.mock.patch.object(
+        k8s_helper.v1api,
+        "list_namespaced_event",
+        return_value=k8s_client.CoreV1EventList(items=[event]),
+    ):
+        events = k8s_helper.list_object_events(object_name="my-pod")
+        assert events[0].metadata.name == event.metadata.name
+        assert events[0].type == event.type
+        assert events[0].reason == event.reason
+        assert events[0].message == event.message
+        assert events[0].first_timestamp == event.first_timestamp

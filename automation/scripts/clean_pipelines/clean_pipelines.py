@@ -24,21 +24,11 @@ from mlrun_pipelines.models import PipelineRun
 
 import mlrun
 
-PROJECT_ANNOTATION = "mlrun/project"
-
 
 def validate_and_convert_date(date_input: str) -> str:
     """
     Converts any recognizable date string into a standardized RFC 3339 format.
-
-    Parameters:
-    date_input (str): A date string in a recognizable format.
-
-    Returns:
-    str: RFC 3339 formatted date string.
-
-    Raises:
-    ValueError: If the date format is unrecognized.
+    :param date_input: A date string in a recognizable format.
     """
     try:
         # Parse the date using dateutil.parser
@@ -52,7 +42,7 @@ def validate_and_convert_date(date_input: str) -> str:
             # If no timezone info is present, assume it's in local time
             local_tz = pytz.timezone(
                 "UTC"
-            )  # Change 'UTC' to your local timezone if needed
+            )
             dt_object = local_tz.localize(dt_object)
 
         formatted_date = dt_object.isoformat().replace("+00:00", "Z")

@@ -599,6 +599,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
     ):
+        logger.debug("Creating secret", secret_name=secret_name)
         k8s_secret = client.V1Secret(
             type=type_,
             metadata=client.V1ObjectMeta(
@@ -613,14 +614,16 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 namespace=namespace,
                 body=k8s_secret,
             )
-        except k8s_dynamic_exceptions.ConflictError as exc:
+        except k8s_client_rest.ApiException as exc:
+            exc = k8s_dynamic_exceptions.api_exception(exc)
             # There was a conflict while we tried to create the secret.
-            logger.warning(
-                "Secret was created while we tried to create it,",
-                secret_name=k8s_secret.metadata.name,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise
+            if isinstance(exc, k8s_dynamic_exceptions.ConflictError):
+                logger.warning(
+                    "Failed to create secret, Secret might have been created while we tried to create it",
+                    secret_name=k8s_secret.metadata.name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+            raise exc
 
     def _update_secret(
         self,
@@ -629,17 +632,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
     ):
+        logger.debug("Updating secret", secret_name=secret_name)
         secret_data = k8s_secret.data.copy() if k8s_secret.data else {}
         for key, value in secrets.items():
             secret_data[key] = base64.b64encode(value.encode()).decode("utf-8")
         k8s_secret.data = secret_data
-        self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+        try:
+            self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+        except k8s_client_rest.ApiException as exc:
+            raise k8s_dynamic_exceptions.api_exception(exc)
 
     def _read_secret(
         self,
         secret_name: str,
         namespace: str = "",
     ) -> client.V1Secret:
+        logger.debug("Reading secret", secret_name=secret_name)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(
                 name=secret_name,
@@ -651,18 +659,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 secret_name=secret_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
-            raise exc
+            raise k8s_dynamic_exceptions.api_exception(exc)
         return k8s_secret
-
-    def load_secret(self, secret_name, namespace=""):
-        namespace = namespace or self.resolve_namespace(namespace)
-
-        try:
-            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
-        except k8s_client_rest.ApiException:
-            return None
-
-        return k8s_secret.data
 
     def delete_project_secrets(
         self, project, secrets, namespace=""

@@ -465,7 +465,7 @@ class TSDBConnector(ABC):
         if not isinstance(start, datetime):
             start = datetime.min if start in ["0", None] else mlrun.utils.datetime_now()
             start = start + timedelta(hours=delta_start)
-        if not isinstance(start, datetime):
+        if not isinstance(end, datetime):
             end = datetime.min if end in ["0"] else mlrun.utils.datetime_now()
             end = end + timedelta(hours=delta_end)
         return start, end

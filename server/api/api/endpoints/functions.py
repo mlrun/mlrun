@@ -619,10 +619,10 @@ def _handle_job_deploy_status(
 
             resp += f"""
 Event: {event.metadata.name}
+Timestamp: {event.first_timestamp}
 Type: {event.type}
 Reason: {event.reason}
 Message: {event.message}
-Timestamp: {event.first_timestamp}
 """
         out = resp[events_offset:].encode()
 

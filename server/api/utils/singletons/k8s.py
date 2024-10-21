@@ -94,25 +94,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def resolve_namespace(self, namespace=None):
         return namespace or self.namespace
 
-    def _init_k8s_config(self, log=True):
-        try:
-            config.load_incluster_config()
-            self.running_inside_kubernetes_cluster = True
-            if log:
-                logger.info("Using in-cluster config.")
-        except Exception:
-            try:
-                config.load_kube_config(self.config_file)
-                self.running_inside_kubernetes_cluster = True
-                if log:
-                    logger.info("Using local kubernetes config.")
-            except Exception:
-                raise RuntimeError(
-                    "Cannot find local kubernetes config file,"
-                    " place it in ~/.kube/config or specify it in "
-                    "KUBECONFIG env var"
-                )
-
     def is_running_inside_kubernetes_cluster(self):
         return self.running_inside_kubernetes_cluster
 
@@ -313,10 +294,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
             return None
 
-    def get_pod_status(self, name, namespace=None):
-        return self.get_pod(
+    def get_pod_phase(self, name, namespace=None):
+        return self._get_pod_status(
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
+
+    def get_pod_status(self, name, namespace=None) -> client.V1PodStatus:
+        return self._get_pod_status(name, namespace, raise_on_not_found=True).status
 
     def delete_crd(
         self,
@@ -907,7 +891,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets_data = self._get_secret_raw_data(secret_name, namespace)
         return self._decode_secret_data(secrets_data)
 
-    def _decode_secret_data(self, secrets_data, secret_keys=None):
+    def list_object_events(
+        self, object_name: str, namespace: str = None
+    ) -> list[client.CoreV1Event]:
+        return self._list_events(
+            namespace=namespace, field_selector=f"involvedObject.name={object_name}"
+        )
+
+    @raise_for_status_code
+    def _list_events(self, namespace=None, field_selector=""):
+        resp = self.v1api.list_namespaced_event(
+            self.resolve_namespace(namespace), field_selector=field_selector
+        )
+        return resp.items
+
+    @staticmethod
+    def _decode_secret_data(secrets_data, secret_keys=None):
         results = {}
         if not secrets_data:
             return results
@@ -921,7 +920,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
         return results
 
-    def _resolve_secret_labels(self, username):
+    @staticmethod
+    def _resolve_secret_labels(username):
         if not username:
             return {}
         labels = {
@@ -933,11 +933,57 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             labels[mlrun_constants.MLRunInternalLabels.username_domain] = domain
         return labels
 
+    def _get_pod_status(
+        self, name, namespace=None, raise_on_not_found=False
+    ) -> typing.Optional[client.V1Pod]:
+        try:
+            api_response = self.v1api.read_namespaced_pod_status(
+                name=name, namespace=self.resolve_namespace(namespace)
+            )
+            return api_response
+        except k8s_client_rest.ApiException as exc:
+            if exc.status != 404:
+                logger.error(
+                    "Failed to get pod status",
+                    pod_name=name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
+            else:
+                if raise_on_not_found:
+                    raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
+            return None
+
     @staticmethod
     def _generate_rand_string(length):
         return "".join(
             random.choice(string.ascii_lowercase + string.digits) for _ in range(length)
         )
+
+    def _init_k8s_config(self, log=True):
+        try:
+            config.load_incluster_config()
+            self.running_inside_kubernetes_cluster = True
+            if log:
+                logger.info("Using in-cluster config.")
+        except Exception:
+            try:
+                config.load_kube_config(self.config_file)
+                self.running_inside_kubernetes_cluster = True
+                if log:
+                    logger.info("Using local kubernetes config.")
+            except Exception:
+                raise RuntimeError(
+                    "Cannot find local kubernetes config file,"
+                    " place it in ~/.kube/config or specify it in "
+                    "KUBECONFIG env var"
+                )
+
+    @staticmethod
+    def _hash_access_key(access_key: str):
+        return hashlib.sha224(access_key.encode()).hexdigest()
 
 
 class BasePod:

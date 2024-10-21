@@ -417,6 +417,7 @@ class RunDBMock:
         logs: bool = True,
         last_log_timestamp: float = 0,
         verbose: bool = False,
+        events_offset: int = 0,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
         if func.kind in mlrun.runtimes.RuntimeKinds.pure_nuclio_deployed_runtimes():
@@ -716,6 +717,7 @@ class RemoteBuilderMock(RunDBMock):
         logs: bool = True,
         last_log_timestamp: float = 0,
         verbose: bool = False,
+        events_offset: int = 0,
     ):
         func.status.state = mlrun.common.schemas.FunctionState.ready
         return "ready", last_log_timestamp

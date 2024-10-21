@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Union
 
 import pandas as pd

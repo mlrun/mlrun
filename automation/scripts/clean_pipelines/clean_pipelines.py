@@ -17,6 +17,7 @@ import typing
 from time import sleep
 
 import mlrun_pipelines
+import pandas as pd
 import pytz
 from dateutil import parser
 from kfp import Client
@@ -198,6 +199,56 @@ def find_empty_experiments(
     return empty_experiment_ids
 
 
+def delete_runs(
+    context: mlrun.MLClientCtx,
+    kfp_client: Client,
+    runs_ids: list[tuple[str, str]],
+    dry_run: bool,
+) -> None:
+    """
+    Delete pipeline runs based on the provided run IDs.
+
+    :param context: The context object to log results.
+    :param runs_ids: List of tuples containing run IDs and names.
+    :param kfp_client: The KFP client used to interact with the pipeline API.
+    :param dry_run: If True, perform a dry run (only log what would be deleted).
+    """
+    delete_items(
+        context,
+        runs_ids,
+        lambda run_id: kfp_client._run_api.delete_run(run_id),
+        item_type="run",
+        dry=dry_run,
+    )
+
+
+def delete_empty_experiments(
+    context: mlrun.MLClientCtx,
+    kfp_client: Client,
+    experiments_ids: set[str],
+    dry_run: bool,
+) -> None:
+    """
+    Find and delete empty experiments based on the provided experiment IDs.
+
+    :param context: The context object to log results.
+    :param kfp_client: The KFP client used to interact with the pipeline API.
+    :param experiments_ids: List of experiment IDs to check for emptiness.
+    :param dry_run: If True, perform a dry run (only log what would be deleted).
+    """
+    empty_experiment_ids = find_empty_experiments(kfp_client, experiments_ids)
+
+    delete_items(
+        context,
+        empty_experiment_ids,
+        lambda experiment_id: kfp_client._experiment_api.delete_experiment(
+            id=experiment_id
+        ),
+        item_type="experiment",
+        dry=dry_run,
+    )
+
+
 def delete_items(
     context: mlrun.MLClientCtx,
     items: list[tuple[str, str]],
@@ -223,6 +274,7 @@ def delete_items(
                               Defaults to "runs_num_of_succeeded" for runs.
     :param log_key_failed: The key for logging the number of failed deletions.
                            Defaults to "runs_num_of_failed" for runs.
+    :param dry: If True, perform a dry run (only log what would be deleted).
     """
     total = len(items)
     num_of_succeeded = 0
@@ -311,24 +363,7 @@ def delete_project_old_pipelines(
     )
 
     # Delete runs
-    delete_items(
-        context,
-        runs_ids,
-        lambda run_id: kfp_client._run_api.delete_run(run_id),
-        item_type="run",
-        dry=dry_run,
-    )
+    delete_runs(context, kfp_client, runs_ids, dry_run)
 
-    # Find empty experiments
-    empty_experiment_ids = find_empty_experiments(kfp_client, experiments_ids)
-
-    # Delete the empty experiments
-    delete_items(
-        context,
-        empty_experiment_ids,
-        lambda experiment_id: kfp_client._experiment_api.delete_experiment(
-            id=experiment_id
-        ),
-        item_type="experiment",
-        dry=dry_run,
-    )
+    # Find and delete empty experiments
+    delete_empty_experiments(context, kfp_client, experiments_ids, dry_run)

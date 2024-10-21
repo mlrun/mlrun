@@ -40,9 +40,7 @@ def validate_and_convert_date(date_input: str) -> str:
             dt_object = dt_object.astimezone(pytz.utc)
         else:
             # If no timezone info is present, assume it's in local time
-            local_tz = pytz.timezone(
-                "UTC"
-            )
+            local_tz = pytz.timezone("UTC")
             dt_object = local_tz.localize(dt_object)
 
         formatted_date = dt_object.isoformat().replace("+00:00", "Z")

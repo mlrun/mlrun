@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import os
 import pathlib
 import sys
 import typing
+from tempfile import NamedTemporaryFile
 
 import igz_mgmt
+import kubernetes.client as k8s_client
+import kubernetes.config
 import pytest
 import yaml
 from deepdiff import DeepDiff
@@ -66,6 +70,7 @@ class TestMLRunSystem:
     def setup_class(cls):
         env = cls._get_env_from_file()
         cls._setup_env(env)
+        cls._setup_k8s_client()
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
@@ -251,6 +256,38 @@ class TestMLRunSystem:
             os.environ[key] = "true" if value else "false"
         elif value is not None:
             os.environ[key] = value
+
+    @classmethod
+    def _setup_k8s_client(cls):
+        def missing_kubeclient(*args, **kwargs):
+            raise AttributeError("Kubeclient was not setup and is unavailable")
+
+        kubeconfig_content = None
+        try:
+            base64_kubeconfig_content = os.environ["MLRUN_SYSTEM_TEST_KUBECONFIG"]
+            kubeconfig_content = base64.b64decode(base64_kubeconfig_content)
+        except (ValueError, KeyError) as exc:
+            logger.warning(
+                "Kubeconfig was empty or invalid.",
+                exc_info=mlrun.errors.err_to_str(exc),
+            )
+            cls.kube_client = property(missing_kubeclient)
+        if kubeconfig_content:
+            with NamedTemporaryFile() as tempfile:
+                tempfile.write(kubeconfig_content)
+                tempfile.flush()
+                try:
+                    kubernetes.config.load_kube_config(
+                        config_file=tempfile.name,
+                    )
+                    cls.kube_client = k8s_client.CoreV1Api()
+                except kubernetes.config.config_exception.ConfigException:
+                    logger.warning(
+                        "Failed to load kubeconfig, kube_client will be unavailable."
+                    )
+                    cls.kube_client = property(missing_kubeclient)
+        else:
+            cls.kube_client = property(missing_kubeclient)
 
     @classmethod
     def _teardown_env(cls):

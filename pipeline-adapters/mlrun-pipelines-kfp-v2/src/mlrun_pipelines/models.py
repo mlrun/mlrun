@@ -14,8 +14,8 @@
 #
 import typing
 
-from kfp.dsl import PipelineTask
 from mlrun_pipelines.common.helpers import FlexibleMapper
+from mlrun_pipelines.imports import PipelineTask
 
 # class pointer for type checking on the main MLRun codebase
 PipelineNodeWrapper = PipelineTask

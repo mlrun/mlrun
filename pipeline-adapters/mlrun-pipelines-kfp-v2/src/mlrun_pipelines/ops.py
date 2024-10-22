@@ -16,14 +16,14 @@
 import os
 
 import mlrun_pipelines.common.ops
-from kfp import dsl
-from kfp import kubernetes as kfp_k8s
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,
     PROJECT_ANNOTATION,
     RUN_ANNOTATION,
 )
 from mlrun_pipelines.common.ops import PipelineRunType
+from mlrun_pipelines.imports import dsl
+from mlrun_pipelines.imports import kubernetes as kfp_k8s
 
 import mlrun
 import mlrun.common.constants as mlrun_constants

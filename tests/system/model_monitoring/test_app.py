@@ -215,11 +215,14 @@ class _V3IORecordsChecker:
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
         if isinstance(result_value, datetime) or isinstance(result_value, pd.Timestamp):
-            # Note: We check for differences in time is less than 1 ms because this is the highest resolution we get from TDEngine
-            assert (
-                abs(df[df["endpoint_id"] == ep_id][result_name].item() - result_value)
-                < np.timedelta64(1, "ms")
-            ), f"The {result_name} is different than expected for {ep_id}, for timestamp we use TDEngine resolution that is 1 ms"
+            # Note: We check for differences in time is less than 1 ms because this is the highest resolution we get
+            # from TDEngine
+            assert abs(
+                df[df["endpoint_id"] == ep_id][result_name].item() - result_value
+            ) < np.timedelta64(1, "ms"), (
+                f"The {result_name} is different than expected for {ep_id}, "
+                f"for timestamp we use TDEngine resolution that is 1 ms"
+            )
         else:
             assert (
                 df[df["endpoint_id"] == ep_id][result_name].item() == result_value

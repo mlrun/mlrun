@@ -158,6 +158,9 @@ class DummyCompiler:
 
 
 class DummyClient:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
     def create_run_from_pipeline_func(
         self,
         pipeline_func: Callable[..., Any],

@@ -13,14 +13,17 @@
 # limitations under the License.
 
 import itertools
+import json
 import typing
 
+import fsspec
 import sqlalchemy.orm
 
 import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.datastore
 import mlrun.feature_store
 import mlrun.model_monitoring
 import mlrun.model_monitoring.helpers
@@ -30,6 +33,44 @@ import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
 from mlrun.utils import logger
+
+
+class _ModelMonitoringSchedulesFile:
+    INITIAL_CONTENT = json.dumps({})
+
+    def __init__(self, project: str, endpoint_id: str) -> None:
+        self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
+            project=project, endpoint_id=endpoint_id
+        )
+        self._path = self._item.url
+        self._fs = typing.cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
+
+    @classmethod
+    def from_model_endpoint(
+        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
+    ) -> "_ModelMonitoringSchedulesFile":
+        return cls(
+            project=model_endpoint.metadata.project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+
+    def create(self) -> None:
+        """Create a schedules file with initial content - an empty dictionary"""
+        logger.debug("Creating model monitoring schedules file", path=self._item.url)
+        self._item.put(self.INITIAL_CONTENT)
+
+    def delete(self) -> None:
+        """Delete schedules file if it exists"""
+        if self._fs.exists(self._path):
+            logger.debug(
+                "Deleting model monitoring schedules file", path=self._item.url
+            )
+            self._item.delete()
+        else:
+            logger.debug(
+                "Model monitoring schedules file does not exist, nothing to delete",
+                path=self._item.url,
+            )
 
 
 class ModelEndpoints:
@@ -110,7 +151,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+                == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
             ):
                 monitoring_feature_set = cls.create_monitoring_feature_set(
                     features=features,
@@ -147,6 +188,13 @@ class ModelEndpoints:
             )
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
+
+        if (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
+        ):
+            # Create model monitoring schedules file
+            _ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -325,6 +373,8 @@ class ModelEndpoints:
             model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
+
+        _ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
     def get_model_endpoint(
         self,
@@ -586,6 +636,19 @@ class ModelEndpoints:
             model_monitoring_applications=model_monitoring_applications,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+
+        # Delete model monitoring schedules folder
+        folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
+            project_name
+        )
+        fs = typing.cast(
+            fsspec.AbstractFileSystem,
+            mlrun.datastore.store_manager.object(folder).store.filesystem,
+        )
+        if fs.exists(folder):
+            logger.debug("Deleting model monitoring schedules folder", folder=folder)
+            fs.rm(folder, recursive=True)
+
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",
             project_name=project_name,

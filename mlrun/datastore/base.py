@@ -500,12 +500,18 @@ class DataItem:
         """DataItem url e.g. /dir/path, s3://bucket/path"""
         return self._url
 
-    def get(self, size=None, offset=0, encoding=None):
+    def get(
+        self,
+        size: Optional[int] = None,
+        offset: int = 0,
+        encoding: Optional[str] = None,
+    ) -> Union[bytes, str]:
         """read all or a byte range and return the content
 
         :param size:     number of bytes to get
         :param offset:   fetch from offset (in bytes)
         :param encoding: encoding (e.g. "utf-8") for converting bytes to str
+        :return:         the bytes/str content
         """
         body = self._store.get(self._path, size=size, offset=offset)
         if encoding and isinstance(body, bytes):
@@ -519,7 +525,7 @@ class DataItem:
         """
         self._store.download(self._path, target_path)
 
-    def put(self, data, append=False):
+    def put(self, data: Union[bytes, str], append: bool = False) -> None:
         """write/upload the data, append is only supported by some datastores
 
         :param data:   data (bytes/str) to write

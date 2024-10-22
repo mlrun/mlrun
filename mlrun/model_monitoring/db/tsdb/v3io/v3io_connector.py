@@ -734,12 +734,14 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "now-24h",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
         endpoint_ids = (
             endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
         )
+        start = start or "now"
+        start, end = self._get_start_end(start, end, delta_start=-24)
         df = self._get_records(
             table=mm_schemas.V3IOTSDBTables.APP_RESULTS,
             start=start,

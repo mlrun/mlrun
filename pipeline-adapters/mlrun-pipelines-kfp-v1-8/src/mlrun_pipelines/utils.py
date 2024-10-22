@@ -15,13 +15,9 @@
 import tempfile
 import typing
 
-import kfp
-import kfp.compiler
 from kubernetes import client
 from mlrun_pipelines.helpers import new_pipe_metadata
-
-# Disable the warning about reusing components
-kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+from mlrun_pipelines.imports import Client, compiler
 
 
 def apply_kfp(modify, cop, runtime):
@@ -76,7 +72,7 @@ def compile_pipeline(
         cleanup_ttl=cleanup_ttl,
         op_transformers=ops,
     )
-    kfp.compiler.Compiler().compile(
+    compiler.Compiler().compile(
         pipeline, pipe_file, type_check=type_check, pipeline_conf=conf
     )
     return pipe_file
@@ -84,7 +80,7 @@ def compile_pipeline(
 
 def get_client(
     url: typing.Optional[str] = None, namespace: typing.Optional[str] = None
-) -> kfp.Client:
+) -> Client:
     if url or namespace:
-        return kfp.Client(host=url, namespace=namespace)
-    return kfp.Client()
+        return Client(host=url, namespace=namespace)
+    return Client()

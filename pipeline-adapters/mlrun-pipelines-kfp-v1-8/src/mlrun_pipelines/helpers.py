@@ -15,7 +15,7 @@
 
 import typing
 
-from kfp.dsl import PipelineConf
+from mlrun_pipelines.imports import PipelineConf
 
 from mlrun.config import config
 

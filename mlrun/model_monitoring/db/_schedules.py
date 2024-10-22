@@ -58,3 +58,17 @@ class ModelMonitoringSchedulesFile:
                 "Model monitoring schedules file does not exist, nothing to delete",
                 path=self._item.url,
             )
+
+
+def delete_model_monitoring_schedules_folder(project: str) -> None:
+    """Delete the model monitoring schedules folder of the project"""
+    folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
+        project
+    )
+    fs = cast(
+        fsspec.AbstractFileSystem,
+        mlrun.datastore.store_manager.object(folder).store.filesystem,
+    )
+    if fs.exists(folder):
+        logger.debug("Deleting model monitoring schedules folder", folder=folder)
+        fs.rm(folder, recursive=True)

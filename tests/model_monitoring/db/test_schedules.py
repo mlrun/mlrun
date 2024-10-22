@@ -17,36 +17,53 @@ from pathlib import Path
 import pytest
 
 import mlrun
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFile,
+    delete_model_monitoring_schedules_folder,
+)
+from mlrun.model_monitoring.helpers import _get_monitoring_schedules_folder_path
 
 
-class TestModelMonitoringSchedulesFile:
-    @staticmethod
-    @pytest.fixture(autouse=True)
-    def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv(
-            "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT",
-            f"file://{tmpdir}/users/pipelines/{{project}}/model-endpoints/{{kind}}",
-        )
-        mlrun.mlconf.reload()
+@pytest.fixture(autouse=True)
+def _patch_store_prefixes(tmpdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT",
+        f"file://{tmpdir}/users/pipelines/{{project}}/model-endpoints/{{kind}}",
+    )
+    mlrun.mlconf.reload()
 
-    @staticmethod
-    def test_create() -> None:
-        file = ModelMonitoringSchedulesFile(project="abc", endpoint_id="reoko1220a")
+
+def test_create_file() -> None:
+    file = ModelMonitoringSchedulesFile(project="abc", endpoint_id="reoko1220a")
+    file.create()
+    assert (
+        file._item.get().decode() == "{}"
+    ), "The newly created schedules file is different than expected"
+
+
+def test_delete_non_existent_file() -> None:
+    ModelMonitoringSchedulesFile(project="p0", endpoint_id="ep-1-without-file").delete()
+
+
+def test_delete_file() -> None:
+    file = ModelMonitoringSchedulesFile(project="p1", endpoint_id="ep-1-with-file")
+    file.create()
+    file.delete()
+    assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
+
+
+def test_delete_non_existent_folder() -> None:
+    delete_model_monitoring_schedules_folder("proj-without-any-mep")
+
+
+def test_delete_folder() -> None:
+    project = "monitored-endpoints"
+    for endpoint_id in ("ep-1", "ep-2", "ep-3"):
+        file = ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id)
         file.create()
-        assert (
-            file._item.get().decode() == "{}"
-        ), "The newly created schedules file is different than expected"
+        filesystem = file._fs
 
-    @staticmethod
-    def test_delete_non_existent() -> None:
-        ModelMonitoringSchedulesFile(
-            project="p0", endpoint_id="ep-1-without-file"
-        ).delete()
-
-    @staticmethod
-    def test_delete() -> None:
-        file = ModelMonitoringSchedulesFile(project="p1", endpoint_id="ep-1-with-file")
-        file.create()
-        file.delete()
-        assert not file._fs.exists(file._path), "The schedules file wasn't deleted"
+    delete_model_monitoring_schedules_folder(project)
+    assert not filesystem.exists(
+        _get_monitoring_schedules_folder_path(project)
+    ), "Schedules folder should have been removed"

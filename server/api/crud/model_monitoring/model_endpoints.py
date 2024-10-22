@@ -15,7 +15,6 @@
 import itertools
 import typing
 
-import fsspec
 import sqlalchemy.orm
 
 import mlrun.artifacts
@@ -31,7 +30,10 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
-from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
+from mlrun.model_monitoring.db._schedules import (
+    ModelMonitoringSchedulesFile,
+    delete_model_monitoring_schedules_folder,
+)
 from mlrun.utils import logger
 
 
@@ -600,16 +602,7 @@ class ModelEndpoints:
         )
 
         # Delete model monitoring schedules folder
-        folder = mlrun.model_monitoring.helpers._get_monitoring_schedules_folder_path(
-            project_name
-        )
-        fs = typing.cast(
-            fsspec.AbstractFileSystem,
-            mlrun.datastore.store_manager.object(folder).store.filesystem,
-        )
-        if fs.exists(folder):
-            logger.debug("Deleting model monitoring schedules folder", folder=folder)
-            fs.rm(folder, recursive=True)
+        delete_model_monitoring_schedules_folder(project_name)
 
         logger.debug(
             "Successfully deleted model monitoring endpoints resources",

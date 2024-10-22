@@ -24,6 +24,7 @@ import kubernetes.client as k8s_client
 import mlrun_pipelines.mounts
 from mlrun_pipelines.mixins import KfpAdapterMixin
 
+import mlrun.common.constants
 import mlrun.errors
 import mlrun.utils.regex
 from mlrun.common.schemas import (
@@ -1412,20 +1413,32 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
     ):
         db = self._get_db()
         offset = 0
+        events_offset = 0
         try:
-            text, _ = db.get_builder_status(self, 0, logs=logs)
+            text, _, deploy_status_text_kind = db.get_builder_status(
+                self,
+                offset=0,
+                logs=logs,
+                events_offset=0,
+            )
         except mlrun.db.RunDBError:
-            raise ValueError("function or build process not found")
+            raise ValueError("Function or build process not found")
 
-        def print_log(text):
-            if text and (
+        def print_log(_text):
+            if _text and (
                 not show_on_failure
                 or self.status.state == mlrun.common.schemas.FunctionState.error
             ):
-                print(text, end="")
+                print(_text, end="")
 
         print_log(text)
-        offset += len(text)
+        if (
+            deploy_status_text_kind
+            == mlrun.common.constants.DeployStatusTextKind.events
+        ):
+            events_offset += len(text)
+        else:
+            offset += len(text)
         if watch:
             while self.status.state in [
                 mlrun.common.schemas.FunctionState.pending,
@@ -1434,14 +1447,30 @@ class KubeResource(BaseRuntime, KfpAdapterMixin):
                 time.sleep(2)
                 if show_on_failure:
                     text = ""
-                    db.get_builder_status(self, 0, logs=False)
+                    db.get_builder_status(self, offset=0, logs=False, events_offset=0)
                     if self.status.state == mlrun.common.schemas.FunctionState.error:
                         # re-read the full log on failure
-                        text, _ = db.get_builder_status(self, offset, logs=logs)
+                        text, _, deploy_status_text_kind = db.get_builder_status(
+                            self,
+                            offset=offset,
+                            logs=logs,
+                            events_offset=events_offset,
+                        )
                 else:
-                    text, _ = db.get_builder_status(self, offset, logs=logs)
+                    text, _, deploy_status_text_kind = db.get_builder_status(
+                        self,
+                        offset=offset,
+                        logs=logs,
+                        events_offset=events_offset,
+                    )
                 print_log(text)
-                offset += len(text)
+                if (
+                    deploy_status_text_kind
+                    == mlrun.common.constants.DeployStatusTextKind.events
+                ):
+                    events_offset += len(text)
+                else:
+                    offset += len(text)
 
         return self.status.state
 

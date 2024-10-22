@@ -258,3 +258,13 @@ def merge_schedule_and_schedule_object_labels(
     set_scheduled_object_labels(scheduled_object, updated_labels)
 
     return updated_labels
+
+
+def validate_client_version(client_version: str, *min_versions: str):
+    """
+    :param client_version: Client version to validate
+    :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    """
+    return mlrun.utils.helpers.validate_component_version_compatibility(
+        "mlrun-client", *min_versions, mlrun_client_version=client_version
+    )

@@ -25,6 +25,7 @@ import pytest_asyncio
 import semver
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
+from mlrun_pipelines.imports import kfp
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -55,7 +56,6 @@ from services.api.initial_data import init_data
 from services.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 # Importing here since mlrun_pipelines imports mlconf and it causes circular import
-import mlrun_pipelines.utils  # isort:skip
 
 tests_root_directory = pathlib.Path(__file__).absolute().parent
 assets_path = tests_root_directory.joinpath("assets")
@@ -184,14 +184,12 @@ async def async_client(db) -> typing.AsyncIterator[httpx.AsyncClient]:
 
 
 @pytest.fixture
-def kfp_client_mock(monkeypatch) -> mlrun_pipelines.utils.kfp.Client:
+def kfp_client_mock(monkeypatch) -> kfp.Client:
     services.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
         return_value=True
     )
     kfp_client_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun_pipelines.utils.kfp, "Client", lambda *args, **kwargs: kfp_client_mock
-    )
+    monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     return kfp_client_mock
 

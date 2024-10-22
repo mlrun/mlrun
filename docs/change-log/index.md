@@ -2,7 +2,7 @@
 # Change log
 
 
-- [v1.7.0](#v1-7-0-1-october-2024)
+- [v1.7.0](#v1-7-0-22-october-2024)
 - [v1.6.4](#v1-6-4-2-july-2024) | [v1.6.3](#v1-6-3-4-june-2024)  | [v1.6.2](#v1-6-2-29-march-2024) | [v1.6.1](#v1-6-1-29-february-2024) | [v1.6.0](#v1-6-0-22-february-2024)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
@@ -14,7 +14,7 @@
 - [Limitations](#limitations)
 - [Deprecations and removed code](#deprecations-and-removed-code)
 
-## v1.7.0 (1 October 2024)
+## v1.7.0 (22 October 2024)
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -1106,6 +1106,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7571|For executions of Dask runtimes, the UI does not show node-selectors applied to the run. |NA| v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.|NA| v1.7.0|              
 |ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.|NA  | v1.7.0|
+|                                                 |Deploying a model without monitoring does not create an endpoint. | NA | v1.7.0|
+
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

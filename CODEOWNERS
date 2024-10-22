@@ -1,0 +1,217 @@
+# Copyright 2024 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+######################
+### Default Owners ###
+######################
+
+# The main owner of this repo is alonmr and the platform team,
+# any change that won't match a specific owner will automatically be assigned to them.
+# (The last match is the one that applies, keep that in mind when adding new lines)
+* @alonmr @mlrun/platform
+
+##############################################
+### CI, Automation, Packaging & Test Infra ###
+##############################################
+
+# CI, automation, packaging & test infra is owned by liranbg
+.dockerignore @liranbg
+.git-blame-ignore-revs @liranbg
+.gitignore @liranbg
+conda-arm64-requirements.txt @liranbg
+dependencies.py @liranbg
+dev-requirements.txt @liranbg
+extra-requirements.txt @liranbg
+Makefile @liranbg
+packages.py @liranbg
+pyproject.toml @liranbg
+requirements.txt @liranbg
+setup.py @liranbg
+.github/** @liranbg
+.run/** @liranbg
+automation/** @liranbg
+dockerfiles/** @liranbg
+tests/** @liranbg
+tests/**/test_*.py # owner left empty, the tests belong to the relevant component owner, not liranbg
+
+# administrative files are co-owned by liranbg and assaf758
+.licenserc.json @liranbg @assaf758
+LICENSE @liranbg @assaf758
+
+# This CODEOWNERS file is owned by quaark
+CODEOWNERS @quaark
+
+############
+### Docs ###
+############
+
+# The docs are co-owned by jillnogold (content) and rokatyy (build and deployment)
+docs/** @jillnogold
+CONTRIBUTING.md @jillnogold
+MANIFEST.in @jillnogold
+README.md @jillnogold
+docs/_static/** @rokatyy
+docs/_templates/** @rokatyy
+docs/conf.py @rokatyy
+docs/make.bat @rokatyy
+docs/Makefile @rokatyy
+docs/requirements.txt @rokatyy
+.readthedocs.yml @rokatyy
+.vale.ini @rokatyy
+
+##################
+### Deprecated ###
+##################
+
+# The examples and hack are deprecated and not owned by anyone
+examples/**
+hack/**
+
+#########################
+### Pipeline Adapters ###
+#########################
+
+# pipeline adapters is owned by adamdelman
+pipeline_adapters/** @adamdelman
+
+##############
+### Server ###
+##############
+
+# log collector is owned by TomerShor
+server/log_collector/** @TomerShor
+
+# api framework is owned by quaark
+# so quaark owns the server/api directory and all its subdirectories
+# any specific file that has a different owner should be listed explicitly
+server/api/** @quaark
+mlrun/api/** @quaark
+mlrun/common/schemas/** @quaark
+mlrun/common/formatters/** @quaark
+
+# server clients, server side runtimes and run monitoring are owned by alonmr
+server/api/common/runtime_handlers.py @alonmr
+server/api/utils/clients/** @alonmr
+server/api/utils/runtimes/** @alonmr
+server/api/runtime_handlers/** @alonmr
+
+# scheduling is co-owned by alonmr and roei3000b
+server/api/utils/scheduler.py @alonmr @roei3000b
+
+# projects are owned by yaelgen
+server/api/utils/projects/** @yaelgen
+server/api/utils/clients/iguazio.py @yaelgen
+
+# alerts, events and notifications are owned by TomerShor
+server/api/utils/events/** @TomerShor
+server/api/utils/notification_pusher.py @TomerShor
+
+### Endpoints ###
+
+# This section is divided according to the rest of the document
+server/api/api/endpoints/alert** @TomerShor
+server/api/api/endpoints/artifacts** @moranbental
+server/api/api/endpoints/datastore** @alxtkr77 @tomerm-iguazio
+server/api/api/endpoints/events** @TomerShor
+server/api/api/endpoints/feature_store** @gtopper @alxtkr77
+server/api/api/endpoints/grafana** @Eyal-Danieli
+server/api/api/endpoints/model_endpoints** @jond01
+server/api/api/endpoints/model_monitoring** @jond01 @davesh0812 @Eyal-Danieli
+server/api/api/endpoints/nuclio** @gtopper
+server/api/api/endpoints/pipelines** @adamdelman
+server/api/api/endpoints/projects** @yaelgen
+server/api/api/endpoints/run** @alonmr
+server/api/api/endpoints/schedule** @alonmr @roei3000b
+server/api/api/endpoints/workflows** @adamdelman
+
+### End of Endpoints ###
+
+### CRUD ###
+
+# This section is divided according to the rest of the document
+server/api/api/crud/alert** @TomerShor
+server/api/api/crud/artifacts** @moranbental
+server/api/api/crud/datastore** @alxtkr77 @tomerm-iguazio
+server/api/api/crud/events** @TomerShor
+server/api/api/crud/feature_store** @gtopper @alxtkr77
+server/api/api/crud/notification** @TomerShor
+server/api/api/crud/model_monitoring** @jond01 @davesh0812 @Eyal-Danieli
+server/api/api/crud/pipelines** @adamdelman
+server/api/api/crud/projects** @yaelgen
+server/api/api/crud/run** @alonmr
+server/api/api/crud/workflows** @adamdelman
+
+### End of CRUD ###
+
+#################
+### MLRun SDK ###
+#################
+
+# Main orchastration SDK is owned by alonmr
+mlrun/db/** @alonmr
+mlrun/launcher/** @alonmr
+mlrun/runtimes/** @alonmr
+
+### Runtimes ###
+
+# databricks runtime is owned by tomerm-iguazio
+mlrun/runtimes/databricks_job/** @tomerm-iguazio
+
+# nuclio, serving and spark runtimes are owned by gtopper
+mlrun/runtimes/nuclio/** @gtopper
+mlrun/runtimes/serving/** @gtopper
+mlrun/runtimes/sparkjob/** @gtopper
+
+# model serving is co-owned by gtopper and davesh0812
+mlrun/runtimes/serving/*_serving.py @gtopper @davesh0812
+
+# api gateway runtime is owned by rokatyy
+mlrun/runtimes/nuclio/api_gateway.py @rokatyy
+
+# application runtime is owned by TomerShor
+mlrun/runtimes/nuclio/application/** @TomerShor
+
+### End of Runtimes ###
+
+# alerts, notifications and cli are owned by TomerShor
+mlrun/alerts/** @TomerShor
+mlrun/utils/notifications/** @TomerShor
+__main__.py @TomerShor
+
+# artifacts are owned by moranbental
+mlrun/artifacts/** @moranbental
+
+# projects are owned by yaelgen
+mlrun/projects/** @yaelgen
+
+# pipelines are owned by adamdelman
+mlrun/projects/pipelines.py @adamdelman
+mlrun/projects/operations.py @adamdelman
+
+# datastore is co-owned by alxtkr77 and tomerm-iguazio
+mlrun/datastore/** @alxtkr77 @tomerm-iguazio
+
+# feature store is co-owned by gtopper and alxtkr77
+mlrun/feature_store/** @gtopper @alxtkr77
+mlrun/data_types/** @gtopper @alxtkr77
+
+# model monitoring is co-owned by jond01, davesh0812 and Eyal-Danieli
+mlrun/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
+mlrun/common/model_monitoring/** @jond01 @davesh0812 @Eyal-Danieli
+mlrun/model_monitoring/db/tsdb/tdengine/** @Eyal-Danieli
+
+# framewarks, packagers and trackers are owned by guy1992l
+mlrun/frameworks/** @guy1992l
+mlrun/package/** @guy1992l
+mlrun/track/** @guy1992l

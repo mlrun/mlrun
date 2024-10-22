@@ -14,15 +14,12 @@
 #
 import json
 
-import kfp
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
 from mlrun_pipelines.common.models import RunStatuses
+from mlrun_pipelines.imports import ContainerOp, kfp
 from mlrun_pipelines.utils import apply_kfp
 
 import mlrun
-
-# Disable the warning about reusing components
-kfp.dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 
 class KfpAdapterMixin:
@@ -41,7 +38,7 @@ class KfpAdapterMixin:
         # we remove the hook to suppress kubeflow op registration and return it after the apply()
         old_op_handler = kfp.dsl._container_op._register_op_handler
         kfp.dsl._container_op._register_op_handler = lambda x: self.metadata.name
-        cop = kfp.dsl.ContainerOp("name", "image")
+        cop = ContainerOp("name", "image")
         kfp.dsl._container_op._register_op_handler = old_op_handler
 
         return apply_kfp(modify, cop, self)

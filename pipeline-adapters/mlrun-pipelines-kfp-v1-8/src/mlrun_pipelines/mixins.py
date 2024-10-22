@@ -15,8 +15,8 @@
 import json
 
 from mlrun_pipelines.common.helpers import PROJECT_ANNOTATION
+from mlrun_pipelines.common.imports import ContainerOp, kfp
 from mlrun_pipelines.common.models import RunStatuses
-from mlrun_pipelines.imports import ContainerOp, kfp
 from mlrun_pipelines.utils import apply_kfp
 
 import mlrun

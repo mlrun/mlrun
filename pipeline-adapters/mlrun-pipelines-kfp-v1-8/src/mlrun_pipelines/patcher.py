@@ -15,7 +15,7 @@
 
 import typing
 
-from mlrun_pipelines.imports import dsl, kfp
+from mlrun_pipelines.common.imports import dsl, kfp
 
 import mlrun
 from mlrun.errors import err_to_str

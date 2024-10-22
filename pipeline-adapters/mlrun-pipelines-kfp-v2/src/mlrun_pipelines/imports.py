@@ -109,8 +109,10 @@ except ImportError:
     ContainerOp = DummyContainerOp
     Client = DummyClient
     dsl = DummyDSL()
+    dsl.PipelineParam = DummyPipelineParam
     Compiler = DummyCompiler()
     kubernetes = DummyKubernetes()
+    kfp.kubernetes = kubernetes
 
 __all__ = [
     "kfp",

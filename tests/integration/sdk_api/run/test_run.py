@@ -14,15 +14,18 @@
 #
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import tests.integration.sdk_api.base
+from tests.conftest import examples_path, out_path
 
 
 class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
-    def test_ctx_creation_creates_run_with_project(self):
-        ctx_name = "some-context"
+    def custom_setup(self):
         project = mlrun.new_project(mlrun.mlconf.default_project)
         project.save()
 
+    def test_ctx_creation_creates_run_with_project(self):
+        ctx_name = "some-context"
         mlrun.get_or_create_ctx(ctx_name)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project
@@ -32,9 +35,6 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_ctx_state_change(self):
         ctx_name = "some-context"
-        project = mlrun.new_project(mlrun.mlconf.default_project)
-        project.save()
-
         ctx = mlrun.get_or_create_ctx(ctx_name)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project
@@ -56,9 +56,6 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_ctx_run_labels(self):
         ctx_name = "some-context"
-        project = mlrun.new_project(mlrun.mlconf.default_project)
-        project.save()
-
         ctx = mlrun.get_or_create_ctx(ctx_name)
         runs = mlrun.get_run_db().list_runs(
             name=ctx_name, project=mlrun.mlconf.default_project
@@ -95,6 +92,15 @@ class TestRun(tests.integration.sdk_api.base.TestMLRunIntegration):
         _remove_internal_labels(runs)
 
         assert runs[0]["metadata"]["labels"] == {"label-key": "label-value"}
+
+    def test_local_runtime_hyper(self):
+        spec = mlrun.new_task(
+            params={"p1": 8}, out_path=out_path, in_path=examples_path
+        )
+        spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
+        result = mlrun.new_function(command=f"{examples_path}/training.py").run(spec)
+        state = result.status.state
+        assert state == "completed", f"wrong state ({state}) {result.status.error}"
 
 
 def _remove_internal_labels(runs):

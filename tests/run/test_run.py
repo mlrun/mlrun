@@ -192,13 +192,6 @@ def test_local_runtime_with_kwargs_with_code_to_function(rundb_mock):
     assert result.outputs["return"] == kwargs
 
 
-def test_local_runtime_hyper():
-    spec = tag_test(base_spec, "test_local_runtime_hyper")
-    spec.with_hyper_params({"p1": [1, 5, 3]}, selector="max.accuracy")
-    result = new_function(command=f"{examples_path}/training.py").run(spec)
-    verify_state(result)
-
-
 def test_local_handler():
     spec = tag_test(base_spec, "test_local_runtime")
     result = new_function(command=f"{examples_path}/handler.py").run(

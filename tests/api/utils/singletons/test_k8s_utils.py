@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
+from unittest import mock
+from unittest.mock import create_autospec
 
+import kubernetes.client as k8s_client
+import kubernetes.client.rest as k8s_client_rest
+import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
 
 import mlrun.common.constants as mlrun_constants
@@ -22,15 +28,112 @@ import mlrun.common.schemas
 import mlrun.runtimes
 import server.api.runtime_handlers.mpijob
 import server.api.utils.singletons.k8s
+from mlrun.common.schemas import SecretEventActions
 
 
 @pytest.fixture
 def k8s_helper():
-    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(
-        "test-namespace", silent=True
+    with mock.patch(
+        "server.api.utils.singletons.k8s.K8sHelper._init_k8s_config",
+        return_value=None,
+    ):
+        k8s_helper = server.api.utils.singletons.k8s.K8sHelper(
+            namespace="test-namespace",
+            silent=True,
+        )
+        k8s_helper.v1api = create_autospec(
+            k8s_client.CoreV1Api,
+            instance=True,
+            spec_set=True,
+        )
+        k8s_helper.crdapi = create_autospec(
+            k8s_client.CustomObjectsApi,
+            instance=True,
+            spec_set=True,
+        )
+        k8s_helper._create_secret = mock.MagicMock()
+        k8s_helper._update_secret = mock.MagicMock()
+        k8s_helper._read_secret = mock.MagicMock()
+        return k8s_helper
+
+
+def test_create_new_secret(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
     )
-    k8s_helper.v1api = unittest.mock.MagicMock()
-    return k8s_helper
+    result = k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets={"key1": "value1"},
+        namespace="default",
+    )
+
+    k8s_helper._create_secret.assert_called_once()
+    assert result == SecretEventActions.created
+
+
+def test_conflict_during_create_secret(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+        k8s_client_rest.ApiException(status=404)
+    )
+    k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=409)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunConflictError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._create_secret.assert_called_once()
+
+
+def test_update_existing_secret(k8s_helper):
+    k8s_helper._read_secret.return_value = k8s_client.V1Secret()
+    k8s_helper._create_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=409)
+    )
+
+    result = k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets={"key1": "value1"},
+        namespace="default",
+    )
+
+    k8s_helper._update_secret.assert_called_once()
+    assert result == SecretEventActions.updated
+
+
+def test_update_failure(k8s_helper):
+    k8s_helper._read_secret.return_value = k8s_client.V1Secret()
+    k8s_helper._update_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=500)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInternalServerError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._update_secret.assert_called_once()
+
+
+def test_read_secret_failure(k8s_helper):
+    k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.api_exception(
+        k8s_client_rest.ApiException(status=403)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        k8s_helper.store_secrets(
+            secret_name="my-secret",
+            secrets={"key1": "value1"},
+            namespace="default",
+        )
+
+    k8s_helper._read_secret.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -77,7 +180,7 @@ def test_get_logger_pods_label_selector(
 
 
 @pytest.mark.parametrize(
-    "secret_data,secrets,expected_data,expected_result",
+    "existing_secret_data,secrets_to_store,expected_data,expected_result",
     [
         # we want to ensure that if the data is None, the function doesn't raise an exception
         (None, {}, {}, None),
@@ -93,20 +196,36 @@ def test_get_logger_pods_label_selector(
             None,
             {"a": "b"},
             {"a": "Yg=="},
-            mlrun.common.schemas.SecretEventActions.updated,
+            mlrun.common.schemas.SecretEventActions.created,
         ),
     ],
 )
-def test_store_secret(k8s_helper, secret_data, secrets, expected_data, expected_result):
-    k8s_helper.v1api.read_namespaced_secret.return_value = unittest.mock.MagicMock(
-        data=secret_data
+def test_store_secret(
+    k8s_helper,
+    existing_secret_data: dict,
+    secrets_to_store: dict,
+    expected_data: dict,
+    expected_result: SecretEventActions,
+):
+    if existing_secret_data:
+        k8s_helper._read_secret.return_value = k8s_client.V1Secret(
+            data=existing_secret_data,
+        )
+    else:
+        k8s_helper._read_secret.side_effect = k8s_dynamic_exceptions.NotFoundError(
+            k8s_client_rest.ApiException(status=404)
+        )
+    result = k8s_helper.store_secrets(
+        secret_name="my-secret",
+        secrets=secrets_to_store,
     )
-    k8s_helper.v1api.replace_namespaced_secret = unittest.mock.MagicMock()
-    result = k8s_helper.store_secrets("my-secret", secrets)
     assert result == expected_result
-    if expected_data:
-        data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
-        assert data == expected_data
+    if secrets_to_store and result == mlrun.common.schemas.SecretEventActions.created:
+        data = k8s_helper._create_secret.call_args.kwargs["secrets"]
+        assert data == secrets_to_store
+    elif secrets_to_store and result == mlrun.common.schemas.SecretEventActions.updated:
+        data = k8s_helper._update_secret.call_args.kwargs["secrets"]
+        assert data == secrets_to_store
 
 
 @pytest.mark.parametrize(
@@ -162,3 +281,123 @@ def test_delete_secrets(
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
         data = k8s_helper.v1api.replace_namespaced_secret.call_args.args[2].data
         assert data == expected_secret_data
+
+
+@pytest.mark.parametrize(
+    "side_effect, expectation, expected_result",
+    [
+        (
+            [
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                k8s_client.V1PodList(
+                    items=[],
+                    metadata=k8s_client.V1ListMeta(),
+                ),
+            ],
+            does_not_raise(),
+            [],
+        ),
+        (
+            [
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+            ],
+            pytest.raises(mlrun.errors.MLRunHTTPError),
+            None,
+        ),
+        (
+            [
+                k8s_client.ApiException(status=400),
+                k8s_client.V1PodList(
+                    items=[],
+                    metadata=k8s_client.V1ListMeta(),
+                ),
+            ],
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+            None,
+        ),
+    ],
+)
+def test_list_paginated_pods_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
+    k8s_helper.v1api.list_namespaced_pod.side_effect = side_effect
+    with expectation:
+        result = list(k8s_helper.list_pods_paginated("my-ns"))
+        if expected_result is not None:
+            assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    "side_effect, expectation, expected_result",
+    [
+        (
+            [
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                {"items": [], "metadata": {"continue": None}},
+            ],
+            does_not_raise(),
+            [],
+        ),
+        (
+            [
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+                k8s_client.ApiException(status=410),
+            ],
+            pytest.raises(mlrun.errors.MLRunHTTPError),
+            None,
+        ),
+        (
+            [
+                k8s_client.ApiException(status=400),
+                {},
+            ],
+            pytest.raises(mlrun.errors.MLRunBadRequestError),
+            None,
+        ),
+        # Ignoring not found - should not raise
+        (
+            [
+                k8s_client.ApiException(status=404),
+            ],
+            does_not_raise(),
+            [],
+        ),
+    ],
+)
+def test_list_paginated_crds_retry(
+    k8s_helper, side_effect, expectation, expected_result
+):
+    k8s_helper.crdapi.list_namespaced_custom_object.side_effect = side_effect
+    with expectation:
+        result = list(k8s_helper.list_crds_paginated("group", "v1", "objects", "my-ns"))
+        if expected_result is not None:
+            assert result == expected_result
+
+
+def test_list_pod_events(k8s_helper):
+    event = k8s_client.CoreV1Event(
+        metadata=k8s_client.V1ObjectMeta(name="pod-event"),
+        type="event-type",
+        reason="event-reason",
+        message="event-message",
+        involved_object="my-pod",
+        first_timestamp=datetime.datetime.now(),
+    )
+    with unittest.mock.patch.object(
+        k8s_helper.v1api,
+        "list_namespaced_event",
+        return_value=k8s_client.CoreV1EventList(items=[event]),
+    ):
+        events = k8s_helper.list_object_events(object_name="my-pod")
+        assert events[0].metadata.name == event.metadata.name
+        assert events[0].type == event.type
+        assert events[0].reason == event.reason
+        assert events[0].message == event.message
+        assert events[0].first_timestamp == event.first_timestamp

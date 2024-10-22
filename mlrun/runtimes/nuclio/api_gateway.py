@@ -22,6 +22,7 @@ from nuclio.auth import AuthKinds as NuclioAuthKinds
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.helpers
 import mlrun.common.schemas as schemas
 import mlrun.common.types
 from mlrun.model import ModelObj
@@ -202,7 +203,12 @@ class APIGatewaySpec(ModelObj):
         self.project = project
         self.ports = ports
 
+        self.enrich()
         self.validate(project=project, functions=functions, canary=canary, ports=ports)
+
+    def enrich(self):
+        if self.path and not self.path.startswith("/"):
+            self.path = f"/{self.path}"
 
     def validate(
         self,
@@ -577,6 +583,21 @@ class APIGateway(ModelObj):
         self.metadata.annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = (
             "true"
         )
+
+    def with_gateway_timeout(self, gateway_timeout: int):
+        """
+        Set gateway proxy connect/read/send timeout annotations
+        :param gateway_timeout: The timeout in seconds
+        """
+        mlrun.runtimes.utils.enrich_gateway_timeout_annotations(
+            self.metadata.annotations, gateway_timeout
+        )
+
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations in the metadata of the api gateway"""
+        for key, value in annotations.items():
+            self.metadata.annotations[key] = str(value)
+        return self
 
     @classmethod
     def from_scheme(cls, api_gateway: schemas.APIGateway):

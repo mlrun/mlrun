@@ -237,7 +237,7 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert all_system_templates[2].template_name == "DataDriftSuspected"
 
         # generate an alert from a template
-        alert_name = "new_alert"
+        alert_name = "new-alert"
         alert_from_template = mlrun.alerts.alert.AlertConfig(
             name=alert_name,
             template=drift_template,
@@ -281,6 +281,41 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(alerts) == 1
         self._validate_alert(
             alerts[0], project_name=project_name, alert_name=alert_name
+        )
+
+        # create an alert from template with a different summary, severity, criteria,reset policy than the default ones
+        # defined in the "DataDriftDetected" template
+        alert_summary = "My drift detection alert"
+        alert_severity = alert_objects.AlertSeverity.LOW
+        alert_reset_policy = alert_objects.ResetPolicy.MANUAL
+        alert_criteria = alert_objects.AlertCriteria(period="10m", count=3)
+        alert_trigger = alert_objects.AlertTrigger(
+            events=[alert_objects.EventKind.CONCEPT_DRIFT_DETECTED]
+        )
+        alert_from_template = mlrun.alerts.alert.AlertConfig(
+            name=alert_name,
+            template=drift_template,
+            summary=alert_summary,
+            severity=alert_severity,
+            trigger=alert_trigger,
+            reset_policy=alert_reset_policy,
+            criteria=alert_criteria,
+            entities=entities,
+            notifications=notifications,
+        )
+        project.store_alert_config(alert_from_template)
+
+        # validate that we have the right params after storing the alert config
+        alert = project.get_alert_config(alert_name)
+        self._validate_alert(
+            alert,
+            project_name=project_name,
+            alert_name=alert_name,
+            alert_summary=alert_summary,
+            alert_severity=alert_severity,
+            alert_trigger=alert_trigger,
+            alert_reset_policy=alert_reset_policy,
+            alert_criteria=alert_criteria,
         )
 
     def _create_alerts_test(self, project_name, alert1, alert2):

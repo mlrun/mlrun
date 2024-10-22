@@ -46,17 +46,32 @@ For example:
 
 <img src="../_static/images/mm_metrics.png" width="700" >
 
-## Streaming platforms and credentials
+## Selecting the streaming and TSDB platforms
 
-Model monitoring supports open-source streaming platforms such as Kafka, TDEngine, MySQL (8.0 and higher), in addition to integration with the Iguazio AI platform V3IO data layer. 
+Model monitoring supports Kafka or V3io as streaming platforms, and TDEngine or V3IO as TSDB platforms.
+In addition, internal model-monitoring metadata can be saved in MySQL or V3IO.
+
+We recommend the following versions:
+* TDEngine - `3.3.2.0`.
+* MySQL - `8.0.39`, or higher `8.0` compatible versions.
+
 Before you deploy the model monitoring or serving function, you need to {py:meth}`set the credentials <mlrun.projects.MlrunProject.set_model_monitoring_credentials>`. 
+There are three credentials you can set, and each one can have a different value. For example:
+```py
+stream_path = "kafka://<some_kafka_broker>:<port>"  # or "v3io"
+tsdb_connection = "taosws://<username>:<password>@<host>:<port>"  # or "v3io"
+endpoint_store_connection = (
+    "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"  # or "v3io"
+)
+```
 
 ## Model monitoring applications
 
-When you call `enable_model_monitoring` on a project, by default MLRun deploys te onitoring app, `HistogramDataDriftApplication`, which is 
+When you call `enable_model_monitoring` on a project, by default MLRun deploys the monitoring app, `HistogramDataDriftApplication`, which is 
 tailored for classical ML models (not LLMs, gen AI, deep-learning models, etc.). It includes:
 * Total Variation Distance (TVD) &mdash; The statistical difference between the actual predictions and the model's trained predictions.
 * Hellinger Distance &mdash; A type of f-divergence that quantifies the similarity between the actual predictions, and the model's trained predictions.
+* The average of TVD & Hellinger as the general drift result.
 * Kullback–Leibler Divergence (KLD) &mdash; The measure of how the probability distribution of actual predictions is different from the second model's trained reference probability distribution.
 
 You can create your own model monitoring applications, for LLMs, gen AI, deep-learning models, etc., based on the class {py:meth}`mlrun.model_monitoring.applications.ModelMonitoringApplicationBaseV2`. 
@@ -91,16 +106,9 @@ Processing data in batches allows for parallel computation, significantly speedi
 important for large-scale models that require substantial computational resources. Batch inputs are used with CPUs and GPUs. For gen AI models, 
 batch input is typically a list of prompts. For classic ML models, batch input is a list of features.
 
-Batch input that looks like: </br>
-```[[1,2,3], [5,2,9]]```</br>
-would give output like:</br>
-```[11, 0.6], [0, 0.87```</br>
-Batch input that looks like: </br>
-```[[1,2,3, "jhk",], [5,2,9, "tsc"]]```</br>
-would give output like:</br>
-```[11, 8.6], [0, 0.87]```
+See an example of batch input in the [Serving pre-trained ML/DL models](../tutorials/03-model-serving.html#create-and-test-the-serving-function) tutorial.
 
 ## Alerts and notifications
 
 You can set up {ref}`alerts` to inform you about suspected and detected issues in the model monitoring functions. 
-And you can use {ref}`notifications` to notify about alerts. 
+And you can use {ref}`notifications` to notify about the status of runs and pipelines.

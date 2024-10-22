@@ -19,6 +19,7 @@ import unittest.mock
 import numpy as np
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.feature_store as fstore
@@ -733,6 +734,59 @@ def test_imputer_default_value(rundb_mock, engine):
     assert not imputed_df.isnull().values.any()
 
 
+class MyChoice(storey.Choice):
+    def select_outlets(self, event):
+        outlets = []
+        r = event["routing"]
+        if r == "target1" or r == "both":
+            outlets.append("target1")
+        if r == "target2" or r == "both":
+            outlets.append("target2")
+        return outlets
+
+
+def test_choice(rundb_mock):
+    df = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4],
+            "routing": ["target1", "target2", "both", "neither"],
+        }
+    )
+    feature_set = fstore.FeatureSet(
+        "fs-default-value",
+        entities=["id"],
+        description="feature set with nones",
+    )
+    feature_set.graph.to("MyChoice")
+
+    # Mocking
+    output_path = tempfile.TemporaryDirectory()
+    feature_set._run_db = rundb_mock
+    feature_set.reload = unittest.mock.Mock()
+    feature_set.save = unittest.mock.Mock()
+    feature_set.purge_targets = unittest.mock.Mock()
+
+    feature_set.ingest(
+        source=df,
+        targets=[
+            ParquetTarget(name="target1", path=f"{output_path.name}/target1.parquet"),
+            ParquetTarget(name="target2", path=f"{output_path.name}/target2.parquet"),
+        ],
+    )
+
+    read_back_df1 = pd.read_parquet(feature_set.get_target_path(name="target1"))
+    read_back_df2 = pd.read_parquet(feature_set.get_target_path(name="target2"))
+
+    pd.testing.assert_frame_equal(
+        read_back_df1.reset_index(),
+        df.iloc[[0, 2]].reset_index(drop=True),
+    )
+    pd.testing.assert_frame_equal(
+        read_back_df2.reset_index(),
+        df.iloc[[1, 2]].reset_index(drop=True),
+    )
+
+
 def get_data(with_none=False):
     names = ["A", "B", "C", "D", "E"]
     ages = [33, 4, 76, 90, 24]
@@ -760,3 +814,31 @@ def get_data(with_none=False):
         },
     )
     return data, data_ref
+
+
+# ML-7868
+@pytest.mark.parametrize("engine", ["storey", "pandas"])
+def test_parquet_source_with_category(rundb_mock, engine):
+    df = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4],
+        }
+    )
+    df["my_category"] = df["id"].astype("category")
+    feature_set = fstore.FeatureSet(
+        "fs-default-value",
+        entities=["id"],
+        engine=engine,
+    )
+
+    # Mocking
+    output_path = tempfile.TemporaryDirectory()
+    feature_set._run_db = rundb_mock
+    feature_set.reload = unittest.mock.Mock()
+    feature_set.save = unittest.mock.Mock()
+    feature_set.purge_targets = unittest.mock.Mock()
+
+    feature_set.ingest(
+        source=df,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+    )

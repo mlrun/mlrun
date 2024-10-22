@@ -22,6 +22,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.api.utils
+import server.api.constants
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
 from mlrun.utils import template_artifact_path
@@ -73,7 +74,7 @@ class WorkflowRunners(
     def schedule(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         db_session: Session = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -97,12 +98,23 @@ class WorkflowRunners(
             workflow_request=workflow_request,
             labels=labels,
         )
+
+        # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
+        # key that was created.
+        server.api.api.utils.mask_notification_params_on_task_object(
+            run_spec, server.api.constants.MaskOperations.CONCEAL
+        )
+        workflow_spec = workflow_request.spec
+        if workflow_spec.workflow_runner_node_selector:
+            runner.spec.node_selector.update(
+                workflow_spec.workflow_runner_node_selector
+            )
+
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
 
-        workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
         scheduled_object = {
             "task": run_spec.to_dict(),
@@ -122,7 +134,7 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_scheduling(
         self,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         labels: dict[str, str],
     ) -> mlrun.run.RunObject:
@@ -195,7 +207,7 @@ class WorkflowRunners(
     def run(
         self,
         runner: mlrun.run.KubejobRuntime,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -228,8 +240,19 @@ class WorkflowRunners(
             run_name=runner.metadata.name,
             load_only=load_only,
         )
+        # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
+        # key that was created.
+        server.api.api.utils.mask_notification_params_on_task_object(
+            run_spec, server.api.constants.MaskOperations.CONCEAL
+        )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
+        if workflow_request:
+            workflow_spec_node_selector = (
+                workflow_request.spec.workflow_runner_node_selector
+            )
+            if workflow_spec_node_selector:
+                runner.spec.node_selector.update(workflow_spec_node_selector)
 
         # TODO: Passing auth_info is required for server side launcher, but the runner is already enriched with the
         #  auth_info when it was created in create_runner. We should move the enrichment to the launcher and need to
@@ -295,7 +318,7 @@ class WorkflowRunners(
 
     def _prepare_run_object_for_single_run(
         self,
-        project: mlrun.common.schemas.Project,
+        project: mlrun.common.schemas.ProjectOut,
         labels: dict[str, str],
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
@@ -312,10 +335,12 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
-        notifications = [
-            mlrun.model.Notification.from_dict(notification.dict())
-            for notification in workflow_request.notifications or []
-        ]
+        notifications = None
+        if workflow_request:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications or []
+            ]
 
         source = workflow_request.source if workflow_request else ""
         source, save, is_context = self._validate_source(project, source, load_only)
@@ -336,7 +361,7 @@ class WorkflowRunners(
                 handler="mlrun.projects.load_and_run",
                 notifications=notifications,
             ),
-            metadata=RunMetadata(name=run_name),
+            metadata=RunMetadata(name=run_name, project=project.metadata.name),
         )
 
         if is_context:
@@ -367,7 +392,7 @@ class WorkflowRunners(
 
     @staticmethod
     def _validate_source(
-        project: mlrun.common.schemas.Project, source: str, load_only: bool = False
+        project: mlrun.common.schemas.ProjectOut, source: str, load_only: bool = False
     ) -> tuple[str, bool, bool]:
         """
         In case the user provided a source we want to load the project from the source
@@ -398,11 +423,16 @@ class WorkflowRunners(
                 return source, save, True
 
             if source.startswith("./") or source == ".":
+                build = project.spec.build
+                source_code_target_dir = (
+                    build.get("source_code_target_dir") if build else ""
+                )
+
                 # When the source is relative, it is relative to the project's source_code_target_dir
                 # If the project's source_code_target_dir is not set, the source is relative to the cwd
-                if project.spec.build and project.spec.build.source_code_target_dir:
+                if source_code_target_dir:
                     source = os.path.normpath(
-                        os.path.join(project.spec.build.source_code_target_dir, source)
+                        os.path.join(source_code_target_dir, source)
                     )
                 return source, save, True
 

@@ -416,3 +416,15 @@ class TestServingRuntime(TestNuclioRuntime):
 
         # verify the handler points to mlrun serving wrapper handler
         assert config["spec"]["handler"].startswith("mlrun.serving")
+
+    def test_serving_spec_too_large(self):
+        self._setup_serving_spec_in_config_map()
+        function = self._create_serving_function()
+        function._get_serving_spec = unittest.mock.Mock()
+
+        # Mock a serving spec that is too large
+        function._get_serving_spec.return_value = (
+            "x" * server.api.crud.runtimes.nuclio.function.SERVING_SPEC_MAX_LENGTH
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            function.deploy(verbose=True)

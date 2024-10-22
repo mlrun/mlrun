@@ -14,6 +14,7 @@
 #
 
 import datetime
+import re
 
 import sqlalchemy.orm
 
@@ -169,10 +170,18 @@ class Alerts(
 
                 if alert.criteria.period is not None:
                     # adjust the sliding window of events
+                    # in case the EventEntityKind is JOB then we should consider the runs monitoring interval here
+                    # because the monitoring runs might miss events occurring just before the interval.
+                    offset = 0
+                    if (
+                        alert.entities.kind
+                        == mlrun.common.schemas.alert.EventEntityKind.JOB
+                    ):
+                        offset = int(mlconfig.monitoring.runs.interval)
                     self._normalize_events(
                         state_obj,
                         server.api.utils.helpers.string_to_timedelta(
-                            alert.criteria.period, raise_on_error=False
+                            alert.criteria.period, offset, raise_on_error=False
                         ),
                     )
 
@@ -277,8 +286,8 @@ class Alerts(
 
         return False
 
-    @staticmethod
-    def _validate_alert(alert, name, project):
+    def _validate_alert(self, alert, name, project):
+        self.validate_alert_name(alert.name)
         if name != alert.name:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Alert name mismatch for alert {name} for project {project}. Provided {alert.name}"
@@ -330,6 +339,13 @@ class Alerts(
         if alert.entities.project != project:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Invalid alert entity project ({alert.entities.project}) for alert {name} for project {project}"
+            )
+
+    @staticmethod
+    def validate_alert_name(name: str) -> None:
+        if not re.fullmatch(r"^[a-zA-Z0-9-]+$", name):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid alert name '{name}'. Alert names can only contain alphanumeric characters and hyphens."
             )
 
     @staticmethod

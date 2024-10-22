@@ -22,10 +22,14 @@ import traceback
 import uuid
 from typing import Optional, Union
 
+from nuclio import Context as NuclioContext
+from nuclio.request import Logger as NuclioLogger
+
 import mlrun
 import mlrun.common.constants
 import mlrun.common.helpers
 import mlrun.model_monitoring
+import mlrun.utils
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
@@ -150,6 +154,7 @@ class GraphServer(ModelObj):
         resource_cache: ResourceCache = None,
         logger=None,
         is_mock=False,
+        monitoring_mock=False,
     ):
         """for internal use, initialize all steps (recursively)"""
 
@@ -162,6 +167,7 @@ class GraphServer(ModelObj):
 
         context = GraphContext(server=self, nuclio_context=context, logger=logger)
         context.is_mock = is_mock
+        context.monitoring_mock = monitoring_mock
         context.root = self.graph
 
         context.stream = _StreamContext(
@@ -387,12 +393,16 @@ def v2_serving_handler(context, event, get_body=False):
 
     # original path is saved in stream_path so it can be used by explicit ack, but path is reset to / as a
     # workaround for NUC-178
-    event.stream_path = event.path
+    # nuclio 1.12.12 added the topic attribute, and we must use it as part of the fix for NUC-233
+    # TODO: Remove fallback on event.path once support for nuclio<1.12.12 is dropped
+    event.stream_path = getattr(event, "topic", event.path)
     if hasattr(event, "trigger") and event.trigger.kind in (
         "kafka",
         "kafka-cluster",
         "v3ioStream",
         "v3io-stream",
+        "rabbit-mq",
+        "rabbitMq",
     ):
         event.path = "/"
 
@@ -483,7 +493,13 @@ class Response:
 class GraphContext:
     """Graph context object"""
 
-    def __init__(self, level="info", logger=None, server=None, nuclio_context=None):
+    def __init__(
+        self,
+        level="info",  # Unused argument
+        logger=None,
+        server=None,
+        nuclio_context: Optional[NuclioContext] = None,
+    ) -> None:
         self.state = None
         self.logger = logger
         self.worker_id = 0
@@ -493,7 +509,7 @@ class GraphContext:
         self.root = None
 
         if nuclio_context:
-            self.logger = nuclio_context.logger
+            self.logger: NuclioLogger = nuclio_context.logger
             self.Response = nuclio_context.Response
             if hasattr(nuclio_context, "trigger") and hasattr(
                 nuclio_context.trigger, "kind"
@@ -503,7 +519,7 @@ class GraphContext:
             if hasattr(nuclio_context, "platform"):
                 self.platform = nuclio_context.platform
         elif not logger:
-            self.logger = mlrun.utils.helpers.logger
+            self.logger: mlrun.utils.Logger = mlrun.utils.logger
 
         self._server = server
         self.current_function = None
@@ -516,7 +532,7 @@ class GraphContext:
         return self._server
 
     @property
-    def project(self):
+    def project(self) -> str:
         """current project name (for the current function)"""
         project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
             self._server.function_uri

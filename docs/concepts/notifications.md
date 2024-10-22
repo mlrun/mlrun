@@ -67,7 +67,14 @@ Currently, the supported notification kinds and their params are as follows:
   - `url`: The webhook url to which to send the notification.
   - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
   - `headers`: (dict) The http headers to send with the notification.
-  - `override_body`: (dict) The body to send with the notification. 
+  - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
+                     `name`, `message`, `severity`, and the `runs` list of the completed runs. You can also add the run's details using: `"override_body": {"message":"Run Completed {{ runs }}"`.
+					 Results would look like 
+					 ```
+					 {
+                       "message": "Run Completed [{'project': 'my-project', 'name': 'my-function', 'host': <run-host>, 'status': {'state': 'completed', 'results': <run-results>}}]"
+                     }
+					 ```
   - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
                   The default is set to `True`.
 - `console` (no params, local only)
@@ -133,9 +140,27 @@ notification = mlrun.model.Notification(
 project.run(..., notifications=[notification])
 ```
 
+### Running notifications
 MLRun can also send a `pipeline started` notification. To do that, configure a notification that includes
 `when=running`. The `pipeline started` notification uses its own parameters, for
-example the webhook, credentials, etc., for the notification message.</br>
+example the webhook, credentials, etc., for the notification message.
+You can set only the webhook; the message is the default message.
+
+If the webhook is stored in the secret_params, you should first set the project secret and then use this project secret
+in the notification. For example:
+```python
+import mlrun
+
+project = mlrun.get_or_create_project("ycvqowgpie")
+project.set_secrets({"SLACK_SECRET1": '{"webhook":"<WEBHOOK_URL>"}'})
+slack_notification = mlrun.model.Notification(
+    kind="slack",
+    when=["running"],
+    name="name",
+    condition="",
+    secret_params={"secret": "SLACK_SECRET1"},
+)
+```
 
 ### Remote pipeline notifications
 In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.

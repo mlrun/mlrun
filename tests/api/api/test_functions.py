@@ -27,6 +27,7 @@ import sqlalchemy.orm
 
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.constants
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
@@ -50,7 +51,7 @@ FUNCTIONS_API = "projects/{project}/functions/{name}"
 
 
 def test_build_status_pod_not_found(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
     function = {
@@ -69,24 +70,22 @@ def test_build_status_pod_not_found(
         json=function,
     )
     assert response.status_code == HTTPStatus.OK.value
-
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api.read_namespaced_pod = (
-        unittest.mock.Mock(
-            side_effect=kubernetes.client.rest.ApiException(
-                status=HTTPStatus.NOT_FOUND.value
-            )
+    with unittest.mock.patch.object(
+        server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        "read_namespaced_pod_status",
+        side_effect=kubernetes.client.rest.ApiException(
+            status=HTTPStatus.NOT_FOUND.value
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
         )
-    )
-    response = client.get(
-        "build/status",
-        params={
-            "project": function["metadata"]["project"],
-            "name": function["metadata"]["name"],
-            "tag": function["metadata"]["tag"],
-        },
-    )
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+        assert response.status_code == HTTPStatus.NOT_FOUND.value
 
 
 @pytest.mark.asyncio
@@ -155,7 +154,8 @@ async def test_list_functions_with_pagination(
             "page-token": page_token,
         },
     )
-    assert response.status_code == HTTPStatus.NOT_FOUND.value
+    assert response.status_code == HTTPStatus.OK.value
+    assert response.json()["pagination"]["page-token"] is None
 
 
 def _assert_pagination_info(
@@ -476,13 +476,12 @@ def test_tracking_on_serving(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    mocked_k8s_helper,
 ) -> None:
     """
     Validate that `.set_tracking()` configurations are applied to
     a serving function for model monitoring.
     """
-    server.api.utils.singletons.k8s.get_k8s_helper().v1api = unittest.mock.Mock()
-
     config_map = unittest.mock.Mock()
     config_map.items = []
 
@@ -536,7 +535,13 @@ def test_tracking_on_serving(
     # Adjust the required request endpoint and body
     endpoint = "build/function"
     json_body = _generate_build_function_request(function)
-    response = client.post(endpoint, data=json_body)
+    response = client.post(
+        endpoint,
+        data=json_body,
+        headers={
+            mlrun.common.schemas.HeaderNames.client_version: "1.7.0",
+        },
+    )
 
     assert response.status_code == 200
 
@@ -655,52 +660,48 @@ def test_build_function_force_build(
     }
 
     # Mock the functions responsible for the image building
-    with unittest.mock.patch(
-        "server.api.utils.builder.make_dockerfile", return_value=""
-    ):
-        with unittest.mock.patch(
+    with (
+        unittest.mock.patch(
+            "server.api.utils.builder.make_dockerfile", return_value=""
+        ),
+        unittest.mock.patch(
             "server.api.utils.builder.make_kaniko_pod",
             return_value=server.api.utils.singletons.k8s.BasePod(),
-        ):
-            with unittest.mock.patch(
-                "server.api.utils.builder.resolve_image_target",
-                return_value=(".test/my-beautiful-image",),
-            ):
-                with unittest.mock.patch(
-                    "server.api.utils.builder._resolve_build_requirements",
-                    return_value=([], [], "/empty/requirements.txt"),
-                ):
-                    with unittest.mock.patch(
-                        "server.api.utils.singletons.k8s.get_k8s_helper"
-                    ) as mock_get_k8s_helper:
-                        mock_get_k8s_helper.return_value.create_pod.return_value = (
-                            "pod-name",
-                            "namespace",
-                        )
+        ),
+        unittest.mock.patch(
+            "server.api.utils.builder.resolve_image_target",
+            return_value=(".test/my-beautiful-image",),
+        ),
+        unittest.mock.patch(
+            "server.api.utils.builder._resolve_build_requirements",
+            return_value=([], [], "/empty/requirements.txt"),
+        ),
+        unittest.mock.patch(
+            "server.api.utils.singletons.k8s.get_k8s_helper"
+        ) as mock_get_k8s_helper,
+    ):
+        mock_get_k8s_helper.return_value.create_pod.return_value = (
+            "pod-name",
+            "namespace",
+        )
 
-                        # call build/function and assert the function was called or not called as expected,
-                        # based on the force_build flag
-                        response = client.post(
-                            "build/function",
-                            json={
-                                "function": function_dict,
-                                "force_build": force_build,
-                            },
-                        )
-                        assert response.status_code == HTTPStatus.OK.value
+        # call build/function and assert the function was called or not called as expected,
+        # based on the force_build flag
+        response = client.post(
+            "build/function",
+            json={
+                "function": function_dict,
+                "force_build": force_build,
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
 
-                        assert (
-                            server.api.utils.builder.make_kaniko_pod.call_count
-                            == expected
-                        )
-                        assert (
-                            server.api.utils.builder.make_dockerfile.call_count
-                            == expected
-                        )
-                        assert (
-                            server.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
-                            == expected
-                        )
+        assert server.api.utils.builder.make_kaniko_pod.call_count == expected
+        assert server.api.utils.builder.make_dockerfile.call_count == expected
+        assert (
+            server.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+            == expected
+        )
 
 
 def test_build_function_masks_access_key(
@@ -998,6 +999,105 @@ def test_start_function(
         assert response.status_code == http.HTTPStatus.OK.value
         background_task = mlrun.common.schemas.BackgroundTask(**response.json())
         assert background_task.status.state == expected_status_result
+
+
+def test_build_status_events_and_logs(
+    mocked_k8s_helper, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    function = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "status": {"build_pod": "some-pod-name"},
+    }
+    response = client.post(
+        FUNCTIONS_API.format(
+            project=function["metadata"]["project"], name=function["metadata"]["name"]
+        ),
+        json=function,
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    normal_event = kubernetes.client.CoreV1Event(
+        involved_object="mock",
+        metadata=kubernetes.client.V1ObjectMeta(name="normal-event"),
+    )
+    normal_event.message = "event"
+    normal_event.type = "Normal"
+    warning_event = kubernetes.client.CoreV1Event(
+        involved_object="mock",
+        metadata=kubernetes.client.V1ObjectMeta(name="warning-event"),
+    )
+    warning_event.message = "event"
+    warning_event.type = "Warning"
+    warning_event.reason = "reason"
+    events = [normal_event, warning_event]
+
+    with (
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "get_pod_phase",
+            return_value="pending",
+        ),
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "list_object_events",
+            return_value=events,
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
+            headers={mlrun.common.schemas.HeaderNames.client_version: "1.8.0"},
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert (
+            response.headers.get(
+                "deploy_status_text_kind",
+            )
+            == mlrun.common.constants.DeployStatusTextKind.events
+        )
+        out = response.content.decode()
+        assert "warning-event" in out
+        assert "Warning" in out
+        assert "Normal" not in out
+
+    with (
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper(),
+            "get_pod_phase",
+            return_value="running",
+        ),
+        unittest.mock.patch.object(
+            server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+            "read_namespaced_pod_log",
+            return_value="log",
+        ),
+    ):
+        response = client.get(
+            "build/status",
+            params={
+                "project": function["metadata"]["project"],
+                "name": function["metadata"]["name"],
+                "tag": function["metadata"]["tag"],
+            },
+        )
+        assert response.status_code == HTTPStatus.OK.value
+        assert (
+            response.headers.get(
+                "deploy_status_text_kind",
+            )
+            == mlrun.common.constants.DeployStatusTextKind.logs
+        )
+        assert response.content.decode() == "log"
 
 
 def _generate_function(

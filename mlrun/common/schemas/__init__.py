@@ -108,6 +108,7 @@ from .feature_store import (
     FeatureVectorsTagsOutput,
 )
 from .frontend_spec import (
+    ArtifactLimits,
     AuthenticationFeatureFlag,
     FeatureFlags,
     FrontendSpec,
@@ -174,6 +175,7 @@ from .project import (
     ProjectOwner,
     ProjectsOutput,
     ProjectSpec,
+    ProjectSpecOut,
     ProjectState,
     ProjectStatus,
     ProjectSummariesOutput,

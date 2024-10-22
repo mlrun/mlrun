@@ -24,6 +24,7 @@ import re
 import string
 import sys
 import typing
+import uuid
 import warnings
 from datetime import datetime, timezone
 from importlib import import_module, reload
@@ -40,7 +41,7 @@ import semver
 import yaml
 from dateutil import parser
 from mlrun_pipelines.models import PipelineRun
-from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from pandas import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -110,9 +111,12 @@ def get_artifact_target(item: dict, project=None):
     project_str = project or item["metadata"].get("project")
     tree = item["metadata"].get("tree")
     tag = item["metadata"].get("tag")
+    kind = item.get("kind")
 
-    if item.get("kind") in {"dataset", "model", "artifact"} and db_key:
-        target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
+    if kind in {"dataset", "model", "artifact"} and db_key:
+        target = (
+            f"{DB_SCHEMA}://{StorePrefix.kind_to_prefix(kind)}/{project_str}/{db_key}"
+        )
         target += f":{tag}" if tag else ":latest"
         if tree:
             target += f"@{tree}"
@@ -132,18 +136,25 @@ def is_legacy_artifact(artifact):
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
 missing = object()
 
-is_ipython = False
+is_ipython = False  # is IPython terminal, including Jupyter
+is_jupyter = False  # is Jupyter notebook/lab terminal
 try:
-    import IPython
+    import IPython.core.getipython
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal ignore (cant show html)
-    if ipy and "Terminal" not in str(type(ipy)):
-        is_ipython = True
-except ImportError:
+    ipy = IPython.core.getipython.get_ipython()
+
+    is_ipython = ipy is not None
+    is_jupyter = (
+        is_ipython
+        # not IPython
+        and "Terminal" not in str(type(ipy))
+    )
+
+    del ipy
+except ModuleNotFoundError:
     pass
 
-if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
+if is_jupyter and config.nest_asyncio_enabled in ["1", "True"]:
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -257,12 +268,14 @@ def validate_tag_name(
 def validate_artifact_key_name(
     artifact_key: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:
+    field_type = "key" if field_name == "artifact.key" else "db_key"
     return mlrun.utils.helpers.verify_field_regex(
         field_name,
         artifact_key,
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
-        log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+        log_message=f"Artifact {field_type} must start and end with an alphanumeric character, and may only contain "
+        "letters, numbers, hyphens, underscores, and dots.",
     )
 
 
@@ -1006,6 +1019,23 @@ def get_workflow_url(project, id=None):
     return url
 
 
+def get_kfp_project_filter(project_name: str) -> str:
+    """
+    Generates a filter string for KFP runs, using a substring predicate
+    on the run's 'name' field. This is used as a heuristic to retrieve runs that are associated
+    with a specific project. The 'op: 9' operator indicates that the filter checks if the
+    project name appears as a substring in the run's name, ensuring that we can identify
+    runs belonging to the desired project.
+    """
+    is_substring_op = 9
+    project_name_filter = {
+        "predicates": [
+            {"key": "name", "op": is_substring_op, "string_value": project_name}
+        ]
+    }
+    return json.dumps(project_name_filter)
+
+
 def are_strings_in_exception_chain_messages(
     exception: Exception, strings_list: list[str]
 ) -> bool:
@@ -1403,11 +1433,27 @@ def is_running_in_jupyter_notebook() -> bool:
     Check if the code is running inside a Jupyter Notebook.
     :return: True if running inside a Jupyter Notebook, False otherwise.
     """
-    import IPython
+    return is_jupyter
 
-    ipy = IPython.get_ipython()
-    # if its IPython terminal, it isn't a Jupyter ipython
-    return ipy and "Terminal" not in str(type(ipy))
+
+def create_ipython_display():
+    """
+    Create an IPython display object and fill it with initial content.
+    We can later use the returned display_id with the update_display method to update the content.
+    If IPython is not installed, a warning will be logged and None will be returned.
+    """
+    if is_ipython:
+        import IPython
+
+        display_id = uuid.uuid4().hex
+        content = IPython.display.HTML(
+            f'<div id="{display_id}">Temporary Display Content</div>'
+        )
+        IPython.display.display(content, display_id=display_id)
+        return display_id
+
+    # returning None if IPython is not installed, this method shouldn't be called in that case but logging for sanity
+    logger.debug("IPython is not installed, cannot create IPython display")
 
 
 def as_number(field_name, field_value):
@@ -1640,17 +1686,22 @@ def merge_dicts_with_precedence(*dicts: dict) -> dict:
 
 
 def validate_component_version_compatibility(
-    component_name: typing.Literal["iguazio", "nuclio"], *min_versions: str
+    component_name: typing.Literal["iguazio", "nuclio", "mlrun-client"],
+    *min_versions: str,
+    mlrun_client_version: str = None,
 ):
     """
     :param component_name: Name of the component to validate compatibility for.
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
+    :param mlrun_client_version: Client version to validate when component_name is "mlrun-client".
     """
     parsed_min_versions = [
         semver.VersionInfo.parse(min_version) for min_version in min_versions
     ]
     parsed_current_version = None
     component_current_version = None
+    # For mlrun client we don't assume compatability if we fail to parse the client version
+    assume_compatible = component_name not in ["mlrun-client"]
     try:
         if component_name == "iguazio":
             component_current_version = mlrun.mlconf.igz_version
@@ -1667,24 +1718,45 @@ def validate_component_version_compatibility(
             parsed_current_version = semver.VersionInfo.parse(
                 mlrun.mlconf.nuclio_version
             )
+        if component_name == "mlrun-client":
+            # dev version, assume compatible
+            if mlrun_client_version and (
+                mlrun_client_version.startswith("0.0.0+")
+                or "unstable" in mlrun_client_version
+            ):
+                return True
+
+            component_current_version = mlrun_client_version
+            parsed_current_version = semver.Version.parse(mlrun_client_version)
         if not parsed_current_version:
-            return True
+            return assume_compatible
     except ValueError:
         # only log when version is set but invalid
         if component_current_version:
             logger.warning(
-                "Unable to parse current version, assuming compatibility",
+                "Unable to parse current version",
                 component_name=component_name,
                 current_version=component_current_version,
                 min_versions=min_versions,
+                assume_compatible=assume_compatible,
             )
-        return True
+        return assume_compatible
 
+    # Feature might have been back-ported e.g. nuclio node selection is supported from
+    # 1.5.20 and 1.6.10 but not in 1.6.9 - therefore we reverse sort to validate against 1.6.x 1st and
+    # then against 1.5.x
     parsed_min_versions.sort(reverse=True)
     for parsed_min_version in parsed_min_versions:
-        if parsed_current_version < parsed_min_version:
+        if (
+            parsed_current_version.major == parsed_min_version.major
+            and parsed_current_version.minor == parsed_min_version.minor
+            and parsed_current_version.patch < parsed_min_version.patch
+        ):
             return False
-    return True
+
+        if parsed_current_version >= parsed_min_version:
+            return True
+    return False
 
 
 def format_alert_summary(
@@ -1728,3 +1800,43 @@ def _reload(module, max_recursion_depth):
         attribute = getattr(module, attribute_name)
         if type(attribute) is ModuleType:
             _reload(attribute, max_recursion_depth - 1)
+
+
+def run_with_retry(
+    retry_count: int,
+    func: typing.Callable,
+    retry_on_exceptions: typing.Union[
+        type[Exception],
+        tuple[type[Exception]],
+    ] = None,
+    *args,
+    **kwargs,
+):
+    """
+    Executes a function with retry logic upon encountering specified exceptions.
+
+    :param retry_count: The number of times to retry the function execution.
+    :param func: The function to execute.
+    :param retry_on_exceptions: Exception(s) that trigger a retry. Can be a single exception or a tuple of exceptions.
+    :param args: Positional arguments to pass to the function.
+    :param kwargs: Keyword arguments to pass to the function.
+    :return: The result of the function execution if successful.
+    :raises Exception: Re-raises the last exception encountered after all retries are exhausted.
+    """
+    if retry_on_exceptions is None:
+        retry_on_exceptions = (Exception,)
+    elif isinstance(retry_on_exceptions, list):
+        retry_on_exceptions = tuple(retry_on_exceptions)
+
+    last_exception = None
+    for attempt in range(retry_count + 1):
+        try:
+            return func(*args, **kwargs)
+        except retry_on_exceptions as exc:
+            last_exception = exc
+            logger.warning(
+                f"Attempt {{{attempt}/ {retry_count}}} failed with exception: {exc}",
+            )
+            if attempt == retry_count:
+                raise
+    raise last_exception

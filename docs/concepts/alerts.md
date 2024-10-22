@@ -3,7 +3,10 @@
 
 Alerts are a mechanism for informing you about possible problem situations. 
 
-{ref}`notifications` are used to notify you or the system of an alert.
+```{admonition} Note
+Alets are in Tech Preview state and disabled by default.
+To enable, add an environment variable to the override-env configmap: `MLRUN_ALERTS__MODE: "enabled"`.
+```
 
 **In this section**
 - [System configuration](#system-configuration)
@@ -13,14 +16,6 @@ Alerts are a mechanism for informing you about possible problem situations.
 - [Alert reset policy](#alert-reset-policy)
 - [Alert templates](#alert-templates)
 - [Creating an alert with a template](#creating-an-alert-with-a-template)
-
-
-**See also**
-```{toctree}
-:maxdepth: 1
-
-drift-detection-alert
-```
 
 ## System configuration 
 These variables control the basic alert behavior: 
@@ -44,19 +39,19 @@ The SDK supports these alert operations:
 
 ## Predefined events (`EventKind`)
 The predefined event types are:
-- `data_drift_detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
-- `data_drift_suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
-- `concept_drift_detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- `concept_drift_suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- `model_performance_detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
-- `model_performance_suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
-- `model_serving_performance_detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- `model_serving_performance_suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- `mm_app_anomaly_detected` &mdash; An alert based on user-defined metrics/results.
-- `mm_app_anomaly_suspected` &mdash; An alert based on user-defined metrics/results.
+- `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
+- `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- `concept-drift-detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
+- `model-performance-suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
+- `model-serving-performance-detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `model-serving-performance-suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
+- `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
+- `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
 - `failed` &mdash; The job failed.
 
-See {ref}`monitoring-overview` for more details on drift and performance.
+See {ref}`model-monitoring-overview` for more details on drift and performance.
 
 ## Creating an alert
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
@@ -64,6 +59,8 @@ You can optionally specify the frequency of the alert through the criteria field
 If not specified, it uses the default.
 See all of the {py:class}`alert configuration parameters<mlrun.alerts.alert.AlertConfig>`. 
 You can configure Git, Slack, and webhook notifications for the alert. 
+
+When you run `store_alert_config`, the alert is automatically reset.
 
 This example illustrates creating an alert with a Slack notification for drift detection on a model endpoint:
 

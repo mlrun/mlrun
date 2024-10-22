@@ -314,8 +314,8 @@ class ServingRuntime(RemoteRuntime):
         tracking_policy: Optional[Union["TrackingPolicy", dict]] = None,
         enable_tracking: bool = True,
     ) -> None:
-        """apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
-           and analyze performance.
+        """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
+        and analyze performance.
 
         :param stream_path:         Path/url of the tracking stream e.g. v3io:///users/mike/mystream
                                     you can use the "dummy://" path for test/simulation.
@@ -676,7 +676,6 @@ class ServingRuntime(RemoteRuntime):
         """create mock server object for local testing/emulation
 
         :param namespace: one or list of namespaces/modules to search the steps classes/functions in
-        :param log_level: log level (error | info | debug)
         :param current_function: specify if you want to simulate a child function, * for all functions
         :param track_models: allow model tracking (disabled by default in the mock server)
         :param workdir:   working directory to locate the source code (if not the current one)
@@ -704,7 +703,7 @@ class ServingRuntime(RemoteRuntime):
             verbose=self.verbose,
             current_function=current_function,
             graph_initializer=self.spec.graph_initializer,
-            track_models=track_models and self.spec.track_models,
+            track_models=self.spec.track_models,
             function_uri=self._function_uri(),
             secret_sources=self.spec.secret_sources,
             default_content_type=self.spec.default_content_type,
@@ -715,6 +714,7 @@ class ServingRuntime(RemoteRuntime):
             namespace=namespace,
             logger=logger,
             is_mock=True,
+            monitoring_mock=track_models,
         )
 
         if workdir:

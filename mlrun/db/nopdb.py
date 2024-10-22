@@ -21,6 +21,7 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.lists
 
 from ..config import config
 from ..utils import logger
@@ -73,6 +74,22 @@ class NopDB(RunDBInterface):
     def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
+    def list_runtime_resources(
+        self,
+        project: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        kind: Optional[str] = None,
+        object_id: Optional[str] = None,
+        group_by: Optional[
+            mlrun.common.schemas.ListRuntimeResourcesGroupByField
+        ] = None,
+    ) -> Union[
+        mlrun.common.schemas.RuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
+        return []
+
     def read_run(
         self,
         uid,
@@ -87,7 +104,7 @@ class NopDB(RunDBInterface):
         name: Optional[str] = None,
         uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, list[str]]] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: Optional[
             mlrun.common.runtimes.constants.RunStates
         ] = None,  # Backward compatibility
@@ -108,12 +125,19 @@ class NopDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
-        pass
+        return mlrun.lists.RunList()
 
     def del_run(self, uid, project="", iter=0):
         pass
 
-    def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
+    def del_runs(
+        self,
+        name: str = "",
+        project: str = "",
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        days_ago: int = 0,
+    ):
         pass
 
     def store_artifact(
@@ -138,7 +162,7 @@ class NopDB(RunDBInterface):
         name="",
         project="",
         tag="",
-        labels=None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -149,7 +173,7 @@ class NopDB(RunDBInterface):
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
         limit: int = None,
     ):
-        pass
+        return mlrun.lists.ArtifactList()
 
     def del_artifact(
         self,
@@ -166,7 +190,13 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def del_artifacts(self, name="", project="", tag="", labels=None):
+    def del_artifacts(
+        self,
+        name="",
+        project="",
+        tag="",
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+    ):
         pass
 
     def store_function(self, function, name, project="", tag="", versioned=False):
@@ -179,9 +209,15 @@ class NopDB(RunDBInterface):
         pass
 
     def list_functions(
-        self, name=None, project="", tag="", labels=None, since=None, until=None
+        self,
+        name=None,
+        project="",
+        tag="",
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        since=None,
+        until=None,
     ):
-        pass
+        return []
 
     def tag_objects(
         self,
@@ -234,7 +270,7 @@ class NopDB(RunDBInterface):
         self,
         owner: str = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
@@ -268,7 +304,7 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutput:
         pass
 
@@ -278,17 +314,25 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         entities: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: list[str] = None
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutput:
         pass
 
     def list_entities_v2(
-        self, project: str, name: str = None, tag: str = None, labels: list[str] = None
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
@@ -300,7 +344,7 @@ class NopDB(RunDBInterface):
         state: str = None,
         entities: list[str] = None,
         features: list[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -309,6 +353,9 @@ class NopDB(RunDBInterface):
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
+        format_: Union[
+            str, mlrun.common.formatters.FeatureSetFormat
+        ] = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[dict]:
         pass
 
@@ -358,7 +405,7 @@ class NopDB(RunDBInterface):
         name: str = None,
         tag: str = None,
         state: str = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         partition_by: Union[
             mlrun.common.schemas.FeatureStorePartitionByField, str
         ] = None,
@@ -421,7 +468,7 @@ class NopDB(RunDBInterface):
         ] = mlrun.common.formatters.PipelineFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
-        pass
+        return mlrun.common.schemas.PipelinesOutput(runs=[], total_size=0)
 
     def create_project_secrets(
         self,
@@ -490,7 +537,7 @@ class NopDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: list[str] = None,
+        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[list[str]] = None,
@@ -608,6 +655,7 @@ class NopDB(RunDBInterface):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
+        events_offset: int = 0,
     ):
         pass
 

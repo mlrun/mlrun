@@ -33,7 +33,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 24.0
+MLRUN_PIP_VERSION ?= 24.2
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -49,7 +49,7 @@ MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL ?=
-MLRUN_GPU_CUDA_VERSION ?= 11.7.1-cudnn8-devel-ubuntu20.04
+MLRUN_GPU_CUDA_VERSION ?= 11.8.0-cudnn8-devel-ubuntu22.04
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -321,7 +321,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
-	docker pull $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker pull $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
 
 .PHONY: log-collector
 log-collector: update-version-file
@@ -590,18 +590,18 @@ run-test-db:
 		--env MYSQL_ROOT_HOST=% \
 		--env MYSQL_DATABASE="mlrun" \
 		--detach \
-		mysql/mysql-server:8.0 \
+		gcr.io/iguazio/mlrun-mysql:8.0 \
 		--character-set-server=utf8 \
 		--collation-server=utf8_bin
 
 .PHONY: clean-html-docs
 clean-html-docs: ## Clean html docs
-	cd docs && make clean && cd ..
+	rm -f docs/external/*.md
+	make -C docs clean
 
 .PHONY: html-docs
 html-docs: clean-html-docs ## Build html docs
-	rm -f docs/external/*.md
-	cd docs && make html
+	make -C docs html
 
 .PHONY: html-docs-dockerized
 html-docs-dockerized: build-test ## Build html docs dockerized

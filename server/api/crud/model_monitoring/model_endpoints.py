@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import itertools
-import json
 import typing
 
 import fsspec
@@ -32,45 +31,8 @@ import server.api.crud.model_monitoring.deployment
 import server.api.crud.model_monitoring.helpers
 import server.api.crud.secrets
 import server.api.rundb.sqldb
+from mlrun.model_monitoring.db._schedules import ModelMonitoringSchedulesFile
 from mlrun.utils import logger
-
-
-class _ModelMonitoringSchedulesFile:
-    INITIAL_CONTENT = json.dumps({})
-
-    def __init__(self, project: str, endpoint_id: str) -> None:
-        self._item = mlrun.model_monitoring.helpers.get_monitoring_schedules_data(
-            project=project, endpoint_id=endpoint_id
-        )
-        self._path = self._item.url
-        self._fs = typing.cast(fsspec.AbstractFileSystem, self._item.store.filesystem)
-
-    @classmethod
-    def from_model_endpoint(
-        cls, model_endpoint: mlrun.common.schemas.ModelEndpoint
-    ) -> "_ModelMonitoringSchedulesFile":
-        return cls(
-            project=model_endpoint.metadata.project,
-            endpoint_id=model_endpoint.metadata.uid,
-        )
-
-    def create(self) -> None:
-        """Create a schedules file with initial content - an empty dictionary"""
-        logger.debug("Creating model monitoring schedules file", path=self._item.url)
-        self._item.put(self.INITIAL_CONTENT)
-
-    def delete(self) -> None:
-        """Delete schedules file if it exists"""
-        if self._fs.exists(self._path):
-            logger.debug(
-                "Deleting model monitoring schedules file", path=self._item.url
-            )
-            self._item.delete()
-        else:
-            logger.debug(
-                "Model monitoring schedules file does not exist, nothing to delete",
-                path=self._item.url,
-            )
 
 
 class ModelEndpoints:
@@ -194,7 +156,7 @@ class ModelEndpoints:
             == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
         ):
             # Create model monitoring schedules file
-            _ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
+            ModelMonitoringSchedulesFile.from_model_endpoint(model_endpoint).create()
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -374,7 +336,7 @@ class ModelEndpoints:
 
             logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
-        _ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
+        ModelMonitoringSchedulesFile(project=project, endpoint_id=endpoint_id).delete()
 
     def get_model_endpoint(
         self,

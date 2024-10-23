@@ -216,6 +216,7 @@ class FileTargetKind:
     MONITORING_SCHEDULES = "monitoring_schedules"
     MONITORING_APPLICATION = "monitoring_application"
     ERRORS = "errors"
+    STATS = "stats"
 
 
 class ModelMonitoringMode(str, Enum):

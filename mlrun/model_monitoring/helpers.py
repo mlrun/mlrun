@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import os
 import typing
 
 import numpy as np
@@ -96,6 +97,38 @@ def get_monitoring_parquet_path(
         artifact_path=artifact_path,
     )
     return parquet_path
+
+
+def get_monitoring_stats_directory_path(
+        project: "MlrunProject",
+        kind: str = mm_constants.FileTargetKind.STATS,
+) -> str:
+    """
+    Get model monitoring stats target for the current project and kind. The stats target path is based on the
+    project artifact path. If project artifact path is not defined, the stats target path will be based on MLRun
+    artifact path.
+    :param project:     Project object.
+    :param kind:        indicate the kind of the stats path
+    :return:            Monitoring stats target path.
+    """
+    artifact_path = project.spec.artifact_path
+    stats_path = mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project.name,
+        kind=kind,
+        target="offline",
+        artifact_path=artifact_path,
+    )
+    return stats_path
+
+def _get_monitoring_current_stats_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project), f"{endpoint_id}_current_stats.json"
+    )
+
+def _get_monitoring_drift_measures_file_path(project: str, endpoint_id: str) -> str:
+    return os.path.join(
+        get_monitoring_stats_directory_path(project), f"{endpoint_id}_current_stats.json"
+    )
 
 
 def get_connection_string(secret_provider: typing.Callable[[str], str] = None) -> str:

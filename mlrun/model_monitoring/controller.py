@@ -19,7 +19,7 @@ import os
 from collections.abc import Iterator
 from typing import NamedTuple, NewType, Optional, cast
 
-import nuclio
+import nuclio_sdk
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -465,7 +465,7 @@ class MonitoringApplicationController:
             )
 
 
-def handler(context: nuclio.Context, event: nuclio.Event) -> None:
+def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     """
     Run model monitoring application processor
 

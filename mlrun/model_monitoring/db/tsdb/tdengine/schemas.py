@@ -159,7 +159,7 @@ class TDEngineSchema:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"values must contain at least one tag: {self.tags.keys()}"
             )
-        return f"SELECT tbname FROM {self.database}.{self.super_table} WHERE {values};"
+        return f"SELECT DISTINCT tbname FROM {self.database}.{self.super_table} WHERE {values};"
 
     @staticmethod
     def _get_records_query(

@@ -1,8 +1,8 @@
 (genai-data-mgmt)=
 # Gen AI data management
 
-The first stage is to build an automated ML pipeline for data collection, data preparation, training and evaluation, including:
-data collection, data filtering, data processing, labelling, embeddings.
+The first stage is to build an automated ML pipeline for data collection, data preparation, training and evaluation, including 
+data filtering, data processing, labelling, and embeddings.
 
 **In this section**
 

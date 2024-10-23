@@ -23,25 +23,17 @@ import nuclio_sdk
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-import mlrun.data_types.infer
-import mlrun.model_monitoring.db
-from mlrun.datastore import DataItem, get_stream_pusher
 import mlrun.feature_store as fstore
-import mlrun.model_monitoring.db.stores
-from mlrun.config import config as mlconf
-from mlrun.datastore import get_stream_pusher
-from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
-from mlrun.datastore import DataItem, get_stream_pusher, store_manager
+import mlrun.model_monitoring
+from mlrun.datastore import DataItem, get_stream_pusher
 from mlrun.errors import err_to_str
 from mlrun.model_monitoring.helpers import (
-    _BatchDict,
     batch_dict2timedelta,
     get_monitoring_schedules_data,
     get_stream_path,
 )
 from mlrun.utils import datetime_now, logger
 
-_UTF_8 = "utf-8"
 _SECONDS_IN_DAY = int(datetime.timedelta(days=1).total_seconds())
 
 
@@ -100,7 +92,8 @@ class _BatchWindow:
         )
 
     def _get_schedules_and_last_analyzed(self) -> tuple[_Schedules, int]:
-        content = self._db.get(encoding=_UTF_8)
+        content = self._db.get(encoding="utf-8")
+        # ModelMonitoringSchedulesFile
         try:
             schedules = json.loads(content)
             if self._application in schedules:
@@ -131,7 +124,6 @@ class _BatchWindow:
             last_analyzed=last_analyzed,
         )
         self._schedules.update(_Schedules({self._application: last_analyzed}))
-        self._update_db(self._schedules)
 
     def get_intervals(self) -> Iterator[_Interval]:
         """Generate the batch interval time ranges."""
@@ -149,6 +141,7 @@ class _BatchWindow:
             )
             yield _Interval(start_time, end_time)
             self._update_last_analyzed(timestamp + self._step)
+        self._update_db(self._schedules)
         if not entered:
             logger.debug(
                 "All the data is set, but no complete intervals were found. "
@@ -161,19 +154,12 @@ class _BatchWindow:
 
 
 class _BatchWindowGenerator:
-    def __init__(self, batch_dict: dict[str, int]) -> None:
+    def __init__(self, window_length: int) -> None:
         """
         Initialize a batch window generator object that generates batch window objects
         for the monitoring functions.
         """
-        self._batch_dict = batch_dict
-        self._timedelta = self._get_timedelta()
-
-    def _get_timedelta(self) -> int:
-        """Get the timedelta in seconds from the batch dictionary"""
-        return int(
-            batch_dict2timedelta(cast(_BatchDict, self._batch_dict)).total_seconds()
-        )
+        self._timedelta = window_length
 
     @classmethod
     def _get_last_updated_time(cls, last_request: str, has_stream: bool) -> int:
@@ -228,6 +214,17 @@ class _BatchWindowGenerator:
         )
 
 
+def _get_window_length() -> int:
+    """Get the timedelta in seconds from the batch dictionary"""
+    return int(
+        batch_dict2timedelta(
+            json.loads(
+                cast(str, os.getenv(mm_constants.EventFieldType.BATCH_INTERVALS_DICT))
+            )
+        ).total_seconds()
+    )
+
+
 class MonitoringApplicationController:
     """
     The main object to handle the monitoring processing job. This object is used to get the required configurations and
@@ -244,15 +241,11 @@ class MonitoringApplicationController:
 
         self.db = mlrun.model_monitoring.get_store_object(project=self.project)
 
-        self._batch_window_generator = _BatchWindowGenerator(
-            batch_dict=json.loads(
-                cast(str, os.getenv(mm_constants.EventFieldType.BATCH_INTERVALS_DICT))
-            )
-        )
+        self._window_length = _get_window_length()
 
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.storage_options = None
-        if mlconf.artifact_path.startswith("s3://"):
+        if mlrun.mlconf.artifact_path.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     @staticmethod
@@ -335,10 +328,10 @@ class MonitoringApplicationController:
                         continue
                     pool.submit(
                         MonitoringApplicationController.model_endpoint_process,
+                        project=self.project,
                         endpoint=endpoint,
                         applications_names=applications_names,
-                        batch_window_generator=self._batch_window_generator,
-                        project=self.project,
+                        window_length=self._window_length,
                         model_monitoring_access_key=self.model_monitoring_access_key,
                         storage_options=self.storage_options,
                     )
@@ -346,10 +339,10 @@ class MonitoringApplicationController:
     @classmethod
     def model_endpoint_process(
         cls,
+        project: str,
         endpoint: dict,
         applications_names: list[str],
-        batch_window_generator: _BatchWindowGenerator,
-        project: str,
+        window_length: int,
         model_monitoring_access_key: str,
         storage_options: Optional[dict] = None,
     ) -> None:
@@ -370,6 +363,7 @@ class MonitoringApplicationController:
         m_fs = fstore.get_feature_set(
             endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
         )
+        batch_window_generator = _BatchWindowGenerator(window_length=window_length)
         try:
             for application in applications_names:
                 batch_window = batch_window_generator.get_batch_window(
@@ -473,3 +467,4 @@ def handler(context: nuclio_sdk.Context, event: nuclio_sdk.Event) -> None:
     :param event:   trigger event
     """
     MonitoringApplicationController().run()
+    # context.platform.set_termination_callback(callback=lambda: None)

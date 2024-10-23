@@ -1708,9 +1708,9 @@ class RunObject(RunTemplate):
             if key not in self.status.artifact_uris:
                 return None
 
-            # Get artifact by store URI
+            # Get artifact by store URI sanity (should have been enriched by now in status.artifacts property)
             artifact_uri = self.status.artifact_uris[key]
-            matching_artifacts = mlrun.datastore.get_store_resource(artifact_uri)
+            matching_artifacts = [mlrun.datastore.get_store_resource(artifact_uri)]
 
         # Sort matching artifacts by creation date in ascending order.
         # The last element in the list will be the one created most recently.

@@ -25,6 +25,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 :maxdepth: 1
 :hidden:
 genai_01_basic_tutorial
+genai-02-model-monitor-llm
 ml-index
 demos
 /cheat-sheet
@@ -42,9 +43,13 @@ demos
 :link: ./genai_01_basic_tutorial.html
 How to copy a dataset into your cluster, deploy an LLM in the cluster, and run your function.
 ```
+```{grid-item-card} Model monitoring using LLM
+:link: ./genai-02-model-monitor-llm.html
+Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
+```
 ```{grid-item-card} Model monitoring 
 :link: ./05-model-monitoring.html
-Set up an effective model monitoring system that leverages LLMs to maintain high standards for deployed models.
+Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection.
 ```
 
 ````
@@ -119,10 +124,3 @@ See {ref}`demos`.
 ## Cheat sheet
 
 If you already know the basics, use the [cheat sheet](../cheat-sheet.html) as a guide to typical use cases and their flows/SDK.
-
-## Running the demos in Open Source MLRun
-
-By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:
-- fraud-prevention-feature-store 
-- network-operations
-- azureml_demo

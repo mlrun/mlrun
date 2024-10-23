@@ -134,6 +134,7 @@ Collect production data, metadata, and metrics to tune the model and application
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Deploy an LLM using MLRun <./tutorials/genai_01_basic_tutorial.html>`
+{bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 <br> {octicon}`code-square` **Demo:**
 {bdg-link-primary}`Build & deploy custom (fine-tuned) LLM models and applications <https://github.com/mlrun/demo-llm-tuning/blob/main>`
@@ -271,6 +272,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 {bdg-link-info}`Model monitoring <./concepts/model-monitoring.html>`
 {bdg-link-info}`Alerts and notifications <./concepts/alerts-notifications.html>`
 <br> {octicon}`code-square` **Tutorials:**
+{bdg-link-primary}`Model monitoring using LLM  <./tutorials/-02-model-monitor-llm.html>`
 {bdg-link-primary}`Model monitoring and drift detection <./tutorials/05-model-monitoring.html>`
 `````
 

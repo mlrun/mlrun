@@ -17,10 +17,16 @@ import json
 import re
 from abc import ABC, abstractmethod
 
+from pydantic import validator
+from pydantic.dataclasses import dataclass
+
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
+from mlrun.utils import logger
+
+_RESULT_EXTRA_DATA_MAX_SIZE = 998
 
 
 class _ModelMonitoringApplicationDataRes(ABC):
@@ -38,7 +44,7 @@ class _ModelMonitoringApplicationDataRes(ABC):
         raise NotImplementedError
 
 
-@dataclasses.dataclass
+@dataclass
 class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
     """
     Class representing the result of a custom model monitoring application.
@@ -49,7 +55,10 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
     :param value:          (float) Value of the application result.
     :param kind:           (ResultKindApp) Kind of application result.
     :param status:         (ResultStatusApp) Status of the application result.
-    :param extra_data:     (dict) Extra data associated with the application result.
+    :param extra_data:     (dict) Extra data associated with the application result. Note that if the extra data is
+                                  exceeding the maximum size of 998 characters, it will be ignored and a message will
+                                  be logged. In this case, we recommend logging the extra data as a separate artifact or
+                                  shortening it.
     """
 
     name: str
@@ -72,8 +81,21 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
             mm_constant.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
         }
 
+    @validator("extra_data")
+    @classmethod
+    def validate_extra_data_len(cls, result_extra_data: dict):
+        extra_data_len = len(json.dumps(result_extra_data))
+        if extra_data_len > _RESULT_EXTRA_DATA_MAX_SIZE:
+            logger.info(
+                f"Extra data is too long and won't be stored: {extra_data_len} characters while the maximum "
+                f"is {_RESULT_EXTRA_DATA_MAX_SIZE} characters."
+                f"Please shorten the extra data or log it as a separate artifact."
+            )
+            return {}
+        return result_extra_data
 
-@dataclasses.dataclass
+
+@dataclass
 class ModelMonitoringApplicationMetric(_ModelMonitoringApplicationDataRes):
     """
     Class representing a single metric of a custom model monitoring application.

@@ -26,6 +26,7 @@ import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.serving.states
+from mlrun.common.schemas.model_monitoring import ResultData
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
@@ -163,20 +164,24 @@ def test_push_result_to_monitoring_writer_stream(
     monitoring_context: Mock,
     tmp_path: Path,
 ):
+    """
+    Test that the `_PushToMonitoringWriter` step pushes the results to the monitoring writer stream. In addition,
+    test that the extra data is not pushed to the stream if it exceeds the maximum size of 998 characters.
+    """
     mock_get_stream_pusher.return_value = Pusher(stream_uri=f"{tmp_path}/{STREAM_PATH}")
     results = [
         ModelMonitoringApplicationResult(
             name="res1",
             value=1,
             status=mm_constants.ResultStatusApp.detected,
-            extra_data={},
+            extra_data={"extra_data": "extra_data"},
             kind=mm_constants.ResultKindApp.data_drift,
         ),
         ModelMonitoringApplicationResult(
             name="res2",
             value=2,
             status=mm_constants.ResultStatusApp.detected,
-            extra_data={},
+            extra_data={"extra_data": "extra_data" * 1000},
             kind=mm_constants.ResultKindApp.data_drift,
         ),
         ModelMonitoringApplicationMetric(
@@ -184,21 +189,38 @@ def test_push_result_to_monitoring_writer_stream(
             value=2,
         ),
     ]
-    push_to_monitoring_writer.do(
-        (
-            results,
-            monitoring_context,
+
+    for result in results:
+        push_to_monitoring_writer.do(
+            (
+                [result],
+                monitoring_context,
+            )
         )
-    )
-    with open(f"{tmp_path}/{STREAM_PATH}") as json_file:
-        for i, line in enumerate(json_file):
-            loaded_data = json.loads(line.strip())
-            result = results[2 - i].to_dict()
-            if isinstance(results[2 - i], ModelMonitoringApplicationResult):
+
+        with open(f"{tmp_path}/{STREAM_PATH}") as json_file:
+            for i, line in enumerate(json_file):
+                loaded_data = json.loads(line.strip())
+            if isinstance(result, ModelMonitoringApplicationResult):
                 event_kind = mm_constants.WriterEventKind.RESULT
-                result["current_stats"] = {}
+                result = result.to_dict()
+                data_from_file = json.loads(loaded_data["data"])
+
+                if len(result["result_extra_data"]) <= 998:
+                    assert (
+                        data_from_file[ResultData.RESULT_EXTRA_DATA]
+                        == result[ResultData.RESULT_EXTRA_DATA]
+                    )
+                else:
+                    assert (
+                        data_from_file[ResultData.RESULT_EXTRA_DATA]
+                        != result[ResultData.RESULT_EXTRA_DATA]
+                    )
+                    result["extra_data"] = "{}"
             else:
                 event_kind = mm_constants.WriterEventKind.METRIC
+                result = result.to_dict()
+
             assert loaded_data == {
                 "application_name": "test_data_drift_app",
                 "endpoint_id": "test_endpoint_id",

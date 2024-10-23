@@ -83,9 +83,6 @@ class ApplicationResultTable(
     result_extra_data = Column(
         ResultData.RESULT_EXTRA_DATA, sqlalchemy.dialects.mysql.MEDIUMTEXT
     )
-    current_stats = Column(
-        ResultData.CURRENT_STATS, sqlalchemy.dialects.mysql.MEDIUMTEXT
-    )
 
 
 class ApplicationMetricsTable(

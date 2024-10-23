@@ -67,11 +67,6 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 ````{grid} 3
 :gutter: 2
 
-```{grid-item-card} Train, compare, and register Models
-:link: ./02-model-training.html
-Demo of training ML models, hyper-parameters, track and compare experiments, register and use the models.
-```
-
 ```{grid-item-card} Serving pre-trained ML/DL models
 :link: ./03-model-serving.html
 How to deploy real-time serving pipelines with MLRun Serving and different types of pre-trained ML/DL models.

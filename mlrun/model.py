@@ -1307,6 +1307,12 @@ class RunStatus(ModelObj):
 
     @property
     def artifacts(self):
+        """
+        Artifacts are lazy loaded to reduce memory consumption.
+        We keep artifact_uris (key -> store URI dictionary) to be able to get the run artifacts easily.
+        If the artifact is not already in the cache, we get it from the store (DB).
+        :return: List of artifact dictionaries
+        """
         self._artifacts = self._artifacts or []
         existing_artifact_keys = [
             artifact["metadata"]["key"] for artifact in self._artifacts

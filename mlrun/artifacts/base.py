@@ -766,7 +766,7 @@ def upload_extra_data(
     target_path = artifact.target_path
     for key, item in extra_data.items():
         if item is ...:
-            # Skip future links
+            # Skip future links (packagers feature for linking artifacts before they are logged)
             continue
 
         if isinstance(item, bytes):

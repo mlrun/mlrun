@@ -324,7 +324,7 @@ class ModelArtifact(Artifact):
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
 
-        spec_body = _sanitize_model_spec_yaml(self)
+        spec_body = _sanitize_and_serialize_model_spec_yaml(self)
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
@@ -401,12 +401,6 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
-def _get_src_path(model_spec: ModelArtifact, filename):
-    if model_spec.src_path:
-        return path.join(model_spec.src_path, filename)
-    return filename
-
-
 def get_model(model_dir, suffix=""):
     """return model file, model spec object, and list of extra data items
 
@@ -479,47 +473,6 @@ def get_model(model_dir, suffix=""):
     temp_path = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
     obj.download(temp_path)
     return temp_path, model_spec, extra_dataitems
-
-
-def _load_model_spec(spec_path):
-    data = mlrun.datastore.store_manager.object(url=spec_path).get()
-    spec = yaml.load(data, Loader=yaml.FullLoader)
-    return ModelArtifact.from_dict(spec)
-
-
-def _get_file_path(base_path: str, name: str, isdir=False):
-    if not is_relative_path(name):
-        return name
-    if not isdir:
-        base_path = path.dirname(base_path)
-    return path.join(base_path, name).replace("\\", "/")
-
-
-def _get_extra(target, extra_data, is_dir=False):
-    extra_dataitems = {}
-    for k, v in extra_data.items():
-        extra_dataitems[k] = mlrun.datastore.store_manager.object(
-            url=_get_file_path(target, v, isdir=is_dir), key=k
-        )
-    return extra_dataitems
-
-
-def _sanitize_model_spec_yaml(model: ModelArtifact):
-    model_dict = model.to_dict()
-
-    # The model spec yaml should not include the tag, as the same model can be used with different tags,
-    # and the tag is not part of the model spec but the metadata of the model artifact
-    model_dict["metadata"].pop("tag", None)
-
-    # Remove future packaging links
-    if model_dict["spec"].get("extra_data"):
-        model_dict["spec"]["extra_data"] = {
-            key: item
-            for key, item in model_dict["spec"]["extra_data"].items()
-            if item is not ...
-        }
-
-    return yaml.safe_dump(model_dict)
 
 
 def update_model(
@@ -603,7 +556,7 @@ def update_model(
 
     if write_spec_copy:
         spec_path = path.join(model_spec.target_path, model_spec_filename)
-        model_spec_yaml = _sanitize_model_spec_yaml(model_spec)
+        model_spec_yaml = _sanitize_and_serialize_model_spec_yaml(model_spec)
         mlrun.datastore.store_manager.object(url=spec_path).put(model_spec_yaml)
 
     model_spec.db_key = model_spec.db_key or model_spec.key
@@ -616,3 +569,58 @@ def update_model(
             project=model_spec.project,
         )
     return model_spec
+
+
+def _get_src_path(model_spec: ModelArtifact, filename):
+    if model_spec.src_path:
+        return path.join(model_spec.src_path, filename)
+    return filename
+
+
+def _load_model_spec(spec_path):
+    data = mlrun.datastore.store_manager.object(url=spec_path).get()
+    spec = yaml.load(data, Loader=yaml.FullLoader)
+    return ModelArtifact.from_dict(spec)
+
+
+def _get_file_path(base_path: str, name: str, isdir=False):
+    if not is_relative_path(name):
+        return name
+    if not isdir:
+        base_path = path.dirname(base_path)
+    return path.join(base_path, name).replace("\\", "/")
+
+
+def _get_extra(target, extra_data, is_dir=False):
+    extra_dataitems = {}
+    for k, v in extra_data.items():
+        extra_dataitems[k] = mlrun.datastore.store_manager.object(
+            url=_get_file_path(target, v, isdir=is_dir), key=k
+        )
+    return extra_dataitems
+
+
+def _sanitize_and_serialize_model_spec_yaml(model: ModelArtifact):
+    model_dict = _sanitize_model_spec(model)
+    return _serialize_model_spec_yaml(model_dict)
+
+
+def _sanitize_model_spec(model):
+    model_dict = model.to_dict()
+
+    # The model spec yaml should not include the tag, as the same model can be used with different tags,
+    # and the tag is not part of the model spec but the metadata of the model artifact
+    model_dict["metadata"].pop("tag", None)
+
+    # Remove future packaging links
+    if model_dict["spec"].get("extra_data"):
+        model_dict["spec"]["extra_data"] = {
+            key: item
+            for key, item in model_dict["spec"]["extra_data"].items()
+            if item is not ...
+        }
+    return model_dict
+
+
+def _serialize_model_spec_yaml(model_dict):
+    return yaml.safe_dump(model_dict)

@@ -92,8 +92,8 @@
 |ML-7480|New topic: [Setup for ARM64 (Apple Silicon) Users](../install/remote.html#note-for-arm64-apple-silicon-users)|
 |ML-7669|New topic: [Setting the log level](../runtimes/configuring-job-resources.html#setting-the-log-level).|
 |NA     |New tutorial: {ref}`genai-02-mm-llm`.|
-|NA     |Updated page: {ref}`model-monitoring-des`.|
 |NA     |New page: {ref}`mm-applications`.
+|NA     |Updated page: {ref}`model-monitoring-des`.|
 |NA     |Updated {ref}`ecosystem`.|
 
 

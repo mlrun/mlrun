@@ -16,8 +16,7 @@
 import tempfile
 import typing
 
-import kfp
-from kfp.compiler import Compiler
+from mlrun_pipelines.imports import Compiler, kfp
 
 
 def compile_pipeline(

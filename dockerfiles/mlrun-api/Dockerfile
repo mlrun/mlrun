@@ -55,10 +55,7 @@ COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 
-RUN python -m pip install \
-    -r requirements.txt \
-    -r extras-requirements.txt \
-    -r mlrun-api-requirements.txt
+
 
 ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
 ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
@@ -74,9 +71,14 @@ ENV UVICORN_TIMEOUT_KEEP_ALIVE=${MLRUN_HTTPDB__HTTP_CONNECTION_TIMEOUT_KEEP_ALIV
 
 COPY . .
 
-RUN python -m pip install .[complete-api] &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-common &&\
-    pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN pip install ./pipeline-adapters/mlrun-pipelines-kfp-common
+RUN pip install ./pipeline-adapters/mlrun-pipelines-kfp-v1-8
+RUN python -m pip install \
+    -r requirements.txt \
+    -r extras-requirements.txt \
+    -r mlrun-api-requirements.txt
+RUN pip install .[complete-api]
+
 
 VOLUME /mlrun/db
 

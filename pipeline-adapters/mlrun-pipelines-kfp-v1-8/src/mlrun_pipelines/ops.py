@@ -18,7 +18,6 @@ import os.path
 
 import inflection
 import mlrun_pipelines.common.ops
-from kfp import dsl
 from kubernetes import client as k8s_client
 from mlrun_pipelines.common.helpers import (
     FUNCTION_ANNOTATION,
@@ -26,6 +25,7 @@ from mlrun_pipelines.common.helpers import (
     RUN_ANNOTATION,
 )
 from mlrun_pipelines.common.ops import KFPMETA_DIR, PipelineRunType
+from mlrun_pipelines.imports import dsl
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -33,9 +33,6 @@ import mlrun.common.runtimes.constants
 import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.utils import get_in
-
-# Disable the warning about reusing components
-dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 
 def generate_deployer_pipeline_node(

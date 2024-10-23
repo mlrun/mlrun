@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Union
 
 import pandas as pd
@@ -81,6 +81,9 @@ class TDEngineConnector(TSDBConnector):
                 self.database
             ),
             mm_schemas.TDEngineSuperTables.PREDICTIONS: tdengine_schemas.Predictions(
+                self.database
+            ),
+            mm_schemas.TDEngineSuperTables.ERRORS: tdengine_schemas.Errors(
                 self.database
             ),
         }
@@ -196,8 +199,37 @@ class TDEngineConnector(TSDBConnector):
             after="ProcessBeforeTDEngine",
         )
 
-    def handle_model_error(self, graph, **kwargs) -> None:
-        pass
+    def handle_model_error(
+        self,
+        graph,
+        tsdb_batching_max_events: int = 1000,
+        tsdb_batching_timeout_secs: int = 30,
+        **kwargs,
+    ) -> None:
+        graph.add_step(
+            "mlrun.model_monitoring.db.tsdb.tdengine.stream_graph_steps.ErrorExtractor",
+            name="error_extractor",
+            after="ForwardError",
+        )
+        graph.add_step(
+            "storey.TDEngineTarget",
+            name="tsdb_error",
+            after="error_extractor",
+            url=self._tdengine_connection_string,
+            supertable=mm_schemas.TDEngineSuperTables.ERRORS,
+            table_col=mm_schemas.EventFieldType.TABLE_COLUMN,
+            time_col=mm_schemas.EventFieldType.TIME,
+            database=self.database,
+            columns=[
+                mm_schemas.EventFieldType.MODEL_ERROR,
+            ],
+            tag_cols=[
+                mm_schemas.EventFieldType.PROJECT,
+                mm_schemas.EventFieldType.ENDPOINT_ID,
+            ],
+            max_events=tsdb_batching_max_events,
+            flush_after_seconds=tsdb_batching_timeout_secs,
+        )
 
     def delete_tsdb_resources(self):
         """
@@ -245,6 +277,10 @@ class TDEngineConnector(TSDBConnector):
         limit: typing.Optional[int] = None,
         sliding_window_step: typing.Optional[str] = None,
         timestamp_column: str = mm_schemas.EventFieldType.TIME,
+        group_by: typing.Optional[Union[list[str], str]] = None,
+        preform_agg_columns: typing.Optional[list] = None,
+        order_by: typing.Optional[str] = None,
+        desc: typing.Optional[bool] = None,
     ) -> pd.DataFrame:
         """
         Getting records from TSDB data collection.
@@ -288,6 +324,10 @@ class TDEngineConnector(TSDBConnector):
             sliding_window_step=sliding_window_step,
             timestamp_column=timestamp_column,
             database=self.database,
+            group_by=group_by,
+            preform_agg_funcs_columns=preform_agg_columns,
+            order_by=order_by,
+            desc=desc,
         )
         logger.debug("Querying TDEngine", query=full_query)
         try:
@@ -438,50 +478,216 @@ class TDEngineConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        start, end = self._get_start_end(start, end)
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+                mm_schemas.EventFieldType.TIME,
+                mm_schemas.EventFieldType.LATENCY,
+            ],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            timestamp_column=mm_schemas.EventFieldType.TIME,
+            agg_funcs=["last"],
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.EventFieldType.TIME],
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        df.rename(
+            columns={
+                f"last({mm_schemas.EventFieldType.TIME})": mm_schemas.EventFieldType.LAST_REQUEST,
+                f"{mm_schemas.EventFieldType.LATENCY}": "last_latency",
+            },
+            inplace=True,
+        )
+        df[mm_schemas.EventFieldType.LAST_REQUEST] = df[
+            mm_schemas.EventFieldType.LAST_REQUEST
+        ].map(
+            lambda last_request: datetime.strptime(
+                last_request, "%Y-%m-%d %H:%M:%S.%f %z"
+            ).astimezone(tz=timezone.utc)
+        )
+        return df
 
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "now-24h",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        start = start or "now"
+        start, end = self._get_start_end(start, end, delta_start=-24)
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.ResultData.RESULT_STATUS,
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            ],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            agg_funcs=["max"],
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.ResultData.RESULT_STATUS],
+        )
+        df.rename(
+            columns={
+                f"max({mm_schemas.ResultData.RESULT_STATUS})": mm_schemas.ResultData.RESULT_STATUS
+            },
+            inplace=True,
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        return df
 
     def get_metrics_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        start, end = self._get_start_end(start, end)
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.METRICS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                mm_schemas.MetricData.METRIC_NAME,
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            ],
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.MetricData.METRIC_NAME,
+            ],
+            agg_funcs=["last"],
+        )
+        df.rename(
+            columns={
+                f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                f"last({mm_schemas.MetricData.METRIC_NAME})": mm_schemas.MetricData.METRIC_NAME,
+                f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            },
+            inplace=True,
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        return df
 
     def get_results_metadata(
         self,
         endpoint_id: str,
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        start, end = self._get_start_end(start, end)
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.APP_RESULTS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_NAME,
+                mm_schemas.ResultData.RESULT_KIND,
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            ],
+            filter_query=f"endpoint_id='{endpoint_id}'",
+            timestamp_column=mm_schemas.WriterEvent.END_INFER_TIME,
+            group_by=[
+                mm_schemas.WriterEvent.APPLICATION_NAME,
+                mm_schemas.ResultData.RESULT_NAME,
+            ],
+            agg_funcs=["last"],
+        )
+        df.rename(
+            columns={
+                f"last({mm_schemas.ApplicationEvent.APPLICATION_NAME})": mm_schemas.ApplicationEvent.APPLICATION_NAME,
+                f"last({mm_schemas.ResultData.RESULT_NAME})": mm_schemas.ResultData.RESULT_NAME,
+                f"last({mm_schemas.ResultData.RESULT_KIND})": mm_schemas.ResultData.RESULT_KIND,
+                f"last({mm_schemas.SchedulingKeys.ENDPOINT_ID})": mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            },
+            inplace=True,
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        return df
 
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        start, end = self._get_start_end(start, end)
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.ERRORS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.EventFieldType.MODEL_ERROR,
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            ],
+            agg_funcs=["count"],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.EventFieldType.MODEL_ERROR],
+        )
+        df.rename(
+            columns={f"count({mm_schemas.EventFieldType.MODEL_ERROR})": "error_count"},
+            inplace=True,
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        return df
 
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Union[datetime, str] = "0",
-        end: Union[datetime, str] = "now",
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
-        pass
+        endpoint_ids = (
+            endpoint_ids if isinstance(endpoint_ids, list) else [endpoint_ids]
+        )
+        start, end = self._get_start_end(start, end)
+        df = self._get_records(
+            table=mm_schemas.TDEngineSuperTables.PREDICTIONS,
+            start=start,
+            end=end,
+            columns=[
+                mm_schemas.EventFieldType.LATENCY,
+                mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            ],
+            agg_funcs=["avg"],
+            filter_query=f"endpoint_id IN({str(endpoint_ids)[1:-1]})",
+            group_by=mm_schemas.SchedulingKeys.ENDPOINT_ID,
+            preform_agg_columns=[mm_schemas.EventFieldType.LATENCY],
+        )
+        df.rename(
+            columns={f"avg({mm_schemas.EventFieldType.LATENCY})": "avg_latency"},
+            inplace=True,
+        )
+        if not df.empty:
+            df.dropna(inplace=True)
+        return df
 
     # Note: this function serves as a reference for checking the TSDB for the existence of a metric.
     #

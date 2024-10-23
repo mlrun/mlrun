@@ -171,18 +171,8 @@ class _V3IORecordsChecker:
     def _test_tsdb_record(
         cls, ep_id: str, last_request: datetime, error_count: float
     ) -> None:
-        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            # V3IO TSDB
-            df: pd.DataFrame = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
-        else:
-            # TDEngine
-            df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=mm_constants.TDEngineSuperTables.APP_RESULTS,
-                start=datetime.now().astimezone()
-                - timedelta(minutes=10 * cls.app_interval),
-                end=datetime.now().astimezone(),
-                timestamp_column=mm_constants.WriterEvent.END_INFER_TIME,
-            )
+        # V3IO TSDB
+        df: pd.DataFrame = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
 
         assert not df.empty, "No TSDB data"
         assert (
@@ -202,22 +192,19 @@ class _V3IORecordsChecker:
                     set(tsdb_metrics[app_name]) == app_metrics
                 ), "The TSDB saved metrics are different than expected"
 
-        if cls._tsdb_storage.type == mm_constants.TSDBTarget.V3IO_TSDB:
-            cls._logger.debug("Checking the MEP status")
-            rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
-            cls._check_valid_tsdb_result(rs_tsdb, ep_id, "result_status", 2.0)
+        cls._logger.debug("Checking the MEP status")
+        rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
+        cls._check_valid_tsdb_result(rs_tsdb, ep_id, "result_status", 2.0)
 
-            if last_request:
-                cls._logger.debug("Checking the MEP last_request")
-                lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
-                cls._check_valid_tsdb_result(
-                    lr_tsdb, ep_id, "last_request", last_request
-                )
+        if last_request:
+            cls._logger.debug("Checking the MEP last_request")
+            lr_tsdb = cls._tsdb_storage.get_last_request(endpoint_ids=ep_id)
+            cls._check_valid_tsdb_result(lr_tsdb, ep_id, "last_request", last_request)
 
-            if error_count:
-                cls._logger.debug("Checking the MEP error_count")
-                ec_tsdb = cls._tsdb_storage.get_error_count(endpoint_ids=ep_id)
-                cls._check_valid_tsdb_result(ec_tsdb, ep_id, "error_count", error_count)
+        if error_count:
+            cls._logger.debug("Checking the MEP error_count")
+            ec_tsdb = cls._tsdb_storage.get_error_count(endpoint_ids=ep_id)
+            cls._check_valid_tsdb_result(ec_tsdb, ep_id, "error_count", error_count)
 
     @classmethod
     def _check_valid_tsdb_result(
@@ -227,9 +214,19 @@ class _V3IORecordsChecker:
         assert (
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
-        assert (
-            df[df["endpoint_id"] == ep_id][result_name].item() == result_value
-        ), f"The {result_name} is different than expected for {ep_id}"
+        if isinstance(result_value, datetime) or isinstance(result_value, pd.Timestamp):
+            # Note: We check for differences in time is less than 1 ms because this is the highest resolution we get
+            # from TDEngine
+            assert abs(
+                df[df["endpoint_id"] == ep_id][result_name].item() - result_value
+            ) < np.timedelta64(1, "ms"), (
+                f"The {result_name} is different than expected for {ep_id}, "
+                f"for timestamp we use TDEngine resolution that is 1 ms"
+            )
+        else:
+            assert (
+                df[df["endpoint_id"] == ep_id][result_name].item() == result_value
+            ), f"The {result_name} is different than expected for {ep_id}"
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:

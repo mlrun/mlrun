@@ -14,6 +14,7 @@
 
 from .constants import (
     V3IO_MODEL_MONITORING_DB,
+    ApplicationEvent,
     ControllerPolicy,
     DriftStatus,
     EndpointType,
